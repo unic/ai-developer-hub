@@ -223,6 +223,9 @@ export function NewToolForm() {
                               step="0.01"
                               placeholder="19.00"
                               {...field}
+                              onChange={(e) =>
+                                field.onChange(e.target.valueAsNumber)
+                              }
                             />
                           </FormControl>
                           <FormMessage />
