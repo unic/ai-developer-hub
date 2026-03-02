@@ -24,7 +24,8 @@
       "Bash(node -e \"console.log\\(require\\(''zod/package.json''\\).version\\)\")",
       "Bash(npx tsc --noEmit)",
       "Bash(npx next lint)",
-      "Bash(npx eslint .)"
+      "Bash(npx eslint .)",
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(p.scripts[''db:seed'']\\)\")"
     ]
   }
 }
