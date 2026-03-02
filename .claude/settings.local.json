@@ -5,7 +5,26 @@
       "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
       "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/setup-plan.ps1 -Json)",
       "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/update-agent-context.ps1 -AgentType claude)",
-      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json)"
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json)",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)",
+      "Bash(pnpm create next-app@latest . --typescript --tailwind --eslint --app --src-dir --use-pnpm)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(corepack enable)",
+      "Bash(corepack prepare pnpm@latest --activate)",
+      "Bash(npm install -g pnpm)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm init)",
+      "Bash(pnpm add next@latest react@latest react-dom@latest)",
+      "Bash(pnpm add next@15)",
+      "Bash(pnpm add -D typescript @types/node @types/react @types/react-dom tailwindcss @tailwindcss/postcss postcss eslint eslint-config-next)",
+      "Bash(pnpm *)",
+      "Bash(pnpm add @neondatabase/serverless drizzle-orm next-auth@5 @auth/drizzle-adapter zod react-hook-form @hookform/resolvers recharts @tanstack/react-table bcryptjs)",
+      "Bash(node -e \"const z = require\\(''zod''\\); console.log\\(z.ZodString ? ''zod v3'' : ''unknown''\\)\")",
+      "Bash(node -e \"console.log\\(require\\(''zod/package.json''\\).version\\)\")",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx next lint)",
+      "Bash(npx eslint .)"
     ]
   }
 }

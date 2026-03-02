@@ -1,0 +1,216 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { bulkImportUsers } from "@/actions/users";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+interface ParsedUser {
+  name: string;
+  email: string;
+  department: string;
+  role: string;
+  githubUsername: string;
+  valid: boolean;
+  error?: string;
+}
+
+function parseCSV(text: string): ParsedUser[] {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+
+  return lines.slice(1).map((line) => {
+    const values = line.split(",").map((v) => v.trim());
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      row[h] = values[i] || "";
+    });
+
+    const user: ParsedUser = {
+      name: row.name || "",
+      email: row.email || "",
+      department: row.department || "",
+      role: row.role || "viewer",
+      githubUsername: row.github_username || row.githubusername || "",
+      valid: true,
+    };
+
+    if (!user.name) {
+      user.valid = false;
+      user.error = "Name is required";
+    } else if (!user.email || !user.email.includes("@")) {
+      user.valid = false;
+      user.error = "Valid email is required";
+    } else if (!user.department) {
+      user.valid = false;
+      user.error = "Department is required";
+    }
+
+    return user;
+  });
+}
+
+export function BulkImportForm() {
+  const router = useRouter();
+  const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
+  const [importing, setImporting] = useState(false);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setParsedUsers(parseCSV(text));
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleImport() {
+    const validUsers = parsedUsers
+      .filter((u) => u.valid)
+      .map(({ name, email, department, role, githubUsername }) => ({
+        name,
+        email,
+        department,
+        role,
+        githubUsername: githubUsername || undefined,
+      }));
+
+    if (validUsers.length === 0) {
+      toast.error("No valid users to import");
+      return;
+    }
+
+    setImporting(true);
+    const result = await bulkImportUsers({ users: validUsers });
+    setImporting(false);
+
+    if (result.success) {
+      toast.success(
+        `Imported ${result.data.imported} user(s). ${result.data.failed} failed.`
+      );
+      if (result.data.imported > 0) {
+        router.push("/users");
+      }
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  const validCount = parsedUsers.filter((u) => u.valid).length;
+  const invalidCount = parsedUsers.filter((u) => !u.valid).length;
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Bulk Import Users</h1>
+        <p className="text-muted-foreground">
+          Upload a CSV file with columns: name, email, department, role,
+          github_username
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload CSV</CardTitle>
+          <CardDescription>
+            Default password &quot;changeme123&quot; will be set for all imported users.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Input
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+            className="max-w-sm"
+          />
+        </CardContent>
+      </Card>
+
+      {parsedUsers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Preview</CardTitle>
+            <CardDescription>
+              {validCount} valid, {invalidCount} invalid of{" "}
+              {parsedUsers.length} total
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {parsedUsers.map((user, i) => (
+                    <TableRow
+                      key={i}
+                      className={!user.valid ? "bg-destructive/10" : ""}
+                    >
+                      <TableCell>{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.department}</TableCell>
+                      <TableCell>{user.role}</TableCell>
+                      <TableCell>
+                        {user.valid ? (
+                          <Badge>Valid</Badge>
+                        ) : (
+                          <Badge variant="destructive">{user.error}</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4 flex gap-3">
+              <Button
+                onClick={handleImport}
+                disabled={importing || validCount === 0}
+              >
+                {importing
+                  ? "Importing..."
+                  : `Import ${validCount} User(s)`}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => router.push("/users")}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

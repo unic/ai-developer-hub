@@ -19,14 +19,14 @@
 
 **Purpose**: Project scaffolding, dependency installation, tooling configuration
 
-- [ ] T001 Scaffold Next.js 15 project with `pnpm create next-app@latest . --typescript --tailwind --eslint --app --src-dir --use-pnpm`
-- [ ] T002 Install all production dependencies: `@neondatabase/serverless drizzle-orm next-auth@5 @auth/drizzle-adapter zod react-hook-form @hookform/resolvers recharts @tanstack/react-table bcryptjs`
-- [ ] T003 Install all dev dependencies: `drizzle-kit @types/bcryptjs vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/dom vite-tsconfig-paths @playwright/test @axe-core/playwright @lhci/cli eslint-plugin-jsx-a11y prettier`
-- [ ] T004 Initialize shadcn/ui (`pnpm dlx shadcn@latest init`) and add all 24 required components: button, card, input, label, select, textarea, table, form, dialog, alert, alert-dialog, badge, tabs, sidebar, breadcrumb, dropdown-menu, command, skeleton, switch, calendar, chart, separator, toast, combobox
-- [ ] T005 [P] Create project directory structure: src/actions/, src/types/, src/lib/db/migrations/, tests/unit/, tests/integration/, tests/e2e/
-- [ ] T006 [P] Create .env.local.example with placeholder variables: DATABASE_URL, DATABASE_URL_UNPOOLED, AUTH_SECRET, NEXTAUTH_URL
-- [ ] T007 [P] Create drizzle.config.ts at project root with schema path `./src/lib/db/schema.ts`, output `./src/lib/db/migrations`, PostgreSQL dialect, and `DATABASE_URL_UNPOOLED` connection
-- [ ] T008 [P] Add all package.json scripts per quickstart.md: dev, build, start, lint, format, format:check, typecheck, db:push, db:generate, db:migrate, db:seed, test, test:watch, test:integration, test:e2e, test:a11y, lighthouse
+- [x] T001 Scaffold Next.js 15 project with `pnpm create next-app@latest . --typescript --tailwind --eslint --app --src-dir --use-pnpm`
+- [x] T002 Install all production dependencies: `@neondatabase/serverless drizzle-orm next-auth@5 @auth/drizzle-adapter zod react-hook-form @hookform/resolvers recharts @tanstack/react-table bcryptjs`
+- [x] T003 Install all dev dependencies: `drizzle-kit @types/bcryptjs vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/dom vite-tsconfig-paths @playwright/test @axe-core/playwright @lhci/cli eslint-plugin-jsx-a11y prettier`
+- [x] T004 Initialize shadcn/ui (`pnpm dlx shadcn@latest init`) and add all 24 required components: button, card, input, label, select, textarea, table, form, dialog, alert, alert-dialog, badge, tabs, sidebar, breadcrumb, dropdown-menu, command, skeleton, switch, calendar, chart, separator, toast, combobox
+- [x] T005 [P] Create project directory structure: src/actions/, src/types/, src/lib/db/migrations/, tests/unit/, tests/integration/, tests/e2e/
+- [x] T006 [P] Create .env.local.example with placeholder variables: DATABASE_URL, DATABASE_URL_UNPOOLED, AUTH_SECRET, NEXTAUTH_URL
+- [x] T007 [P] Create drizzle.config.ts at project root with schema path `./src/lib/db/schema.ts`, output `./src/lib/db/migrations`, PostgreSQL dialect, and `DATABASE_URL_UNPOOLED` connection
+- [x] T008 [P] Add all package.json scripts per quickstart.md: dev, build, start, lint, format, format:check, typecheck, db:push, db:generate, db:migrate, db:seed, test, test:watch, test:integration, test:e2e, test:a11y, lighthouse
 
 ---
 
@@ -36,21 +36,21 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T009 [P] Define complete Drizzle ORM schema for all 7 entities (users, ai_tools, access_tiers, license_assignments, annual_budgets, budget_periods, change_history) with pgEnum types, column constraints, indexes, and Drizzle relations in src/lib/db/schema.ts
-- [ ] T010 [P] Create database connection module using Neon serverless WebSocket Pool adapter (`@neondatabase/serverless` Pool + `drizzle-orm/neon-serverless`) with `max: 1` pool size in src/lib/db/index.ts
-- [ ] T011 [P] Create shared TypeScript types: ActionResult<T> union type, role/status enum types, entity select/insert types re-exported from Drizzle schema in src/types/index.ts
-- [ ] T012 [P] Create shared Zod validation schemas for all entities (loginSchema, toolSchema, tierSchema, userSchema, bulkImportUserSchema, assignmentSchema, budgetSchema, budgetAllocationSchema) with client+server reuse in src/lib/validators.ts
-- [ ] T013 [P] Create utility functions: cn() class merge helper (if not from shadcn init), formatCurrency(cents) → dollar string, formatDate(timestamp) → formatted string in src/lib/utils.ts
-- [ ] T014 Configure NextAuth.js v5 with Credentials provider (email/password + bcryptjs verify), Drizzle adapter, JWT session strategy injecting user id and role, and authorize callback querying users table in src/lib/auth.ts
-- [ ] T015 [P] Create NextAuth API route handler exporting GET and POST from auth config in src/app/api/auth/[...nextauth]/route.ts
-- [ ] T016 Create auth middleware matching all routes except /login and static assets, redirecting unauthenticated users to /login in src/middleware.ts
-- [ ] T017 Create login page with email/password form using React Hook Form + loginSchema Zod resolver, signIn() call, and error display in src/app/(auth)/login/page.tsx
-- [ ] T018 [P] Create minimal auth layout with centered card and no sidebar for login pages in src/app/(auth)/layout.tsx
-- [ ] T019 Create root layout with shadcn/ui Sidebar navigation (links: Dashboard, Tools, Users, Assignments, Budget, Reports), user session display, sign-out button, and role-based menu item visibility in src/app/layout.tsx
-- [ ] T020 [P] Create placeholder dashboard page with welcome message and navigation cards in src/app/page.tsx
-- [ ] T021 Implement change history recording helpers: recordCreation(), recordUpdate() (per-field diff), recordStatusChange(), and getEntityHistory() query in src/actions/history.ts
-- [ ] T022 Create database seed script that hashes a default admin password with bcryptjs and inserts initial admin user into users table in src/lib/db/seed.ts
-- [ ] T023 Push database schema to Neon with `pnpm db:push`, run seed with `pnpm db:seed`, and verify login works on `pnpm dev`
+- [x] T009 [P] Define complete Drizzle ORM schema for all 7 entities (users, ai_tools, access_tiers, license_assignments, annual_budgets, budget_periods, change_history) with pgEnum types, column constraints, indexes, and Drizzle relations in src/lib/db/schema.ts
+- [x] T010 [P] Create database connection module using Neon serverless WebSocket Pool adapter (`@neondatabase/serverless` Pool + `drizzle-orm/neon-serverless`) with `max: 1` pool size in src/lib/db/index.ts
+- [x] T011 [P] Create shared TypeScript types: ActionResult<T> union type, role/status enum types, entity select/insert types re-exported from Drizzle schema in src/types/index.ts
+- [x] T012 [P] Create shared Zod validation schemas for all entities (loginSchema, toolSchema, tierSchema, userSchema, bulkImportUserSchema, assignmentSchema, budgetSchema, budgetAllocationSchema) with client+server reuse in src/lib/validators.ts
+- [x] T013 [P] Create utility functions: cn() class merge helper (if not from shadcn init), formatCurrency(cents) → dollar string, formatDate(timestamp) → formatted string in src/lib/utils.ts
+- [x] T014 Configure NextAuth.js v5 with Credentials provider (email/password + bcryptjs verify), Drizzle adapter, JWT session strategy injecting user id and role, and authorize callback querying users table in src/lib/auth.ts
+- [x] T015 [P] Create NextAuth API route handler exporting GET and POST from auth config in src/app/api/auth/[...nextauth]/route.ts
+- [x] T016 Create auth middleware matching all routes except /login and static assets, redirecting unauthenticated users to /login in src/middleware.ts
+- [x] T017 Create login page with email/password form using React Hook Form + loginSchema Zod resolver, signIn() call, and error display in src/app/(auth)/login/page.tsx
+- [x] T018 [P] Create minimal auth layout with centered card and no sidebar for login pages in src/app/(auth)/layout.tsx
+- [x] T019 Create root layout with shadcn/ui Sidebar navigation (links: Dashboard, Tools, Users, Assignments, Budget, Reports), user session display, sign-out button, and role-based menu item visibility in src/app/layout.tsx
+- [x] T020 [P] Create placeholder dashboard page with welcome message and navigation cards in src/app/page.tsx
+- [x] T021 Implement change history recording helpers: recordCreation(), recordUpdate() (per-field diff), recordStatusChange(), and getEntityHistory() query in src/actions/history.ts
+- [x] T022 Create database seed script that hashes a default admin password with bcryptjs and inserts initial admin user into users table in src/lib/db/seed.ts
+- [x] T023 Push database schema to Neon with `pnpm db:push`, run seed with `pnpm db:seed`, and verify login works on `pnpm dev`
 
 **Checkpoint**: Foundation ready — authentication works, layout renders, database connected. User story implementation can now begin.
 
@@ -64,11 +64,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T024 [US1] Implement tool server actions (createTool, updateTool, archiveTool) with Zod validation, admin auth guard, FR-019 active-assignment deletion check, change history recording, and revalidatePath in src/actions/tools.ts
-- [ ] T025 [US1] Implement tier server actions (createTier, updateTier) with per-tool name uniqueness check, admin auth guard, change history recording, and revalidatePath in src/actions/tools.ts
-- [ ] T026 [P] [US1] Create tool list page as Server Component with DataTable: columns (name, vendor, tier count, active licenses, status), client-side sorting, filtering by vendor/status, global search, and Admin row actions dropdown in src/app/tools/page.tsx
-- [ ] T027 [P] [US1] Create add-new-tool form page with React Hook Form + toolSchema, inline tier definition via dynamic field array (name, description, monthly cost per tier), and createTool + createTier server action submission in src/app/tools/new/page.tsx
-- [ ] T028 [US1] Create tool detail/edit page with tool edit form, tier management table (add/edit tiers inline), active assignment count per tier, archive button with FR-019 guard, and change history timeline in src/app/tools/[id]/page.tsx
+- [x] T024 [US1] Implement tool server actions (createTool, updateTool, archiveTool) with Zod validation, admin auth guard, FR-019 active-assignment deletion check, change history recording, and revalidatePath in src/actions/tools.ts
+- [x] T025 [US1] Implement tier server actions (createTier, updateTier) with per-tool name uniqueness check, admin auth guard, change history recording, and revalidatePath in src/actions/tools.ts
+- [x] T026 [P] [US1] Create tool list page as Server Component with DataTable: columns (name, vendor, tier count, active licenses, status), client-side sorting, filtering by vendor/status, global search, and Admin row actions dropdown in src/app/tools/page.tsx
+- [x] T027 [P] [US1] Create add-new-tool form page with React Hook Form + toolSchema, inline tier definition via dynamic field array (name, description, monthly cost per tier), and createTool + createTier server action submission in src/app/tools/new/page.tsx
+- [x] T028 [US1] Create tool detail/edit page with tool edit form, tier management table (add/edit tiers inline), active assignment count per tier, archive button with FR-019 guard, and change history timeline in src/app/tools/[id]/page.tsx
 
 **Checkpoint**: Tool registry fully functional — admins can add, edit, view, and archive AI tools with tiers and pricing.
 
@@ -82,11 +82,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Implement user server actions: createUser (email uniqueness), updateUser, deactivateUser (cascading license revocation via transaction per FR-007), bulkImportUsers (per-row validation, partial-success per FR-018) with admin auth guard and change history in src/actions/users.ts
-- [ ] T030 [P] [US3] Create user directory page with DataTable: columns (name, email, department, role, status, assigned tool count), filter by department/status, global search, and Admin row actions in src/app/users/page.tsx
-- [ ] T031 [P] [US3] Create add-new-user form page with React Hook Form + userSchema, all required fields (name, email, department, role), optional GitHub username, and createUser submission in src/app/users/new/page.tsx
-- [ ] T032 [US3] Create user detail/edit page with edit form, assigned tools list (read-only for now), deactivation with AlertDialog confirmation, and change history timeline in src/app/users/[id]/page.tsx
-- [ ] T033 [US3] Create bulk import page with CSV file upload input, client-side CSV parsing, validation preview table with error highlighting, import confirmation, and bulkImportUsers action call with result summary in src/app/users/import/page.tsx
+- [x] T029 [US3] Implement user server actions: createUser (email uniqueness), updateUser, deactivateUser (cascading license revocation via transaction per FR-007), bulkImportUsers (per-row validation, partial-success per FR-018) with admin auth guard and change history in src/actions/users.ts
+- [x] T030 [P] [US3] Create user directory page with DataTable: columns (name, email, department, role, status, assigned tool count), filter by department/status, global search, and Admin row actions in src/app/users/page.tsx
+- [x] T031 [P] [US3] Create add-new-user form page with React Hook Form + userSchema, all required fields (name, email, department, role), optional GitHub username, and createUser submission in src/app/users/new/page.tsx
+- [x] T032 [US3] Create user detail/edit page with edit form, assigned tools list (read-only for now), deactivation with AlertDialog confirmation, and change history timeline in src/app/users/[id]/page.tsx
+- [x] T033 [US3] Create bulk import page with CSV file upload input, client-side CSV parsing, validation preview table with error highlighting, import confirmation, and bulkImportUsers action call with result summary in src/app/users/import/page.tsx
 
 **Checkpoint**: User management fully functional — admins can manage the employee directory, deactivation cascades to licenses.
 
@@ -102,10 +102,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Implement assignment server actions: assignLicense (capacity check per FR-006, upgrade/downgrade via deactivate-old+create-new in transaction, cost_at_assignment_cents snapshot per FR-020), revokeLicense (set inactive + revoked_at) with admin auth guard and change history in src/actions/assignments.ts
-- [ ] T035 [US2] Create license assignments page with DataTable: columns (user name, tool name, tier, monthly cost, status, assigned date, revoked date), filters by user/tool/tier/status, Admin assign-license dialog (select user → select tool → select tier with cost display), and revoke action button in src/app/assignments/page.tsx
-- [ ] T036 [P] [US2] Enhance user detail page to display assigned tools list with tier name, monthly cost, assignment date, and revoke button (Admin only) in src/app/users/[id]/page.tsx
-- [ ] T037 [P] [US2] Enhance tool detail page to display active license count, license capacity utilization bar, and assigned users list with tier info in src/app/tools/[id]/page.tsx
+- [x] T034 [US2] Implement assignment server actions: assignLicense (capacity check per FR-006, upgrade/downgrade via deactivate-old+create-new in transaction, cost_at_assignment_cents snapshot per FR-020), revokeLicense (set inactive + revoked_at) with admin auth guard and change history in src/actions/assignments.ts
+- [x] T035 [US2] Create license assignments page with DataTable: columns (user name, tool name, tier, monthly cost, status, assigned date, revoked date), filters by user/tool/tier/status, Admin assign-license dialog (select user → select tool → select tier with cost display), and revoke action button in src/app/assignments/page.tsx
+- [x] T036 [P] [US2] Enhance user detail page to display assigned tools list with tier name, monthly cost, assignment date, and revoke button (Admin only) in src/app/users/[id]/page.tsx
+- [x] T037 [P] [US2] Enhance tool detail page to display active license count, license capacity utilization bar, and assigned users list with tier info in src/app/tools/[id]/page.tsx
 
 **Checkpoint**: License tracking fully functional — admins can assign, upgrade/downgrade, and revoke licenses with capacity enforcement.
 
@@ -121,8 +121,8 @@
 
 ### Implementation for User Story 6
 
-- [ ] T038 [US6] Add tier deactivation logic to updateTier action: validate no active assignments before deactivation, update is_active flag, record change history in src/actions/tools.ts
-- [ ] T039 [US6] Enhance tier management UI in tool detail page: add per-tier active assignment count badge, deactivation toggle with validation feedback, cost-edit notice explaining prospective-only pricing (FR-020) in src/app/tools/[id]/page.tsx
+- [x] T038 [US6] Add tier deactivation logic to updateTier action: validate no active assignments before deactivation, update is_active flag, record change history in src/actions/tools.ts
+- [x] T039 [US6] Enhance tier management UI in tool detail page: add per-tier active assignment count badge, deactivation toggle with validation feedback, cost-edit notice explaining prospective-only pricing (FR-020) in src/app/tools/[id]/page.tsx
 
 **Checkpoint**: Tier management complete — cost changes are prospective-only, deactivation is validated.
 
@@ -136,10 +136,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Implement budget server actions: createBudget (auto-generate 12 monthly or 4 quarterly periods with zero allocations in transaction, archive previous year per FR-021), updateBudgetAllocations (validate sum ≤ total per FR-010), updateBudgetTotal (validate ≥ existing allocations sum) with admin auth guard and change history in src/actions/budget.ts
-- [ ] T041 [P] [US4] Create budget overview page showing active budget card (fiscal year, total, period type, status), period allocations summary table, and unallocated remainder in src/app/budget/page.tsx
-- [ ] T042 [P] [US4] Create new budget form page with fiscal year input, total amount (dollars input → cents storage), period type radio (monthly/quarterly), and createBudget submission in src/app/budget/new/page.tsx
-- [ ] T043 [US4] Create budget detail page with inline-editable period allocation table (amount per period), running total vs. budget validation, overage warning display, and save-allocations action in src/app/budget/[id]/page.tsx
+- [x] T040 [US4] Implement budget server actions: createBudget (auto-generate 12 monthly or 4 quarterly periods with zero allocations in transaction, archive previous year per FR-021), updateBudgetAllocations (validate sum ≤ total per FR-010), updateBudgetTotal (validate ≥ existing allocations sum) with admin auth guard and change history in src/actions/budget.ts
+- [x] T041 [P] [US4] Create budget overview page showing active budget card (fiscal year, total, period type, status), period allocations summary table, and unallocated remainder in src/app/budget/page.tsx
+- [x] T042 [P] [US4] Create new budget form page with fiscal year input, total amount (dollars input → cents storage), period type radio (monthly/quarterly), and createBudget submission in src/app/budget/new/page.tsx
+- [x] T043 [US4] Create budget detail page with inline-editable period allocation table (amount per period), running total vs. budget validation, overage warning display, and save-allocations action in src/app/budget/[id]/page.tsx
 
 **Checkpoint**: Budget planning fully functional — admins can create annual budgets, allocate to periods, validate totals.
 
@@ -155,10 +155,10 @@
 
 ### Implementation for User Story 5
 
-- [ ] T044 [US5] Implement actual spend calculation: query active license_assignments per budget period using cost_at_assignment_cents and date ranges, aggregate per-tool cost breakdown, compute variance and overrun flag (>10% threshold per FR-013) in src/actions/budget.ts
-- [ ] T045 [US5] Enhance budget detail page with variance columns (planned, actual, variance, % diff) per period, color-coded overrun highlighting, YTD summary row (planned, actual, variance), and projected annual forecast based on current run-rate in src/app/budget/[id]/page.tsx
-- [ ] T046 [US5] Add per-tool spending breakdown table and pie/donut chart (Recharts PieChart) showing cost attribution per tool to budget detail page in src/app/budget/[id]/page.tsx
-- [ ] T047 [P] [US5] Add planned vs. actual grouped bar chart (Recharts BarChart) showing period-by-period comparison to budget overview page in src/app/budget/page.tsx
+- [x] T044 [US5] Implement actual spend calculation: query active license_assignments per budget period using cost_at_assignment_cents and date ranges, aggregate per-tool cost breakdown, compute variance and overrun flag (>10% threshold per FR-013) in src/actions/budget.ts
+- [x] T045 [US5] Enhance budget detail page with variance columns (planned, actual, variance, % diff) per period, color-coded overrun highlighting, YTD summary row (planned, actual, variance), and projected annual forecast based on current run-rate in src/app/budget/[id]/page.tsx
+- [x] T046 [US5] Add per-tool spending breakdown table and pie/donut chart (Recharts PieChart) showing cost attribution per tool to budget detail page in src/app/budget/[id]/page.tsx
+- [x] T047 [P] [US5] Add planned vs. actual grouped bar chart (Recharts BarChart) showing period-by-period comparison to budget overview page in src/app/budget/page.tsx
 
 **Checkpoint**: Budget tracking complete — variance, overruns, forecasts, and per-tool breakdown all visible.
 
@@ -174,8 +174,8 @@
 
 ### Implementation for User Story 7
 
-- [ ] T048 [US7] Build full dashboard home page replacing placeholder: summary widgets (total active users, total tools, total active licenses, current month spend formatted as currency, YTD budget utilization %), budget overrun alert indicator (FR-013), monthly spending trend line chart (Recharts LineChart), and planned vs. actual bar chart (Recharts BarChart) in src/app/page.tsx
-- [ ] T049 [US7] Create reports page with department-filter dropdown, filtered license assignment report table (user, tool, tier, cost per department), license utilization by tool horizontal bar chart (Recharts BarChart), tool adoption summary cards, and per-tool cost breakdown visualization in src/app/reports/page.tsx
+- [x] T048 [US7] Build full dashboard home page replacing placeholder: summary widgets (total active users, total tools, total active licenses, current month spend formatted as currency, YTD budget utilization %), budget overrun alert indicator (FR-013), monthly spending trend line chart (Recharts LineChart), and planned vs. actual bar chart (Recharts BarChart) in src/app/page.tsx
+- [x] T049 [US7] Create reports page with department-filter dropdown, filtered license assignment report table (user, tool, tier, cost per department), license utilization by tool horizontal bar chart (Recharts BarChart), tool adoption summary cards, and per-tool cost breakdown visualization in src/app/reports/page.tsx
 
 **Checkpoint**: All dashboards and reports functional — viewers and admins can analyze tool usage and spending.
 
@@ -185,11 +185,11 @@
 
 **Purpose**: Quality, consistency, and UX improvements across all user stories
 
-- [ ] T050 [P] Implement Viewer role UI restrictions: conditionally hide create/edit/delete/assign/revoke buttons and form pages for Viewer role using session.user.role checks across all pages
-- [ ] T051 [P] Add loading states with shadcn/ui Skeleton components to all Server Component data-fetching pages (tools, users, assignments, budget, reports, dashboard) via loading.tsx files
-- [ ] T052 [P] Add toast notifications (Sonner via shadcn/ui Toast) for all server action success/error responses across all form submissions
-- [ ] T053 Add responsive layout adjustments: collapsible sidebar on mobile, responsive DataTable column visibility, and touch-friendly action buttons in src/app/layout.tsx
-- [ ] T054 Run quickstart.md end-to-end validation: verify all setup steps execute, seed script works, login succeeds, and core CRUD flows complete successfully
+- [x] T050 [P] Implement Viewer role UI restrictions: conditionally hide create/edit/delete/assign/revoke buttons and form pages for Viewer role using session.user.role checks across all pages
+- [x] T051 [P] Add loading states with shadcn/ui Skeleton components to all Server Component data-fetching pages (tools, users, assignments, budget, reports, dashboard) via loading.tsx files
+- [x] T052 [P] Add toast notifications (Sonner via shadcn/ui Toast) for all server action success/error responses across all form submissions
+- [x] T053 Add responsive layout adjustments: collapsible sidebar on mobile, responsive DataTable column visibility, and touch-friendly action buttons in src/app/layout.tsx
+- [x] T054 Run quickstart.md end-to-end validation: verify all setup steps execute, seed script works, login succeeds, and core CRUD flows complete successfully
 
 ---
 
