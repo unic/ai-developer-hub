@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/create-new-feature.ps1 -Json -Number 1 -ShortName \"ai-tool-budget-tracker\" \"Build an application that can help me track ai coding tool access for multiple tools for the users of my company. I want to track users, tool and license assignments, access tiers. Create a budget management for AI budget that helps me track the budget planning throughout the year.\")",
-      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)"
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly)",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/setup-plan.ps1 -Json)",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/update-agent-context.ps1 -AgentType claude)"
     ]
   }
 }
