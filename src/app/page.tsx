@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
 import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
 import { getAssignments } from "@/actions/assignments";
 import { getActiveBudget } from "@/actions/budget";
 import { formatCurrency } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth-guard";
 import {
   Card,
   CardContent,
@@ -11,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Wrench,
   Users,
@@ -19,9 +20,29 @@ import {
   DollarSign,
   BarChart3,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 
 export default async function DashboardPage() {
+  const session = await auth();
+  const isAdmin = session?.user?.role === "admin";
+
+  if (isAdmin) {
+    return (
+      <AuthGuard>
+        <AdminDashboard />
+      </AuthGuard>
+    );
+  }
+
+  return (
+    <AuthGuard>
+      <ViewerDashboard userId={Number(session?.user?.id)} />
+    </AuthGuard>
+  );
+}
+
+async function AdminDashboard() {
   const [tools, userList, assignments, activeBudget] = await Promise.all([
     getTools(),
     getUsers(),
@@ -162,6 +183,103 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+async function ViewerDashboard({ userId }: { userId: number }) {
+  const assignments = await getAssignments();
+  const myAssignments = assignments.filter(
+    (a) => a.userId === userId && a.status === "active"
+  );
+
+  const myToolCount = new Set(myAssignments.map((a) => a.toolId)).size;
+  const myTotalCost = myAssignments.reduce(
+    (s, a) => s + a.costAtAssignmentCents,
+    0
+  );
+
+  // Recent assignment changes (last 5 for this user)
+  const recentAssignments = assignments
+    .filter((a) => a.userId === userId)
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold retro:neon-glow-green">Dashboard</h1>
+        <p className="text-muted-foreground retro:badge-retro">
+          Your AI Tool Assignments
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Wrench className="size-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">My Tools</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold">{myToolCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <KeyRound className="size-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Active Licenses</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold">{myAssignments.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <DollarSign className="size-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Total Monthly Cost
+              </p>
+            </div>
+            <p className="mt-1 text-2xl font-bold">
+              {formatCurrency(myTotalCost)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {recentAssignments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Recent Assignments</CardTitle>
+            <CardDescription>Your latest assignment activity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentAssignments.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between rounded-md border p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <Clock className="size-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {a.tool.name} — {a.tier.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCurrency(a.costAtAssignmentCents)}/mo
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(a.assignedAt).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { ToolsTable } from "./tools-table";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default async function ToolsPage() {
   const session = await auth();
@@ -19,22 +20,24 @@ export default async function ToolsPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">AI Tools</h1>
-          <p className="text-muted-foreground">Manage your AI tool registry</p>
+    <AuthGuard requiredRole="admin">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">AI Tools</h1>
+            <p className="text-muted-foreground">Manage your AI tool registry</p>
+          </div>
+          {isAdmin && (
+            <Button asChild>
+              <Link href="/tools/new">
+                <Plus className="mr-2 size-4" />
+                Add Tool
+              </Link>
+            </Button>
+          )}
         </div>
-        {isAdmin && (
-          <Button asChild>
-            <Link href="/tools/new">
-              <Plus className="mr-2 size-4" />
-              Add Tool
-            </Link>
-          </Button>
-        )}
+        <ToolsTable data={toolsWithCounts} isAdmin={isAdmin} />
       </div>
-      <ToolsTable data={toolsWithCounts} isAdmin={isAdmin} />
-    </div>
+    </AuthGuard>
   );
 }

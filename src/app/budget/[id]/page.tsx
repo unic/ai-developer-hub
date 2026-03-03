@@ -6,6 +6,7 @@ import {
   getPerToolSpend,
 } from "@/actions/budget";
 import { BudgetDetailClient } from "./budget-detail-client";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default async function BudgetDetailPage({
   params,
@@ -41,11 +42,13 @@ export default async function BudgetDetailPage({
     : [];
 
   return (
-    <BudgetDetailClient
-      budget={budget}
-      periods={periodsWithActuals}
-      toolBreakdown={toolBreakdown}
-      isAdmin={isAdmin}
-    />
+    <AuthGuard requiredRole="admin">
+      <BudgetDetailClient
+        budget={budget}
+        periods={periodsWithActuals}
+        toolBreakdown={toolBreakdown}
+        isAdmin={isAdmin}
+      />
+    </AuthGuard>
   );
 }

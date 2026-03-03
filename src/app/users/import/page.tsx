@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { AuthGuard } from "@/components/auth-guard";
 import { BulkImportForm } from "./bulk-import-form";
 
 export default async function BulkImportPage() {
-  const session = await auth();
-  if (session?.user.role !== "admin") redirect("/users");
-
-  return <BulkImportForm />;
+  return (
+    <AuthGuard requiredRole="admin">
+      <BulkImportForm />
+    </AuthGuard>
+  );
 }

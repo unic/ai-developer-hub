@@ -49,13 +49,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Update `src/middleware.ts` — replace auth-redirect middleware with a pass-through that sets `x-pathname` response header with the current pathname; remove matcher config so all routes are accessible to unauthenticated users (auth enforcement moves to AuthGuard)
-- [ ] T010 [US1] Update `src/components/app-sidebar.tsx` — accept nullable `userName`/`userRole` props; when unauthenticated show branding header + "Sign in to access the application" muted text + Sign In primary button in footer linking to `/login`; when viewer role show only Dashboard, Assignments, Settings nav items; when admin role show full nav (Dashboard, Tools, Users, Assignments, Budget, Reports, Settings); define nav items with `roles` array for filtering
-- [ ] T011 [US1] Update `src/app/layout.tsx` — always render `SidebarProvider` + `AppSidebar` regardless of auth state; pass nullable `userName` and `userRole` from session to sidebar; remove any auth-gating around the sidebar shell
-- [ ] T012 [US1] Extract login form to `src/app/(auth)/login/login-form.tsx` as a client component; update `src/app/(auth)/login/page.tsx` to read `searchParams.callbackUrl` and pass it to the form; after successful sign-in redirect to `callbackUrl` (default `/`) instead of hardcoded `/`
-- [ ] T013 [US1] Wrap all protected page server components with `AuthGuard` — update `src/app/page.tsx` (role: any auth), `src/app/tools/page.tsx` (admin), `src/app/tools/[id]/page.tsx` (admin), `src/app/tools/new/page.tsx` (admin), `src/app/users/page.tsx` (admin), `src/app/users/[id]/page.tsx` (admin), `src/app/users/new/page.tsx` (admin), `src/app/users/import/page.tsx` (admin), `src/app/assignments/page.tsx` (any auth), `src/app/budget/page.tsx` (admin), `src/app/budget/[id]/page.tsx` (admin), `src/app/budget/new/page.tsx` (admin), `src/app/reports/page.tsx` (admin)
-- [ ] T014 [US1] Implement viewer-personalized Dashboard in `src/app/page.tsx` — when `session.user.role === "viewer"`, query and display: own assigned tools count, own total license cost (sum of costAtAssignmentCents), and 5 most recent assignment change history entries for the user
-- [ ] T015 [US1] Add viewer-role filter to `src/app/assignments/page.tsx` — when role is "viewer", add `where: eq(licenseAssignments.userId, session.user.id)` to the assignments query so viewers see only their own assignments
+- [x] T009 [US1] Update `src/middleware.ts` — replace auth-redirect middleware with a pass-through that sets `x-pathname` response header with the current pathname; remove matcher config so all routes are accessible to unauthenticated users (auth enforcement moves to AuthGuard)
+- [x] T010 [US1] Update `src/components/app-sidebar.tsx` — accept nullable `userName`/`userRole` props; when unauthenticated show branding header + "Sign in to access the application" muted text + Sign In primary button in footer linking to `/login`; when viewer role show only Dashboard, Assignments, Settings nav items; when admin role show full nav (Dashboard, Tools, Users, Assignments, Budget, Reports, Settings); define nav items with `roles` array for filtering
+- [x] T011 [US1] Update `src/app/layout.tsx` — always render `SidebarProvider` + `AppSidebar` regardless of auth state; pass nullable `userName` and `userRole` from session to sidebar; remove any auth-gating around the sidebar shell
+- [x] T012 [US1] Extract login form to `src/app/(auth)/login/login-form.tsx` as a client component; update `src/app/(auth)/login/page.tsx` to read `searchParams.callbackUrl` and pass it to the form; after successful sign-in redirect to `callbackUrl` (default `/`) instead of hardcoded `/`
+- [x] T013 [US1] Wrap all protected page server components with `AuthGuard` — update `src/app/page.tsx` (role: any auth), `src/app/tools/page.tsx` (admin), `src/app/tools/[id]/page.tsx` (admin), `src/app/tools/new/page.tsx` (admin), `src/app/users/page.tsx` (admin), `src/app/users/[id]/page.tsx` (admin), `src/app/users/new/page.tsx` (admin), `src/app/users/import/page.tsx` (admin), `src/app/assignments/page.tsx` (any auth), `src/app/budget/page.tsx` (admin), `src/app/budget/[id]/page.tsx` (admin), `src/app/budget/new/page.tsx` (admin), `src/app/reports/page.tsx` (admin)
+- [x] T014 [US1] Implement viewer-personalized Dashboard in `src/app/page.tsx` — when `session.user.role === "viewer"`, query and display: own assigned tools count, own total license cost (sum of costAtAssignmentCents), and 5 most recent assignment change history entries for the user
+- [x] T015 [US1] Add viewer-role filter to `src/app/assignments/page.tsx` — when role is "viewer", add `where: eq(licenseAssignments.userId, session.user.id)` to the assignments query so viewers see only their own assignments
 
 **Checkpoint**: Unauthenticated sidebar, role-based navigation, and viewer personalization are fully functional
 
@@ -69,13 +69,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T016 [P] [US2] Update `src/lib/db/seed.ts` — replace `department` field references with `circle` in all seed data objects
-- [ ] T017 [P] [US2] Update `src/actions/users.ts` — replace all `department` references with `circle` in queries, insert/update mutations, and any CSV parsing logic
-- [ ] T018 [P] [US2] Update `src/app/users/new/new-user-form.tsx` — rename "Department" label to "Circle", rename form field from `department` to `circle`, update placeholder text
-- [ ] T019 [P] [US2] Update `src/app/users/users-table.tsx` — rename "Department" column header to "Circle", update accessor key from `department` to `circle`
-- [ ] T020 [P] [US2] Update `src/app/users/[id]/user-detail-client.tsx` — rename "Department" to "Circle" in detail display labels and edit form fields
-- [ ] T021 [US2] Update `src/app/users/import/bulk-import-form.tsx` — accept both "department" and "circle" as valid CSV column headers mapping to the `circle` field, update help text to show "circle (or department)" as expected header
-- [ ] T022 [P] [US2] Update `src/app/reports/page.tsx` — rename "License distribution and cost by department" to "License distribution and cost by circle", rename "Department" column header to "Circle" in the organizational breakdown table
+- [x] T016 [P] [US2] Update `src/lib/db/seed.ts` — replace `department` field references with `circle` in all seed data objects
+- [x] T017 [P] [US2] Update `src/actions/users.ts` — replace all `department` references with `circle` in queries, insert/update mutations, and any CSV parsing logic
+- [x] T018 [P] [US2] Update `src/app/users/new/new-user-form.tsx` — rename "Department" label to "Circle", rename form field from `department` to `circle`, update placeholder text
+- [x] T019 [P] [US2] Update `src/app/users/users-table.tsx` — rename "Department" column header to "Circle", update accessor key from `department` to `circle`
+- [x] T020 [P] [US2] Update `src/app/users/[id]/user-detail-client.tsx` — rename "Department" to "Circle" in detail display labels and edit form fields
+- [x] T021 [US2] Update `src/app/users/import/bulk-import-form.tsx` — accept both "department" and "circle" as valid CSV column headers mapping to the `circle` field, update help text to show "circle (or department)" as expected header
+- [x] T022 [P] [US2] Update `src/app/reports/page.tsx` — rename "License distribution and cost by department" to "License distribution and cost by circle", rename "Department" column header to "Circle" in the organizational breakdown table
 
 **Checkpoint**: All "Department" references are replaced with "Circle" across the entire application
 

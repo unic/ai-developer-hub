@@ -42,7 +42,7 @@ export async function createUser(
     };
   }
 
-  const { name, email, password, department, role, githubUsername } =
+  const { name, email, password, circle, role, githubUsername } =
     parsed.data;
 
   // Check email uniqueness
@@ -61,7 +61,7 @@ export async function createUser(
       name,
       email,
       passwordHash,
-      department,
+      circle,
       role,
       githubUsername: githubUsername ?? null,
     })
@@ -109,11 +109,11 @@ export async function updateUser(
     values.email = updates.email;
   }
   if (
-    updates.department !== undefined &&
-    updates.department !== existing.department
+    updates.circle !== undefined &&
+    updates.circle !== existing.circle
   ) {
-    changes.department = { old: existing.department, new: updates.department };
-    values.department = updates.department;
+    changes.circle = { old: existing.circle, new: updates.circle };
+    values.circle = updates.circle;
   }
   if (updates.role !== undefined && updates.role !== existing.role) {
     changes.role = { old: existing.role, new: updates.role };
@@ -224,7 +224,7 @@ export async function bulkImportUsers(input: {
       continue;
     }
 
-    const { name, email, department, role, githubUsername } = parsed.data;
+    const { name, email, circle, role, githubUsername } = parsed.data;
 
     const existing = await db.query.users.findFirst({
       where: eq(users.email, email),
@@ -243,7 +243,7 @@ export async function bulkImportUsers(input: {
         name,
         email,
         passwordHash,
-        department,
+        circle,
         role: role ?? "viewer",
         githubUsername: githubUsername ?? null,
       })

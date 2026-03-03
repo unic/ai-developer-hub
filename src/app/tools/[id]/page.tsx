@@ -7,6 +7,7 @@ import {
 } from "@/actions/tools";
 import { getEntityHistory } from "@/actions/history";
 import { ToolDetailClient } from "./tool-detail-client";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default async function ToolDetailPage({
   params,
@@ -37,13 +38,15 @@ export default async function ToolDetailPage({
     historyResult.success ? historyResult.data.records : [];
 
   return (
-    <ToolDetailClient
-      tool={tool}
-      tiers={tool.accessTiers}
-      activeAssignments={activeAssignments}
-      tierAssignmentCounts={tierCounts}
-      history={history}
-      isAdmin={isAdmin}
-    />
+    <AuthGuard requiredRole="admin">
+      <ToolDetailClient
+        tool={tool}
+        tiers={tool.accessTiers}
+        activeAssignments={activeAssignments}
+        tierAssignmentCounts={tierCounts}
+        history={history}
+        isAdmin={isAdmin}
+      />
+    </AuthGuard>
   );
 }

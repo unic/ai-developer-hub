@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { AuthGuard } from "@/components/auth-guard";
 import { NewUserForm } from "./new-user-form";
 
 export default async function NewUserPage() {
-  const session = await auth();
-  if (session?.user.role !== "admin") redirect("/users");
-
-  return <NewUserForm />;
+  return (
+    <AuthGuard requiredRole="admin">
+      <NewUserForm />
+    </AuthGuard>
+  );
 }

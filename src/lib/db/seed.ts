@@ -24,7 +24,7 @@ async function seed() {
       name: "Admin User",
       email: "admin@company.com",
       passwordHash,
-      department: "Engineering",
+      circle: "Engineering",
       role: "admin",
       status: "active",
     })
