@@ -1,6 +1,7 @@
 import { getAssignments } from "@/actions/assignments";
 import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
+import { getActiveBudget, getBudgetWithCosts } from "@/actions/budget";
 import { formatCurrency } from "@/lib/utils";
 import { AuthGuard } from "@/components/auth-guard";
 import {
@@ -21,11 +22,19 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default async function ReportsPage() {
-  const [assignments, tools, userList] = await Promise.all([
+  const [assignments, tools, userList, activeBudget] = await Promise.all([
     getAssignments(),
     getTools(),
     getUsers(),
+    getActiveBudget(),
   ]);
+
+  // Load billed costs from active budget (if one exists)
+  const budgetWithCosts = activeBudget
+    ? await getBudgetWithCosts(activeBudget.id)
+    : null;
+  const totalBilledSpend =
+    budgetWithCosts?.periods.reduce((s, p) => s + p.billedTotalCents, 0) ?? 0;
 
   const activeAssignments = assignments.filter((a) => a.status === "active");
 
@@ -84,7 +93,7 @@ export default async function ReportsPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Active Users</p>
@@ -105,19 +114,29 @@ export default async function ReportsPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Monthly Spend</p>
+              <p className="text-sm text-muted-foreground">Expected Monthly Spend</p>
               <p className="text-2xl font-bold">
                 {formatCurrency(totalMonthlySpend)}
               </p>
             </CardContent>
           </Card>
+          {budgetWithCosts && (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">Billed Spend (YTD)</p>
+                <p className="text-2xl font-bold">
+                  {formatCurrency(totalBilledSpend)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Tool Adoption Summary</CardTitle>
             <CardDescription>
-              Active license count and monthly cost per tool
+              Active license count and expected cost per tool
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -128,7 +147,7 @@ export default async function ReportsPage() {
                     <TableHead>Tool</TableHead>
                     <TableHead>Vendor</TableHead>
                     <TableHead>Active Users</TableHead>
-                    <TableHead>Monthly Cost</TableHead>
+                    <TableHead>Expected Cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -156,7 +175,7 @@ export default async function ReportsPage() {
           <CardHeader>
             <CardTitle>Circle Report</CardTitle>
             <CardDescription>
-              License distribution and cost by circle
+              License distribution and expected cost by circle
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -167,7 +186,7 @@ export default async function ReportsPage() {
                     <TableHead>Circle</TableHead>
                     <TableHead>Users</TableHead>
                     <TableHead>Licenses</TableHead>
-                    <TableHead>Monthly Cost</TableHead>
+                    <TableHead>Expected Cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
