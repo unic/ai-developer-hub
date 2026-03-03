@@ -19,8 +19,8 @@
 
 **Purpose**: New utilities and environment configuration needed before schema or feature work
 
-- [ ] T001 Create `src/lib/crypto.ts` with `encryptApiKey()`, `decryptApiKey()`, and `maskApiKey()` functions using AES-256-GCM via Node.js built-in `crypto` module, key derived from `API_KEY_ENCRYPTION_SECRET` env var with scrypt
-- [ ] T002 [P] Add `API_KEY_ENCRYPTION_SECRET` entry to `.env.example` with generation command (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
+- [x] T001 Create `src/lib/crypto.ts` with `encryptApiKey()`, `decryptApiKey()`, and `maskApiKey()` functions using AES-256-GCM via Node.js built-in `crypto` module, key derived from `API_KEY_ENCRYPTION_SECRET` env var with scrypt
+- [x] T002 [P] Add `API_KEY_ENCRYPTION_SECRET` entry to `.env.example` with generation command (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
 
 ---
 
