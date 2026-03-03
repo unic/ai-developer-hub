@@ -16,7 +16,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-mono-retro",
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
@@ -47,7 +47,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SessionProvider>
+          <SessionProvider session={session}>
             <LeanModeProvider>
               {session?.user ? (
                 <SidebarProvider>

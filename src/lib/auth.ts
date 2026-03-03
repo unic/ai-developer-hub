@@ -8,6 +8,8 @@ import { users } from "@/lib/db/schema";
 import { loginSchema } from "@/lib/validators";
 import type { UserPreferences } from "@/types";
 
+const DEFAULT_PREFERENCES: UserPreferences = { theme: "system", leanMode: false };
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db),
   session: { strategy: "jwt" },
@@ -50,7 +52,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as { role: string }).role;
-        token.preferences = (user as { preferences: UserPreferences }).preferences;
+        token.preferences = (user as { preferences?: UserPreferences }).preferences ?? DEFAULT_PREFERENCES;
       }
       if (trigger === "update" && session?.preferences) {
         token.preferences = session.preferences;
@@ -61,7 +63,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
-        session.user.preferences = token.preferences as UserPreferences;
+        session.user.preferences = (token.preferences as UserPreferences | undefined) ?? DEFAULT_PREFERENCES;
       }
       return session;
     },

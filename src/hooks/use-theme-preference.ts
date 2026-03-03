@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useTheme } from "next-themes";
 import { useSession } from "next-auth/react";
 import { useLeanMode } from "@/hooks/use-lean-mode";
@@ -16,6 +16,21 @@ export function useThemePreference() {
   const isSaving = isPending || isSavingLocal;
   const isAuthenticated = !!session?.user;
 
+  const [hasSynced, setHasSynced] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setHasSynced(false);
+      return;
+    }
+    if (session?.user?.preferences && !hasSynced) {
+      const prefs = session.user.preferences;
+      setTheme(prefs.theme);
+      setLeanMode(prefs.leanMode);
+      setHasSynced(true);
+    }
+  }, [isAuthenticated, session?.user?.preferences, hasSynced, setTheme, setLeanMode]);
+
   const persistPreferences = useCallback(
     async (newTheme: string, newLeanMode: boolean) => {
       if (!isAuthenticated) return;
@@ -25,9 +40,10 @@ export function useThemePreference() {
           theme: newTheme as "light" | "dark" | "system",
           leanMode: newLeanMode,
         });
-        if (result.success) {
-          await update({ preferences: result.data });
+        if (!result.success) {
+          throw new Error("Failed to persist preferences");
         }
+        await update({ preferences: result.data });
       } finally {
         setIsSavingLocal(false);
       }

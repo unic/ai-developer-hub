@@ -48,7 +48,7 @@
     --color-phosphor-cyan: oklch(0.91 0.19 196);
     --color-phosphor-magenta: oklch(0.70 0.32 328);
     --color-phosphor-amber: oklch(0.82 0.19 72);
-    --font-mono-retro: var(--font-mono-retro), ui-monospace, monospace;
+    --font-mono-retro: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 :root {
