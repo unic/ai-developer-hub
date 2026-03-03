@@ -25,6 +25,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -82,14 +83,17 @@ export function AppSidebar({
               {userRole}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            aria-label="Sign out"
-          >
-            <LogOut className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              aria-label="Sign out"
+            >
+              <LogOut className="size-4" />
+            </Button>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>

@@ -46,10 +46,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T006 [P] [US1] Create ThemeProvider `"use client"` wrapper component that passes `attribute="class"`, `defaultTheme="system"`, `enableSystem`, and `disableTransitionOnChange` to NextThemesProvider in `src/components/theme-provider.tsx`
-- [ ] T007 [P] [US1] Create ThemeToggle component with shadcn/ui Button (ghost/icon) trigger showing Sun/Moon icons, DropdownMenu with Light/Dark/System options, `aria-label="Toggle theme"`, and a `mounted` guard to prevent hydration mismatch in `src/components/theme-toggle.tsx`
-- [ ] T008 [US1] Integrate ThemeProvider into root layout: add `suppressHydrationWarning` to `<html>` tag, wrap children with `<ThemeProvider>`, ensure `<Toaster />` is inside the provider in `src/app/layout.tsx`
-- [ ] T009 [US1] Add ThemeToggle component to the sidebar footer area in `src/components/app-sidebar.tsx`
+- [X] T006 [P] [US1] Create ThemeProvider `"use client"` wrapper component that passes `attribute="class"`, `defaultTheme="system"`, `enableSystem`, and `disableTransitionOnChange` to NextThemesProvider in `src/components/theme-provider.tsx`
+- [X] T007 [P] [US1] Create ThemeToggle component with shadcn/ui Button (ghost/icon) trigger showing Sun/Moon icons, DropdownMenu with Light/Dark/System options, `aria-label="Toggle theme"`, and a `mounted` guard to prevent hydration mismatch in `src/components/theme-toggle.tsx`
+- [X] T008 [US1] Integrate ThemeProvider into root layout: add `suppressHydrationWarning` to `<html>` tag, wrap children with `<ThemeProvider>`, ensure `<Toaster />` is inside the provider in `src/app/layout.tsx`
+- [X] T009 [US1] Add ThemeToggle component to the sidebar footer area in `src/components/app-sidebar.tsx`
 
 **Checkpoint**: User Story 1 is fully functional — dark/light/system theme switching works across all pages with localStorage persistence
 

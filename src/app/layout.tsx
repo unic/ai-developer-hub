@@ -7,6 +7,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -25,25 +26,32 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        {session?.user ? (
-          <SidebarProvider>
-            <AppSidebar
-              userName={session.user.name ?? "User"}
-              userRole={session.user.role ?? "viewer"}
-            />
-            <SidebarInset>
-              <header className="flex h-14 items-center gap-2 border-b px-4">
-                <SidebarTrigger />
-              </header>
-              <main className="flex-1 p-4 sm:p-6">{children}</main>
-            </SidebarInset>
-          </SidebarProvider>
-        ) : (
-          children
-        )}
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {session?.user ? (
+            <SidebarProvider>
+              <AppSidebar
+                userName={session.user.name ?? "User"}
+                userRole={session.user.role ?? "viewer"}
+              />
+              <SidebarInset>
+                <header className="flex h-14 items-center gap-2 border-b px-4">
+                  <SidebarTrigger />
+                </header>
+                <main className="flex-1 p-4 sm:p-6">{children}</main>
+              </SidebarInset>
+            </SidebarProvider>
+          ) : (
+            children
+          )}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
