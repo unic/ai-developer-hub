@@ -113,10 +113,10 @@
 
 **Purpose**: Validate all four appearance combinations and cross-cutting quality requirements
 
-- [ ] T025 [P] Verify WCAG AA contrast ratios (4.5:1 normal text, 3:1 large text) across all four combinations (dark-full, dark-lean, light-full, light-lean)
-- [ ] T026 [P] Verify `prefers-reduced-motion: reduce` disables all animated retro-glitch effects (flicker, glitch-border) and global kill-switch works
-- [ ] T027 Test theme and lean mode preference persistence: localStorage for unauthenticated users, server-side for authenticated users, server wins on login
-- [ ] T028 Run full quickstart.md validation scenarios for all four appearance combinations across key pages
+- [X] T025 [P] Verify WCAG AA contrast ratios (4.5:1 normal text, 3:1 large text) across all four combinations (dark-full, dark-lean, light-full, light-lean)
+- [X] T026 [P] Verify `prefers-reduced-motion: reduce` disables all animated retro-glitch effects (flicker, glitch-border) and global kill-switch works
+- [X] T027 Test theme and lean mode preference persistence: localStorage for unauthenticated users, server-side for authenticated users, server wins on login
+- [X] T028 Run full quickstart.md validation scenarios for all four appearance combinations across key pages
 
 ---
 
