@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LeanModeToggle } from "@/components/lean-mode-toggle";
 
 const navItems = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -95,6 +96,7 @@ export function AppSidebar({
             </Button>
           </div>
         </div>
+        <LeanModeToggle />
       </SidebarFooter>
     </Sidebar>
   );

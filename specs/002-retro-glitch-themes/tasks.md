@@ -81,11 +81,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] Create LeanModeProvider `"use client"` context that manages `data-retro` attribute on `document.documentElement`, reads initial value from `localStorage` key `"lean-mode"`, defaults to `false` (retro ON), and exposes `{ isLean, setLeanMode }` via context in `src/contexts/lean-mode-context.tsx`
-- [ ] T016 [US3] Create `useLeanMode` convenience hook that consumes LeanModeContext and throws if used outside LeanModeProvider in `src/hooks/use-lean-mode.ts`
-- [ ] T017 [P] [US3] Add LeanModeProvider to root layout wrapping children (inside ThemeProvider), and add anti-FOUC inline script that reads `localStorage` and sets `data-retro` attribute before first paint in `src/app/layout.tsx`
-- [ ] T018 [P] [US3] Create LeanModeToggle component with shadcn/ui Switch, label text "Lean Mode", and `aria-label="Toggle lean mode"` using `useLeanMode()` hook in `src/components/lean-mode-toggle.tsx`
-- [ ] T019 [US3] Add LeanModeToggle component to the sidebar footer (alongside ThemeToggle) in `src/components/app-sidebar.tsx`
+- [X] T015 [US3] Create LeanModeProvider `"use client"` context that manages `data-retro` attribute on `document.documentElement`, reads initial value from `localStorage` key `"lean-mode"`, defaults to `false` (retro ON), and exposes `{ isLean, setLeanMode }` via context in `src/contexts/lean-mode-context.tsx`
+- [X] T016 [US3] Create `useLeanMode` convenience hook that consumes LeanModeContext and throws if used outside LeanModeProvider in `src/hooks/use-lean-mode.ts`
+- [X] T017 [P] [US3] Add LeanModeProvider to root layout wrapping children (inside ThemeProvider), and add anti-FOUC inline script that reads `localStorage` and sets `data-retro` attribute before first paint in `src/app/layout.tsx`
+- [X] T018 [P] [US3] Create LeanModeToggle component with shadcn/ui Switch, label text "Lean Mode", and `aria-label="Toggle lean mode"` using `useLeanMode()` hook in `src/components/lean-mode-toggle.tsx`
+- [X] T019 [US3] Add LeanModeToggle component to the sidebar footer (alongside ThemeToggle) in `src/components/app-sidebar.tsx`
 
 **Checkpoint**: User Story 3 is fully functional — lean mode toggles all retro effects on/off, works independently in dark and light themes, preference persists
 

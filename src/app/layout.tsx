@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LeanModeProvider } from "@/contexts/lean-mode-context";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -31,6 +32,13 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning className={jetbrainsMono.variable}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var l=localStorage.getItem("lean-mode");if(l!=="true")document.documentElement.setAttribute("data-retro","")}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
@@ -38,23 +46,25 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {session?.user ? (
-            <SidebarProvider>
-              <AppSidebar
-                userName={session.user.name ?? "User"}
-                userRole={session.user.role ?? "viewer"}
-              />
-              <SidebarInset>
-                <header className="flex h-14 items-center gap-2 border-b px-4">
-                  <SidebarTrigger />
-                </header>
-                <main className="flex-1 p-4 sm:p-6 retro:scanlines">{children}</main>
-              </SidebarInset>
-            </SidebarProvider>
-          ) : (
-            children
-          )}
-          <Toaster />
+          <LeanModeProvider>
+            {session?.user ? (
+              <SidebarProvider>
+                <AppSidebar
+                  userName={session.user.name ?? "User"}
+                  userRole={session.user.role ?? "viewer"}
+                />
+                <SidebarInset>
+                  <header className="flex h-14 items-center gap-2 border-b px-4">
+                    <SidebarTrigger />
+                  </header>
+                  <main className="flex-1 p-4 sm:p-6 retro:scanlines">{children}</main>
+                </SidebarInset>
+              </SidebarProvider>
+            ) : (
+              children
+            )}
+            <Toaster />
+          </LeanModeProvider>
         </ThemeProvider>
       </body>
     </html>
