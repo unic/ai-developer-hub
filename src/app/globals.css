@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant retro (&:where([data-retro], [data-retro] *));
 
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
@@ -43,9 +44,15 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-phosphor-green: oklch(0.86 0.29 142);
+    --color-phosphor-cyan: oklch(0.91 0.19 196);
+    --color-phosphor-magenta: oklch(0.70 0.32 328);
+    --color-phosphor-amber: oklch(0.82 0.19 72);
+    --font-mono-retro: var(--font-mono-retro), ui-monospace, monospace;
 }
 
 :root {
+    --retro: 0;
     --radius: 0.625rem;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
@@ -78,6 +85,10 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+}
+
+[data-retro] {
+    --retro: 1;
 }
 
 .dark {
@@ -121,4 +132,140 @@
   body {
     @apply bg-background text-foreground;
     }
+}
+
+/* ── Retro-Glitch Utility Classes ── */
+
+@utility scanlines {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      oklch(0 0 0 / calc(var(--retro) * 0.12)) 0px,
+      oklch(0 0 0 / calc(var(--retro) * 0.12)) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    z-index: 10;
+  }
+}
+
+@utility noise-static {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: calc(var(--retro) * 0.06);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    z-index: 10;
+  }
+}
+
+@utility border-glitch {
+  box-shadow:
+    calc(var(--retro) * 2px) calc(var(--retro) * 2px) 0 0 var(--color-phosphor-cyan),
+    calc(var(--retro) * -2px) calc(var(--retro) * -2px) 0 0 var(--color-phosphor-magenta);
+}
+
+@utility border-pixel {
+  border-image: repeating-linear-gradient(
+    90deg,
+    var(--color-phosphor-green) 0px,
+    var(--color-phosphor-green) 4px,
+    transparent 4px,
+    transparent 8px
+  ) 2;
+}
+
+@utility neon-glow-green {
+  text-shadow:
+    0 0 4px var(--color-phosphor-green),
+    0 0 12px color-mix(in oklch, var(--color-phosphor-green) 60%, transparent),
+    0 0 24px color-mix(in oklch, var(--color-phosphor-green) 30%, transparent);
+}
+
+@utility neon-glow-cyan {
+  text-shadow:
+    0 0 4px var(--color-phosphor-cyan),
+    0 0 12px color-mix(in oklch, var(--color-phosphor-cyan) 60%, transparent),
+    0 0 24px color-mix(in oklch, var(--color-phosphor-cyan) 30%, transparent);
+}
+
+@utility neon-glow-amber {
+  text-shadow:
+    0 0 4px var(--color-phosphor-amber),
+    0 0 12px color-mix(in oklch, var(--color-phosphor-amber) 60%, transparent),
+    0 0 24px color-mix(in oklch, var(--color-phosphor-amber) 30%, transparent);
+}
+
+@utility neon-box-green {
+  box-shadow:
+    0 0 4px var(--color-phosphor-green),
+    0 0 12px color-mix(in oklch, var(--color-phosphor-green) 40%, transparent),
+    inset 0 0 4px color-mix(in oklch, var(--color-phosphor-green) 20%, transparent);
+}
+
+@utility badge-retro {
+  font-family: var(--font-mono-retro);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.75rem;
+}
+
+/* ── Retro-Glitch Animations ── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes flicker {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(0.95); }
+    75% { filter: brightness(1.05); }
+  }
+
+  @keyframes glitch-border {
+    0%, 100% {
+      box-shadow:
+        calc(var(--retro) * 2px) calc(var(--retro) * 2px) 0 0 var(--color-phosphor-cyan),
+        calc(var(--retro) * -2px) calc(var(--retro) * -2px) 0 0 var(--color-phosphor-magenta);
+    }
+    25% {
+      box-shadow:
+        calc(var(--retro) * -2px) calc(var(--retro) * 1px) 0 0 var(--color-phosphor-cyan),
+        calc(var(--retro) * 2px) calc(var(--retro) * -1px) 0 0 var(--color-phosphor-magenta);
+    }
+    50% {
+      box-shadow:
+        calc(var(--retro) * 1px) calc(var(--retro) * -2px) 0 0 var(--color-phosphor-cyan),
+        calc(var(--retro) * -1px) calc(var(--retro) * 2px) 0 0 var(--color-phosphor-magenta);
+    }
+    75% {
+      box-shadow:
+        calc(var(--retro) * -1px) calc(var(--retro) * -1px) 0 0 var(--color-phosphor-cyan),
+        calc(var(--retro) * 1px) calc(var(--retro) * 1px) 0 0 var(--color-phosphor-magenta);
+    }
+  }
+}
+
+@utility animate-flicker {
+  animation: flicker 3s ease-in-out infinite;
+}
+
+@utility animate-glitch-border {
+  animation: glitch-border 4s ease-in-out infinite;
+}
+
+/* ── Reduced Motion Kill-Switch ── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

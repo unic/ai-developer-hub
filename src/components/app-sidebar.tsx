@@ -47,8 +47,8 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-4 py-3">
-        <h2 className="text-lg font-semibold">AI Developer Hub</h2>
+      <SidebarHeader className="border-b px-4 py-3 retro:border-glitch">
+        <h2 className="text-lg font-semibold retro:neon-glow-green">AI Developer Hub</h2>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -79,7 +79,7 @@ export function AppSidebar({
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{userName}</p>
-            <p className="text-xs text-muted-foreground capitalize">
+            <p className="text-xs text-muted-foreground capitalize retro:badge-retro retro:text-phosphor-cyan">
               {userRole}
             </p>
           </div>
