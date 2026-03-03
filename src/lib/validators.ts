@@ -103,6 +103,12 @@ export const updateTierSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// User preferences
+export const userPreferencesSchema = z.object({
+  theme: z.enum(["light", "dark", "system"]),
+  leanMode: z.boolean(),
+});
+
 // Type exports for form usage
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ToolInput = z.infer<typeof toolSchema>;

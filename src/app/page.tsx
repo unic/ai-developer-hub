@@ -48,8 +48,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold retro:neon-glow-green">Dashboard</h1>
+        <p className="text-muted-foreground retro:badge-retro">
           AI Tool Access & Budget Overview
         </p>
       </div>
@@ -150,7 +150,7 @@ export default async function DashboardPage() {
           },
         ].map((card) => (
           <Link key={card.href} href={card.href}>
-            <Card className="transition-colors hover:bg-accent">
+            <Card className="transition-colors hover:bg-accent retro:border-glitch">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <card.icon className="size-5 text-muted-foreground" />

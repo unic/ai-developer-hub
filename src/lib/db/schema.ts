@@ -10,7 +10,9 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  jsonb,
 } from "drizzle-orm/pg-core";
+import type { UserPreferences } from "@/types";
 import { relations } from "drizzle-orm";
 
 // Enums
@@ -46,6 +48,9 @@ export const users = pgTable(
     role: userRoleEnum("role").notNull().default("viewer"),
     status: userStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    preferences: jsonb("preferences")
+      .$type<UserPreferences>()
+      .default({ theme: "system", leanMode: false }),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
