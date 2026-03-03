@@ -34,6 +34,8 @@ build/
 out/
 *.pyc
 __pycache__/
+.next/
+coverage/
 
 # Temporary Files
 tmp/
