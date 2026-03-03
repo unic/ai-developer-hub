@@ -19,8 +19,8 @@
 
 **Purpose**: Define shared types and validation schemas used across all user stories
 
-- [ ] T001 [P] Add UserPreferences type (`theme: "light" | "dark" | "system"`, `leanMode: boolean`) and ActionResult generic to `src/types/index.ts`
-- [ ] T002 [P] Add Zod validation schema `userPreferencesSchema` with `z.enum(["light","dark","system"])` and `z.boolean()` to `src/lib/validators.ts`
+- [X] T001 [P] Add UserPreferences type (`theme: "light" | "dark" | "system"`, `leanMode: boolean`) and ActionResult generic to `src/types/index.ts`
+- [X] T002 [P] Add Zod validation schema `userPreferencesSchema` with `z.enum(["light","dark","system"])` and `z.boolean()` to `src/lib/validators.ts`
 
 ---
 

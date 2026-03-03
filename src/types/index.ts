@@ -14,6 +14,12 @@ export type ActionResult<T = void> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
+// User appearance preferences (stored as JSONB on users table)
+export type UserPreferences = {
+  theme: "light" | "dark" | "system";
+  leanMode: boolean;
+};
+
 // Role and status types
 export type UserRole = "admin" | "viewer";
 export type UserStatus = "active" | "inactive";
