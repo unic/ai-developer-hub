@@ -104,7 +104,7 @@
 ### Implementation for User Story 4
 
 - [x] T024 [US4] Implement `updateAssignment` server action in `src/actions/assignments.ts` — accept `updateAssignmentSchema` input; on tier change recalculate `costAtAssignmentCents` to new tier's `monthlyCostCents`; validate retrospective `assignedAt` is not future, not before user.createdAt or tool.createdAt; return `warning` in ActionResult if date > 12 months past; encrypt apiKey via `encryptApiKey()` before storage; record all changed fields in `changeHistory` (use `[redacted]` for API key values); revalidate `/assignments`
-- [ ] T025 [US4] Add assignment edit dialog to `src/app/assignments/assignments-client.tsx` — add edit button to each assignment row; open Dialog with `react-hook-form` + `updateAssignmentSchema`; include tier dropdown (active tiers for the tool), date picker via `Calendar` component with `captionLayout="dropdown"` and future dates disabled, workspace text input (max 200), API key input with masked display and reveal/copy buttons; show warning banner when retrospective date > 12 months; call `updateAssignment` on save
+- [x] T025 [US4] Add assignment edit dialog to `src/app/assignments/assignments-client.tsx` — add edit button to each assignment row; open Dialog with `react-hook-form` + `updateAssignmentSchema`; include tier dropdown (active tiers for the tool), date picker via `Calendar` component with `captionLayout="dropdown"` and future dates disabled, workspace text input (max 200), API key input with masked display and reveal/copy buttons; show warning banner when retrospective date > 12 months; call `updateAssignment` on save
 
 **Checkpoint**: Assignment editing with retrospective dating and meta field updates is functional
 
