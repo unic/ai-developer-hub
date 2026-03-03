@@ -151,9 +151,9 @@
 
 - [x] T035 [P] Update `src/app/reports/page.tsx` — rename any remaining "actual costs" labels to "expected costs" and add "billed costs" column where applicable per FR-021 and US6 acceptance scenario 5
 - [x] T036 [P] Update `src/app/settings/appearance/page.tsx` (verified: no admin-only content — no changes needed) — ensure settings page renders correctly for viewer-role users (no admin-only content exposed)
-- [ ] T037 Run `pnpm typecheck` and fix any TypeScript strict compilation errors across all modified `src/` files
-- [ ] T038 Run `pnpm lint` and fix any ESLint warnings across all modified `src/` files
-- [ ] T039 Run `pnpm build` and verify production build succeeds with zero errors in `src/` and `.next/` output
+- [x] T037 Run `pnpm typecheck` and fix any TypeScript strict compilation errors across all modified `src/` files
+- [x] T038 Run `pnpm lint` and fix any ESLint warnings across all modified `src/` files
+- [x] T039 Run `pnpm build` and verify production build succeeds with zero errors in `src/` and `.next/` output
 
 ---
 
