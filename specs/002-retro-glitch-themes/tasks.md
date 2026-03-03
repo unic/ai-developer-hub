@@ -30,9 +30,9 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Fix Tailwind v4 dark variant selector from `(&:is(.dark *))` to `(&:where(.dark, .dark *))` in `src/app/globals.css`
-- [ ] T004 [P] Add `preferences` JSONB column with default `'{"theme":"system","leanMode":false}'` to users table schema using `.$type<UserPreferences>()` in `src/lib/db/schema.ts`
-- [ ] T005 Generate and apply database migration for the new preferences column via `pnpm db:generate && pnpm db:migrate`
+- [X] T003 [P] Fix Tailwind v4 dark variant selector from `(&:is(.dark *))` to `(&:where(.dark, .dark *))` in `src/app/globals.css`
+- [X] T004 [P] Add `preferences` JSONB column with default `'{"theme":"system","leanMode":false}'` to users table schema using `.$type<UserPreferences>()` in `src/lib/db/schema.ts`
+- [X] T005 Generate and apply database migration for the new preferences column via `pnpm db:generate && pnpm db:migrate`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
