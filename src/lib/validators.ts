@@ -26,7 +26,7 @@ export const tierSchema = z.object({
 export const userSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
-  department: z.string().min(1, "Department is required").max(100),
+  circle: z.string().min(1, "Circle is required").max(100),
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -36,7 +36,7 @@ export const userSchema = z.object({
 export const bulkImportUserSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
-  department: z.string().min(1, "Department is required").max(100),
+  circle: z.string().min(1, "Circle is required").max(100),
   role: z.enum(["admin", "viewer"]).optional(),
   githubUsername: z.string().max(255).optional(),
 });
@@ -69,6 +69,44 @@ export const budgetAllocationSchema = z.object({
   ),
 });
 
+// Update assignment (in-place edit)
+export const updateAssignmentSchema = z.object({
+  id: z.number().int().positive(),
+  tierId: z.number().int().positive().optional(),
+  assignedAt: z.string().datetime().optional(),
+  workspace: z.string().max(200).optional(),
+  apiKey: z.string().max(500).optional(),
+});
+
+// Assignment comment
+export const assignmentCommentSchema = z.object({
+  assignmentId: z.number().int().positive(),
+  body: z.string().min(1, "Comment is required").max(2000, "Comment must be 2000 characters or less"),
+});
+
+// Billed cost (create)
+export const billedCostSchema = z.object({
+  periodId: z.number().int().positive(),
+  amountCents: z.number().int().positive("Amount must be positive"),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format"),
+  description: z.string().min(1, "Description is required").max(500),
+  vendorReference: z.string().max(255).optional(),
+});
+
+// Billed cost (update)
+export const updateBilledCostSchema = z.object({
+  id: z.number().int().positive(),
+  amountCents: z.number().int().positive("Amount must be positive").optional(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format").optional(),
+  description: z.string().min(1).max(500).optional(),
+  vendorReference: z.string().max(255).optional().nullable(),
+});
+
+// Billed cost (delete)
+export const deleteBilledCostSchema = z.object({
+  id: z.number().int().positive(),
+});
+
 // Update budget total
 export const updateBudgetTotalSchema = z.object({
   budgetId: z.number().int().positive(),
@@ -80,7 +118,7 @@ export const updateUserSchema = z.object({
   id: z.number().int().positive(),
   name: z.string().min(1).max(255).optional(),
   email: z.string().email().optional(),
-  department: z.string().min(1).max(100).optional(),
+  circle: z.string().min(1).max(100).optional(),
   role: z.enum(["admin", "viewer"]).optional(),
   githubUsername: z.string().max(255).optional(),
 });
@@ -118,3 +156,7 @@ export type BulkImportUserInput = z.infer<typeof bulkImportUserSchema>;
 export type AssignmentInput = z.infer<typeof assignmentSchema>;
 export type BudgetInput = z.infer<typeof budgetSchema>;
 export type BudgetAllocationInput = z.infer<typeof budgetAllocationSchema>;
+export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
+export type AssignmentCommentInput = z.infer<typeof assignmentCommentSchema>;
+export type BilledCostInput = z.infer<typeof billedCostSchema>;
+export type UpdateBilledCostInput = z.infer<typeof updateBilledCostSchema>;

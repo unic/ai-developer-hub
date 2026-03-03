@@ -7,11 +7,13 @@ import type {
   annualBudgets,
   budgetPeriods,
   changeHistory,
+  assignmentComments,
+  billedCosts,
 } from "@/lib/db/schema";
 
 // Action result type
 export type ActionResult<T = void> =
-  | { success: true; data: T }
+  | { success: true; data: T; warning?: string }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 // User appearance preferences (stored as JSONB on users table)
@@ -37,6 +39,8 @@ export type LicenseAssignment = InferSelectModel<typeof licenseAssignments>;
 export type AnnualBudget = InferSelectModel<typeof annualBudgets>;
 export type BudgetPeriod = InferSelectModel<typeof budgetPeriods>;
 export type ChangeHistoryRecord = InferSelectModel<typeof changeHistory>;
+export type AssignmentComment = InferSelectModel<typeof assignmentComments>;
+export type BilledCost = InferSelectModel<typeof billedCosts>;
 
 // Insert types (for writing to DB)
 export type NewUser = InferInsertModel<typeof users>;
@@ -46,3 +50,16 @@ export type NewLicenseAssignment = InferInsertModel<typeof licenseAssignments>;
 export type NewAnnualBudget = InferInsertModel<typeof annualBudgets>;
 export type NewBudgetPeriod = InferInsertModel<typeof budgetPeriods>;
 export type NewChangeHistory = InferInsertModel<typeof changeHistory>;
+export type NewAssignmentComment = InferInsertModel<typeof assignmentComments>;
+export type NewBilledCost = InferInsertModel<typeof billedCosts>;
+
+// Computed types for budget views
+export type PeriodWithCosts = BudgetPeriod & {
+  expectedSpendCents: number;
+  billedTotalCents: number;
+  billedEntries?: BilledCost[];
+};
+
+export type BudgetWithCosts = AnnualBudget & {
+  periods: PeriodWithCosts[];
+};
