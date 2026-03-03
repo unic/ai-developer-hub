@@ -9,6 +9,7 @@ import {
   KeyRound,
   DollarSign,
   BarChart3,
+  Settings,
   LogOut,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -35,6 +36,7 @@ const navItems = [
   { title: "Assignments", href: "/assignments", icon: KeyRound },
   { title: "Budget", href: "/budget", icon: DollarSign },
   { title: "Reports", href: "/reports", icon: BarChart3 },
+  { title: "Settings", href: "/settings/appearance", icon: Settings },
 ];
 
 export function AppSidebar({

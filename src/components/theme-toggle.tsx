@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useThemePreference } from "@/hooks/use-theme-preference";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
-  const { setTheme } = useTheme();
+  const { setTheme } = useThemePreference();
 
   useEffect(() => {
     setMounted(true);

@@ -1,11 +1,11 @@
 "use client";
 
-import { useLeanMode } from "@/hooks/use-lean-mode";
+import { useThemePreference } from "@/hooks/use-theme-preference";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export function LeanModeToggle() {
-  const { isLean, setLeanMode } = useLeanMode();
+  const { isLean, setLeanMode } = useThemePreference();
 
   return (
     <div className="flex items-center gap-2">

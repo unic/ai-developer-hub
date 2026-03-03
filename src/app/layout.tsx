@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SessionProvider } from "@/components/session-provider";
 import { LeanModeProvider } from "@/contexts/lean-mode-context";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -46,25 +47,27 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <LeanModeProvider>
-            {session?.user ? (
-              <SidebarProvider>
-                <AppSidebar
-                  userName={session.user.name ?? "User"}
-                  userRole={session.user.role ?? "viewer"}
-                />
-                <SidebarInset>
-                  <header className="flex h-14 items-center gap-2 border-b px-4">
-                    <SidebarTrigger />
-                  </header>
-                  <main className="flex-1 p-4 sm:p-6 retro:scanlines">{children}</main>
-                </SidebarInset>
-              </SidebarProvider>
-            ) : (
-              children
-            )}
-            <Toaster />
-          </LeanModeProvider>
+          <SessionProvider>
+            <LeanModeProvider>
+              {session?.user ? (
+                <SidebarProvider>
+                  <AppSidebar
+                    userName={session.user.name ?? "User"}
+                    userRole={session.user.role ?? "viewer"}
+                  />
+                  <SidebarInset>
+                    <header className="flex h-14 items-center gap-2 border-b px-4">
+                      <SidebarTrigger />
+                    </header>
+                    <main className="flex-1 p-4 sm:p-6 retro:scanlines">{children}</main>
+                  </SidebarInset>
+                </SidebarProvider>
+              ) : (
+                children
+              )}
+              <Toaster />
+            </LeanModeProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

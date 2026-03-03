@@ -99,11 +99,11 @@
 
 ### Implementation for User Story 4
 
-- [ ] T020 [P] [US4] Create `updatePreferences` server action that validates input with `userPreferencesSchema`, requires authenticated session, updates `users.preferences` JSONB column and `updatedAt` timestamp, returns `ActionResult<UserPreferences>` in `src/actions/preferences.ts`
-- [ ] T021 [P] [US4] Extend NextAuth JWT callback to embed `preferences` from DB at sign-in, extend session callback to expose `preferences` on `session.user`, handle `trigger === "update"` for preference changes in `src/lib/auth.ts`
-- [ ] T022 [US4] Create `useThemePreference` combined hook wrapping `useTheme()` and `useLeanMode()`, calling `updatePreferences()` server action on change for authenticated users, refreshing JWT via `useSession().update()`, with rollback on failure and `isSaving` loading state in `src/hooks/use-theme-preference.ts`
-- [ ] T023 [P] [US4] Upgrade ThemeToggle and LeanModeToggle components to use `useThemePreference` hook so changes persist via server action for authenticated users in `src/components/theme-toggle.tsx` and `src/components/lean-mode-toggle.tsx`
-- [ ] T024 [P] [US4] Create appearance settings page with current theme selector (dark/light/system), lean mode switch, live preview panel showing all four combinations, and save confirmation in `src/app/settings/appearance/page.tsx`
+- [X] T020 [P] [US4] Create `updatePreferences` server action that validates input with `userPreferencesSchema`, requires authenticated session, updates `users.preferences` JSONB column and `updatedAt` timestamp, returns `ActionResult<UserPreferences>` in `src/actions/preferences.ts`
+- [X] T021 [P] [US4] Extend NextAuth JWT callback to embed `preferences` from DB at sign-in, extend session callback to expose `preferences` on `session.user`, handle `trigger === "update"` for preference changes in `src/lib/auth.ts`
+- [X] T022 [US4] Create `useThemePreference` combined hook wrapping `useTheme()` and `useLeanMode()`, calling `updatePreferences()` server action on change for authenticated users, refreshing JWT via `useSession().update()`, with rollback on failure and `isSaving` loading state in `src/hooks/use-theme-preference.ts`
+- [X] T023 [P] [US4] Upgrade ThemeToggle and LeanModeToggle components to use `useThemePreference` hook so changes persist via server action for authenticated users in `src/components/theme-toggle.tsx` and `src/components/lean-mode-toggle.tsx`
+- [X] T024 [P] [US4] Create appearance settings page with current theme selector (dark/light/system), lean mode switch, live preview panel showing all four combinations, and save confirmation in `src/app/settings/appearance/page.tsx`
 
 **Checkpoint**: User Story 4 is fully functional — settings page works, server persistence active for authenticated users, preferences sync across sessions
 
