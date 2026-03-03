@@ -6,13 +6,18 @@ import {
   accessTiers,
   aiTools,
   users,
+  assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { assignmentSchema, updateAssignmentSchema } from "@/lib/validators";
+import {
+  assignmentSchema,
+  updateAssignmentSchema,
+  assignmentCommentSchema,
+} from "@/lib/validators";
 import type { ActionResult } from "@/types";
-import { encryptApiKey } from "@/lib/crypto";
+import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
 
 async function requireAdmin() {
@@ -305,6 +310,96 @@ export async function updateAssignment(
   revalidatePath(`/users/${assignment.userId}`);
 
   return { success: true, data: undefined, warning };
+}
+
+export async function revealApiKey(
+  assignmentId: number
+): Promise<ActionResult<{ plaintext: string }>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const assignment = await db.query.licenseAssignments.findFirst({
+    where: eq(licenseAssignments.id, assignmentId),
+  });
+  if (!assignment) return { success: false, error: "Assignment not found" };
+
+  if (!assignment.apiKeyEncrypted) {
+    return { success: false, error: "No API key stored" };
+  }
+
+  const plaintext = decryptApiKey(assignment.apiKeyEncrypted);
+  return { success: true, data: { plaintext } };
+}
+
+export async function addAssignmentComment(
+  input: unknown
+): Promise<ActionResult<{ id: number }>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const parsed = assignmentCommentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: "Validation failed" };
+  }
+
+  const { assignmentId, body } = parsed.data;
+
+  // Verify assignment exists
+  const assignment = await db.query.licenseAssignments.findFirst({
+    where: eq(licenseAssignments.id, assignmentId),
+  });
+  if (!assignment) return { success: false, error: "Assignment not found" };
+
+  const [newComment] = await db
+    .insert(assignmentComments)
+    .values({
+      assignmentId,
+      authorId: Number(admin.id),
+      body,
+    })
+    .returning({ id: assignmentComments.id });
+
+  revalidatePath(`/assignments/${assignmentId}`);
+  return { success: true, data: { id: newComment.id } };
+}
+
+export async function getAssignmentComments(assignmentId: number) {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  return db.query.assignmentComments.findMany({
+    where: eq(assignmentComments.assignmentId, assignmentId),
+    orderBy: [asc(assignmentComments.createdAt)],
+    with: {
+      author: true,
+    },
+  });
+}
+
+export async function getAssignmentById(id: number) {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  const assignment = await db.query.licenseAssignments.findFirst({
+    where: eq(licenseAssignments.id, id),
+    with: {
+      user: true,
+      tool: true,
+      tier: true,
+    },
+  });
+
+  if (!assignment) return null;
+
+  // Viewers can only see their own assignments
+  if (
+    session.user.role !== "admin" &&
+    assignment.userId !== Number(session.user.id)
+  ) {
+    return null;
+  }
+
+  return assignment;
 }
 
 // Read helpers

@@ -118,10 +118,10 @@
 
 ### Implementation for User Story 5
 
-- [ ] T026 [US5] Implement `revealApiKey` server action in `src/actions/assignments.ts` — admin-only via `requireAdmin()`, decrypt `apiKeyEncrypted` using `decryptApiKey()` from `src/lib/crypto.ts`, return `{ plaintext: string }`, return error if no API key stored; do NOT log plaintext in change history
-- [ ] T027 [US5] Implement `addAssignmentComment` and `getAssignmentComments` actions in `src/actions/assignments.ts` — `addAssignmentComment` validates via `assignmentCommentSchema`, sets `authorId` from session, inserts into `assignmentComments`, revalidates assignment detail; `getAssignmentComments` fetches all comments for an assignmentId ordered by `createdAt` ascending, joins author name
-- [ ] T028 [US5] Create assignment detail page at `src/app/assignments/[id]/page.tsx` with a client component — show assignment header (user → tool at tier), detail card (status, tier, cost, assignedAt, workspace, masked API key with reveal/copy via `revealApiKey` action), comments section with chronological list (author + timestamp + body), and add-comment form (textarea max 2000 chars + submit button calling `addAssignmentComment`)
-- [ ] T029 [P] [US5] Add workspace column to the assignments data table in `src/app/assignments/assignments-client.tsx` — display workspace value in a new column after the status column; API key and comments remain accessible only from the detail/edit views
+- [x] T026 [US5] Implement `revealApiKey` server action in `src/actions/assignments.ts` — admin-only via `requireAdmin()`, decrypt `apiKeyEncrypted` using `decryptApiKey()` from `src/lib/crypto.ts`, return `{ plaintext: string }`, return error if no API key stored; do NOT log plaintext in change history
+- [x] T027 [US5] Implement `addAssignmentComment` and `getAssignmentComments` actions in `src/actions/assignments.ts` — `addAssignmentComment` validates via `assignmentCommentSchema`, sets `authorId` from session, inserts into `assignmentComments`, revalidates assignment detail; `getAssignmentComments` fetches all comments for an assignmentId ordered by `createdAt` ascending, joins author name
+- [x] T028 [US5] Create assignment detail page at `src/app/assignments/[id]/page.tsx` with a client component — show assignment header (user → tool at tier), detail card (status, tier, cost, assignedAt, workspace, masked API key with reveal/copy via `revealApiKey` action), comments section with chronological list (author + timestamp + body), and add-comment form (textarea max 2000 chars + submit button calling `addAssignmentComment`)
+- [x] T029 [P] [US5] Add workspace column to the assignments data table in `src/app/assignments/assignments-client.tsx` — display workspace value in a new column after the status column; API key and comments remain accessible only from the detail/edit views
 
 **Checkpoint**: Assignment meta fields, API key security, and comment system are fully functional
 

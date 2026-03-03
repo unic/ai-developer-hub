@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -492,33 +493,40 @@ export function AssignmentsClient({
       ),
     },
     {
+      accessorKey: "workspace",
+      header: "Workspace",
+      cell: ({ row }) => row.original.workspace || "\u2014",
+    },
+    {
       accessorKey: "assignedAt",
       header: "Assigned",
       cell: ({ row }) => formatDate(row.original.assignedAt),
     },
-    ...(isAdmin
-      ? [
-          {
-            id: "actions" as const,
-            cell: ({ row }: { row: { original: AssignmentRow } }) =>
-              row.original.status === "active" ? (
-                <div className="flex items-center gap-1">
-                  <EditAssignmentDialog
-                    assignment={row.original}
-                    onSaved={() => router.refresh()}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRevoke(row.original.id)}
-                  >
-                    Revoke
-                  </Button>
-                </div>
-              ) : null,
-          },
-        ]
-      : []),
+    {
+      id: "actions" as const,
+      cell: ({ row }: { row: { original: AssignmentRow } }) => (
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" asChild>
+            <Link href={`/assignments/${row.original.id}`}>View</Link>
+          </Button>
+          {isAdmin && row.original.status === "active" && (
+            <>
+              <EditAssignmentDialog
+                assignment={row.original}
+                onSaved={() => router.refresh()}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleRevoke(row.original.id)}
+              >
+                Revoke
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
