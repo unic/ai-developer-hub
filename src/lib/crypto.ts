@@ -41,6 +41,11 @@ export function encryptApiKey(plaintext: string): string {
 export function decryptApiKey(encoded: string): string {
   const data = Buffer.from(encoded, "base64");
 
+  const minLength = SALT_LENGTH + IV_LENGTH + TAG_LENGTH + 1;
+  if (data.length < minLength) {
+    throw new Error("Invalid encrypted data: buffer too short");
+  }
+
   const salt = data.subarray(0, SALT_LENGTH);
   const iv = data.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
   const tag = data.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + TAG_LENGTH);

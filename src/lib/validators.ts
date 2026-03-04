@@ -73,9 +73,9 @@ export const budgetAllocationSchema = z.object({
 export const updateAssignmentSchema = z.object({
   id: z.number().int().positive(),
   tierId: z.number().int().positive().optional(),
-  assignedAt: z.string().datetime().optional(),
+  assignedAt: z.string().optional(),
   workspace: z.string().max(200).optional(),
-  apiKey: z.string().max(500).optional(),
+  apiKey: z.string().trim().min(1).max(500).optional(),
 });
 
 // Assignment comment

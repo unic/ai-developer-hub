@@ -76,6 +76,13 @@ interface AssignmentRow {
   tier: { id: number; name: string };
 }
 
+function formatDateOnly(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // ---- Edit Assignment Dialog ----
 
 interface EditAssignmentDialogProps {
@@ -100,7 +107,7 @@ function EditAssignmentDialog({
       id: assignment.id,
       tierId: assignment.tier.id,
       assignedAt: assignment.assignedAt
-        ? new Date(assignment.assignedAt).toISOString()
+        ? formatDateOnly(new Date(assignment.assignedAt))
         : undefined,
       workspace: assignment.workspace ?? "",
       apiKey: "",
@@ -182,8 +189,12 @@ function EditAssignmentDialog({
   async function handleCopyApiKey() {
     const value = form.getValues("apiKey");
     if (value) {
-      await navigator.clipboard.writeText(value);
-      toast.success("Copied to clipboard");
+      try {
+        await navigator.clipboard.writeText(value);
+        toast.success("Copied to clipboard");
+      } catch {
+        toast.error("Failed to copy to clipboard");
+      }
     }
   }
 
@@ -275,7 +286,7 @@ function EditAssignmentDialog({
                         selected={field.value ? new Date(field.value) : undefined}
                         onSelect={(date) => {
                           if (date) {
-                            field.onChange(date.toISOString());
+                            field.onChange(formatDateOnly(date));
                           }
                           setDatePickerOpen(false);
                         }}
@@ -344,7 +355,6 @@ function EditAssignmentDialog({
                       variant="ghost"
                       size="icon"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      tabIndex={-1}
                     >
                       {showApiKey ? (
                         <EyeOff className="size-4" />
@@ -361,7 +371,6 @@ function EditAssignmentDialog({
                       size="icon"
                       onClick={handleCopyApiKey}
                       disabled={!field.value}
-                      tabIndex={-1}
                     >
                       <Copy className="size-4" />
                       <span className="sr-only">Copy API key</span>

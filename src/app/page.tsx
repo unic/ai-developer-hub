@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
-import { getAssignments } from "@/actions/assignments";
+import { getAssignments, getAssignmentsForUser } from "@/actions/assignments";
 import { getActiveBudget } from "@/actions/budget";
 import { formatCurrency } from "@/lib/utils";
 import { AuthGuard } from "@/components/auth-guard";
@@ -188,9 +188,9 @@ async function AdminDashboard() {
 }
 
 async function ViewerDashboard({ userId }: { userId: number }) {
-  const assignments = await getAssignments();
+  const assignments = await getAssignmentsForUser(userId);
   const myAssignments = assignments.filter(
-    (a) => a.userId === userId && a.status === "active"
+    (a) => a.status === "active"
   );
 
   const myToolCount = new Set(myAssignments.map((a) => a.toolId)).size;
@@ -200,9 +200,7 @@ async function ViewerDashboard({ userId }: { userId: number }) {
   );
 
   // Recent assignment changes (last 5 for this user)
-  const recentAssignments = assignments
-    .filter((a) => a.userId === userId)
-    .slice(0, 5);
+  const recentAssignments = assignments.slice(0, 5);
 
   return (
     <div className="space-y-6">

@@ -485,26 +485,60 @@ export async function getBudgetWithCosts(
 
   if (!budget) return null;
 
-  const periodsWithCosts = await Promise.all(
-    budget.periods.map(async (period) => {
-      const expectedSpendCents = await getExpectedSpendForPeriod(
-        period.startDate,
-        period.endDate
-      );
-
-      const billedTotalCents = period.billedCosts.reduce(
-        (sum, bc) => sum + bc.amountCents,
-        0
-      );
-
-      return {
-        ...period,
-        expectedSpendCents,
-        billedTotalCents,
-        billedEntries: period.billedCosts,
-      };
-    })
+  // Batch: compute expected spend for all periods in a single query
+  const overallStart = budget.periods.reduce(
+    (min, p) => (p.startDate < min ? p.startDate : min),
+    budget.periods[0].startDate
   );
+  const overallEnd = budget.periods.reduce(
+    (max, p) => (p.endDate > max ? p.endDate : max),
+    budget.periods[0].endDate
+  );
+
+  // Fetch all assignments that overlap with the full budget date range
+  const overlappingAssignments = await db
+    .select({
+      assignedAt: licenseAssignments.assignedAt,
+      revokedAt: licenseAssignments.revokedAt,
+      costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+    })
+    .from(licenseAssignments)
+    .where(
+      and(
+        eq(licenseAssignments.status, "active"),
+        lte(licenseAssignments.assignedAt, new Date(overallEnd)),
+        or(
+          isNull(licenseAssignments.revokedAt),
+          gte(licenseAssignments.revokedAt, new Date(overallStart))
+        )
+      )
+    );
+
+  const periodsWithCosts = budget.periods.map((period) => {
+    const periodStart = new Date(period.startDate);
+    const periodEnd = new Date(period.endDate);
+
+    // Filter assignments overlapping this period in-memory
+    const expectedSpendCents = overlappingAssignments
+      .filter(
+        (a) =>
+          a.assignedAt <= periodEnd &&
+          (a.revokedAt === null || a.revokedAt >= periodStart)
+      )
+      .reduce((total, a) => total + a.costAtAssignmentCents, 0);
+
+    const billedTotalCents = period.billedCosts.reduce(
+      (s, bc) => s + bc.amountCents,
+      0
+    );
+
+    return {
+      ...period,
+      expectedSpendCents,
+      billedTotalCents,
+      billedEntries: period.billedCosts,
+    };
+  });
 
   return {
     ...budget,

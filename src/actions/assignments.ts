@@ -327,8 +327,12 @@ export async function revealApiKey(
     return { success: false, error: "No API key stored" };
   }
 
-  const plaintext = decryptApiKey(assignment.apiKeyEncrypted);
-  return { success: true, data: { plaintext } };
+  try {
+    const plaintext = decryptApiKey(assignment.apiKeyEncrypted);
+    return { success: true, data: { plaintext } };
+  } catch {
+    return { success: false, error: "Unable to decrypt stored API key. Please contact support." };
+  }
 }
 
 export async function addAssignmentComment(
@@ -405,6 +409,18 @@ export async function getAssignmentById(id: number) {
 // Read helpers
 export async function getAssignments() {
   return db.query.licenseAssignments.findMany({
+    with: {
+      user: true,
+      tool: true,
+      tier: true,
+    },
+    orderBy: (a, { desc }) => [desc(a.assignedAt)],
+  });
+}
+
+export async function getAssignmentsForUser(userId: number) {
+  return db.query.licenseAssignments.findMany({
+    where: eq(licenseAssignments.userId, userId),
     with: {
       user: true,
       tool: true,

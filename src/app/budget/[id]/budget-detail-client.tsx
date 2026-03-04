@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -78,7 +78,13 @@ interface BilledCostFormState {
 
 const emptyBilledCostForm: BilledCostFormState = {
   amountDollars: "",
-  invoiceDate: new Date().toISOString().split("T")[0],
+  invoiceDate: (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })(),
   description: "",
   vendorReference: "",
 };
@@ -355,9 +361,8 @@ export function BudgetDetailClient({
                     period.billedEntries && period.billedEntries.length > 0;
 
                   return (
-                    <>
+                    <Fragment key={period.id}>
                       <TableRow
-                        key={period.id}
                         className={isOverBilled ? "bg-destructive/10" : ""}
                       >
                         <TableCell className="w-8 px-2">
@@ -482,7 +487,7 @@ export function BudgetDetailClient({
                             )}
                           </TableRow>
                         ))}
-                    </>
+                    </Fragment>
                   );
                 })}
                 <TableRow className="font-bold">
