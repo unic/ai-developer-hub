@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sum, count, lte, gte, or, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-helpers";
 import {
   budgetSchema,
   budgetAllocationSchema,
@@ -22,12 +22,6 @@ import {
 } from "@/lib/validators";
 import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts } from "@/types";
 import { recordCreation, recordUpdate } from "@/actions/history";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") return null;
-  return session.user;
-}
 
 export async function createBudget(
   input: unknown

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { users, licenseAssignments } from "@/lib/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-helpers";
 import { hash } from "bcryptjs";
 import {
   userSchema,
@@ -17,12 +17,6 @@ import {
   recordUpdate,
   recordStatusChange,
 } from "@/actions/history";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") return null;
-  return session.user;
-}
 
 export async function createUser(
   input: unknown

@@ -9,7 +9,7 @@ import {
   updateBilledCost,
   deleteBilledCost,
 } from "@/actions/budget";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatVariance, varianceClassName } from "@/lib/utils";
 import type { BudgetWithCosts, PeriodWithCosts, BilledCost } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,13 +78,7 @@ interface BilledCostFormState {
 
 const emptyBilledCostForm: BilledCostFormState = {
   amountDollars: "",
-  invoiceDate: (() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  })(),
+  invoiceDate: new Date().toISOString().slice(0, 10),
   description: "",
   vendorReference: "",
 };
@@ -249,22 +243,6 @@ export function BudgetDetailClient({
     } else {
       toast.error(result.error);
     }
-  }
-
-  function formatVariance(variance: number) {
-    if (variance > 0) {
-      return `+${formatCurrency(variance)}`;
-    }
-    if (variance < 0) {
-      return `-${formatCurrency(Math.abs(variance))}`;
-    }
-    return formatCurrency(0);
-  }
-
-  function varianceClassName(variance: number) {
-    if (variance > 0) return "text-destructive";
-    if (variance < 0) return "text-muted-foreground";
-    return "";
   }
 
   return (

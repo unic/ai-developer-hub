@@ -4,7 +4,7 @@ import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
 import { getAssignments, getAssignmentsForUser } from "@/actions/assignments";
 import { getActiveBudget } from "@/actions/budget";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { AuthGuard } from "@/components/auth-guard";
 import {
   Card,
@@ -270,7 +270,7 @@ async function ViewerDashboard({ userId }: { userId: number }) {
                     </div>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(a.assignedAt).toLocaleDateString()}
+                    {formatDate(a.assignedAt)}
                   </span>
                 </div>
               ))}

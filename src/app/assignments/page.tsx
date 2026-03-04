@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getAssignments } from "@/actions/assignments";
+import { getAssignments, getAssignmentsForUser } from "@/actions/assignments";
 import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
 import { AssignmentsClient } from "./assignments-client";
@@ -9,18 +9,10 @@ export default async function AssignmentsPage() {
   const session = await auth();
   const isAdmin = session?.user.role === "admin";
 
-  const [allAssignments, tools, userList] = await Promise.all([
-    getAssignments(),
-    getTools(),
-    getUsers(),
-  ]);
-
-  // Viewers see only their own assignments
-  const assignments = isAdmin
-    ? allAssignments
-    : allAssignments.filter(
-        (a) => a.userId === Number(session?.user?.id)
-      );
+  // Viewers only need their own assignments; admins need everything
+  const [assignments, tools, userList] = isAdmin
+    ? await Promise.all([getAssignments(), getTools(), getUsers()])
+    : [await getAssignmentsForUser(Number(session?.user?.id)), [], []];
 
   const activeTools = tools.filter((t) => t.status === "active");
   const activeUsers = userList.filter((u) => u.status === "active");

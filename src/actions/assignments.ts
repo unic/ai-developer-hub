@@ -11,6 +11,7 @@ import {
 import { eq, and, count, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-helpers";
 import {
   assignmentSchema,
   updateAssignmentSchema,
@@ -19,12 +20,6 @@ import {
 import type { ActionResult } from "@/types";
 import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "admin") return null;
-  return session.user;
-}
 
 export async function assignLicense(
   input: unknown
@@ -270,7 +265,7 @@ export async function updateAssignment(
 
   // --- apiKey change ---
   if (apiKey !== undefined) {
-    const encrypted = encryptApiKey(apiKey);
+    const encrypted = await encryptApiKey(apiKey);
     changes.apiKeyEncrypted = { old: "[redacted]", new: "[redacted]" };
     updateValues.apiKeyEncrypted = encrypted;
   }
@@ -328,7 +323,7 @@ export async function revealApiKey(
   }
 
   try {
-    const plaintext = decryptApiKey(assignment.apiKeyEncrypted);
+    const plaintext = await decryptApiKey(assignment.apiKeyEncrypted);
     return { success: true, data: { plaintext } };
   } catch {
     return { success: false, error: "Unable to decrypt stored API key. Please contact support." };

@@ -5,7 +5,7 @@ import {
   getBudgets,
   getBudgetWithCosts,
 } from "@/actions/budget";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatVariance, varianceClassName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,25 +26,15 @@ import {
 import { Plus } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 
-function formatVariance(variance: number) {
-  if (variance > 0) return `+${formatCurrency(variance)}`;
-  if (variance < 0) return `-${formatCurrency(Math.abs(variance))}`;
-  return formatCurrency(0);
-}
-
-function varianceClassName(variance: number) {
-  if (variance > 0) return "text-destructive";
-  if (variance < 0) return "text-muted-foreground";
-  return "";
-}
-
 export default async function BudgetPage() {
   const session = await auth();
   const isAdmin = session?.user.role === "admin";
-  const activeBudget = await getActiveBudget();
-  const allBudgets = await getBudgets();
+  const [activeBudget, allBudgets] = await Promise.all([
+    getActiveBudget(),
+    getBudgets(),
+  ]);
 
-  // Load full cost data for the active budget
+  // Load full cost data for the active budget (depends on activeBudget)
   const activeBudgetWithCosts = activeBudget
     ? await getBudgetWithCosts(activeBudget.id)
     : null;

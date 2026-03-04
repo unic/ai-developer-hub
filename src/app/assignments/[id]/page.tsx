@@ -32,7 +32,7 @@ export default async function AssignmentDetailPage({
   const hasApiKey = !!assignment.apiKeyEncrypted;
   if (hasApiKey && assignment.apiKeyEncrypted) {
     try {
-      const plaintext = decryptApiKey(assignment.apiKeyEncrypted);
+      const plaintext = await decryptApiKey(assignment.apiKeyEncrypted);
       maskedApiKey = maskApiKey(plaintext);
     } catch {
       maskedApiKey = "••••••••";

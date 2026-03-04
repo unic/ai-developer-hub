@@ -1,4 +1,7 @@
-import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "crypto";
+import { randomBytes, createCipheriv, createDecipheriv, scrypt } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
@@ -6,21 +9,21 @@ const TAG_LENGTH = 16;
 const SALT_LENGTH = 32;
 const KEY_LENGTH = 32;
 
-function getEncryptionKey(salt: Buffer): Buffer {
+async function getEncryptionKey(salt: Buffer): Promise<Buffer> {
   const secret = process.env.API_KEY_ENCRYPTION_SECRET;
   if (!secret) {
     throw new Error("API_KEY_ENCRYPTION_SECRET environment variable is not set");
   }
-  return scryptSync(secret, salt, KEY_LENGTH);
+  return scryptAsync(secret, salt, KEY_LENGTH) as Promise<Buffer>;
 }
 
 /**
  * Encrypt an API key using AES-256-GCM.
  * Returns a base64-encoded string containing salt + iv + tag + ciphertext.
  */
-export function encryptApiKey(plaintext: string): string {
+export async function encryptApiKey(plaintext: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
-  const key = getEncryptionKey(salt);
+  const key = await getEncryptionKey(salt);
   const iv = randomBytes(IV_LENGTH);
 
   const cipher = createCipheriv(ALGORITHM, key, iv);
@@ -38,7 +41,7 @@ export function encryptApiKey(plaintext: string): string {
 /**
  * Decrypt an API key previously encrypted with encryptApiKey().
  */
-export function decryptApiKey(encoded: string): string {
+export async function decryptApiKey(encoded: string): Promise<string> {
   const data = Buffer.from(encoded, "base64");
 
   const minLength = SALT_LENGTH + IV_LENGTH + TAG_LENGTH + 1;
@@ -51,7 +54,7 @@ export function decryptApiKey(encoded: string): string {
   const tag = data.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
   const ciphertext = data.subarray(SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
 
-  const key = getEncryptionKey(salt);
+  const key = await getEncryptionKey(salt);
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);
 
