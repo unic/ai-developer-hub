@@ -34,6 +34,12 @@ interface ParsedAssignment {
   error?: string;
 }
 
+interface ServerRowError {
+  row: number;
+  email: string;
+  error: string;
+}
+
 function maskApiKey(key: string): string {
   if (!key) return "";
   return key.length > 8 ? key.slice(0, 4) + "••••••••" : "••••••••";
@@ -80,6 +86,7 @@ export function BulkAssignmentImportForm() {
   const router = useRouter();
   const [rows, setRows] = useState<ParsedAssignment[]>([]);
   const [importing, setImporting] = useState(false);
+  const [serverErrors, setServerErrors] = useState<ServerRowError[]>([]);
 
   const validCount = rows.filter((r) => r.valid).length;
   const invalidCount = rows.length - validCount;
@@ -119,7 +126,11 @@ export function BulkAssignmentImportForm() {
         toast.success(
           `Import complete: ${imported} imported, ${failed} failed`
         );
-        router.push("/assignments");
+        if (failed > 0 && result.data?.errors) {
+          setServerErrors(result.data.errors);
+        } else {
+          router.push("/assignments");
+        }
       } else {
         toast.error(result.error ?? "Import failed");
       }
@@ -200,21 +211,44 @@ export function BulkAssignmentImportForm() {
                 </Table>
               </div>
 
+              {serverErrors.length > 0 && (
+                <div className="rounded border border-destructive bg-destructive/10 p-4 space-y-2">
+                  <p className="text-sm font-medium text-destructive">
+                    {serverErrors.length} row(s) failed server-side validation:
+                  </p>
+                  <ul className="text-sm space-y-1">
+                    {serverErrors.map((err, i) => (
+                      <li key={i}>
+                        Row {err.row} ({err.email}): {err.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <Button
-                  onClick={handleImport}
-                  disabled={validCount === 0 || importing}
-                >
-                  {importing
-                    ? "Importing..."
-                    : `Import ${validCount} Assignment(s)`}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/assignments")}
-                >
-                  Cancel
-                </Button>
+                {serverErrors.length > 0 ? (
+                  <Button onClick={() => router.push("/assignments")}>
+                    Back to Assignments
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      onClick={handleImport}
+                      disabled={validCount === 0 || importing}
+                    >
+                      {importing
+                        ? "Importing..."
+                        : `Import ${validCount} Assignment(s)`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push("/assignments")}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
               </div>
             </>
           )}

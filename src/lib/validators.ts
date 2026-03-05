@@ -78,7 +78,15 @@ export const bulkImportAssignmentRowSchema = z.object({
   tier: z.string().min(1).max(100),
   workspace: z.string().min(1).max(200),
   apiKey: z.string().max(500).optional(),
-  assignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  assignedAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format")
+    .refine((value) => {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return false;
+      const [y, m, d] = value.split("-").map(Number);
+      return date.getUTCFullYear() === y && date.getUTCMonth() + 1 === m && date.getUTCDate() === d;
+    }, { message: "Invalid calendar date" }),
 });
 
 // Update assignment (in-place edit)
@@ -87,7 +95,12 @@ export const updateAssignmentSchema = z.object({
   tierId: z.number().int().positive().optional(),
   assignedAt: z.string().optional(),
   workspace: z.string().max(200).optional(),
-  apiKey: z.string().max(500).optional(),
+  apiKey: z
+    .string()
+    .max(500)
+    .refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" })
+    .transform((val) => (val === "" ? val : val.trim()))
+    .optional(),
 });
 
 // Assignment comment

@@ -8,7 +8,7 @@ import {
   users,
   assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, count, asc, ilike, inArray } from "drizzle-orm";
+import { eq, and, count, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -352,22 +352,50 @@ export async function bulkImportAssignments(input: {
     return { success: true, data: { imported: 0, failed: errors.length, errors } };
   }
 
-  // Pre-fetch all lookup data in bulk (3 queries instead of 4N)
-  const uniqueEmails = [...new Set(validatedRows.map((r) => r.data.email))];
-  const [allActiveUsers, allActiveTools, allActiveTiers, allActiveAssignments] = await Promise.all([
+  // Pre-fetch all lookup data in bulk (4 queries instead of 4N)
+  const uniqueEmails = [...new Set(validatedRows.map((r) => r.data.email.toLowerCase()))];
+  const [allActiveUsers, allActiveTools, allActiveTiers] = await Promise.all([
     db.select().from(users).where(and(inArray(users.email, uniqueEmails), eq(users.status, "active"))),
     db.select().from(aiTools).where(eq(aiTools.status, "active")),
     db.select().from(accessTiers).where(eq(accessTiers.isActive, true)),
-    db.select({ userId: licenseAssignments.userId, toolId: licenseAssignments.toolId })
-      .from(licenseAssignments)
-      .where(eq(licenseAssignments.status, "active")),
   ]);
 
   // Build lookup maps
   const userByEmail = new Map(allActiveUsers.map((u) => [u.email.toLowerCase(), u]));
   const toolByName = new Map(allActiveTools.map((t) => [t.name.toLowerCase(), t]));
   const tierByKey = new Map(allActiveTiers.map((t) => [`${t.toolId}:${t.name.toLowerCase()}`, t]));
+
+  // Scope assignment duplicate check to relevant users/tools only
+  const relevantUserIds = allActiveUsers.map((u) => u.id);
+  const toolNamesInBatch = [...new Set(validatedRows.map((r) => r.data.tool.toLowerCase()))];
+  const relevantToolIds = allActiveTools
+    .filter((t) => toolNamesInBatch.includes(t.name.toLowerCase()))
+    .map((t) => t.id);
+
+  let allActiveAssignments: Array<{ userId: number; toolId: number }> = [];
+  if (relevantUserIds.length > 0 && relevantToolIds.length > 0) {
+    allActiveAssignments = await db
+      .select({ userId: licenseAssignments.userId, toolId: licenseAssignments.toolId })
+      .from(licenseAssignments)
+      .where(
+        and(
+          eq(licenseAssignments.status, "active"),
+          inArray(licenseAssignments.userId, relevantUserIds),
+          inArray(licenseAssignments.toolId, relevantToolIds)
+        )
+      );
+  }
   const activeAssignmentSet = new Set(allActiveAssignments.map((a) => `${a.userId}:${a.toolId}`));
+
+  // Pre-compute license counts per tool for capacity checks
+  const licenseCounts = new Map<number, number>();
+  for (const toolId of relevantToolIds) {
+    const [result] = await db
+      .select({ count: count() })
+      .from(licenseAssignments)
+      .where(and(eq(licenseAssignments.toolId, toolId), eq(licenseAssignments.status, "active")));
+    licenseCounts.set(toolId, result.count);
+  }
 
   let imported = 0;
 
@@ -397,6 +425,15 @@ export async function bulkImportAssignments(input: {
       continue;
     }
 
+    // License capacity check
+    if (tool.maxLicenses !== null) {
+      const currentCount = licenseCounts.get(tool.id) ?? 0;
+      if (currentCount >= tool.maxLicenses) {
+        errors.push({ row: index + 1, email, error: `License capacity reached for ${tool.name}` });
+        continue;
+      }
+    }
+
     try {
       const apiKeyEncrypted = apiKey ? await encryptApiKey(apiKey) : null;
 
@@ -417,6 +454,8 @@ export async function bulkImportAssignments(input: {
       await recordCreation("license_assignment", newAssignment.id, Number(admin.id));
       // Track newly created assignment to prevent duplicates within the same batch
       activeAssignmentSet.add(`${user.id}:${tool.id}`);
+      // Update license count for capacity tracking within batch
+      licenseCounts.set(tool.id, (licenseCounts.get(tool.id) ?? 0) + 1);
       imported++;
     } catch (err) {
       errors.push({
