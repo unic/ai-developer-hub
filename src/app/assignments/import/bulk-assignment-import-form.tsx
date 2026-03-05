@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
 
 interface ParsedAssignment {
   email: string;
@@ -143,11 +144,19 @@ export function BulkAssignmentImportForm() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Bulk Import Assignments</h1>
-        <p className="text-muted-foreground">
-          Upload a CSV file to import license assignments in bulk.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Bulk Import Assignments</h1>
+          <p className="text-muted-foreground">
+            Upload a CSV file to import license assignments in bulk.
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <a href="/api/export/assignments" download>
+            <Download className="mr-2 h-4 w-4" />
+            Export Current Assignments
+          </a>
+        </Button>
       </div>
 
       <Card>
