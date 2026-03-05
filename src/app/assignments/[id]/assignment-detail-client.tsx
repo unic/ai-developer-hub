@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { revealApiKey, addAssignmentComment } from "@/actions/assignments";
+import { revealApiKey, updateAssignment, addAssignmentComment } from "@/actions/assignments";
 import { formatCurrency } from "@/lib/utils";
 import {
   Card,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -64,6 +65,9 @@ export function AssignmentDetailClient({
   const [revealing, setRevealing] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   async function handleRevealApiKey() {
     if (revealedKey) {
@@ -120,6 +124,50 @@ export function AssignmentDetailClient({
       toast.error("Failed to add comment");
     } finally {
       setSubmittingComment(false);
+    }
+  }
+
+  async function handleSaveApiKey() {
+    if (!apiKeyInput.trim()) return;
+    setSavingApiKey(true);
+    try {
+      const result = await updateAssignment({
+        id: assignment.id,
+        apiKey: apiKeyInput.trim(),
+      });
+      if (result.success) {
+        toast.success("API key saved");
+        setApiKeyInput("");
+        setShowApiKeyInput(false);
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("Failed to save API key");
+    } finally {
+      setSavingApiKey(false);
+    }
+  }
+
+  async function handleClearApiKey() {
+    setSavingApiKey(true);
+    try {
+      const result = await updateAssignment({
+        id: assignment.id,
+        apiKey: "",
+      });
+      if (result.success) {
+        toast.success("API key cleared");
+        setRevealedKey(null);
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("Failed to clear API key");
+    } finally {
+      setSavingApiKey(false);
     }
   }
 
@@ -220,13 +268,13 @@ export function AssignmentDetailClient({
           </div>
 
           {/* API Key section */}
-          {assignment.hasApiKey && (
-            <>
-              <Separator />
+          <Separator />
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              API Key
+            </p>
+            {assignment.hasApiKey ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  API Key
-                </p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono">
                     {displayedKey}
@@ -264,9 +312,81 @@ export function AssignmentDetailClient({
                     </>
                   )}
                 </div>
+                {isAdmin && assignment.status === "active" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {showApiKeyInput ? (
+                      <>
+                        <Input
+                          type="password"
+                          placeholder="Enter new API key"
+                          value={apiKeyInput}
+                          onChange={(e) => setApiKeyInput(e.target.value)}
+                          className="max-w-xs"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleSaveApiKey}
+                          disabled={savingApiKey || !apiKeyInput.trim()}
+                        >
+                          {savingApiKey ? "Saving..." : "Update"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setShowApiKeyInput(false);
+                            setApiKeyInput("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowApiKeyInput(true)}
+                        >
+                          Update API Key
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleClearApiKey}
+                          disabled={savingApiKey}
+                        >
+                          Clear API Key
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-            </>
-          )}
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">No API key set</p>
+                {isAdmin && assignment.status === "active" && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="password"
+                      placeholder="Enter API key"
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      className="max-w-xs"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSaveApiKey}
+                      disabled={savingApiKey || !apiKeyInput.trim()}
+                    >
+                      {savingApiKey ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

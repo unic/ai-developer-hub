@@ -36,7 +36,7 @@ export async function createUser(
     };
   }
 
-  const { name, email, password, circle, role, githubUsername } =
+  const { name, email, password, circle, role, githubUsername, profile } =
     parsed.data;
 
   // Check email uniqueness
@@ -58,6 +58,7 @@ export async function createUser(
       circle,
       role,
       githubUsername: githubUsername ?? null,
+      profile: profile ?? null,
     })
     .returning({ id: users.id });
 
@@ -122,6 +123,16 @@ export async function updateUser(
       new: updates.githubUsername,
     };
     values.githubUsername = updates.githubUsername;
+  }
+  if (
+    updates.profile !== undefined &&
+    updates.profile !== existing.profile
+  ) {
+    changes.profile = {
+      old: existing.profile,
+      new: updates.profile,
+    };
+    values.profile = updates.profile;
   }
 
   if (Object.keys(changes).length > 0) {
@@ -207,6 +218,9 @@ export async function bulkImportUsers(input: {
   const errors: Array<{ row: number; email: string; error: string }> = [];
   let imported = 0;
 
+  // Hash the default password once instead of per-row (~250ms per hash)
+  const defaultPasswordHash = await hash("changeme123", 12);
+
   for (let i = 0; i < input.users.length; i++) {
     const parsed = bulkImportUserSchema.safeParse(input.users[i]);
     if (!parsed.success) {
@@ -218,7 +232,7 @@ export async function bulkImportUsers(input: {
       continue;
     }
 
-    const { name, email, circle, role, githubUsername } = parsed.data;
+    const { name, email, circle, role, githubUsername, profile } = parsed.data;
 
     const existing = await db.query.users.findFirst({
       where: eq(users.email, email),
@@ -229,8 +243,7 @@ export async function bulkImportUsers(input: {
     }
 
     try {
-      // Default password for bulk import
-      const passwordHash = await hash("changeme123", 12);
+      const passwordHash = defaultPasswordHash;
 
       const [user] = await db
         .insert(users)
@@ -241,6 +254,7 @@ export async function bulkImportUsers(input: {
           circle,
           role: role ?? "viewer",
           githubUsername: githubUsername ?? null,
+          profile: profile ?? null,
         })
         .returning({ id: users.id });
 

@@ -62,6 +62,20 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
       ),
     },
     {
+      accessorKey: "profile",
+      header: "Profile",
+      cell: ({ row }) => {
+        const profile = row.getValue("profile") as string | null;
+        return profile ? (
+          <Badge variant="outline" className="capitalize">
+            {profile}
+          </Badge>
+        ) : (
+          "\u2014"
+        );
+      },
+    },
+    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
