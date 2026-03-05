@@ -19,8 +19,8 @@
 
 **Purpose**: Apply the only schema change in this feature — the new `user_profile` enum and `profile` column on users. Must complete before US3 can be implemented.
 
-- [ ] T001 Add `userProfileEnum` pgEnum (`["boost", "maxed", "indie"]`) and nullable `profile: userProfileEnum("profile")` column to the `users` table in `src/lib/db/schema.ts`
-- [ ] T002 Push schema to database by running `pnpm db:push` to apply the enum and column migration
+- [x] T001 Add `userProfileEnum` pgEnum (`["boost", "maxed", "indie"]`) and nullable `profile: userProfileEnum("profile")` column to the `users` table in `src/lib/db/schema.ts`
+- [x] T002 Push schema to database by running `pnpm db:push` to apply the enum and column migration
 
 ---
 
@@ -30,7 +30,7 @@
 
 **Note**: US1 and US2 have no schema dependencies and can begin immediately after Phase 1. US3 additionally depends on this phase.
 
-- [ ] T003 Add `UserProfile` type alias (`"boost" | "maxed" | "indie"`) export to `src/types/index.ts`
+- [x] T003 Add `UserProfile` type alias (`"boost" | "maxed" | "indie"`) export to `src/types/index.ts`
 
 **Checkpoint**: Foundation ready — US1 and US2 can start immediately; US3 can start once T003 is complete.
 
@@ -44,11 +44,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 [P] [US1] Add `bulkImportAssignmentRowSchema` Zod schema (fields: `email`, `tool`, `tier`, `workspace`, `apiKey` optional, `assignedAt` YYYY-MM-DD regex) to `src/lib/validators.ts`
-- [ ] T005 [US1] Implement `bulkImportAssignments` server action in `src/actions/assignments.ts`: require admin auth, validate each row, resolve email→userId, tool name→toolId (ilike), tier name→tierId (ilike, scoped to tool), check duplicate active assignment (user+tool), insert individually with best-effort (try/catch per row), set `costAtAssignmentCents` from tier, encrypt `apiKey` via `encryptApiKey()` if present, use `assignedAt` from CSV, revalidate `/assignments`, return `{ imported, failed, errors[] }` (depends on T004)
-- [ ] T006 [P] [US1] Create server component page `src/app/assignments/import/page.tsx` with admin-only guard (redirect non-admins) that renders the `BulkAssignmentImportForm` client component
-- [ ] T007 [US1] Create `src/app/assignments/import/bulk-assignment-import-form.tsx` client component: file input (CSV only), client-side CSV parsing via `FileReader`, preview table with columns Email/Tool/Tier/Workspace/API Key (masked)/Assigned At/Status badge (Valid in green, error text in red with `bg-destructive/10` row highlight), summary line "{valid} valid, {invalid} invalid of {total} total", "Import N Assignment(s)" button calling `bulkImportAssignments` action, post-import toast summary (depends on T005, T006)
-- [ ] T008 [US1] Add "Import Assignments" button/link to the assignments list page `src/app/assignments/page.tsx` following the same pattern as the "Import Users" button on the users page
+- [x] T004 [P] [US1] Add `bulkImportAssignmentRowSchema` Zod schema (fields: `email`, `tool`, `tier`, `workspace`, `apiKey` optional, `assignedAt` YYYY-MM-DD regex) to `src/lib/validators.ts`
+- [x] T005 [US1] Implement `bulkImportAssignments` server action in `src/actions/assignments.ts`: require admin auth, validate each row, resolve email→userId, tool name→toolId (ilike), tier name→tierId (ilike, scoped to tool), check duplicate active assignment (user+tool), insert individually with best-effort (try/catch per row), set `costAtAssignmentCents` from tier, encrypt `apiKey` via `encryptApiKey()` if present, use `assignedAt` from CSV, revalidate `/assignments`, return `{ imported, failed, errors[] }` (depends on T004)
+- [x] T006 [P] [US1] Create server component page `src/app/assignments/import/page.tsx` with admin-only guard (redirect non-admins) that renders the `BulkAssignmentImportForm` client component
+- [x] T007 [US1] Create `src/app/assignments/import/bulk-assignment-import-form.tsx` client component: file input (CSV only), client-side CSV parsing via `FileReader`, preview table with columns Email/Tool/Tier/Workspace/API Key (masked)/Assigned At/Status badge (Valid in green, error text in red with `bg-destructive/10` row highlight), summary line "{valid} valid, {invalid} invalid of {total} total", "Import N Assignment(s)" button calling `bulkImportAssignments` action, post-import toast summary (depends on T005, T006)
+- [x] T008 [US1] Add "Import Assignments" button/link to the assignments list page `src/app/assignments/page.tsx` following the same pattern as the "Import Users" button on the users page
 
 **Checkpoint**: User Story 1 is fully functional — admin can bulk import license assignments end-to-end.
 
@@ -62,8 +62,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Update `updateAssignment` server action in `src/actions/assignments.ts` to treat an empty string `apiKey: ""` as a "clear" operation by setting `apiKeyEncrypted: null`, distinct from `undefined` (no change)
-- [ ] T010 [US2] Add API key edit controls to `src/app/assignments/[id]/assignment-detail-client.tsx` (admin only): when no key exists show a text input + "Save" button; when key exists show existing masked key + reveal/copy + "Update" input expand; "Clear API Key" button that sends `apiKey: ""` to `updateAssignment`; non-admin users see read-only masked key only (depends on T009)
+- [x] T009 [US2] Update `updateAssignment` server action in `src/actions/assignments.ts` to treat an empty string `apiKey: ""` as a "clear" operation by setting `apiKeyEncrypted: null`, distinct from `undefined` (no change)
+- [x] T010 [US2] Add API key edit controls to `src/app/assignments/[id]/assignment-detail-client.tsx` (admin only): when no key exists show a text input + "Save" button; when key exists show existing masked key + reveal/copy + "Update" input expand; "Clear API Key" button that sends `apiKey: ""` to `updateAssignment`; non-admin users see read-only masked key only (depends on T009)
 
 **Checkpoint**: User Story 2 is fully functional — admin can manage API keys on individual assignment detail pages.
 
@@ -77,14 +77,14 @@
 
 ### Implementation for User Story 3
 
-- [ ] T011 [US3] Add optional `profile: z.enum(["boost", "maxed", "indie"]).optional()` to `createUserSchema` and `bulkImportUserRowSchema`, and add `profile: z.enum(["boost", "maxed", "indie"]).nullable().optional()` to `updateUserSchema` in `src/lib/validators.ts`
-- [ ] T012 [US3] Update `createUser` server action in `src/actions/users.ts` to accept and persist the `profile` field to the new `users.profile` column (depends on T011)
-- [ ] T013 [US3] Update `updateUser` server action in `src/actions/users.ts` to accept and persist `profile` (null clears the field); include profile change in the change history entry if it changed (depends on T011, T012 — same file, sequential)
-- [ ] T014 [US3] Update `bulkImportUsers` server action in `src/actions/users.ts` to parse the optional `profile` CSV column, validate case-insensitively against allowed values, mark rows invalid with a descriptive error when value is unrecognized, and persist valid profile values on insert (depends on T013)
-- [ ] T015 [P] [US3] Add optional `profile` `<Select>` dropdown (options: None / Boost / Maxed / Indie) after the role field in `src/app/users/new/new-user-form.tsx`; default to no selection (depends on T011)
-- [ ] T016 [P] [US3] Add `profile` `<Select>` field to the edit form and a Profile Badge in the user header area of `src/app/users/[id]/user-detail-client.tsx`; show "—" when null (depends on T011)
-- [ ] T017 [P] [US3] Add a "Profile" column to `src/app/users/users-table.tsx` that displays the profile as a Badge when set and "—" when null (depends on T003)
-- [ ] T018 [US3] Add `profile` column support to `src/app/users/import/bulk-import-form.tsx`: parse column, show in preview table, pass to `bulkImportUsers` action (depends on T014)
+- [x] T011 [US3] Add optional `profile: z.enum(["boost", "maxed", "indie"]).optional()` to `createUserSchema` and `bulkImportUserRowSchema`, and add `profile: z.enum(["boost", "maxed", "indie"]).nullable().optional()` to `updateUserSchema` in `src/lib/validators.ts`
+- [x] T012 [US3] Update `createUser` server action in `src/actions/users.ts` to accept and persist the `profile` field to the new `users.profile` column (depends on T011)
+- [x] T013 [US3] Update `updateUser` server action in `src/actions/users.ts` to accept and persist `profile` (null clears the field); include profile change in the change history entry if it changed (depends on T011, T012 — same file, sequential)
+- [x] T014 [US3] Update `bulkImportUsers` server action in `src/actions/users.ts` to parse the optional `profile` CSV column, validate case-insensitively against allowed values, mark rows invalid with a descriptive error when value is unrecognized, and persist valid profile values on insert (depends on T013)
+- [x] T015 [P] [US3] Add optional `profile` `<Select>` dropdown (options: None / Boost / Maxed / Indie) after the role field in `src/app/users/new/new-user-form.tsx`; default to no selection (depends on T011)
+- [x] T016 [P] [US3] Add `profile` `<Select>` field to the edit form and a Profile Badge in the user header area of `src/app/users/[id]/user-detail-client.tsx`; show "—" when null (depends on T011)
+- [x] T017 [P] [US3] Add a "Profile" column to `src/app/users/users-table.tsx` that displays the profile as a Badge when set and "—" when null (depends on T003)
+- [x] T018 [US3] Add `profile` column support to `src/app/users/import/bulk-import-form.tsx`: parse column, show in preview table, pass to `bulkImportUsers` action (depends on T014)
 
 **Checkpoint**: All three user stories are independently functional.
 
@@ -94,9 +94,9 @@
 
 **Purpose**: Verification and cleanup across all stories.
 
-- [ ] T019 [P] Run `pnpm typecheck` and resolve any TypeScript strict-mode errors introduced by this feature
-- [ ] T020 [P] Run `pnpm lint` and resolve any ESLint warnings or errors
-- [ ] T021 Validate end-to-end against all three quickstart.md test scenarios (bulk assignment import, API key management, user profile field)
+- [x] T019 [P] Run `pnpm typecheck` and resolve any TypeScript strict-mode errors introduced by this feature
+- [x] T020 [P] Run `pnpm lint` and resolve any ESLint warnings or errors
+- [x] T021 Validate end-to-end against all three quickstart.md test scenarios (bulk assignment import, API key management, user profile field)
 
 ---
 
