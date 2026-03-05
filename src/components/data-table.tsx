@@ -128,7 +128,10 @@ export function DataTable<TData, TValue>({
       <div className="flex items-center justify-end gap-2">
         <Select
           value={String(table.getState().pagination.pageSize)}
-          onValueChange={(value) => table.setPageSize(Number(value))}
+          onValueChange={(value) => {
+            table.setPageSize(Number(value));
+            table.setPageIndex(0);
+          }}
         >
           <SelectTrigger className="h-8 w-[70px]">
             <SelectValue />

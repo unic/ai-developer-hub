@@ -276,7 +276,7 @@ export async function archiveBudget(input: {
     "annual_budget",
     input.id,
     Number(admin.id),
-    "active",
+    existing.status,
     "archived"
   );
 
