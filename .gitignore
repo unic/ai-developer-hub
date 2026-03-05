@@ -49,5 +49,6 @@ tsconfig.tsbuildinfo
 # Next.js auto-generated
 next-env.d.ts
 
-# Claude Code local settings
+# Claude Code
 .claude/settings.local.json
+.claude/worktrees/

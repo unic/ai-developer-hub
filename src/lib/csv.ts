@@ -2,6 +2,8 @@
  * CSV generation utility with RFC 4180 escaping and UTF-8 BOM support.
  */
 
+import { format } from "date-fns";
+
 /**
  * Escape a single CSV field per RFC 4180:
  * - Wrap in double quotes if the field contains commas, double quotes, or newlines.
@@ -10,7 +12,7 @@
  */
 export function escapeField(value: string | null | undefined): string {
   const str = value == null ? "" : String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+  if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
@@ -32,4 +34,17 @@ export function toCsv(
 ): string {
   const lines = [toCsvRow(headers), ...rows.map(toCsvRow)];
   return "\uFEFF" + lines.join("\r\n");
+}
+
+/**
+ * Build a CSV download Response with appropriate headers.
+ */
+export function csvResponse(csv: string, filenamePrefix: string): Response {
+  const today = format(new Date(), "yyyy-MM-dd");
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filenamePrefix}-export-${today}.csv"`,
+    },
+  });
 }

@@ -1,9 +1,8 @@
-import { format } from "date-fns";
 import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { toCsv } from "@/lib/csv";
+import { toCsv, csvResponse } from "@/lib/csv";
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -37,11 +36,5 @@ export async function GET() {
     csvRows
   );
 
-  const today = format(new Date(), "yyyy-MM-dd");
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="users-export-${today}.csv"`,
-    },
-  });
+  return csvResponse(csv, "users");
 }
