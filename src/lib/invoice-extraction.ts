@@ -43,12 +43,12 @@ const EXTRACTION_TOOL = {
           invoice_date: { type: "string", enum: ["high", "medium", "low"] },
           amount_cents: { type: "string", enum: ["high", "medium", "low"] },
         },
-        required: ["invoice_number", "invoice_date", "amount_cents"],
+        required: ["invoice_number", "invoice_date", "amount_cents"] as string[],
       },
     },
-    required: ["invoice_number", "invoice_date", "amount_cents", "confidence"],
+    required: ["invoice_number", "invoice_date", "amount_cents", "confidence"] as string[],
   },
-} as const;
+};
 
 function regexFallback(text: string): InvoiceExtractionResult {
   // Try to extract invoice number (patterns like INV-1234, Invoice #1234, etc.)
@@ -162,16 +162,16 @@ export async function extractInvoiceFields({
     if (!toolUse || toolUse.type !== "tool_use") {
       rawResult = regexFallback(text);
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const input = toolUse.input as Record<string, any>;
+      const input = toolUse.input as Record<string, unknown>;
+      const conf = (input.confidence ?? {}) as Record<string, unknown>;
       rawResult = {
-        invoiceNumber: input.invoice_number ?? null,
-        invoiceDate: input.invoice_date ?? null,
-        amountCents: input.amount_cents ?? null,
+        invoiceNumber: typeof input.invoice_number === "string" ? input.invoice_number : null,
+        invoiceDate: typeof input.invoice_date === "string" ? input.invoice_date : null,
+        amountCents: typeof input.amount_cents === "number" ? input.amount_cents : null,
         confidence: {
-          invoiceNumber: input.confidence?.invoice_number ?? "low",
-          invoiceDate: input.confidence?.invoice_date ?? "low",
-          amountCents: input.confidence?.amount_cents ?? "low",
+          invoiceNumber: (conf.invoice_number as "high" | "medium" | "low") ?? "low",
+          invoiceDate: (conf.invoice_date as "high" | "medium" | "low") ?? "low",
+          amountCents: (conf.amount_cents as "high" | "medium" | "low") ?? "low",
         },
       };
     }
