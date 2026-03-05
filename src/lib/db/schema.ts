@@ -256,6 +256,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   licenseAssignments: many(licenseAssignments),
   assignmentComments: many(assignmentComments),
   changesBy: many(changeHistory),
+  invoices: many(invoices),
 }));
 
 export const aiToolsRelations = relations(aiTools, ({ many }) => ({
@@ -326,6 +327,28 @@ export const billedCostsRelations = relations(billedCosts, ({ one }) => ({
 export const changeHistoryRelations = relations(changeHistory, ({ one }) => ({
   changedByUser: one(users, {
     fields: [changeHistory.changedBy],
+    references: [users.id],
+  }),
+}));
+
+// Invoices
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  invoiceNumber: varchar("invoice_number", { length: 255 }).notNull(),
+  invoiceDate: date("invoice_date").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  blobUrl: text("blob_url").notNull(),
+  blobPathname: text("blob_pathname").notNull(),
+  uploadedBy: integer("uploaded_by")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+  uploader: one(users, {
+    fields: [invoices.uploadedBy],
     references: [users.id],
   }),
 }));

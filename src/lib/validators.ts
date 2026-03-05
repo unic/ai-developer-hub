@@ -187,3 +187,38 @@ export type AssignmentCommentInput = z.infer<typeof assignmentCommentSchema>;
 export type BilledCostInput = z.infer<typeof billedCostSchema>;
 export type UpdateBilledCostInput = z.infer<typeof updateBilledCostSchema>;
 export type BulkImportAssignmentRowInput = z.infer<typeof bulkImportAssignmentRowSchema>;
+
+// Invoice (create + extraction result)
+export const createInvoiceSchema = z.object({
+  invoiceNumber: z.string().min(1).max(255),
+  invoiceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+    .refine((v) => {
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return false;
+      const [y, m, day] = v.split("-").map(Number);
+      return (
+        d.getUTCFullYear() === y &&
+        d.getUTCMonth() + 1 === m &&
+        d.getUTCDate() === day
+      );
+    }, "Invalid calendar date"),
+  amountCents: z.number().int().positive("Amount must be a positive integer (cents)"),
+  blobUrl: z.string().url(),
+  blobPathname: z.string().min(1),
+});
+
+export const invoiceExtractionResultSchema = z.object({
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  amountCents: z.number().int().positive().nullable(),
+  confidence: z.object({
+    invoiceNumber: z.enum(["high", "medium", "low"]),
+    invoiceDate: z.enum(["high", "medium", "low"]),
+    amountCents: z.enum(["high", "medium", "low"]),
+  }),
+});
+
+export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
+export type InvoiceExtractionResult = z.infer<typeof invoiceExtractionResultSchema>;
