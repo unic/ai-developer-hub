@@ -46,11 +46,14 @@ function parseCSV(text: string): ParsedUser[] {
       row[h] = values[i] || "";
     });
 
+    const rawRole = (row.role || "").trim().toLowerCase();
+    const validRoles = ["admin", "viewer"];
+
     const user: ParsedUser = {
       name: row.name || "",
       email: row.email || "",
       circle: row.circle || row.department || "",
-      role: row.role || "viewer",
+      role: rawRole || "viewer",
       githubUsername: row.github_username || row.githubusername || "",
       valid: true,
     };
@@ -64,6 +67,9 @@ function parseCSV(text: string): ParsedUser[] {
     } else if (!user.circle) {
       user.valid = false;
       user.error = "Circle is required";
+    } else if (rawRole && !validRoles.includes(rawRole)) {
+      user.valid = false;
+      user.error = "Role must be 'admin' or 'viewer'";
     }
 
     return user;
