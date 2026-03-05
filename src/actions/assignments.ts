@@ -18,7 +18,7 @@ import {
   assignmentCommentSchema,
   bulkImportAssignmentRowSchema,
 } from "@/lib/validators";
-import type { ActionResult } from "@/types";
+import type { ActionResult, ToolUtilization } from "@/types";
 import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
 
@@ -589,4 +589,58 @@ export async function getAssignmentsForUser(userId: number) {
     },
     orderBy: (a, { desc }) => [desc(a.assignedAt)],
   });
+}
+
+// 005-rich-reports: License utilization by tool
+export async function getLicenseUtilizationByTool(): Promise<ToolUtilization[]> {
+  try {
+    const activeTools = await db.query.aiTools.findMany({
+      where: eq(aiTools.status, "active"),
+    });
+
+    if (activeTools.length === 0) return [];
+
+    const activeAssignmentsList = await db
+      .select({
+        toolId: licenseAssignments.toolId,
+        costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+      })
+      .from(licenseAssignments)
+      .where(eq(licenseAssignments.status, "active"));
+
+    // Group by toolId
+    const byTool = new Map<
+      number,
+      { count: number; totalCost: number }
+    >();
+    for (const a of activeAssignmentsList) {
+      const existing = byTool.get(a.toolId) ?? { count: 0, totalCost: 0 };
+      existing.count += 1;
+      existing.totalCost += a.costAtAssignmentCents;
+      byTool.set(a.toolId, existing);
+    }
+
+    const result: ToolUtilization[] = activeTools.map((tool) => {
+      const stats = byTool.get(tool.id) ?? { count: 0, totalCost: 0 };
+      const utilizationPct =
+        tool.maxLicenses !== null && tool.maxLicenses > 0
+          ? (stats.count / tool.maxLicenses) * 100
+          : 0;
+      return {
+        toolId: tool.id,
+        toolName: tool.name,
+        vendor: tool.vendor,
+        assignedCount: stats.count,
+        maxLicenses: tool.maxLicenses,
+        utilizationPct,
+        expectedMonthlyCents: stats.totalCost,
+      };
+    });
+
+    return result.sort(
+      (a, b) => b.expectedMonthlyCents - a.expectedMonthlyCents
+    );
+  } catch {
+    return [];
+  }
 }

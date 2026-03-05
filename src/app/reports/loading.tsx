@@ -9,7 +9,15 @@ export default function ReportsLoading() {
         <Skeleton className="mt-2 h-5 w-64" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      {/* Tab navigation skeleton */}
+      <div className="flex gap-1">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-24 rounded-md" />
+        ))}
+      </div>
+
+      {/* Summary cards skeleton */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="pt-6">
@@ -20,17 +28,14 @@ export default function ReportsLoading() {
         ))}
       </div>
 
+      {/* Chart placeholder skeleton */}
       <Card>
         <CardHeader>
           <Skeleton className="h-6 w-48" />
           <Skeleton className="mt-1 h-4 w-64" />
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
+          <Skeleton className="min-h-[300px] w-full rounded-md" />
         </CardContent>
       </Card>
     </div>

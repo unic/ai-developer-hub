@@ -64,3 +64,79 @@ export type PeriodWithCosts = BudgetPeriod & {
 export type BudgetWithCosts = AnnualBudget & {
   periods: PeriodWithCosts[];
 };
+
+// Report data types for 005-rich-reports
+
+export interface PeriodSpendPoint {
+  month: string;
+  billedCents: number;
+  expectedCents: number;
+  plannedCents: number;
+  periodIndex: number;
+}
+
+export interface ToolUtilization {
+  toolId: number;
+  toolName: string;
+  vendor: string;
+  assignedCount: number;
+  maxLicenses: number | null;
+  utilizationPct: number;
+  expectedMonthlyCents: number;
+}
+
+export interface MonthlySpend {
+  month: string;
+  amountCents: number;
+}
+
+export interface ForecastPoint {
+  month: string;
+  projectedAmountCents: number;
+}
+
+export interface BudgetForecast {
+  slopeCents: number;
+  interceptCents: number;
+  projections: ForecastPoint[];
+  projectedRemainingCents: number;
+  actualSpendToDateCents: number;
+  projectedAnnualTotalCents: number;
+  budgetCeilingCents: number;
+  status: "on_track" | "at_risk";
+  insufficientData?: string;
+}
+
+export interface ReportOverviewData {
+  totalActiveUsers: number;
+  totalActiveTools: number;
+  totalActiveLicenses: number;
+  expectedMonthlyCents: number;
+  billedYtdCents: number;
+  budgetCeilingCents: number;
+  budgetRemainingCents: number;
+  utilizationPct: number;
+  spendTrend: "up" | "down" | "flat";
+  spendTrendPct: number;
+}
+
+export interface ForecastChartPoint {
+  month: string;
+  historical: number | null;
+  projected: number | null;
+}
+
+export interface ToolSummaryItem {
+  id: number;
+  name: string;
+  vendor: string;
+  activeUsers: number;
+  totalMonthlyCost: number;
+}
+
+export interface CircleReportItem {
+  circle: string;
+  userCount: number;
+  licenseCount: number;
+  totalMonthlyCost: number;
+}
