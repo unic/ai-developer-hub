@@ -38,7 +38,7 @@ export function NewUserForm() {
     defaultValues: {
       name: "",
       email: "",
-      department: "",
+      circle: "",
       role: "viewer",
       githubUsername: "",
       password: "",
@@ -115,12 +115,12 @@ export function NewUserForm() {
               />
               <FormField
                 control={form.control}
-                name="department"
+                name="circle"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Department</FormLabel>
+                    <FormLabel>Circle</FormLabel>
                     <FormControl>
-                      <Input placeholder="Engineering" {...field} />
+                      <Input placeholder="e.g. Engineering" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

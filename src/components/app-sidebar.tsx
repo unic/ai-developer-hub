@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  LogIn,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import {
@@ -28,25 +29,37 @@ import {
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LeanModeToggle } from "@/components/lean-mode-toggle";
+import type { UserRole } from "@/types";
 
-const navItems = [
-  { title: "Dashboard", href: "/", icon: LayoutDashboard },
-  { title: "Tools", href: "/tools", icon: Wrench },
-  { title: "Users", href: "/users", icon: Users },
-  { title: "Assignments", href: "/assignments", icon: KeyRound },
-  { title: "Budget", href: "/budget", icon: DollarSign },
-  { title: "Reports", href: "/reports", icon: BarChart3 },
-  { title: "Settings", href: "/settings/appearance", icon: Settings },
+type NavItem = {
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles: UserRole[];
+};
+
+const navItems: NavItem[] = [
+  { title: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "viewer"] },
+  { title: "Tools", href: "/tools", icon: Wrench, roles: ["admin"] },
+  { title: "Users", href: "/users", icon: Users, roles: ["admin"] },
+  { title: "Assignments", href: "/assignments", icon: KeyRound, roles: ["admin", "viewer"] },
+  { title: "Budget", href: "/budget", icon: DollarSign, roles: ["admin"] },
+  { title: "Reports", href: "/reports", icon: BarChart3, roles: ["admin"] },
+  { title: "Settings", href: "/settings/appearance", icon: Settings, roles: ["admin", "viewer"] },
 ];
 
 export function AppSidebar({
   userName,
   userRole,
 }: {
-  userName: string;
-  userRole: string;
+  userName: string | null;
+  userRole: string | null;
 }) {
   const pathname = usePathname();
+  const isAuthenticated = userName !== null && userRole !== null;
+  const filteredNavItems = isAuthenticated
+    ? navItems.filter((item) => item.roles.includes(userRole as UserRole))
+    : [];
 
   return (
     <Sidebar>
@@ -54,51 +67,73 @@ export function AppSidebar({
         <h2 className="text-lg font-semibold retro:neon-glow-green">AI Developer Hub</h2>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                // Hide admin-only form routes for viewers
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/" && pathname.startsWith(item.href));
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.href}>
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isAuthenticated ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredNavItems.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== "/" && pathname.startsWith(item.href));
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link href={item.href}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <div className="px-4 py-6">
+                <p className="text-sm text-muted-foreground">
+                  Sign in to access the application.
+                </p>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{userName}</p>
-            <p className="text-xs text-muted-foreground capitalize retro:badge-retro retro:text-phosphor-cyan">
-              {userRole}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              aria-label="Sign out"
-            >
-              <LogOut className="size-4" />
-            </Button>
-          </div>
-        </div>
-        <LeanModeToggle />
+        {isAuthenticated ? (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{userName}</p>
+                <p className="text-xs text-muted-foreground capitalize retro:badge-retro retro:text-phosphor-cyan">
+                  {userRole}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  aria-label="Sign out"
+                >
+                  <LogOut className="size-4" />
+                </Button>
+              </div>
+            </div>
+            <LeanModeToggle />
+          </>
+        ) : (
+          <Button asChild className="w-full">
+            <Link href="/login">
+              <LogIn className="mr-2 size-4" />
+              Sign In
+            </Link>
+          </Button>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

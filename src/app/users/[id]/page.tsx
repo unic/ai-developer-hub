@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getUserById, getUserAssignments } from "@/actions/users";
 import { getEntityHistory } from "@/actions/history";
 import { UserDetailClient } from "./user-detail-client";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default async function UserDetailPage({
   params,
@@ -24,11 +25,13 @@ export default async function UserDetailPage({
   const history = historyResult.success ? historyResult.data.records : [];
 
   return (
-    <UserDetailClient
-      user={user}
-      assignments={assignments}
-      history={history}
-      isAdmin={isAdmin}
-    />
+    <AuthGuard requiredRole="admin">
+      <UserDetailClient
+        user={user}
+        assignments={assignments}
+        history={history}
+        isAdmin={isAdmin}
+      />
+    </AuthGuard>
   );
 }

@@ -44,7 +44,7 @@ export const users = pgTable(
     email: varchar("email", { length: 255 }).notNull(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     githubUsername: varchar("github_username", { length: 255 }),
-    department: varchar("department", { length: 100 }).notNull(),
+    circle: varchar("circle", { length: 100 }).notNull(),
     role: userRoleEnum("role").notNull().default("viewer"),
     status: userStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -55,7 +55,7 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex("users_email_idx").on(table.email),
-    index("users_department_idx").on(table.department),
+    index("users_circle_idx").on(table.circle),
     index("users_status_idx").on(table.status),
   ]
 );
@@ -118,6 +118,8 @@ export const licenseAssignments = pgTable(
     status: assignmentStatusEnum("status").notNull().default("active"),
     assignedAt: timestamp("assigned_at").notNull().defaultNow(),
     revokedAt: timestamp("revoked_at"),
+    workspace: varchar("workspace", { length: 200 }),
+    apiKeyEncrypted: varchar("api_key_encrypted", { length: 700 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -200,9 +202,53 @@ export const changeHistory = pgTable(
   ]
 );
 
+// Assignment Comments
+export const assignmentComments = pgTable(
+  "assignment_comments",
+  {
+    id: serial("id").primaryKey(),
+    assignmentId: integer("assignment_id")
+      .notNull()
+      .references(() => licenseAssignments.id, { onDelete: "cascade" }),
+    authorId: integer("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    body: varchar("body", { length: 2000 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("assignment_comments_assignment_id_idx").on(table.assignmentId),
+    index("assignment_comments_author_id_idx").on(table.authorId),
+    index("assignment_comments_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// Billed Costs
+export const billedCosts = pgTable(
+  "billed_costs",
+  {
+    id: serial("id").primaryKey(),
+    periodId: integer("period_id")
+      .notNull()
+      .references(() => budgetPeriods.id, { onDelete: "cascade" }),
+    amountCents: integer("amount_cents").notNull(),
+    invoiceDate: date("invoice_date").notNull(),
+    description: varchar("description", { length: 500 }).notNull(),
+    vendorReference: varchar("vendor_reference", { length: 255 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("billed_costs_period_id_idx").on(table.periodId),
+    index("billed_costs_invoice_date_idx").on(table.invoiceDate),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   licenseAssignments: many(licenseAssignments),
+  assignmentComments: many(assignmentComments),
   changesBy: many(changeHistory),
 }));
 
@@ -221,7 +267,7 @@ export const accessTiersRelations = relations(accessTiers, ({ one, many }) => ({
 
 export const licenseAssignmentsRelations = relations(
   licenseAssignments,
-  ({ one }) => ({
+  ({ one, many }) => ({
     user: one(users, {
       fields: [licenseAssignments.userId],
       references: [users.id],
@@ -234,6 +280,7 @@ export const licenseAssignmentsRelations = relations(
       fields: [licenseAssignments.tierId],
       references: [accessTiers.id],
     }),
+    comments: many(assignmentComments),
   })
 );
 
@@ -241,10 +288,32 @@ export const annualBudgetsRelations = relations(annualBudgets, ({ many }) => ({
   periods: many(budgetPeriods),
 }));
 
-export const budgetPeriodsRelations = relations(budgetPeriods, ({ one }) => ({
+export const budgetPeriodsRelations = relations(budgetPeriods, ({ one, many }) => ({
   budget: one(annualBudgets, {
     fields: [budgetPeriods.budgetId],
     references: [annualBudgets.id],
+  }),
+  billedCosts: many(billedCosts),
+}));
+
+export const assignmentCommentsRelations = relations(
+  assignmentComments,
+  ({ one }) => ({
+    assignment: one(licenseAssignments, {
+      fields: [assignmentComments.assignmentId],
+      references: [licenseAssignments.id],
+    }),
+    author: one(users, {
+      fields: [assignmentComments.authorId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const billedCostsRelations = relations(billedCosts, ({ one }) => ({
+  period: one(budgetPeriods, {
+    fields: [billedCosts.periodId],
+    references: [budgetPeriods.id],
   }),
 }));
 

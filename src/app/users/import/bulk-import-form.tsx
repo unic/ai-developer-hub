@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 interface ParsedUser {
   name: string;
   email: string;
-  department: string;
+  circle: string;
   role: string;
   githubUsername: string;
   valid: boolean;
@@ -49,7 +49,7 @@ function parseCSV(text: string): ParsedUser[] {
     const user: ParsedUser = {
       name: row.name || "",
       email: row.email || "",
-      department: row.department || "",
+      circle: row.circle || row.department || "",
       role: row.role || "viewer",
       githubUsername: row.github_username || row.githubusername || "",
       valid: true,
@@ -61,9 +61,9 @@ function parseCSV(text: string): ParsedUser[] {
     } else if (!user.email || !user.email.includes("@")) {
       user.valid = false;
       user.error = "Valid email is required";
-    } else if (!user.department) {
+    } else if (!user.circle) {
       user.valid = false;
-      user.error = "Department is required";
+      user.error = "Circle is required";
     }
 
     return user;
@@ -90,10 +90,10 @@ export function BulkImportForm() {
   async function handleImport() {
     const validUsers = parsedUsers
       .filter((u) => u.valid)
-      .map(({ name, email, department, role, githubUsername }) => ({
+      .map(({ name, email, circle, role, githubUsername }) => ({
         name,
         email,
-        department,
+        circle,
         role,
         githubUsername: githubUsername || undefined,
       }));
@@ -127,8 +127,8 @@ export function BulkImportForm() {
       <div>
         <h1 className="text-3xl font-bold">Bulk Import Users</h1>
         <p className="text-muted-foreground">
-          Upload a CSV file with columns: name, email, department, role,
-          github_username
+          Upload a CSV file with columns: name, email, circle (or department),
+          role, github_username
         </p>
       </div>
 
@@ -165,7 +165,7 @@ export function BulkImportForm() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Department</TableHead>
+                    <TableHead>Circle</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -178,7 +178,7 @@ export function BulkImportForm() {
                     >
                       <TableCell>{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.department}</TableCell>
+                      <TableCell>{user.circle}</TableCell>
                       <TableCell>{user.role}</TableCell>
                       <TableCell>
                         {user.valid ? (

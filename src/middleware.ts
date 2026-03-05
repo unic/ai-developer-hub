@@ -1,15 +1,12 @@
-export { auth as middleware } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+
+export default auth((req) => {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", req.nextUrl.pathname + req.nextUrl.search);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+});
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - /login
-     * - /api/auth (NextAuth routes)
-     * - /_next/static (Next.js static files)
-     * - /_next/image (Next.js image optimization)
-     * - /favicon.ico
-     */
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|api/auth).*)"],
 };

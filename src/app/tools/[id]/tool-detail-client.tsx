@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { updateTool, archiveTool, createTier, updateTier } from "@/actions/tools";
-import { toolSchema, type ToolInput } from "@/lib/validators";
+import { toolSchema, updateTierSchema, type ToolInput } from "@/lib/validators";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { AiTool, AccessTier, ChangeHistoryRecord } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -42,12 +42,15 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 
 interface Props {
   tool: AiTool;
@@ -56,6 +59,183 @@ interface Props {
   tierAssignmentCounts: { tierId: number; count: number }[];
   history: ChangeHistoryRecord[];
   isAdmin: boolean;
+}
+
+function EditTierDialog({
+  tier,
+  activeAssignmentCount,
+}: {
+  tier: AccessTier;
+  activeAssignmentCount: number;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  const tierForm = useForm({
+    resolver: zodResolver(
+      updateTierSchema.omit({ id: true })
+    ),
+    defaultValues: {
+      name: tier.name,
+      description: tier.description ?? "",
+      monthlyCostCents: tier.monthlyCostCents,
+      isActive: tier.isActive,
+    },
+  });
+
+  // Reset form values when dialog opens (in case tier data changed via refresh)
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      tierForm.reset({
+        name: tier.name,
+        description: tier.description ?? "",
+        monthlyCostCents: tier.monthlyCostCents,
+        isActive: tier.isActive,
+      });
+    }
+    setOpen(nextOpen);
+  }
+
+  const watchIsActive = tierForm.watch("isActive");
+  const cannotDeactivate = !watchIsActive && activeAssignmentCount > 0;
+
+  async function onEditTierSubmit(data: {
+    name?: string;
+    description?: string;
+    monthlyCostCents?: number;
+    isActive?: boolean;
+  }) {
+    if (cannotDeactivate) return;
+
+    const result = await updateTier({
+      id: tier.id,
+      name: data.name,
+      description: data.description || undefined,
+      monthlyCostCents: data.monthlyCostCents,
+      isActive: data.isActive,
+    });
+    if (result.success) {
+      toast.success("Tier updated");
+      setOpen(false);
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="size-8">
+          <Pencil className="size-4" />
+          <span className="sr-only">Edit tier</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Tier</DialogTitle>
+          <DialogDescription>
+            Update the details for the &ldquo;{tier.name}&rdquo; tier.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...tierForm}>
+          <form
+            onSubmit={tierForm.handleSubmit(onEditTierSubmit)}
+            className="space-y-4"
+          >
+            <FormField
+              control={tierForm.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={tierForm.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={tierForm.control}
+              name="monthlyCostCents"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Monthly Cost ($)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={field.value !== undefined ? (field.value / 100).toFixed(2) : ""}
+                      onChange={(e) => {
+                        const dollars = parseFloat(e.target.value);
+                        field.onChange(
+                          isNaN(dollars) ? 0 : Math.round(dollars * 100)
+                        );
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={tierForm.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Active</FormLabel>
+                    {cannotDeactivate && (
+                      <p className="text-sm text-destructive">
+                        Cannot deactivate: {activeAssignmentCount} active
+                        assignment{activeAssignmentCount !== 1 ? "s" : ""} exist
+                      </p>
+                    )}
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={tierForm.formState.isSubmitting || cannotDeactivate}
+              >
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function ToolDetailClient({
@@ -303,13 +483,21 @@ export function ToolDetailClient({
                       </p>
                     )}
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">
-                      {formatCurrency(tier.monthlyCostCents)}/mo
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {assignCount} active
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="font-medium">
+                        {formatCurrency(tier.monthlyCostCents)}/mo
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {assignCount} active
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <EditTierDialog
+                        tier={tier}
+                        activeAssignmentCount={assignCount}
+                      />
+                    )}
                   </div>
                 </div>
               );

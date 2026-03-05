@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
-  getBudgetById,
-  getActualSpendForPeriod,
+  getBudgetWithCosts,
   getPerToolSpend,
 } from "@/actions/budget";
 import { BudgetDetailClient } from "./budget-detail-client";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default async function BudgetDetailPage({
   params,
@@ -19,19 +19,8 @@ export default async function BudgetDetailPage({
   const session = await auth();
   const isAdmin = session?.user.role === "admin";
 
-  const budget = await getBudgetById(budgetId);
+  const budget = await getBudgetWithCosts(budgetId);
   if (!budget) notFound();
-
-  // Calculate actual spend per period
-  const periodsWithActuals = await Promise.all(
-    budget.periods.map(async (period) => {
-      const actualSpend = await getActualSpendForPeriod(
-        period.startDate,
-        period.endDate
-      );
-      return { ...period, actualSpendCents: actualSpend };
-    })
-  );
 
   // Get per-tool breakdown for entire budget year
   const firstPeriod = budget.periods[0];
@@ -41,11 +30,12 @@ export default async function BudgetDetailPage({
     : [];
 
   return (
-    <BudgetDetailClient
-      budget={budget}
-      periods={periodsWithActuals}
-      toolBreakdown={toolBreakdown}
-      isAdmin={isAdmin}
-    />
+    <AuthGuard requiredRole="admin">
+      <BudgetDetailClient
+        budget={budget}
+        toolBreakdown={toolBreakdown}
+        isAdmin={isAdmin}
+      />
+    </AuthGuard>
   );
 }

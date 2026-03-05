@@ -41,13 +41,13 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
       header: "Email",
     },
     {
-      accessorKey: "department",
+      accessorKey: "circle",
       header: ({ column }) => (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Department
+          Circle
           <ArrowUpDown className="ml-2 size-4" />
         </Button>
       ),

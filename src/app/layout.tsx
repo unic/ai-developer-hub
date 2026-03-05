@@ -49,22 +49,18 @@ export default async function RootLayout({
         >
           <SessionProvider session={session}>
             <LeanModeProvider>
-              {session?.user ? (
-                <SidebarProvider>
-                  <AppSidebar
-                    userName={session.user.name ?? "User"}
-                    userRole={session.user.role ?? "viewer"}
-                  />
-                  <SidebarInset>
-                    <header className="flex h-14 items-center gap-2 border-b px-4">
-                      <SidebarTrigger />
-                    </header>
-                    <main className="flex-1 p-4 sm:p-6">{children}</main>
-                  </SidebarInset>
-                </SidebarProvider>
-              ) : (
-                children
-              )}
+              <SidebarProvider>
+                <AppSidebar
+                  userName={session?.user?.name ?? null}
+                  userRole={session?.user?.role ?? null}
+                />
+                <SidebarInset>
+                  <header className="flex h-14 items-center gap-2 border-b px-4">
+                    <SidebarTrigger />
+                  </header>
+                  <main className="flex-1 p-4 sm:p-6">{children}</main>
+                </SidebarInset>
+              </SidebarProvider>
               <Toaster />
             </LeanModeProvider>
           </SessionProvider>

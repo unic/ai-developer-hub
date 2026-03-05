@@ -48,7 +48,7 @@ import {
 const editUserSchema = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email(),
-  department: z.string().min(1).max(100),
+  circle: z.string().min(1).max(100),
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
 });
@@ -85,7 +85,7 @@ export function UserDetailClient({
     defaultValues: {
       name: user.name,
       email: user.email,
-      department: user.department,
+      circle: user.circle,
       role: user.role as "admin" | "viewer",
       githubUsername: user.githubUsername ?? "",
     },
@@ -181,10 +181,10 @@ export function UserDetailClient({
                 />
                 <FormField
                   control={form.control}
-                  name="department"
+                  name="circle"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Department</FormLabel>
+                      <FormLabel>Circle</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>

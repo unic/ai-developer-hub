@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { AuthGuard } from "@/components/auth-guard";
 import { NewToolForm } from "./new-tool-form";
 
 export default async function NewToolPage() {
-  const session = await auth();
-  if (session?.user.role !== "admin") redirect("/tools");
-
-  return <NewToolForm />;
+  return (
+    <AuthGuard requiredRole="admin">
+      <NewToolForm />
+    </AuthGuard>
+  );
 }
