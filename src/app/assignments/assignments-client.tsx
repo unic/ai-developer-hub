@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   assignLicense,
   revokeLicense,
@@ -116,7 +116,7 @@ function EditAssignmentDialog({
   // Compute whether the selected date is > 12 months in the past
   const dateWarning = (() => {
     if (!watchedAssignedAt) return false;
-    const selectedDate = new Date(watchedAssignedAt);
+    const selectedDate = parseISO(watchedAssignedAt);
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     return selectedDate < twelveMonthsAgo;
@@ -143,7 +143,7 @@ function EditAssignmentDialog({
         id: assignment.id,
         tierId: assignment.tier.id,
         assignedAt: assignment.assignedAt
-          ? new Date(assignment.assignedAt).toISOString()
+          ? formatDateOnly(new Date(assignment.assignedAt))
           : undefined,
         workspace: assignment.workspace ?? "",
         apiKey: "",
@@ -271,7 +271,7 @@ function EditAssignmentDialog({
                         >
                           <CalendarIcon className="mr-2 size-4" />
                           {field.value
-                            ? format(new Date(field.value), "PPP")
+                            ? format(parseISO(field.value), "PPP")
                             : "Pick a date"}
                         </Button>
                       </FormControl>
@@ -280,7 +280,7 @@ function EditAssignmentDialog({
                       <Calendar
                         mode="single"
                         captionLayout="dropdown"
-                        selected={field.value ? new Date(field.value) : undefined}
+                        selected={field.value ? parseISO(field.value) : undefined}
                         onSelect={(date) => {
                           if (date) {
                             field.onChange(formatDateOnly(date));
@@ -289,7 +289,7 @@ function EditAssignmentDialog({
                         }}
                         disabled={(date) => date > new Date()}
                         defaultMonth={
-                          field.value ? new Date(field.value) : undefined
+                          field.value ? parseISO(field.value) : undefined
                         }
                       />
                     </PopoverContent>

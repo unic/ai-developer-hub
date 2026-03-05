@@ -499,7 +499,6 @@ export async function getBudgetWithCosts(
     .from(licenseAssignments)
     .where(
       and(
-        eq(licenseAssignments.status, "active"),
         lte(licenseAssignments.assignedAt, new Date(overallEnd)),
         or(
           isNull(licenseAssignments.revokedAt),
