@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   ChartContainer,
@@ -12,6 +12,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import type { PeriodSpendPoint } from "@/types";
+import { parseMonthLabel } from "@/lib/forecast";
 
 const trendsConfig = {
   billedCents: { label: "Billed", color: "var(--chart-1)" },
@@ -19,29 +20,68 @@ const trendsConfig = {
   plannedCents: { label: "Planned", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
-type Range = "3m" | "6m" | "12m";
+type Range = "3m" | "6m" | "12m" | "all";
+
+const RANGE_MAP = { "3m": 3, "6m": 6, "12m": 12 } as const;
+
+const RANGE_LABELS: Record<Range, string> = {
+  "3m": "3 months",
+  "6m": "6 months",
+  "12m": "12 months",
+  "all": "All",
+};
+
+function getMonthFromLabel(label: string): { year: number; month: number } | null {
+  const monthly = parseMonthLabel(label);
+  if (monthly) return monthly;
+  const q = label.match(/^Q([1-4])\s+(\d{4})$/);
+  if (q) {
+    const year = parseInt(q[2], 10);
+    if (!isNaN(year)) return { year, month: (parseInt(q[1], 10) - 1) * 3 };
+  }
+  return null;
+}
+
+function findCurrentIndex(data: PeriodSpendPoint[]): number {
+  const now = new Date();
+  const cy = now.getFullYear();
+  const cm = now.getMonth();
+  let idx = data.length - 1;
+  for (let i = 0; i < data.length; i++) {
+    const parsed = getMonthFromLabel(data[i].month);
+    if (!parsed) continue;
+    if (parsed.year < cy || (parsed.year === cy && parsed.month <= cm)) {
+      idx = i;
+    }
+  }
+  return idx;
+}
 
 interface TrendsChartProps {
   data: PeriodSpendPoint[];
 }
 
 export function TrendsChart({ data }: TrendsChartProps) {
-  const [range, setRange] = useState<Range>("6m");
+  const [range, setRange] = useState<Range>("3m");
 
-  const rangeMap: Record<Range, number> = { "3m": 3, "6m": 6, "12m": 12 };
-  const filtered = data.slice(-rangeMap[range]);
+  const filtered = useMemo(() => {
+    if (range === "all") return data;
+    const n = RANGE_MAP[range];
+    const end = findCurrentIndex(data);
+    return data.slice(Math.max(0, end - n + 1), end + 1);
+  }, [data, range]);
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        {(["3m", "6m", "12m"] as Range[]).map((r) => (
+        {(["3m", "6m", "12m", "all"] as Range[]).map((r) => (
           <Button
             key={r}
             variant={range === r ? "default" : "outline"}
             size="sm"
             onClick={() => setRange(r)}
           >
-            {r === "3m" ? "3 months" : r === "6m" ? "6 months" : "12 months"}
+            {RANGE_LABELS[r]}
           </Button>
         ))}
       </div>
