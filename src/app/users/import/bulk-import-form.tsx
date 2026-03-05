@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
 
 interface ParsedUser {
   name: string;
@@ -138,12 +139,20 @@ export function BulkImportForm() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Bulk Import Users</h1>
-        <p className="text-muted-foreground">
-          Upload a CSV file with columns: name, email, circle (or department),
-          role, github_username, profile
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Bulk Import Users</h1>
+          <p className="text-muted-foreground">
+            Upload a CSV file with columns: name, email, circle (or department),
+            role, github_username, profile
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <a href="/api/export/users" download>
+            <Download className="mr-2 h-4 w-4" />
+            Export Current Users
+          </a>
+        </Button>
       </div>
 
       <Card>
