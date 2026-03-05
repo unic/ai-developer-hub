@@ -1,27 +1,38 @@
 import { getAssignments } from "@/actions/assignments";
 import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
-import { getActiveBudget, getBudgetWithCosts } from "@/actions/budget";
-import { formatCurrency } from "@/lib/utils";
+import {
+  getActiveBudget,
+  getBilledCostsTimeSeries,
+  getBudgetForecast,
+} from "@/actions/budget";
+import { getLicenseUtilizationByTool } from "@/actions/assignments";
 import { AuthGuard } from "@/components/auth-guard";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { ReportsTabBar } from "./reports-tab-bar";
+import type {
+  ReportOverviewData,
+  ToolSummaryItem,
+  CircleReportItem,
+} from "@/types";
 
-export default async function ReportsPage() {
+const VALID_TABS = ["overview", "trends", "usage", "forecast"] as const;
+type Tab = (typeof VALID_TABS)[number];
+
+function parseTab(raw: string | undefined): Tab {
+  if (raw && (VALID_TABS as readonly string[]).includes(raw)) {
+    return raw as Tab;
+  }
+  return "overview";
+}
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab: rawTab } = await searchParams;
+  const activeTab = parseTab(rawTab);
+
   const [assignments, tools, userList, activeBudget] = await Promise.all([
     getAssignments(),
     getTools(),
@@ -29,17 +40,20 @@ export default async function ReportsPage() {
     getActiveBudget(),
   ]);
 
-  // Load billed costs from active budget (if one exists)
-  const budgetWithCosts = activeBudget
-    ? await getBudgetWithCosts(activeBudget.id)
-    : null;
-  const totalBilledSpend =
-    budgetWithCosts?.periods.reduce((s, p) => s + p.billedTotalCents, 0) ?? 0;
+  const [trendsData, usageData, forecastResult] = await Promise.all([
+    activeBudget ? getBilledCostsTimeSeries(activeBudget.id) : Promise.resolve([]),
+    getLicenseUtilizationByTool(),
+    activeBudget ? getBudgetForecast(activeBudget.id) : Promise.resolve(null),
+  ]);
+
+  const forecastData =
+    forecastResult && "success" in forecastResult && forecastResult.success
+      ? forecastResult.data
+      : null;
 
   const activeAssignments = assignments.filter((a) => a.status === "active");
 
-  // Tool adoption summary
-  const toolSummary = tools.map((tool) => {
+  const toolSummary: ToolSummaryItem[] = tools.map((tool) => {
     const toolAssignments = activeAssignments.filter(
       (a) => a.tool.id === tool.id
     );
@@ -56,9 +70,8 @@ export default async function ReportsPage() {
     };
   });
 
-  // Circle breakdown
   const circles = [...new Set(userList.map((u) => u.circle))];
-  const circleReport = circles.map((circle) => {
+  const circleReport: CircleReportItem[] = circles.map((circle) => {
     const circleUsers = userList.filter((u) => u.circle === circle);
     const circleUserIds = new Set(circleUsers.map((u) => u.id));
     const circleAssignments = activeAssignments.filter((a) =>
@@ -82,6 +95,41 @@ export default async function ReportsPage() {
     (s, a) => s + a.costAtAssignmentCents,
     0
   );
+  const billedYtdCents = trendsData.reduce((s, p) => s + p.billedCents, 0);
+  const budgetCeilingCents = activeBudget?.totalAmountCents ?? 0;
+  const budgetRemainingCents = budgetCeilingCents - billedYtdCents;
+  const utilizationPct =
+    budgetCeilingCents > 0
+      ? (billedYtdCents / budgetCeilingCents) * 100
+      : 0;
+
+  // Compute spend trend: current vs prior period
+  const lastTwo = trendsData.slice(-2);
+  let spendTrend: "up" | "down" | "flat" = "flat";
+  let spendTrendPct = 0;
+  if (lastTwo.length === 2 && lastTwo[0].billedCents > 0) {
+    const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
+    spendTrendPct = (diff / lastTwo[0].billedCents) * 100;
+    spendTrend =
+      Math.abs(spendTrendPct) < 1
+        ? "flat"
+        : diff > 0
+          ? "up"
+          : "down";
+  }
+
+  const overviewData: ReportOverviewData = {
+    totalActiveUsers,
+    totalActiveTools,
+    totalActiveLicenses: activeAssignments.length,
+    expectedMonthlyCents: totalMonthlySpend,
+    billedYtdCents,
+    budgetCeilingCents,
+    budgetRemainingCents,
+    utilizationPct,
+    spendTrend,
+    spendTrendPct,
+  };
 
   return (
     <AuthGuard requiredRole="admin">
@@ -93,122 +141,15 @@ export default async function ReportsPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Active Users</p>
-              <p className="text-2xl font-bold">{totalActiveUsers}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Active Tools</p>
-              <p className="text-2xl font-bold">{totalActiveTools}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Active Licenses</p>
-              <p className="text-2xl font-bold">{activeAssignments.length}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Expected Monthly Spend</p>
-              <p className="text-2xl font-bold">
-                {formatCurrency(totalMonthlySpend)}
-              </p>
-            </CardContent>
-          </Card>
-          {budgetWithCosts && (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Billed Spend (YTD)</p>
-                <p className="text-2xl font-bold">
-                  {formatCurrency(totalBilledSpend)}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Tool Adoption Summary</CardTitle>
-            <CardDescription>
-              Active license count and expected cost per tool
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tool</TableHead>
-                    <TableHead>Vendor</TableHead>
-                    <TableHead>Active Users</TableHead>
-                    <TableHead>Expected Cost</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {toolSummary
-                    .sort((a, b) => b.totalMonthlyCost - a.totalMonthlyCost)
-                    .map((tool) => (
-                      <TableRow key={tool.id}>
-                        <TableCell className="font-medium">
-                          {tool.name}
-                        </TableCell>
-                        <TableCell>{tool.vendor}</TableCell>
-                        <TableCell>{tool.activeUsers}</TableCell>
-                        <TableCell>
-                          {formatCurrency(tool.totalMonthlyCost)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Circle Report</CardTitle>
-            <CardDescription>
-              License distribution and expected cost by circle
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Circle</TableHead>
-                    <TableHead>Users</TableHead>
-                    <TableHead>Licenses</TableHead>
-                    <TableHead>Expected Cost</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {circleReport
-                    .sort((a, b) => b.totalMonthlyCost - a.totalMonthlyCost)
-                    .map((item) => (
-                      <TableRow key={item.circle}>
-                        <TableCell className="font-medium">
-                          {item.circle}
-                        </TableCell>
-                        <TableCell>{item.userCount}</TableCell>
-                        <TableCell>{item.licenseCount}</TableCell>
-                        <TableCell>
-                          {formatCurrency(item.totalMonthlyCost)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        <ReportsTabBar
+          activeTab={activeTab}
+          overviewData={overviewData}
+          trendsData={trendsData}
+          usageData={usageData}
+          forecastData={forecastData}
+          toolSummary={toolSummary}
+          circleReport={circleReport}
+        />
       </div>
     </AuthGuard>
   );
