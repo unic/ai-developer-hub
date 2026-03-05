@@ -42,6 +42,7 @@ export function NewUserForm() {
       role: "viewer",
       githubUsername: "",
       password: "",
+      profile: undefined,
     },
   });
 
@@ -144,6 +145,34 @@ export function NewUserForm() {
                       <SelectContent>
                         <SelectItem value="viewer">Viewer</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="profile"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Profile (optional)</FormLabel>
+                    <Select
+                      onValueChange={(val) =>
+                        field.onChange(val === "none" ? undefined : val)
+                      }
+                      value={field.value ?? "none"}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select profile" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="boost">Boost</SelectItem>
+                        <SelectItem value="maxed">Maxed</SelectItem>
+                        <SelectItem value="indie">Indie</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

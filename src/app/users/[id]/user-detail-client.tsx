@@ -51,6 +51,7 @@ const editUserSchema = z.object({
   circle: z.string().min(1).max(100),
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
+  profile: z.enum(["boost", "maxed", "indie"]).nullable().optional(),
 });
 
 type EditUserInput = z.infer<typeof editUserSchema>;
@@ -88,6 +89,7 @@ export function UserDetailClient({
       circle: user.circle,
       role: user.role as "admin" | "viewer",
       githubUsername: user.githubUsername ?? "",
+      profile: user.profile ?? null,
     },
   });
 
@@ -139,6 +141,11 @@ export function UserDetailClient({
           >
             {user.status}
           </Badge>
+          {user.profile && (
+            <Badge variant="outline" className="capitalize">
+              {user.profile}
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -210,6 +217,34 @@ export function UserDetailClient({
                         <SelectContent>
                           <SelectItem value="viewer">Viewer</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="profile"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Profile</FormLabel>
+                      <Select
+                        onValueChange={(val) =>
+                          field.onChange(val === "none" ? null : val)
+                        }
+                        value={field.value ?? "none"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="boost">Boost</SelectItem>
+                          <SelectItem value="maxed">Maxed</SelectItem>
+                          <SelectItem value="indie">Indie</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

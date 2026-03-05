@@ -545,13 +545,17 @@ export function AssignmentsClient({
           </p>
         </div>
         {isAdmin && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 size-4" />
-                Assign License
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link href="/assignments/import">Bulk Import</Link>
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 size-4" />
+                  Assign License
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Assign License</DialogTitle>
@@ -627,6 +631,7 @@ export function AssignmentsClient({
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         )}
       </div>
       <DataTable
