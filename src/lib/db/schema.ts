@@ -251,6 +251,28 @@ export const billedCosts = pgTable(
   ]
 );
 
+// Invoices
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: serial("id").primaryKey(),
+    invoiceNumber: varchar("invoice_number", { length: 255 }).notNull(),
+    invoiceDate: date("invoice_date").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    blobUrl: text("blob_url").notNull(),
+    blobPathname: text("blob_pathname").notNull(),
+    uploadedBy: integer("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("invoices_invoice_number_idx").on(t.invoiceNumber),
+    index("invoices_created_at_idx").on(t.createdAt),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   licenseAssignments: many(licenseAssignments),
@@ -330,21 +352,6 @@ export const changeHistoryRelations = relations(changeHistory, ({ one }) => ({
     references: [users.id],
   }),
 }));
-
-// Invoices
-export const invoices = pgTable("invoices", {
-  id: serial("id").primaryKey(),
-  invoiceNumber: varchar("invoice_number", { length: 255 }).notNull(),
-  invoiceDate: date("invoice_date").notNull(),
-  amountCents: integer("amount_cents").notNull(),
-  blobUrl: text("blob_url").notNull(),
-  blobPathname: text("blob_pathname").notNull(),
-  uploadedBy: integer("uploaded_by")
-    .notNull()
-    .references(() => users.id),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
 
 export const invoicesRelations = relations(invoices, ({ one }) => ({
   uploader: one(users, {

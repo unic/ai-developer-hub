@@ -9,7 +9,6 @@ import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Tooltip,
   TooltipContent,
@@ -91,7 +90,6 @@ export function InvoiceUploadForm() {
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [extractionResult, setExtractionResult] =
     useState<InvoiceExtractionResult | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   const {
     register,
@@ -117,7 +115,6 @@ export function InvoiceUploadForm() {
 
     setUploadState("uploading");
     setExtractionResult(null);
-    setDuplicateWarning(null);
 
     try {
       const urlRes = await fetch("/api/invoices/upload-url", {
@@ -168,7 +165,6 @@ export function InvoiceUploadForm() {
   };
 
   const onSubmit = async (data: CreateInvoiceInput) => {
-    setDuplicateWarning(null);
     const result = await saveInvoice(data);
     if (!result.success) {
       toast.error(result.error);
@@ -262,12 +258,6 @@ export function InvoiceUploadForm() {
             watchedValue={amountCents?.toString()}
             error={errors.amountCents?.message}
           />
-
-          {duplicateWarning && (
-            <Alert>
-              <AlertDescription>{duplicateWarning}</AlertDescription>
-            </Alert>
-          )}
 
           <Button type="submit" disabled={isSubmitting || !blobPathname}>
             {isSubmitting ? (
