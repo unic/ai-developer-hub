@@ -19,7 +19,7 @@
 
 **Purpose**: Create the shared CSV utility that all export endpoints depend on
 
-- [ ] T001 Create CSV generation utility with RFC 4180 escaping, BOM support, and null-to-empty-string handling in `src/lib/csv.ts`
+- [X] T001 Create CSV generation utility with RFC 4180 escaping, BOM support, and null-to-empty-string handling in `src/lib/csv.ts`
 
 ---
 
@@ -39,7 +39,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T002 [US1] Create GET route handler for assignment CSV export with admin auth check, Drizzle join query (licenseAssignments → users, aiTools, accessTiers), API key decryption, date formatting (YYYY-MM-DD), and CSV response with Content-Disposition header in `src/app/api/export/assignments/route.ts`
+- [X] T002 [US1] Create GET route handler for assignment CSV export with admin auth check, Drizzle join query (licenseAssignments → users, aiTools, accessTiers), API key decryption, date formatting (YYYY-MM-DD), and CSV response with Content-Disposition header in `src/app/api/export/assignments/route.ts`
 
 **Checkpoint**: At this point, assignment export is fully functional via direct URL access (`GET /api/export/assignments`). An admin can hit the endpoint and receive a valid CSV file.
 
@@ -53,7 +53,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T003 [P] [US2] Create GET route handler for user CSV export with admin auth check, Drizzle query on users table, null-to-empty-string mapping for optional fields (githubUsername, profile), and CSV response with Content-Disposition header in `src/app/api/export/users/route.ts`
+- [X] T003 [P] [US2] Create GET route handler for user CSV export with admin auth check, Drizzle query on users table, null-to-empty-string mapping for optional fields (githubUsername, profile), and CSV response with Content-Disposition header in `src/app/api/export/users/route.ts`
 
 **Checkpoint**: Both export endpoints are functional. Admin can export both assignments and users via direct URL access.
 
@@ -67,8 +67,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T004 [P] [US3] Add "Export Current Assignments" outline button with Lucide Download icon above the import form in `src/app/assignments/import/page.tsx`, linking to `/api/export/assignments`
-- [ ] T005 [P] [US3] Add "Export Current Users" outline button with Lucide Download icon above the import form in `src/app/users/import/page.tsx`, linking to `/api/export/users`
+- [X] T004 [P] [US3] Add "Export Current Assignments" outline button with Lucide Download icon above the import form in `src/app/assignments/import/page.tsx`, linking to `/api/export/assignments`
+- [X] T005 [P] [US3] Add "Export Current Users" outline button with Lucide Download icon above the import form in `src/app/users/import/page.tsx`, linking to `/api/export/users`
 
 **Checkpoint**: All user stories are complete. The full round-trip workflow is functional and discoverable from the import pages.
 
