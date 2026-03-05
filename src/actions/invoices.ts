@@ -4,22 +4,14 @@ import { db } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { r2Client, R2_BUCKET } from "@/lib/r2-client";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
 import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction";
 import { recordCreation } from "@/actions/history";
 import type { ActionResult } from "@/types";
-
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "",
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "",
-  },
-});
 
 export async function extractInvoiceFieldsAction(
   input: { objectKey: string }
@@ -64,20 +56,13 @@ export async function saveInvoice(
         blobUrl,
         blobPathname,
         uploadedBy: Number(admin.id),
-        createdAt: new Date(),
-        updatedAt: new Date(),
       })
       .returning({ id: invoices.id });
     newId = created.id;
   } catch (err) {
     // Orphan cleanup: delete the uploaded R2 object if DB write fails
     try {
-      await r2Client.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME,
-          Key: blobPathname,
-        })
-      );
+      await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: blobPathname }));
     } catch {
       // Best-effort cleanup — ignore secondary failure
     }

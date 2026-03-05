@@ -1,17 +1,9 @@
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getDocumentProxy, extractText } from "unpdf";
 import Anthropic from "@anthropic-ai/sdk";
+import { r2Client, R2_BUCKET } from "@/lib/r2-client";
 import { invoiceExtractionResultSchema } from "@/lib/validators";
 import type { InvoiceExtractionResult } from "@/lib/validators";
-
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "",
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "",
-  },
-});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -51,15 +43,12 @@ const EXTRACTION_TOOL = {
 };
 
 function regexFallback(text: string): InvoiceExtractionResult {
-  // Try to extract invoice number (patterns like INV-1234, Invoice #1234, etc.)
   const invoiceNumberMatch = text.match(
     /(?:invoice\s*(?:number|no\.?|#)\s*:?\s*)([A-Z0-9\-]+)/i
   );
-  // Try to extract date (YYYY-MM-DD or MM/DD/YYYY or Month DD, YYYY)
   const dateMatch = text.match(
     /\b(\d{4}-\d{2}-\d{2})\b|\b(\d{1,2}\/\d{1,2}\/\d{4})\b/
   );
-  // Try to extract total amount (patterns like Total: $1,234.56)
   const amountMatch = text.match(
     /(?:total|amount\s*due|grand\s*total)\s*:?\s*\$?([\d,]+\.?\d{0,2})/i
   );
@@ -77,7 +66,7 @@ function regexFallback(text: string): InvoiceExtractionResult {
   let amountCents: number | null = null;
   if (amountMatch) {
     const dollars = parseFloat(amountMatch[1].replace(/,/g, ""));
-    if (!isNaN(dollars)) {
+    if (!Number.isNaN(dollars)) {
       amountCents = Math.round(dollars * 100);
     }
   }
@@ -102,25 +91,12 @@ export async function extractInvoiceFields({
   // 1. Fetch PDF bytes from R2
   let pdfBytes: Uint8Array;
   try {
-    const command = new GetObjectCommand({
-      Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME,
-      Key: objectKey,
-    });
+    const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: objectKey });
     const response = await r2Client.send(command);
     if (!response.Body) {
       return { success: false, error: "Empty response from storage" };
     }
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
-      chunks.push(chunk);
-    }
-    const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-    pdfBytes = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      pdfBytes.set(chunk, offset);
-      offset += chunk.length;
-    }
+    pdfBytes = await (response.Body as { transformToByteArray(): Promise<Uint8Array> }).transformToByteArray();
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { success: false, error: `Failed to fetch PDF from storage: ${message}` };
@@ -142,7 +118,8 @@ export async function extractInvoiceFields({
     return { success: false, error: "PDF has no readable text layer" };
   }
 
-  // 4. Call Claude Haiku with forced tool use
+  // 4. Call Claude Haiku with forced tool use; fall back to regex on any failure
+  const fallback = regexFallback(text);
   let rawResult: InvoiceExtractionResult;
   try {
     const response = await anthropic.messages.create({
@@ -160,7 +137,7 @@ export async function extractInvoiceFields({
 
     const toolUse = response.content.find((c) => c.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") {
-      rawResult = regexFallback(text);
+      rawResult = fallback;
     } else {
       const input = toolUse.input as Record<string, unknown>;
       const conf = (input.confidence ?? {}) as Record<string, unknown>;
@@ -176,15 +153,10 @@ export async function extractInvoiceFields({
       };
     }
   } catch {
-    rawResult = regexFallback(text);
+    rawResult = fallback;
   }
 
-  // 5. Validate with Zod
+  // 5. Validate with Zod; return cached fallback if Claude output is malformed
   const parsed = invoiceExtractionResultSchema.safeParse(rawResult);
-  if (!parsed.success) {
-    // Return regex fallback with low confidence on validation failure
-    return { success: true, data: regexFallback(text) };
-  }
-
-  return { success: true, data: parsed.data };
+  return { success: true, data: parsed.success ? parsed.data : fallback };
 }

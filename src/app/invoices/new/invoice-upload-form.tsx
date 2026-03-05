@@ -20,15 +20,19 @@ import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
 import { extractInvoiceFieldsAction, saveInvoice } from "@/actions/invoices";
 import { cn } from "@/lib/utils";
+import type { UseFormRegisterReturn } from "react-hook-form";
 
-type UploadState =
-  | "idle"
-  | "uploading"
-  | "extracting"
-  | "extracted"
-  | "error";
+type UploadState = "idle" | "uploading" | "extracting" | "extracted" | "error";
 
 type ConfidenceLevel = "high" | "medium" | "low";
+
+const ARIA_STATUS: Record<UploadState, string> = {
+  idle: "",
+  uploading: "Uploading PDF…",
+  extracting: "Extracting invoice fields…",
+  extracted: "Extraction complete. Please review the form.",
+  error: "Extraction failed. Please enter fields manually.",
+};
 
 function isLowConfidence(
   confidence: ConfidenceLevel | undefined,
@@ -37,11 +41,54 @@ function isLowConfidence(
   return confidence === "low" || value === null || value === undefined || value === "";
 }
 
+type ConfidenceInputProps = {
+  id: string;
+  label: string;
+  placeholder: string;
+  type?: string;
+  registerProps: UseFormRegisterReturn;
+  confidence: ConfidenceLevel | undefined;
+  watchedValue: string | null | undefined;
+  error?: string;
+};
+
+function ConfidenceInput({
+  id,
+  label,
+  placeholder,
+  type,
+  registerProps,
+  confidence,
+  watchedValue,
+  error,
+}: ConfidenceInputProps) {
+  const low = isLowConfidence(confidence, watchedValue);
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Input
+              id={id}
+              type={type}
+              {...registerProps}
+              className={cn(low ? "border-amber-400" : "")}
+              placeholder={placeholder}
+            />
+          </TooltipTrigger>
+          {low && <TooltipContent>Low confidence — please verify</TooltipContent>}
+        </Tooltip>
+      </TooltipProvider>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function InvoiceUploadForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
-  const [ariaStatus, setAriaStatus] = useState("");
   const [extractionResult, setExtractionResult] =
     useState<InvoiceExtractionResult | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -56,6 +103,9 @@ export function InvoiceUploadForm() {
     resolver: zodResolver(createInvoiceSchema),
   });
 
+  const { invoiceNumber, invoiceDate, amountCents, blobPathname } = watch();
+  const confidence = extractionResult?.confidence;
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -66,12 +116,10 @@ export function InvoiceUploadForm() {
     }
 
     setUploadState("uploading");
-    setAriaStatus("Uploading PDF…");
     setExtractionResult(null);
     setDuplicateWarning(null);
 
     try {
-      // Get presigned upload URL
       const urlRes = await fetch("/api/invoices/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,7 +131,6 @@ export function InvoiceUploadForm() {
       }
       const { uploadUrl, objectKey, blobUrl } = await urlRes.json();
 
-      // Upload directly to R2
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         body: file,
@@ -97,13 +144,10 @@ export function InvoiceUploadForm() {
       setValue("blobUrl", blobUrl);
 
       setUploadState("extracting");
-      setAriaStatus("Extracting invoice fields…");
 
-      // Extract fields via Server Action
       const result = await extractInvoiceFieldsAction({ objectKey });
       if (!result.success) {
         setUploadState("error");
-        setAriaStatus("Extraction failed. Please enter fields manually.");
         toast.error(result.error);
         return;
       }
@@ -111,17 +155,14 @@ export function InvoiceUploadForm() {
       const extracted = result.data;
       setExtractionResult(extracted);
 
-      // Pre-fill form fields
       if (extracted.invoiceNumber) setValue("invoiceNumber", extracted.invoiceNumber);
       if (extracted.invoiceDate) setValue("invoiceDate", extracted.invoiceDate);
       if (extracted.amountCents) setValue("amountCents", extracted.amountCents);
 
       setUploadState("extracted");
-      setAriaStatus("Extraction complete. Please review the form.");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setUploadState("error");
-      setAriaStatus("Extraction failed. Please enter fields manually.");
       toast.error(message);
     }
   };
@@ -134,7 +175,9 @@ export function InvoiceUploadForm() {
       return;
     }
     if (result.warning) {
-      setDuplicateWarning(result.warning);
+      // Invoice was saved — notify user and navigate, showing the duplicate notice
+      toast.success("Invoice saved.", { description: result.warning });
+      router.push("/invoices");
       return;
     }
     toast.success("Invoice saved to archive.");
@@ -142,18 +185,12 @@ export function InvoiceUploadForm() {
   };
 
   const showForm = uploadState === "extracted" || uploadState === "error";
-  const confidence = extractionResult?.confidence;
 
   return (
     <div className="space-y-6">
       {/* ARIA live region */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
-        {ariaStatus}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {ARIA_STATUS[uploadState]}
       </div>
 
       {/* File upload area */}
@@ -195,107 +232,44 @@ export function InvoiceUploadForm() {
           <input type="hidden" {...register("blobPathname")} />
           <input type="hidden" {...register("blobUrl")} />
 
-          {/* Invoice Number */}
-          <div className="space-y-1">
-            <Label htmlFor="invoiceNumber">Invoice Number</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Input
-                    id="invoiceNumber"
-                    {...register("invoiceNumber")}
-                    className={cn(
-                      isLowConfidence(confidence?.invoiceNumber, watch("invoiceNumber"))
-                        ? "border-amber-400"
-                        : ""
-                    )}
-                    placeholder="e.g. INV-1042"
-                  />
-                </TooltipTrigger>
-                {isLowConfidence(confidence?.invoiceNumber, watch("invoiceNumber")) && (
-                  <TooltipContent>Low confidence — please verify</TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
-            {errors.invoiceNumber && (
-              <p className="text-sm text-destructive">{errors.invoiceNumber.message}</p>
-            )}
-          </div>
+          <ConfidenceInput
+            id="invoiceNumber"
+            label="Invoice Number"
+            placeholder="e.g. INV-1042"
+            registerProps={register("invoiceNumber")}
+            confidence={confidence?.invoiceNumber}
+            watchedValue={invoiceNumber}
+            error={errors.invoiceNumber?.message}
+          />
 
-          {/* Invoice Date */}
-          <div className="space-y-1">
-            <Label htmlFor="invoiceDate">Invoice Date</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Input
-                    id="invoiceDate"
-                    {...register("invoiceDate")}
-                    className={cn(
-                      isLowConfidence(confidence?.invoiceDate, watch("invoiceDate"))
-                        ? "border-amber-400"
-                        : ""
-                    )}
-                    placeholder="YYYY-MM-DD"
-                  />
-                </TooltipTrigger>
-                {isLowConfidence(confidence?.invoiceDate, watch("invoiceDate")) && (
-                  <TooltipContent>Low confidence — please verify</TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
-            {errors.invoiceDate && (
-              <p className="text-sm text-destructive">{errors.invoiceDate.message}</p>
-            )}
-          </div>
+          <ConfidenceInput
+            id="invoiceDate"
+            label="Invoice Date"
+            placeholder="YYYY-MM-DD"
+            registerProps={register("invoiceDate")}
+            confidence={confidence?.invoiceDate}
+            watchedValue={invoiceDate}
+            error={errors.invoiceDate?.message}
+          />
 
-          {/* Amount */}
-          <div className="space-y-1">
-            <Label htmlFor="amountCents">Amount (cents)</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Input
-                    id="amountCents"
-                    type="number"
-                    {...register("amountCents", { valueAsNumber: true })}
-                    className={cn(
-                      isLowConfidence(
-                        confidence?.amountCents,
-                        watch("amountCents")?.toString()
-                      )
-                        ? "border-amber-400"
-                        : ""
-                    )}
-                    placeholder="e.g. 12500 for $125.00"
-                  />
-                </TooltipTrigger>
-                {isLowConfidence(
-                  confidence?.amountCents,
-                  watch("amountCents")?.toString()
-                ) && (
-                  <TooltipContent>Low confidence — please verify</TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
-            {errors.amountCents && (
-              <p className="text-sm text-destructive">{errors.amountCents.message}</p>
-            )}
-          </div>
+          <ConfidenceInput
+            id="amountCents"
+            label="Amount (cents)"
+            placeholder="e.g. 12500 for $125.00"
+            type="number"
+            registerProps={register("amountCents", { valueAsNumber: true })}
+            confidence={confidence?.amountCents}
+            watchedValue={amountCents?.toString()}
+            error={errors.amountCents?.message}
+          />
 
-          {/* Duplicate warning */}
           {duplicateWarning && (
             <Alert>
-              <AlertDescription>
-                {duplicateWarning} Saving will create a duplicate.
-              </AlertDescription>
+              <AlertDescription>{duplicateWarning}</AlertDescription>
             </Alert>
           )}
 
-          <Button
-            type="submit"
-            disabled={isSubmitting || !watch("blobPathname")}
-          >
+          <Button type="submit" disabled={isSubmitting || !blobPathname}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
