@@ -1,22 +1,31 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowUpDown } from "lucide-react";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowUpDown, Archive, Eye, Pencil } from "lucide-react";
+import { archiveTool } from "@/actions/tools";
 import type { AiTool } from "@/types";
 
 type ToolRow = AiTool & { activeLicenses: number };
 
-function getColumns(isAdmin: boolean): ColumnDef<ToolRow>[] {
+function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow>[] {
   const columns: ColumnDef<ToolRow>[] = [
     {
       accessorKey: "name",
@@ -67,28 +76,73 @@ function getColumns(isAdmin: boolean): ColumnDef<ToolRow>[] {
         </Badge>
       ),
     },
-  ];
-
-  if (isAdmin) {
-    columns.push({
+    {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="size-4" />
-              <span className="sr-only">Open menu</span>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" asChild>
+            <Link href={`/tools/${row.original.id}`}>
+              <Eye className="size-4" />
+              <span className="sr-only">View</span>
+            </Link>
+          </Button>
+          {isAdmin && (
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/tools/${row.original.id}`}>
+                <Pencil className="size-4" />
+                <span className="sr-only">Edit</span>
+              </Link>
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/tools/${row.original.id}`}>Edit</Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          {isAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={row.original.status !== "active"}
+                >
+                  <Archive className="size-4" />
+                  <span className="sr-only">Archive</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Archive {row.original.name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {row.original.activeLicenses > 0
+                      ? `This tool has ${row.original.activeLicenses} active license(s). Revoke them before archiving.`
+                      : "This will archive the tool and make it unavailable for new assignments."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={row.original.activeLicenses > 0}
+                    onClick={async () => {
+                      try {
+                        const result = await archiveTool({ id: row.original.id });
+                        if (result.success) {
+                          toast.success("Tool archived");
+                          onArchived();
+                        } else {
+                          toast.error(result.error);
+                        }
+                      } catch {
+                        toast.error("An unexpected error occurred");
+                      }
+                    }}
+                  >
+                    Archive
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       ),
-    });
-  }
+    },
+  ];
 
   return columns;
 }
@@ -100,9 +154,13 @@ export function ToolsTable({
   data: ToolRow[];
   isAdmin: boolean;
 }) {
+  const router = useRouter();
+  const handleRefresh = useCallback(() => router.refresh(), [router]);
+  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
+
   return (
     <DataTable
-      columns={getColumns(isAdmin)}
+      columns={columns}
       data={data}
       searchPlaceholder="Search tools..."
     />

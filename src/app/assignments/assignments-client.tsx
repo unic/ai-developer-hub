@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -61,7 +61,19 @@ import {
   Copy,
   CalendarIcon,
   AlertTriangle,
+  Ban,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface AssignmentRow {
   id: number;
@@ -413,7 +425,13 @@ export function AssignmentsClient({
   isAdmin,
 }: Props) {
   const router = useRouter();
+  const [showNoWorkspace, setShowNoWorkspace] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const filteredAssignments = useMemo(
+    () => showNoWorkspace ? assignments.filter((a) => !a.workspace) : assignments,
+    [showNoWorkspace, assignments]
+  );
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedToolId, setSelectedToolId] = useState<string>("");
   const [selectedTierId, setSelectedTierId] = useState<string>("");
@@ -521,13 +539,28 @@ export function AssignmentsClient({
                 assignment={row.original}
                 onSaved={() => router.refresh()}
               />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleRevoke(row.original.id)}
-              >
-                Revoke
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="ghost">
+                    <Ban className="size-4" />
+                    <span className="sr-only">Revoke</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will revoke {row.original.user.name}&apos;s license for {row.original.tool.name}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleRevoke(row.original.id)}>
+                      Revoke
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </>
           )}
         </div>
@@ -634,9 +667,18 @@ export function AssignmentsClient({
           </div>
         )}
       </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant={showNoWorkspace ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setShowNoWorkspace(!showNoWorkspace)}
+        >
+          No Workspace
+        </Button>
+      </div>
       <DataTable
         columns={columns}
-        data={assignments}
+        data={filteredAssignments}
         searchPlaceholder="Search assignments..."
       />
     </div>

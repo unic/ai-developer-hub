@@ -49,7 +49,7 @@ export const users = pgTable(
     email: varchar("email", { length: 255 }).notNull(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     githubUsername: varchar("github_username", { length: 255 }),
-    circle: varchar("circle", { length: 100 }).notNull(),
+    circle: varchar("circle", { length: 100 }),
     role: userRoleEnum("role").notNull().default("viewer"),
     status: userStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at").notNull().defaultNow(),

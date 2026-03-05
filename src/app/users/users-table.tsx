@@ -1,20 +1,29 @@
 "use client";
 
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowUpDown } from "lucide-react";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowUpDown, Eye, Pencil, UserX } from "lucide-react";
+import { deactivateUser } from "@/actions/users";
 import type { User } from "@/types";
 
-function getColumns(isAdmin: boolean): ColumnDef<User>[] {
+function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -51,6 +60,7 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
           <ArrowUpDown className="ml-2 size-4" />
         </Button>
       ),
+      cell: ({ row }) => row.getValue("circle") || "\u2014",
     },
     {
       accessorKey: "role",
@@ -88,28 +98,66 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
         </Badge>
       ),
     },
-  ];
-
-  if (isAdmin) {
-    columns.push({
+    {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="size-4" />
-              <span className="sr-only">Open menu</span>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" asChild>
+            <Link href={`/users/${row.original.id}`}>
+              <Eye className="size-4" />
+              <span className="sr-only">View</span>
+            </Link>
+          </Button>
+          {isAdmin && (
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/users/${row.original.id}`}>
+                <Pencil className="size-4" />
+                <span className="sr-only">Edit</span>
+              </Link>
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/users/${row.original.id}`}>Edit</Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          {isAdmin && row.original.status === "active" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="ghost">
+                  <UserX className="size-4" />
+                  <span className="sr-only">Deactivate</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Deactivate {row.original.name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will deactivate the user and revoke all their active license assignments.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      try {
+                        const result = await deactivateUser({ id: row.original.id });
+                        if (result.success) {
+                          toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
+                          onDeactivated();
+                        } else {
+                          toast.error(result.error);
+                        }
+                      } catch {
+                        toast.error("An unexpected error occurred");
+                      }
+                    }}
+                  >
+                    Deactivate
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       ),
-    });
-  }
+    },
+  ];
 
   return columns;
 }
@@ -121,11 +169,32 @@ export function UsersTable({
   data: User[];
   isAdmin: boolean;
 }) {
+  const router = useRouter();
+  const [showNoCircle, setShowNoCircle] = useState(false);
+
+  const handleRefresh = useCallback(() => router.refresh(), [router]);
+  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
+  const filteredData = useMemo(
+    () => showNoCircle ? data.filter((u) => !u.circle) : data,
+    [showNoCircle, data]
+  );
+
   return (
-    <DataTable
-      columns={getColumns(isAdmin)}
-      data={data}
-      searchPlaceholder="Search users..."
-    />
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button
+          variant={showNoCircle ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setShowNoCircle(!showNoCircle)}
+        >
+          No Circle
+        </Button>
+      </div>
+      <DataTable
+        columns={columns}
+        data={filteredData}
+        searchPlaceholder="Search users..."
+      />
+    </div>
   );
 }

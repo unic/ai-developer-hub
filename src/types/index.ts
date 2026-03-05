@@ -138,7 +138,7 @@ export interface ToolSummaryItem {
 }
 
 export interface CircleReportItem {
-  circle: string;
+  circle: string | null;
   userCount: number;
   licenseCount: number;
   totalMonthlyCost: number;

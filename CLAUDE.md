@@ -13,6 +13,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL (serverless) via @neondatabase/serverless 1.0.2 + Drizzle ORM (004-bulk-license-import)
 - TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Recharts 2.15.4 (already installed), shadcn/ui ChartContainer, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30 (005-rich-reports)
 - Neon PostgreSQL (serverless) — no schema changes; all report data derived from `annual_budgets`, `budget_periods`, `billed_costs`, `license_assignments`, `ai_tools` (005-rich-reports)
+- TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, TanStack Table 8.21.3, shadcn/ui (new-york style), Lucide React, Sonner (toasts) (006-optional-fields-ux)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` (006-optional-fields-ux)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -75,9 +77,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 006-optional-fields-ux: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, TanStack Table 8.21.3, shadcn/ui (new-york style), Lucide React, Sonner (toasts)
 - 005-rich-reports: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Recharts 2.15.4 (already installed), shadcn/ui ChartContainer, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30
 - 004-bulk-license-import: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui + radix-ui, React Hook Form 7.71.2, Zod 4.3.6, date-fns 4.1.0, bcryptjs, sonner (toasts)
-- 003-enhance-core-features: Added TypeScript 5.9.3 (strict mode), Node.js LTS, React 19.2.4 + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui + radix-ui, React Hook Form 7.71.2, Zod 4.3.6, TanStack Table 8.21.3, Recharts 2.15.4, date-fns 4.1.0, react-day-picker 9.14.0
 
 
 <!-- MANUAL ADDITIONS START -->
