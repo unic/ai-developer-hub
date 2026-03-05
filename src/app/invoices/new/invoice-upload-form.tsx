@@ -117,25 +117,18 @@ export function InvoiceUploadForm() {
     setExtractionResult(null);
 
     try {
-      const urlRes = await fetch("/api/invoices/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType: "application/pdf" }),
-      });
-      if (!urlRes.ok) {
-        const err = await urlRes.json();
-        throw new Error(err.error ?? "Failed to get upload URL");
-      }
-      const { uploadUrl, objectKey, blobUrl } = await urlRes.json();
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": "application/pdf" },
+      const uploadRes = await fetch("/api/invoices/upload-url", {
+        method: "POST",
+        body: formData,
       });
       if (!uploadRes.ok) {
-        throw new Error("Failed to upload file to storage");
+        const err = await uploadRes.json();
+        throw new Error(err.error ?? "Failed to upload file");
       }
+      const { objectKey, blobUrl } = await uploadRes.json();
 
       setValue("blobPathname", objectKey);
       setValue("blobUrl", blobUrl);
