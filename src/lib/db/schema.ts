@@ -259,6 +259,11 @@ export const invoices = pgTable(
     invoiceNumber: varchar("invoice_number", { length: 255 }).notNull(),
     invoiceDate: date("invoice_date").notNull(),
     amountCents: integer("amount_cents").notNull(),
+    vendor: varchar("vendor", { length: 255 }),
+    linkedBilledCostId: integer("linked_billed_cost_id").references(
+      () => billedCosts.id,
+      { onDelete: "set null" }
+    ),
     blobUrl: text("blob_url").notNull(),
     blobPathname: text("blob_pathname").notNull(),
     uploadedBy: integer("uploaded_by")
@@ -270,6 +275,7 @@ export const invoices = pgTable(
   (t) => [
     index("invoices_invoice_number_idx").on(t.invoiceNumber),
     index("invoices_created_at_idx").on(t.createdAt),
+    index("invoices_linked_billed_cost_id_idx").on(t.linkedBilledCostId),
   ]
 );
 
@@ -339,11 +345,12 @@ export const assignmentCommentsRelations = relations(
   })
 );
 
-export const billedCostsRelations = relations(billedCosts, ({ one }) => ({
+export const billedCostsRelations = relations(billedCosts, ({ one, many }) => ({
   period: one(budgetPeriods, {
     fields: [billedCosts.periodId],
     references: [budgetPeriods.id],
   }),
+  invoices: many(invoices),
 }));
 
 export const changeHistoryRelations = relations(changeHistory, ({ one }) => ({
@@ -357,5 +364,9 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
   uploader: one(users, {
     fields: [invoices.uploadedBy],
     references: [users.id],
+  }),
+  linkedBilledCost: one(billedCosts, {
+    fields: [invoices.linkedBilledCostId],
+    references: [billedCosts.id],
   }),
 }));

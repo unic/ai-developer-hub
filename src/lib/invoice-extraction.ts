@@ -28,17 +28,23 @@ const EXTRACTION_TOOL = {
         description:
           "Total amount due in integer cents (e.g. $12.50 → 1250). Grand total only. Null if not found.",
       },
+      vendor: {
+        type: ["string", "null"],
+        description:
+          "Name of the vendor or company issuing the invoice. Null if not found.",
+      },
       confidence: {
         type: "object",
         properties: {
           invoice_number: { type: "string", enum: ["high", "medium", "low"] },
           invoice_date: { type: "string", enum: ["high", "medium", "low"] },
           amount_cents: { type: "string", enum: ["high", "medium", "low"] },
+          vendor: { type: "string", enum: ["high", "medium", "low"] },
         },
-        required: ["invoice_number", "invoice_date", "amount_cents"] as string[],
+        required: ["invoice_number", "invoice_date", "amount_cents", "vendor"] as string[],
       },
     },
-    required: ["invoice_number", "invoice_date", "amount_cents", "confidence"] as string[],
+    required: ["invoice_number", "invoice_date", "amount_cents", "vendor", "confidence"] as string[],
   },
 };
 
@@ -71,14 +77,21 @@ function regexFallback(text: string): InvoiceExtractionResult {
     }
   }
 
+  // Vendor heuristic: look for "From: Company" or capitalised proper noun on first 3 lines
+  const firstLines = text.split("\n").slice(0, 3).join("\n");
+  const fromMatch = firstLines.match(/From:\s*(.+)/i);
+  const vendor = fromMatch ? fromMatch[1].trim() : null;
+
   return {
     invoiceNumber: invoiceNumberMatch ? invoiceNumberMatch[1] : null,
     invoiceDate,
     amountCents,
+    vendor,
     confidence: {
       invoiceNumber: "low",
       invoiceDate: "low",
       amountCents: "low",
+      vendor: "low",
     },
   };
 }
@@ -145,10 +158,12 @@ export async function extractInvoiceFields({
         invoiceNumber: typeof input.invoice_number === "string" ? input.invoice_number : null,
         invoiceDate: typeof input.invoice_date === "string" ? input.invoice_date : null,
         amountCents: typeof input.amount_cents === "number" ? input.amount_cents : null,
+        vendor: typeof input.vendor === "string" ? input.vendor : null,
         confidence: {
           invoiceNumber: (conf.invoice_number as "high" | "medium" | "low") ?? "low",
           invoiceDate: (conf.invoice_date as "high" | "medium" | "low") ?? "low",
           amountCents: (conf.amount_cents as "high" | "medium" | "low") ?? "low",
+          vendor: (conf.vendor as "high" | "medium" | "low") ?? "low",
         },
       };
     }

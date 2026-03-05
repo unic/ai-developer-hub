@@ -206,6 +206,7 @@ export const createInvoiceSchema = z.object({
       );
     }, "Invalid calendar date"),
   amountCents: z.number().int().positive("Amount must be a positive integer (cents)"),
+  vendor: z.string().max(255).optional(),
   blobUrl: z.string().url(),
   blobPathname: z.string().min(1),
 });
@@ -214,10 +215,12 @@ export const invoiceExtractionResultSchema = z.object({
   invoiceNumber: z.string().nullable(),
   invoiceDate: z.string().nullable(),
   amountCents: z.number().int().positive().nullable(),
+  vendor: z.string().nullable(),
   confidence: z.object({
     invoiceNumber: z.enum(["high", "medium", "low"]),
     invoiceDate: z.enum(["high", "medium", "low"]),
     amountCents: z.enum(["high", "medium", "low"]),
+    vendor: z.enum(["high", "medium", "low"]),
   }),
 });
 
