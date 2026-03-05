@@ -30,6 +30,7 @@ export type AssignmentStatus = "active" | "inactive";
 export type BudgetStatus = "active" | "archived";
 export type PeriodType = "monthly" | "quarterly";
 export type ChangeType = "created" | "updated" | "deleted" | "status_change";
+export type UserProfile = "boost" | "maxed" | "indie";
 
 // Select types (for reading from DB)
 export type User = InferSelectModel<typeof users>;

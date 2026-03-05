@@ -34,6 +34,11 @@ export const changeTypeEnum = pgEnum("change_type", [
   "deleted",
   "status_change",
 ]);
+export const userProfileEnum = pgEnum("user_profile", [
+  "boost",
+  "maxed",
+  "indie",
+]);
 
 // Users
 export const users = pgTable(
@@ -51,6 +56,7 @@ export const users = pgTable(
     preferences: jsonb("preferences")
       .$type<UserPreferences>()
       .default({ theme: "system", leanMode: false }),
+    profile: userProfileEnum("profile"),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
