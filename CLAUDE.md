@@ -78,6 +78,7 @@ pnpm lighthouse        # Lighthouse CI
 - 005-bulk-export: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, date-fns 4.1.0, shadcn/ui + Lucide React
 - 004-bulk-license-import: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui + radix-ui, React Hook Form 7.71.2, Zod 4.3.6, date-fns 4.1.0, bcryptjs, sonner (toasts)
 - 003-enhance-core-features: Added TypeScript 5.9.3 (strict mode), Node.js LTS, React 19.2.4 + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui + radix-ui, React Hook Form 7.71.2, Zod 4.3.6, TanStack Table 8.21.3, Recharts 2.15.4, date-fns 4.1.0, react-day-picker 9.14.0
+- 002-retro-glitch-themes: Added TypeScript 5.x (strict mode), React 19, Node.js LTS + Next.js 15.5.12 (App Router), Tailwind CSS 4.2.1, shadcn/ui (new-york style), next-themes 0.4.6, Lucide React 0.576.0, class-variance-authority; Neon PostgreSQL via Drizzle ORM (user preferences), localStorage (unauthenticated preference fallback)
 
 
 <!-- MANUAL ADDITIONS START -->

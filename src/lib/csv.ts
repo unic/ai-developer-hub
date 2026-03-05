@@ -45,6 +45,7 @@ export function csvResponse(csv: string, filenamePrefix: string): Response {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filenamePrefix}-export-${today}.csv"`,
+      "Cache-Control": "no-store, no-cache, must-revalidate",
     },
   });
 }

@@ -26,26 +26,33 @@ export async function GET() {
     orderBy: [desc(licenseAssignments.assignedAt)],
   });
 
-  const csvRows = await Promise.all(
-    data.map(async (row) => {
-      let apiKey = "";
-      if (row.apiKeyEncrypted) {
-        try {
-          apiKey = await decryptApiKey(row.apiKeyEncrypted);
-        } catch {
-          apiKey = "";
+  const DECRYPT_BATCH_SIZE = 50;
+  const csvRows: string[][] = [];
+
+  for (let i = 0; i < data.length; i += DECRYPT_BATCH_SIZE) {
+    const batch = data.slice(i, i + DECRYPT_BATCH_SIZE);
+    const batchRows = await Promise.all(
+      batch.map(async (row) => {
+        let apiKey = "";
+        if (row.apiKeyEncrypted) {
+          try {
+            apiKey = await decryptApiKey(row.apiKeyEncrypted);
+          } catch {
+            apiKey = "";
+          }
         }
-      }
-      return [
-        row.user.email,
-        row.tool.name,
-        row.tier.name,
-        row.workspace ?? "",
-        apiKey,
-        format(row.assignedAt, "yyyy-MM-dd"),
-      ];
-    })
-  );
+        return [
+          row.user.email,
+          row.tool.name,
+          row.tier.name,
+          row.workspace ?? "",
+          apiKey,
+          format(row.assignedAt, "yyyy-MM-dd"),
+        ];
+      })
+    );
+    csvRows.push(...batchRows);
+  }
 
   const csv = toCsv(
     ["email", "tool", "tier", "workspace", "api_key", "assigned_at"],
