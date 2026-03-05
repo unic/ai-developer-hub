@@ -8,7 +8,7 @@ import {
   users,
   assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, count, asc, ilike } from "drizzle-orm";
+import { eq, and, count, asc, ilike, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -326,63 +326,74 @@ export async function bulkImportAssignments(input: {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
+  // Validate all rows first
+  const validatedRows: Array<{
+    index: number;
+    data: { email: string; tool: string; tier: string; workspace: string; apiKey?: string; assignedAt: string };
+  }> = [];
   const errors: Array<{ row: number; email: string; error: string }> = [];
-  let imported = 0;
 
   for (let i = 0; i < input.assignments.length; i++) {
     const parsed = bulkImportAssignmentRowSchema.safeParse(input.assignments[i]);
     if (!parsed.success) {
+      const raw = input.assignments[i];
       errors.push({
         row: i + 1,
-        email: (input.assignments[i] as { email?: string })?.email ?? "unknown",
+        email: (typeof raw === "object" && raw !== null && "email" in raw ? String((raw as Record<string, unknown>).email) : "unknown"),
         error: parsed.error.issues[0]?.message ?? "Validation failed",
       });
-      continue;
+    } else {
+      validatedRows.push({ index: i, data: parsed.data });
     }
+  }
 
-    const { email, tool: toolName, tier: tierName, workspace, apiKey, assignedAt } = parsed.data;
+  if (validatedRows.length === 0) {
+    revalidatePath("/assignments");
+    return { success: true, data: { imported: 0, failed: errors.length, errors } };
+  }
 
-    // Resolve email → user
-    const user = await db.query.users.findFirst({
-      where: and(eq(users.email, email), eq(users.status, "active")),
-    });
+  // Pre-fetch all lookup data in bulk (3 queries instead of 4N)
+  const uniqueEmails = [...new Set(validatedRows.map((r) => r.data.email))];
+  const [allActiveUsers, allActiveTools, allActiveTiers, allActiveAssignments] = await Promise.all([
+    db.select().from(users).where(and(inArray(users.email, uniqueEmails), eq(users.status, "active"))),
+    db.select().from(aiTools).where(eq(aiTools.status, "active")),
+    db.select().from(accessTiers).where(eq(accessTiers.isActive, true)),
+    db.select({ userId: licenseAssignments.userId, toolId: licenseAssignments.toolId })
+      .from(licenseAssignments)
+      .where(eq(licenseAssignments.status, "active")),
+  ]);
+
+  // Build lookup maps
+  const userByEmail = new Map(allActiveUsers.map((u) => [u.email.toLowerCase(), u]));
+  const toolByName = new Map(allActiveTools.map((t) => [t.name.toLowerCase(), t]));
+  const tierByKey = new Map(allActiveTiers.map((t) => [`${t.toolId}:${t.name.toLowerCase()}`, t]));
+  const activeAssignmentSet = new Set(allActiveAssignments.map((a) => `${a.userId}:${a.toolId}`));
+
+  let imported = 0;
+
+  for (const { index, data } of validatedRows) {
+    const { email, tool: toolName, tier: tierName, workspace, apiKey, assignedAt } = data;
+
+    const user = userByEmail.get(email.toLowerCase());
     if (!user) {
-      errors.push({ row: i + 1, email, error: "User not found or inactive" });
+      errors.push({ row: index + 1, email, error: "User not found or inactive" });
       continue;
     }
 
-    // Resolve tool name (case-insensitive)
-    const tool = await db.query.aiTools.findFirst({
-      where: and(ilike(aiTools.name, toolName), eq(aiTools.status, "active")),
-    });
+    const tool = toolByName.get(toolName.toLowerCase());
     if (!tool) {
-      errors.push({ row: i + 1, email, error: `Tool "${toolName}" not found` });
+      errors.push({ row: index + 1, email, error: `Tool "${toolName}" not found` });
       continue;
     }
 
-    // Resolve tier name scoped to tool (case-insensitive)
-    const tier = await db.query.accessTiers.findFirst({
-      where: and(
-        ilike(accessTiers.name, tierName),
-        eq(accessTiers.toolId, tool.id),
-        eq(accessTiers.isActive, true)
-      ),
-    });
+    const tier = tierByKey.get(`${tool.id}:${tierName.toLowerCase()}`);
     if (!tier) {
-      errors.push({ row: i + 1, email, error: `Tier "${tierName}" not found for ${tool.name}` });
+      errors.push({ row: index + 1, email, error: `Tier "${tierName}" not found for ${tool.name}` });
       continue;
     }
 
-    // Check for duplicate active assignment (user + tool)
-    const existing = await db.query.licenseAssignments.findFirst({
-      where: and(
-        eq(licenseAssignments.userId, user.id),
-        eq(licenseAssignments.toolId, tool.id),
-        eq(licenseAssignments.status, "active")
-      ),
-    });
-    if (existing) {
-      errors.push({ row: i + 1, email, error: `Already has active assignment for ${tool.name}` });
+    if (activeAssignmentSet.has(`${user.id}:${tool.id}`)) {
+      errors.push({ row: index + 1, email, error: `Already has active assignment for ${tool.name}` });
       continue;
     }
 
@@ -404,10 +415,12 @@ export async function bulkImportAssignments(input: {
         .returning({ id: licenseAssignments.id });
 
       await recordCreation("license_assignment", newAssignment.id, Number(admin.id));
+      // Track newly created assignment to prevent duplicates within the same batch
+      activeAssignmentSet.add(`${user.id}:${tool.id}`);
       imported++;
     } catch (err) {
       errors.push({
-        row: i + 1,
+        row: index + 1,
         email,
         error: err instanceof Error ? err.message : "Database insert failed",
       });

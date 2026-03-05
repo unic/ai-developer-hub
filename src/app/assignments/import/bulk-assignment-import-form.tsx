@@ -82,7 +82,7 @@ export function BulkAssignmentImportForm() {
   const [importing, setImporting] = useState(false);
 
   const validCount = rows.filter((r) => r.valid).length;
-  const invalidCount = rows.filter((r) => !r.valid).length;
+  const invalidCount = rows.length - validCount;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

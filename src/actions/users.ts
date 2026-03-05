@@ -218,6 +218,9 @@ export async function bulkImportUsers(input: {
   const errors: Array<{ row: number; email: string; error: string }> = [];
   let imported = 0;
 
+  // Hash the default password once instead of per-row (~250ms per hash)
+  const defaultPasswordHash = await hash("changeme123", 12);
+
   for (let i = 0; i < input.users.length; i++) {
     const parsed = bulkImportUserSchema.safeParse(input.users[i]);
     if (!parsed.success) {
@@ -240,8 +243,7 @@ export async function bulkImportUsers(input: {
     }
 
     try {
-      // Default password for bulk import
-      const passwordHash = await hash("changeme123", 12);
+      const passwordHash = defaultPasswordHash;
 
       const [user] = await db
         .insert(users)
