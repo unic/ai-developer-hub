@@ -20,7 +20,8 @@ import {
   updateBilledCostSchema,
   deleteBilledCostSchema,
 } from "@/lib/validators";
-import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts } from "@/types";
+import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast, MonthlySpend } from "@/types";
+import { forecastBudget } from "@/lib/forecast";
 import { recordCreation, recordUpdate } from "@/actions/history";
 
 export async function createBudget(
@@ -537,6 +538,64 @@ export async function getBudgetWithCosts(
     ...budget,
     periods: periodsWithCosts,
   };
+}
+
+// 005-rich-reports: Time-series spend data per period
+export async function getBilledCostsTimeSeries(
+  budgetId: number
+): Promise<PeriodSpendPoint[]> {
+  try {
+    const budgetWithCosts = await getBudgetWithCosts(budgetId);
+    if (!budgetWithCosts) return [];
+    return budgetWithCosts.periods.map((p) => ({
+      month: p.periodLabel,
+      billedCents: p.billedTotalCents,
+      expectedCents: p.expectedSpendCents,
+      plannedCents: p.plannedAmountCents,
+      periodIndex: p.periodIndex,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// 005-rich-reports: Budget forecast using OLS linear regression
+export async function getBudgetForecast(
+  budgetId: number
+): Promise<ActionResult<BudgetForecast>> {
+  const budget = await getBudgetWithCosts(budgetId);
+  if (!budget) return { success: false, error: "Budget not found" };
+
+  const today = new Date();
+
+  const completedPeriods = budget.periods.filter(
+    (p) => new Date(p.endDate) < today && p.billedTotalCents > 0
+  );
+
+  const history: MonthlySpend[] = completedPeriods.map((p) => ({
+    month: p.periodLabel,
+    amountCents: p.billedTotalCents,
+  }));
+
+  const actualSpendToDateCents = completedPeriods.reduce(
+    (s, p) => s + p.billedTotalCents,
+    0
+  );
+
+  const remainingPeriods = budget.periods.filter(
+    (p) => new Date(p.startDate) >= today
+  );
+  const monthsToProject = Math.min(Math.max(remainingPeriods.length, 3), 6);
+
+  const forecastResult = forecastBudget({
+    history,
+    monthsToProject,
+    actualSpendToDateCents,
+    budgetCeilingCents: budget.totalAmountCents,
+    today,
+  });
+
+  return { success: true, data: forecastResult };
 }
 
 // US5: Per-tool spending breakdown for a period
