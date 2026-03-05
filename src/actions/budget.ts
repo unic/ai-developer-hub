@@ -547,13 +547,16 @@ export async function getBilledCostsTimeSeries(
   try {
     const budgetWithCosts = await getBudgetWithCosts(budgetId);
     if (!budgetWithCosts) return [];
-    return budgetWithCosts.periods.map((p) => ({
-      month: p.periodLabel,
-      billedCents: p.billedTotalCents,
-      expectedCents: p.expectedSpendCents,
-      plannedCents: p.plannedAmountCents,
-      periodIndex: p.periodIndex,
-    }));
+    const today = new Date();
+    return budgetWithCosts.periods
+      .filter((p) => new Date(p.startDate) <= today)
+      .map((p) => ({
+        month: p.periodLabel,
+        billedCents: p.billedTotalCents,
+        expectedCents: p.expectedSpendCents,
+        plannedCents: p.plannedAmountCents,
+        periodIndex: p.periodIndex,
+      }));
   } catch {
     return [];
   }
@@ -590,6 +593,7 @@ export async function getBudgetForecast(
   const forecastResult = forecastBudget({
     history,
     monthsToProject,
+    totalPeriodsRemaining: remainingPeriods.length,
     actualSpendToDateCents,
     budgetCeilingCents: budget.totalAmountCents,
     today,

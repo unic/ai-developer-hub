@@ -18,10 +18,10 @@ const forecastConfig = {
 
 interface ForecastChartProps {
   data: ForecastChartPoint[];
-  budgetCeilingCents: number;
+  monthlyBudgetCents: number;
 }
 
-export function ForecastChart({ data, budgetCeilingCents }: ForecastChartProps) {
+export function ForecastChart({ data, monthlyBudgetCents }: ForecastChartProps) {
   return (
     <ChartContainer config={forecastConfig} className="min-h-[300px]">
       <LineChart data={data} accessibilityLayer>
@@ -35,19 +35,19 @@ export function ForecastChart({ data, budgetCeilingCents }: ForecastChartProps) 
           content={
             <ChartTooltipContent
               formatter={(value) =>
-                `$${((value as number) / 100).toFixed(2)}`
+                value == null ? null : `$${((value as number) / 100).toFixed(2)}`
               }
             />
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
         <ReferenceLine
-          y={budgetCeilingCents}
+          y={monthlyBudgetCents}
           stroke="var(--chart-5)"
           strokeDasharray="4 2"
           ifOverflow="extendDomain"
           label={{
-            value: "Budget Ceiling",
+            value: "Avg. Monthly Budget",
             position: "insideTopRight",
             fontSize: 12,
           }}

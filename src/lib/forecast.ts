@@ -3,6 +3,7 @@ import type { MonthlySpend, ForecastPoint, BudgetForecast } from "@/types";
 export interface ForecastOptions {
   history: MonthlySpend[];
   monthsToProject?: number;
+  totalPeriodsRemaining?: number;
   actualSpendToDateCents: number;
   budgetCeilingCents: number;
   today: Date;
@@ -10,13 +11,22 @@ export interface ForecastOptions {
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function parseMonthLabel(label: string): { year: number; month: number } | null {
+export function parseMonthLabel(label: string): { year: number; month: number } | null {
+  // "MMM YYYY" (e.g. "Jan 2026")
   const parts = label.split(" ");
-  if (parts.length !== 2) return null;
-  const monthIdx = MONTH_NAMES.indexOf(parts[0]);
-  const year = parseInt(parts[1], 10);
-  if (monthIdx === -1 || isNaN(year)) return null;
-  return { year, month: monthIdx };
+  if (parts.length === 2) {
+    const monthIdx = MONTH_NAMES.indexOf(parts[0]);
+    const year = parseInt(parts[1], 10);
+    if (monthIdx !== -1 && !isNaN(year)) return { year, month: monthIdx };
+  }
+  // "Qn YYYY" (e.g. "Q1 2026")
+  const quarterMatch = label.match(/^Q([1-4])\s+(\d{4})$/);
+  if (quarterMatch) {
+    const quarter = parseInt(quarterMatch[1], 10);
+    const year = parseInt(quarterMatch[2], 10);
+    return { year, month: (quarter - 1) * 3 };
+  }
+  return null;
 }
 
 function formatMonthLabel(year: number, monthIdx: number): string {
@@ -60,6 +70,10 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
     };
   }
 
+  const annualProjectionCount = options.totalPeriodsRemaining !== undefined
+    ? Math.max(options.totalPeriodsRemaining, monthsToProject)
+    : monthsToProject;
+
   const xs = history.map((_, i) => i);
   const ys = history.map((h) => h.amountCents);
   const { slope, intercept } = olsRegression(xs, ys);
@@ -84,10 +98,11 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
     cur = nextMonth(cur.year, cur.month);
   }
 
-  const projectedRemainingCents = projections.reduce(
-    (s, p) => s + p.projectedAmountCents,
-    0
-  );
+  let projectedRemainingCents = 0;
+  for (let i = 0; i < annualProjectionCount; i++) {
+    const rawAmount = slope * (baseX + i) + intercept;
+    projectedRemainingCents += Math.max(0, Math.round(rawAmount));
+  }
   const projectedAnnualTotalCents = actualSpendToDateCents + projectedRemainingCents;
 
   return {

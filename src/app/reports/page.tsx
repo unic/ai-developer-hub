@@ -103,8 +103,9 @@ export default async function ReportsPage({
       ? (billedYtdCents / budgetCeilingCents) * 100
       : 0;
 
-  // Compute spend trend: current vs prior period
-  const lastTwo = trendsData.slice(-2);
+  // Compute spend trend from last two periods with actual spend
+  const historicalPeriods = trendsData.filter((p) => p.billedCents > 0);
+  const lastTwo = historicalPeriods.slice(-2);
   let spendTrend: "up" | "down" | "flat" = "flat";
   let spendTrendPct = 0;
   if (lastTwo.length === 2 && lastTwo[0].billedCents > 0) {

@@ -47,11 +47,19 @@ function buildForecastChartData(
   trendsData: PeriodSpendPoint[],
   forecastData: BudgetForecast
 ): ForecastChartPoint[] {
+  let lastHistoricalIndex = trendsData.length - 1;
+  for (let i = trendsData.length - 1; i >= 0; i--) {
+    if (trendsData[i].billedCents > 0) {
+      lastHistoricalIndex = i;
+      break;
+    }
+  }
+
   const historical: ForecastChartPoint[] = trendsData.map((p, i) => ({
     month: p.month,
     historical: p.billedCents,
     projected:
-      i === trendsData.length - 1 && forecastData.projections.length > 0
+      i === lastHistoricalIndex && forecastData.projections.length > 0
         ? p.billedCents
         : null,
   }));
@@ -193,7 +201,7 @@ export function ReportsChartsPanel({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {toolSummary
+                  {[...toolSummary]
                     .sort((a, b) => b.totalMonthlyCost - a.totalMonthlyCost)
                     .map((tool) => (
                       <TableRow key={tool.id}>
@@ -232,7 +240,7 @@ export function ReportsChartsPanel({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {circleReport
+                  {[...circleReport]
                     .sort((a, b) => b.totalMonthlyCost - a.totalMonthlyCost)
                     .map((item) => (
                       <TableRow key={item.circle}>
@@ -453,7 +461,7 @@ export function ReportsChartsPanel({
         <CardContent>
           <ForecastChart
             data={forecastChartData}
-            budgetCeilingCents={forecastData.budgetCeilingCents}
+            monthlyBudgetCents={Math.round(forecastData.budgetCeilingCents / 12)}
           />
         </CardContent>
       </Card>

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import type {
@@ -74,7 +74,7 @@ export function ReportsTabBar({
         <TabsTrigger value="forecast">Forecast</TabsTrigger>
       </TabsList>
 
-      <div className="mt-6">
+      <TabsContent value={activeTab} className="mt-6">
         <ReportsChartsPanel
           activeTab={activeTab}
           overviewData={overviewData}
@@ -84,7 +84,7 @@ export function ReportsTabBar({
           toolSummary={toolSummary}
           circleReport={circleReport}
         />
-      </div>
+      </TabsContent>
     </Tabs>
   );
 }
