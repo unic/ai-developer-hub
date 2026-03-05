@@ -9,14 +9,14 @@ import { eq } from "drizzle-orm";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const admin = await requireAdmin();
   if (!admin) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const { id: idStr } = params;
+  const { id: idStr } = await params;
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id) || id <= 0) {
     return new NextResponse("Not found", { status: 404 });
