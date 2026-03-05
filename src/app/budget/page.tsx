@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Plus } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
+import { BudgetListActions } from "./budget-list-actions";
 
 export default async function BudgetPage() {
   const session = await auth();
@@ -192,9 +193,7 @@ export default async function BudgetPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button asChild variant="ghost" size="sm">
-                            <Link href={`/budget/${b.id}`}>View</Link>
-                          </Button>
+                          <BudgetListActions id={b.id} fiscalYear={b.fiscalYear} status={b.status} />
                         </TableCell>
                       </TableRow>
                     ))}

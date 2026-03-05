@@ -69,9 +69,6 @@ function parseCSV(text: string): ParsedUser[] {
     } else if (!user.email || !user.email.includes("@")) {
       user.valid = false;
       user.error = "Valid email is required";
-    } else if (!user.circle) {
-      user.valid = false;
-      user.error = "Circle is required";
     } else if (rawRole && !validRoles.includes(rawRole)) {
       user.valid = false;
       user.error = "Role must be 'admin' or 'viewer'";
@@ -107,7 +104,7 @@ export function BulkImportForm() {
       .map(({ name, email, circle, role, githubUsername, profile }) => ({
         name,
         email,
-        circle,
+        circle: circle || undefined,
         role,
         githubUsername: githubUsername || undefined,
         profile: profile || undefined,
@@ -135,7 +132,7 @@ export function BulkImportForm() {
   }
 
   const validCount = parsedUsers.filter((u) => u.valid).length;
-  const invalidCount = parsedUsers.filter((u) => !u.valid).length;
+  const invalidCount = parsedUsers.length - validCount;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -143,8 +140,8 @@ export function BulkImportForm() {
         <div>
           <h1 className="text-3xl font-bold">Bulk Import Users</h1>
           <p className="text-muted-foreground">
-            Upload a CSV file with columns: name, email, circle (or department),
-            role, github_username, profile
+            Upload a CSV file with columns: name, email (required); circle (or
+            department), role, github_username, profile (optional)
           </p>
         </div>
         <Button variant="outline" asChild>

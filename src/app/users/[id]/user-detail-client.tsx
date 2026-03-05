@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { toast } from "sonner";
 import { updateUser, deactivateUser } from "@/actions/users";
+import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { revokeLicense } from "@/actions/assignments";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord } from "@/types";
@@ -45,16 +45,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const editUserSchema = z.object({
-  name: z.string().min(1).max(255),
-  email: z.string().email(),
-  circle: z.string().min(1).max(100),
-  role: z.enum(["admin", "viewer"]),
-  githubUsername: z.string().max(255).optional(),
-  profile: z.enum(["boost", "maxed", "indie"]).nullable().optional(),
-});
+const editUserSchema = updateUserSchema.omit({ id: true });
 
-type EditUserInput = z.infer<typeof editUserSchema>;
+type EditUserInput = Omit<UpdateUserInput, "id">;
 
 interface Assignment {
   id: number;
@@ -86,7 +79,7 @@ export function UserDetailClient({
     defaultValues: {
       name: user.name,
       email: user.email,
-      circle: user.circle,
+      circle: user.circle ?? undefined,
       role: user.role as "admin" | "viewer",
       githubUsername: user.githubUsername ?? "",
       profile: user.profile ?? null,
@@ -191,9 +184,9 @@ export function UserDetailClient({
                   name="circle"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Circle</FormLabel>
+                      <FormLabel>Circle (optional)</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value || null)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

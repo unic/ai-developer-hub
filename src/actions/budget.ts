@@ -22,7 +22,7 @@ import {
 } from "@/lib/validators";
 import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast, MonthlySpend } from "@/types";
 import { forecastBudget } from "@/lib/forecast";
-import { recordCreation, recordUpdate } from "@/actions/history";
+import { recordCreation, recordUpdate, recordStatusChange } from "@/actions/history";
 
 export async function createBudget(
   input: unknown
@@ -250,6 +250,37 @@ export async function updateBudgetTotal(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${budgetId}`);
+  return { success: true, data: undefined };
+}
+
+export async function archiveBudget(input: {
+  id: number;
+}): Promise<ActionResult<void>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const existing = await db.query.annualBudgets.findFirst({
+    where: eq(annualBudgets.id, input.id),
+  });
+  if (!existing) return { success: false, error: "Budget not found" };
+  if (existing.status === "archived") {
+    return { success: false, error: "Budget is already archived" };
+  }
+
+  await db
+    .update(annualBudgets)
+    .set({ status: "archived", updatedAt: new Date() })
+    .where(eq(annualBudgets.id, input.id));
+
+  await recordStatusChange(
+    "annual_budget",
+    input.id,
+    Number(admin.id),
+    existing.status,
+    "archived"
+  );
+
+  revalidatePath("/budget");
   return { success: true, data: undefined };
 }
 

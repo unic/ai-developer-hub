@@ -26,7 +26,7 @@ export const tierSchema = z.object({
 export const userSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
-  circle: z.string().min(1, "Circle is required").max(100),
+  circle: z.string().max(100).optional(),
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -37,7 +37,7 @@ export const userSchema = z.object({
 export const bulkImportUserSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
-  circle: z.string().min(1, "Circle is required").max(100),
+  circle: z.string().max(100).optional(),
   role: z.enum(["admin", "viewer"]).optional(),
   githubUsername: z.string().max(255).optional(),
   profile: z.enum(["boost", "maxed", "indie"]).optional(),
@@ -76,7 +76,7 @@ export const bulkImportAssignmentRowSchema = z.object({
   email: z.string().email(),
   tool: z.string().min(1).max(255),
   tier: z.string().min(1).max(100),
-  workspace: z.string().min(1).max(200),
+  workspace: z.string().max(200).optional(),
   apiKey: z.string().max(500).optional(),
   assignedAt: z
     .string()
@@ -143,7 +143,7 @@ export const updateUserSchema = z.object({
   id: z.number().int().positive(),
   name: z.string().min(1).max(255).optional(),
   email: z.string().email().optional(),
-  circle: z.string().min(1).max(100).optional(),
+  circle: z.string().max(100).optional().nullable(),
   role: z.enum(["admin", "viewer"]).optional(),
   githubUsername: z.string().max(255).optional(),
   profile: z.enum(["boost", "maxed", "indie"]).nullable().optional(),
@@ -187,3 +187,4 @@ export type AssignmentCommentInput = z.infer<typeof assignmentCommentSchema>;
 export type BilledCostInput = z.infer<typeof billedCostSchema>;
 export type UpdateBilledCostInput = z.infer<typeof updateBilledCostSchema>;
 export type BulkImportAssignmentRowInput = z.infer<typeof bulkImportAssignmentRowSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;

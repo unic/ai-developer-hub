@@ -28,7 +28,7 @@ interface ParsedAssignment {
   email: string;
   tool: string;
   tier: string;
-  workspace: string;
+  workspace: string | undefined;
   apiKey: string;
   assignedAt: string;
   valid: boolean;
@@ -66,7 +66,6 @@ function parseCSV(text: string): ParsedAssignment[] {
     if (!email.includes("@")) errors.push("Invalid email");
     if (!tool) errors.push("Tool is required");
     if (!tier) errors.push("Tier is required");
-    if (!workspace) errors.push("Workspace is required");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(assignedAt))
       errors.push("Invalid date (YYYY-MM-DD)");
 
@@ -74,7 +73,7 @@ function parseCSV(text: string): ParsedAssignment[] {
       email,
       tool,
       tier,
-      workspace,
+      workspace: workspace || undefined,
       apiKey,
       assignedAt,
       valid: errors.length === 0,
@@ -114,7 +113,7 @@ export function BulkAssignmentImportForm() {
         email: r.email,
         tool: r.tool,
         tier: r.tier,
-        workspace: r.workspace,
+        ...(r.workspace ? { workspace: r.workspace } : {}),
         ...(r.apiKey ? { apiKey: r.apiKey } : {}),
         assignedAt: r.assignedAt,
       }));
@@ -163,7 +162,7 @@ export function BulkAssignmentImportForm() {
         <CardHeader>
           <CardTitle>Upload CSV</CardTitle>
           <CardDescription>
-            CSV columns: email, tool, tier, workspace, api_key, assigned_at
+            CSV columns: email, tool, tier, assigned_at (required); workspace, api_key (optional)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
