@@ -61,7 +61,19 @@ import {
   Copy,
   CalendarIcon,
   AlertTriangle,
+  Ban,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface AssignmentRow {
   id: number;
@@ -522,13 +534,28 @@ export function AssignmentsClient({
                 assignment={row.original}
                 onSaved={() => router.refresh()}
               />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleRevoke(row.original.id)}
-              >
-                Revoke
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="ghost">
+                    <Ban className="size-4" />
+                    <span className="sr-only">Revoke</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will revoke {row.original.user.name}&apos;s license for {row.original.tool.name}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleRevoke(row.original.id)}>
+                      Revoke
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </>
           )}
         </div>

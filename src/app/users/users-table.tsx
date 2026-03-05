@@ -2,14 +2,28 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowUpDown, Eye, Pencil, UserX } from "lucide-react";
+import { deactivateUser } from "@/actions/users";
 import type { User } from "@/types";
 
-function getColumns(isAdmin: boolean): ColumnDef<User>[] {
+function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -84,20 +98,62 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
         </Badge>
       ),
     },
-  ];
-
-  if (isAdmin) {
-    columns.push({
+    {
       id: "actions",
       cell: ({ row }) => (
         <div className="flex items-center gap-1">
           <Button size="sm" variant="ghost" asChild>
-            <Link href={`/users/${row.original.id}`}>Edit</Link>
+            <Link href={`/users/${row.original.id}`}>
+              <Eye className="size-4" />
+              <span className="sr-only">View</span>
+            </Link>
           </Button>
+          {isAdmin && (
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/users/${row.original.id}`}>
+                <Pencil className="size-4" />
+                <span className="sr-only">Edit</span>
+              </Link>
+            </Button>
+          )}
+          {isAdmin && row.original.status === "active" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="ghost">
+                  <UserX className="size-4" />
+                  <span className="sr-only">Deactivate</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Deactivate {row.original.name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will deactivate the user and revoke all their active license assignments.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      const result = await deactivateUser({ id: row.original.id });
+                      if (result.success) {
+                        toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
+                        onDeactivated();
+                      } else {
+                        toast.error(result.error);
+                      }
+                    }}
+                  >
+                    Deactivate
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       ),
-    });
-  }
+    },
+  ];
 
   return columns;
 }
@@ -109,6 +165,7 @@ export function UsersTable({
   data: User[];
   isAdmin: boolean;
 }) {
+  const router = useRouter();
   const [showNoCircle, setShowNoCircle] = useState(false);
 
   return (
@@ -123,7 +180,7 @@ export function UsersTable({
         </Button>
       </div>
       <DataTable
-        columns={getColumns(isAdmin)}
+        columns={getColumns(isAdmin, () => router.refresh())}
         data={showNoCircle ? data.filter((u) => !u.circle) : data}
         searchPlaceholder="Search users..."
       />
