@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
@@ -119,12 +120,16 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
                   <AlertDialogAction
                     disabled={row.original.activeLicenses > 0}
                     onClick={async () => {
-                      const result = await archiveTool({ id: row.original.id });
-                      if (result.success) {
-                        toast.success("Tool archived");
-                        onArchived();
-                      } else {
-                        toast.error(result.error);
+                      try {
+                        const result = await archiveTool({ id: row.original.id });
+                        if (result.success) {
+                          toast.success("Tool archived");
+                          onArchived();
+                        } else {
+                          toast.error(result.error);
+                        }
+                      } catch {
+                        toast.error("An unexpected error occurred");
                       }
                     }}
                   >
@@ -150,10 +155,12 @@ export function ToolsTable({
   isAdmin: boolean;
 }) {
   const router = useRouter();
+  const handleRefresh = useCallback(() => router.refresh(), [router]);
+  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
 
   return (
     <DataTable
-      columns={getColumns(isAdmin, () => router.refresh())}
+      columns={columns}
       data={data}
       searchPlaceholder="Search tools..."
     />

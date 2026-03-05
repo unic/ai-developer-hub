@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -427,6 +427,11 @@ export function AssignmentsClient({
   const router = useRouter();
   const [showNoWorkspace, setShowNoWorkspace] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const filteredAssignments = useMemo(
+    () => showNoWorkspace ? assignments.filter((a) => !a.workspace) : assignments,
+    [showNoWorkspace, assignments]
+  );
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedToolId, setSelectedToolId] = useState<string>("");
   const [selectedTierId, setSelectedTierId] = useState<string>("");
@@ -673,7 +678,7 @@ export function AssignmentsClient({
       </div>
       <DataTable
         columns={columns}
-        data={showNoWorkspace ? assignments.filter((a) => !a.workspace) : assignments}
+        data={filteredAssignments}
         searchPlaceholder="Search assignments..."
       />
     </div>

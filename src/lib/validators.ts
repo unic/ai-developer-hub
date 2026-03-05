@@ -187,3 +187,4 @@ export type AssignmentCommentInput = z.infer<typeof assignmentCommentSchema>;
 export type BilledCostInput = z.infer<typeof billedCostSchema>;
 export type UpdateBilledCostInput = z.infer<typeof updateBilledCostSchema>;
 export type BulkImportAssignmentRowInput = z.infer<typeof bulkImportAssignmentRowSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;

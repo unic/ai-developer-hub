@@ -132,7 +132,7 @@ export function BulkImportForm() {
   }
 
   const validCount = parsedUsers.filter((u) => u.valid).length;
-  const invalidCount = parsedUsers.filter((u) => !u.valid).length;
+  const invalidCount = parsedUsers.length - validCount;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

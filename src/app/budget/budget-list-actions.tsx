@@ -54,12 +54,16 @@ export function BudgetListActions({ id, fiscalYear, status }: BudgetListActionsP
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={async () => {
-                  const result = await archiveBudget({ id });
-                  if (result.success) {
-                    toast.success("Budget archived");
-                    router.refresh();
-                  } else {
-                    toast.error(result.error);
+                  try {
+                    const result = await archiveBudget({ id });
+                    if (result.success) {
+                      toast.success("Budget archived");
+                      router.refresh();
+                    } else {
+                      toast.error(result.error);
+                    }
+                  } catch {
+                    toast.error("An unexpected error occurred");
                   }
                 }}
               >

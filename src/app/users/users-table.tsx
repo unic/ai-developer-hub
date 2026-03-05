@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -135,12 +135,16 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={async () => {
-                      const result = await deactivateUser({ id: row.original.id });
-                      if (result.success) {
-                        toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
-                        onDeactivated();
-                      } else {
-                        toast.error(result.error);
+                      try {
+                        const result = await deactivateUser({ id: row.original.id });
+                        if (result.success) {
+                          toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
+                          onDeactivated();
+                        } else {
+                          toast.error(result.error);
+                        }
+                      } catch {
+                        toast.error("An unexpected error occurred");
                       }
                     }}
                   >
@@ -168,6 +172,13 @@ export function UsersTable({
   const router = useRouter();
   const [showNoCircle, setShowNoCircle] = useState(false);
 
+  const handleRefresh = useCallback(() => router.refresh(), [router]);
+  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
+  const filteredData = useMemo(
+    () => showNoCircle ? data.filter((u) => !u.circle) : data,
+    [showNoCircle, data]
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -180,8 +191,8 @@ export function UsersTable({
         </Button>
       </div>
       <DataTable
-        columns={getColumns(isAdmin, () => router.refresh())}
-        data={showNoCircle ? data.filter((u) => !u.circle) : data}
+        columns={columns}
+        data={filteredData}
         searchPlaceholder="Search users..."
       />
     </div>
