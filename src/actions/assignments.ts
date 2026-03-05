@@ -8,7 +8,7 @@ import {
   users,
   assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, count, asc } from "drizzle-orm";
+import { eq, and, count, asc, ilike } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -16,6 +16,7 @@ import {
   assignmentSchema,
   updateAssignmentSchema,
   assignmentCommentSchema,
+  bulkImportAssignmentRowSchema,
 } from "@/lib/validators";
 import type { ActionResult } from "@/types";
 import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
@@ -265,9 +266,15 @@ export async function updateAssignment(
 
   // --- apiKey change ---
   if (apiKey !== undefined) {
-    const encrypted = await encryptApiKey(apiKey);
-    changes.apiKeyEncrypted = { old: "[redacted]", new: "[redacted]" };
-    updateValues.apiKeyEncrypted = encrypted;
+    if (apiKey === "") {
+      // Empty string = clear API key
+      changes.apiKeyEncrypted = { old: "[redacted]", new: null };
+      updateValues.apiKeyEncrypted = null;
+    } else {
+      const encrypted = await encryptApiKey(apiKey);
+      changes.apiKeyEncrypted = { old: "[redacted]", new: "[redacted]" };
+      updateValues.apiKeyEncrypted = encrypted;
+    }
   }
 
   // --- workspace change ---
@@ -305,6 +312,113 @@ export async function updateAssignment(
   revalidatePath(`/users/${assignment.userId}`);
 
   return { success: true, data: undefined, warning };
+}
+
+export async function bulkImportAssignments(input: {
+  assignments: unknown[];
+}): Promise<
+  ActionResult<{
+    imported: number;
+    failed: number;
+    errors: Array<{ row: number; email: string; error: string }>;
+  }>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const errors: Array<{ row: number; email: string; error: string }> = [];
+  let imported = 0;
+
+  for (let i = 0; i < input.assignments.length; i++) {
+    const parsed = bulkImportAssignmentRowSchema.safeParse(input.assignments[i]);
+    if (!parsed.success) {
+      errors.push({
+        row: i + 1,
+        email: (input.assignments[i] as { email?: string })?.email ?? "unknown",
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
+      });
+      continue;
+    }
+
+    const { email, tool: toolName, tier: tierName, workspace, apiKey, assignedAt } = parsed.data;
+
+    // Resolve email → user
+    const user = await db.query.users.findFirst({
+      where: and(eq(users.email, email), eq(users.status, "active")),
+    });
+    if (!user) {
+      errors.push({ row: i + 1, email, error: "User not found or inactive" });
+      continue;
+    }
+
+    // Resolve tool name (case-insensitive)
+    const tool = await db.query.aiTools.findFirst({
+      where: and(ilike(aiTools.name, toolName), eq(aiTools.status, "active")),
+    });
+    if (!tool) {
+      errors.push({ row: i + 1, email, error: `Tool "${toolName}" not found` });
+      continue;
+    }
+
+    // Resolve tier name scoped to tool (case-insensitive)
+    const tier = await db.query.accessTiers.findFirst({
+      where: and(
+        ilike(accessTiers.name, tierName),
+        eq(accessTiers.toolId, tool.id),
+        eq(accessTiers.isActive, true)
+      ),
+    });
+    if (!tier) {
+      errors.push({ row: i + 1, email, error: `Tier "${tierName}" not found for ${tool.name}` });
+      continue;
+    }
+
+    // Check for duplicate active assignment (user + tool)
+    const existing = await db.query.licenseAssignments.findFirst({
+      where: and(
+        eq(licenseAssignments.userId, user.id),
+        eq(licenseAssignments.toolId, tool.id),
+        eq(licenseAssignments.status, "active")
+      ),
+    });
+    if (existing) {
+      errors.push({ row: i + 1, email, error: `Already has active assignment for ${tool.name}` });
+      continue;
+    }
+
+    try {
+      const apiKeyEncrypted = apiKey ? await encryptApiKey(apiKey) : null;
+
+      const [newAssignment] = await db
+        .insert(licenseAssignments)
+        .values({
+          userId: user.id,
+          toolId: tool.id,
+          tierId: tier.id,
+          costAtAssignmentCents: tier.monthlyCostCents,
+          status: "active",
+          assignedAt: new Date(assignedAt),
+          workspace,
+          apiKeyEncrypted,
+        })
+        .returning({ id: licenseAssignments.id });
+
+      await recordCreation("license_assignment", newAssignment.id, Number(admin.id));
+      imported++;
+    } catch (err) {
+      errors.push({
+        row: i + 1,
+        email,
+        error: err instanceof Error ? err.message : "Database insert failed",
+      });
+    }
+  }
+
+  revalidatePath("/assignments");
+  return {
+    success: true,
+    data: { imported, failed: errors.length, errors },
+  };
 }
 
 export async function revealApiKey(

@@ -36,7 +36,7 @@ export async function createUser(
     };
   }
 
-  const { name, email, password, circle, role, githubUsername } =
+  const { name, email, password, circle, role, githubUsername, profile } =
     parsed.data;
 
   // Check email uniqueness
@@ -58,6 +58,7 @@ export async function createUser(
       circle,
       role,
       githubUsername: githubUsername ?? null,
+      profile: profile ?? null,
     })
     .returning({ id: users.id });
 
@@ -122,6 +123,16 @@ export async function updateUser(
       new: updates.githubUsername,
     };
     values.githubUsername = updates.githubUsername;
+  }
+  if (
+    updates.profile !== undefined &&
+    updates.profile !== existing.profile
+  ) {
+    changes.profile = {
+      old: existing.profile,
+      new: updates.profile,
+    };
+    values.profile = updates.profile;
   }
 
   if (Object.keys(changes).length > 0) {
@@ -218,7 +229,7 @@ export async function bulkImportUsers(input: {
       continue;
     }
 
-    const { name, email, circle, role, githubUsername } = parsed.data;
+    const { name, email, circle, role, githubUsername, profile } = parsed.data;
 
     const existing = await db.query.users.findFirst({
       where: eq(users.email, email),
@@ -241,6 +252,7 @@ export async function bulkImportUsers(input: {
           circle,
           role: role ?? "viewer",
           githubUsername: githubUsername ?? null,
+          profile: profile ?? null,
         })
         .returning({ id: users.id });
 

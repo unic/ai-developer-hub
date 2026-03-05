@@ -30,6 +30,7 @@ export const userSchema = z.object({
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  profile: z.enum(["boost", "maxed", "indie"]).optional(),
 });
 
 // Bulk import user (no password — admin sets a temp one)
@@ -39,6 +40,7 @@ export const bulkImportUserSchema = z.object({
   circle: z.string().min(1, "Circle is required").max(100),
   role: z.enum(["admin", "viewer"]).optional(),
   githubUsername: z.string().max(255).optional(),
+  profile: z.enum(["boost", "maxed", "indie"]).optional(),
 });
 
 // Assignment
@@ -69,13 +71,23 @@ export const budgetAllocationSchema = z.object({
   ),
 });
 
+// Bulk import assignment row
+export const bulkImportAssignmentRowSchema = z.object({
+  email: z.string().email(),
+  tool: z.string().min(1).max(255),
+  tier: z.string().min(1).max(100),
+  workspace: z.string().min(1).max(200),
+  apiKey: z.string().max(500).optional(),
+  assignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
 // Update assignment (in-place edit)
 export const updateAssignmentSchema = z.object({
   id: z.number().int().positive(),
   tierId: z.number().int().positive().optional(),
   assignedAt: z.string().optional(),
   workspace: z.string().max(200).optional(),
-  apiKey: z.string().trim().min(1).max(500).optional(),
+  apiKey: z.string().max(500).optional(),
 });
 
 // Assignment comment
@@ -121,6 +133,7 @@ export const updateUserSchema = z.object({
   circle: z.string().min(1).max(100).optional(),
   role: z.enum(["admin", "viewer"]).optional(),
   githubUsername: z.string().max(255).optional(),
+  profile: z.enum(["boost", "maxed", "indie"]).nullable().optional(),
 });
 
 // Update tool (partial)
@@ -160,3 +173,4 @@ export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
 export type AssignmentCommentInput = z.infer<typeof assignmentCommentSchema>;
 export type BilledCostInput = z.infer<typeof billedCostSchema>;
 export type UpdateBilledCostInput = z.infer<typeof updateBilledCostSchema>;
+export type BulkImportAssignmentRowInput = z.infer<typeof bulkImportAssignmentRowSchema>;
