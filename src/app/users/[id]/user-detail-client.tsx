@@ -48,7 +48,7 @@ import {
 const editUserSchema = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email(),
-  circle: z.string().min(1).max(100),
+  circle: z.string().max(100).optional().nullable(),
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
   profile: z.enum(["boost", "maxed", "indie"]).nullable().optional(),
@@ -86,7 +86,7 @@ export function UserDetailClient({
     defaultValues: {
       name: user.name,
       email: user.email,
-      circle: user.circle,
+      circle: user.circle ?? undefined,
       role: user.role as "admin" | "viewer",
       githubUsername: user.githubUsername ?? "",
       profile: user.profile ?? null,
@@ -191,9 +191,9 @@ export function UserDetailClient({
                   name="circle"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Circle</FormLabel>
+                      <FormLabel>Circle (optional)</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value || null)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

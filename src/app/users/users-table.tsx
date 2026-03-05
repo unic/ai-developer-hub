@@ -1,17 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import type { User } from "@/types";
 
 function getColumns(isAdmin: boolean): ColumnDef<User>[] {
@@ -51,6 +46,7 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
           <ArrowUpDown className="ml-2 size-4" />
         </Button>
       ),
+      cell: ({ row }) => row.getValue("circle") || "\u2014",
     },
     {
       accessorKey: "role",
@@ -94,19 +90,11 @@ function getColumns(isAdmin: boolean): ColumnDef<User>[] {
     columns.push({
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="size-4" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/users/${row.original.id}`}>Edit</Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" asChild>
+            <Link href={`/users/${row.original.id}`}>Edit</Link>
+          </Button>
+        </div>
       ),
     });
   }
@@ -121,11 +109,24 @@ export function UsersTable({
   data: User[];
   isAdmin: boolean;
 }) {
+  const [showNoCircle, setShowNoCircle] = useState(false);
+
   return (
-    <DataTable
-      columns={getColumns(isAdmin)}
-      data={data}
-      searchPlaceholder="Search users..."
-    />
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button
+          variant={showNoCircle ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setShowNoCircle(!showNoCircle)}
+        >
+          No Circle
+        </Button>
+      </div>
+      <DataTable
+        columns={getColumns(isAdmin)}
+        data={showNoCircle ? data.filter((u) => !u.circle) : data}
+        searchPlaceholder="Search users..."
+      />
+    </div>
   );
 }

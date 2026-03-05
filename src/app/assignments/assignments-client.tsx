@@ -413,6 +413,7 @@ export function AssignmentsClient({
   isAdmin,
 }: Props) {
   const router = useRouter();
+  const [showNoWorkspace, setShowNoWorkspace] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedToolId, setSelectedToolId] = useState<string>("");
@@ -634,9 +635,18 @@ export function AssignmentsClient({
           </div>
         )}
       </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant={showNoWorkspace ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setShowNoWorkspace(!showNoWorkspace)}
+        >
+          No Workspace
+        </Button>
+      </div>
       <DataTable
         columns={columns}
-        data={assignments}
+        data={showNoWorkspace ? assignments.filter((a) => !a.workspace) : assignments}
         searchPlaceholder="Search assignments..."
       />
     </div>

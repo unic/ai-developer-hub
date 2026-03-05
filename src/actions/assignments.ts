@@ -329,7 +329,7 @@ export async function bulkImportAssignments(input: {
   // Validate all rows first
   const validatedRows: Array<{
     index: number;
-    data: { email: string; tool: string; tier: string; workspace: string; apiKey?: string; assignedAt: string };
+    data: { email: string; tool: string; tier: string; workspace?: string; apiKey?: string; assignedAt: string };
   }> = [];
   const errors: Array<{ row: number; email: string; error: string }> = [];
 
@@ -446,7 +446,7 @@ export async function bulkImportAssignments(input: {
           costAtAssignmentCents: tier.monthlyCostCents,
           status: "active",
           assignedAt: new Date(assignedAt),
-          workspace,
+          workspace: workspace ?? null,
           apiKeyEncrypted,
         })
         .returning({ id: licenseAssignments.id });
