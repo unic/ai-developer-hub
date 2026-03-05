@@ -228,23 +228,32 @@ export async function bulkImportUsers(input: {
       continue;
     }
 
-    // Default password for bulk import
-    const passwordHash = await hash("changeme123", 12);
+    try {
+      // Default password for bulk import
+      const passwordHash = await hash("changeme123", 12);
 
-    const [user] = await db
-      .insert(users)
-      .values({
-        name,
+      const [user] = await db
+        .insert(users)
+        .values({
+          name,
+          email,
+          passwordHash,
+          circle,
+          role: role ?? "viewer",
+          githubUsername: githubUsername ?? null,
+        })
+        .returning({ id: users.id });
+
+      await recordCreation("user", user.id, Number(admin.id));
+      imported++;
+    } catch (err) {
+      errors.push({
+        row: i + 1,
         email,
-        passwordHash,
-        circle,
-        role: role ?? "viewer",
-        githubUsername: githubUsername ?? null,
-      })
-      .returning({ id: users.id });
-
-    await recordCreation("user", user.id, Number(admin.id));
-    imported++;
+        error:
+          err instanceof Error ? err.message : "Database insert failed",
+      });
+    }
   }
 
   revalidatePath("/users");
