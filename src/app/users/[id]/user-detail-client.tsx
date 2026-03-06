@@ -10,6 +10,7 @@ import { revokeLicense } from "@/actions/assignments";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord } from "@/types";
 import { Github, ExternalLink, BookOpen } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -166,10 +167,13 @@ export function UserDetailClient({
           <CardContent>
             <div className="flex items-start gap-4">
               {githubProfile.avatarUrl && (
-                <img
+                <Image
                   src={githubProfile.avatarUrl}
                   alt={`${githubProfile.githubLogin}'s avatar`}
+                  width={64}
+                  height={64}
                   className="size-16 rounded-full"
+                  unoptimized
                 />
               )}
               <div className="space-y-1 flex-1">

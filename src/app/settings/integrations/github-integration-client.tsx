@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Github, ExternalLink, RefreshCw, Unplug, KeyRound, Users, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -589,10 +590,13 @@ function MatchedTable({ members }: { members: SyncMatchedMember[] }) {
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
                   {m.githubAvatarUrl && (
-                    <img
+                    <Image
                       src={m.githubAvatarUrl}
                       alt=""
+                      width={24}
+                      height={24}
                       className="size-6 rounded-full"
+                      unoptimized
                     />
                   )}
                   {m.githubLogin}
@@ -669,10 +673,13 @@ function UnmatchedTable({
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
                   {m.githubAvatarUrl && (
-                    <img
+                    <Image
                       src={m.githubAvatarUrl}
                       alt=""
+                      width={24}
+                      height={24}
                       className="size-6 rounded-full"
+                      unoptimized
                     />
                   )}
                   {m.githubLogin}
