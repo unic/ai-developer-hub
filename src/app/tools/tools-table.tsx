@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { DataTable } from "@/components/data-table";
+import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -160,7 +160,7 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
     {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => (
         <Badge
           variant={
@@ -186,6 +186,17 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
   return columns;
 }
 
+const TOOLS_FACETED_FILTERS = [
+  {
+    columnId: "status",
+    title: "Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Archived", value: "archived" },
+    ],
+  },
+];
+
 export function ToolsTable({
   data,
   isAdmin,
@@ -202,16 +213,7 @@ export function ToolsTable({
       columns={columns}
       data={data}
       searchPlaceholder="Search tools..."
-      facetedFilters={[
-        {
-          columnId: "status",
-          title: "Status",
-          options: [
-            { label: "Active", value: "active" },
-            { label: "Archived", value: "archived" },
-          ],
-        },
-      ]}
+      facetedFilters={TOOLS_FACETED_FILTERS}
     />
   );
 }

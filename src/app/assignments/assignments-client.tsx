@@ -16,7 +16,7 @@ import {
 import { getToolWithTiers } from "@/actions/tools";
 import { updateAssignmentSchema } from "@/lib/validators";
 import type { UpdateAssignmentInput } from "@/lib/validators";
-import { DataTable } from "@/components/data-table";
+import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -506,6 +506,97 @@ function AssignmentRowActions({
   );
 }
 
+// ---- Column Definitions ----
+
+function getColumns(
+  isAdmin: boolean,
+  onRevoke: (id: number) => void,
+  onSaved: () => void
+): ColumnDef<AssignmentRow>[] {
+  return [
+    {
+      accessorFn: (row) => row.user.name,
+      id: "userName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="User" />
+      ),
+    },
+    {
+      accessorFn: (row) => row.tool.name,
+      id: "toolName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tool" />
+      ),
+    },
+    {
+      accessorFn: (row) => row.tier.name,
+      id: "tierName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tier" />
+      ),
+    },
+    {
+      accessorKey: "costAtAssignmentCents",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Monthly Cost" />
+      ),
+      cell: ({ row }) => formatCurrency(row.original.costAtAssignmentCents),
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => (
+        <Badge
+          variant={
+            row.original.status === "active" ? "default" : "secondary"
+          }
+        >
+          {row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "workspace",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Workspace" />
+      ),
+      cell: ({ row }) => row.original.workspace || "\u2014",
+    },
+    {
+      accessorKey: "assignedAt",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Assigned" />
+      ),
+      cell: ({ row }) => formatDate(row.original.assignedAt),
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <AssignmentRowActions
+          assignment={row.original}
+          isAdmin={isAdmin}
+          onRevoke={onRevoke}
+          onSaved={onSaved}
+        />
+      ),
+    },
+  ];
+}
+
+const ASSIGNMENT_FACETED_FILTERS = [
+  {
+    columnId: "status",
+    title: "Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Revoked", value: "revoked" },
+    ],
+  },
+];
+
 // ---- Main Component ----
 
 interface Props {
@@ -534,6 +625,21 @@ export function AssignmentsClient({
   const [selectedTierId, setSelectedTierId] = useState<string>("");
   const [availableTiers, setAvailableTiers] = useState<AccessTier[]>([]);
   const [assigning, setAssigning] = useState(false);
+
+  const handleRefresh = useCallback(() => router.refresh(), [router]);
+  const handleRevoke = useCallback(async (id: number) => {
+    const result = await revokeLicense({ id });
+    if (result.success) {
+      toast.success("License revoked");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }, [router]);
+  const columns = useMemo(
+    () => getColumns(isAdmin, handleRevoke, handleRefresh),
+    [isAdmin, handleRevoke, handleRefresh]
+  );
 
   async function handleToolChange(toolId: string) {
     setSelectedToolId(toolId);
@@ -568,88 +674,6 @@ export function AssignmentsClient({
       toast.error(result.error);
     }
   }
-
-  async function handleRevoke(id: number) {
-    const result = await revokeLicense({ id });
-    if (result.success) {
-      toast.success("License revoked");
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  }
-
-  const columns: ColumnDef<AssignmentRow>[] = [
-    {
-      accessorFn: (row) => row.user.name,
-      id: "userName",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="User" />
-      ),
-    },
-    {
-      accessorFn: (row) => row.tool.name,
-      id: "toolName",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Tool" />
-      ),
-    },
-    {
-      accessorFn: (row) => row.tier.name,
-      id: "tierName",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Tier" />
-      ),
-    },
-    {
-      accessorKey: "costAtAssignmentCents",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Monthly Cost" />
-      ),
-      cell: ({ row }) => formatCurrency(row.original.costAtAssignmentCents),
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
-      ),
-      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            row.original.status === "active" ? "default" : "secondary"
-          }
-        >
-          {row.original.status}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "workspace",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workspace" />
-      ),
-      cell: ({ row }) => row.original.workspace || "\u2014",
-    },
-    {
-      accessorKey: "assignedAt",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Assigned" />
-      ),
-      cell: ({ row }) => formatDate(row.original.assignedAt),
-    },
-    {
-      id: "actions" as const,
-      cell: ({ row }: { row: { original: AssignmentRow } }) => (
-        <AssignmentRowActions
-          assignment={row.original}
-          isAdmin={isAdmin}
-          onRevoke={handleRevoke}
-          onSaved={() => router.refresh()}
-        />
-      ),
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -763,16 +787,7 @@ export function AssignmentsClient({
         columns={columns}
         data={filteredAssignments}
         searchPlaceholder="Search assignments..."
-        facetedFilters={[
-          {
-            columnId: "status",
-            title: "Status",
-            options: [
-              { label: "Active", value: "active" },
-              { label: "Revoked", value: "revoked" },
-            ],
-          },
-        ]}
+        facetedFilters={ASSIGNMENT_FACETED_FILTERS}
       />
     </div>
   );

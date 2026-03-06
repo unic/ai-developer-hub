@@ -156,7 +156,7 @@ export default async function BudgetPage() {
               <CardTitle>All Budgets</CardTitle>
             </CardHeader>
             <CardContent>
-              <BudgetTable data={allBudgets} isAdmin={isAdmin} />
+              <BudgetTable data={allBudgets} />
             </CardContent>
           </Card>
         )}

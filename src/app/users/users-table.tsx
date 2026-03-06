@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/components/data-table";
+import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,7 +136,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
     {
       accessorKey: "role",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
-      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => (
         <Badge variant="outline" className="capitalize">
           {row.getValue("role") as string}
@@ -160,7 +160,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
     {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => (
         <Badge
           variant={
@@ -185,6 +185,25 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
 
   return columns;
 }
+
+const USERS_FACETED_FILTERS = [
+  {
+    columnId: "role",
+    title: "Role",
+    options: [
+      { label: "Admin", value: "admin" },
+      { label: "Viewer", value: "viewer" },
+    ],
+  },
+  {
+    columnId: "status",
+    title: "Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Inactive", value: "inactive" },
+    ],
+  },
+];
 
 export function UsersTable({
   data,
@@ -218,16 +237,7 @@ export function UsersTable({
         columns={columns}
         data={filteredData}
         searchPlaceholder="Search users..."
-        facetedFilters={[
-          { columnId: "role", title: "Role", options: [
-            { label: "Admin", value: "admin" },
-            { label: "Viewer", value: "viewer" },
-          ]},
-          { columnId: "status", title: "Status", options: [
-            { label: "Active", value: "active" },
-            { label: "Inactive", value: "inactive" },
-          ]},
-        ]}
+        facetedFilters={USERS_FACETED_FILTERS}
       />
     </div>
   );

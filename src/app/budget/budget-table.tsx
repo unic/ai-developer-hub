@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { DataTable } from "@/components/data-table";
+import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { BudgetListActions } from "./budget-list-actions";
 
@@ -38,7 +38,7 @@ const columns: ColumnDef<BudgetRow>[] = [
         </Badge>
       );
     },
-    filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
+    filterFn: arrayIncludesFilterFn,
   },
   {
     id: "actions",
@@ -54,27 +54,24 @@ const columns: ColumnDef<BudgetRow>[] = [
   },
 ];
 
-interface BudgetTableProps {
-  data: BudgetRow[];
-  isAdmin: boolean;
-}
+const BUDGET_FACETED_FILTERS = [
+  {
+    columnId: "status",
+    title: "Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Archived", value: "archived" },
+    ],
+  },
+];
 
-export function BudgetTable({ data }: BudgetTableProps) {
+export function BudgetTable({ data }: { data: BudgetRow[] }) {
   return (
     <DataTable
       columns={columns}
       data={data}
       searchPlaceholder="Search budgets..."
-      facetedFilters={[
-        {
-          columnId: "status",
-          title: "Status",
-          options: [
-            { label: "Active", value: "active" },
-            { label: "Archived", value: "archived" },
-          ],
-        },
-      ]}
+      facetedFilters={BUDGET_FACETED_FILTERS}
     />
   );
 }

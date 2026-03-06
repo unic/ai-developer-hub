@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
+  FilterFn,
   SortingState,
   flexRender,
   getCoreRowModel,
@@ -14,6 +15,12 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+
+// Shared filter function for faceted (multi-select) column filters.
+// Use as `filterFn: arrayIncludesFilterFn` in column definitions.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const arrayIncludesFilterFn: FilterFn<any> = (row, id, value: string[]) =>
+  value.includes(row.getValue(id));
 import {
   Table,
   TableBody,
