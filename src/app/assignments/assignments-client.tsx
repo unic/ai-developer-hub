@@ -62,6 +62,7 @@ import {
   CalendarIcon,
   AlertTriangle,
   Ban,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -72,8 +73,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DataTableColumnHeader } from "@/components/data-table-column-header";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface AssignmentRow {
   id: number;
@@ -409,6 +421,91 @@ function EditAssignmentDialog({
   );
 }
 
+// ---- Assignment Row Actions ----
+
+function AssignmentRowActions({
+  assignment,
+  isAdmin,
+  onRevoke,
+  onSaved,
+}: {
+  assignment: AssignmentRow;
+  isAdmin: boolean;
+  onRevoke: (id: number) => void;
+  onSaved: () => void;
+}) {
+  const [showRevokeDialog, setShowRevokeDialog] = useState(false);
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`View ${assignment.user.name}'s assignment`}
+            asChild
+          >
+            <Link href={`/assignments/${assignment.id}`}>
+              <Eye className="size-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>View</TooltipContent>
+      </Tooltip>
+      {isAdmin && assignment.status === "active" && (
+        <>
+          <EditAssignmentDialog assignment={assignment} onSaved={onSaved} />
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`More actions for ${assignment.user.name}'s assignment`}
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More actions</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setShowRevokeDialog(true)}
+              >
+                <Ban className="size-4" />
+                Revoke
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog
+            open={showRevokeDialog}
+            onOpenChange={setShowRevokeDialog}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will revoke {assignment.user.name}&apos;s license for{" "}
+                  {assignment.tool.name}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onRevoke(assignment.id)}>
+                  Revoke
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---- Main Component ----
 
 interface Props {
@@ -486,26 +583,37 @@ export function AssignmentsClient({
     {
       accessorFn: (row) => row.user.name,
       id: "userName",
-      header: "User",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="User" />
+      ),
     },
     {
       accessorFn: (row) => row.tool.name,
       id: "toolName",
-      header: "Tool",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tool" />
+      ),
     },
     {
       accessorFn: (row) => row.tier.name,
       id: "tierName",
-      header: "Tier",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tier" />
+      ),
     },
     {
       accessorKey: "costAtAssignmentCents",
-      header: "Monthly Cost",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Monthly Cost" />
+      ),
       cell: ({ row }) => formatCurrency(row.original.costAtAssignmentCents),
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
       cell: ({ row }) => (
         <Badge
           variant={
@@ -518,52 +626,27 @@ export function AssignmentsClient({
     },
     {
       accessorKey: "workspace",
-      header: "Workspace",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Workspace" />
+      ),
       cell: ({ row }) => row.original.workspace || "\u2014",
     },
     {
       accessorKey: "assignedAt",
-      header: "Assigned",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Assigned" />
+      ),
       cell: ({ row }) => formatDate(row.original.assignedAt),
     },
     {
       id: "actions" as const,
       cell: ({ row }: { row: { original: AssignmentRow } }) => (
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" asChild>
-            <Link href={`/assignments/${row.original.id}`}>View</Link>
-          </Button>
-          {isAdmin && row.original.status === "active" && (
-            <>
-              <EditAssignmentDialog
-                assignment={row.original}
-                onSaved={() => router.refresh()}
-              />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="ghost">
-                    <Ban className="size-4" />
-                    <span className="sr-only">Revoke</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will revoke {row.original.user.name}&apos;s license for {row.original.tool.name}.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleRevoke(row.original.id)}>
-                      Revoke
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
-        </div>
+        <AssignmentRowActions
+          assignment={row.original}
+          isAdmin={isAdmin}
+          onRevoke={handleRevoke}
+          onSaved={() => router.refresh()}
+        />
       ),
     },
   ];
@@ -680,6 +763,16 @@ export function AssignmentsClient({
         columns={columns}
         data={filteredAssignments}
         searchPlaceholder="Search assignments..."
+        facetedFilters={[
+          {
+            columnId: "status",
+            title: "Status",
+            options: [
+              { label: "Active", value: "active" },
+              { label: "Revoked", value: "revoked" },
+            ],
+          },
+        ]}
       />
     </div>
   );

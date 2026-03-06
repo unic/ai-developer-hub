@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
+import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,25 +18,103 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowUpDown, Eye, Pencil, UserX } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Eye, MoreHorizontal, Pencil, UserX } from "lucide-react";
 import { deactivateUser } from "@/actions/users";
 import type { User } from "@/types";
+
+function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: boolean; onDeactivated: () => void }) {
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button size="sm" variant="ghost" aria-label={`View ${row.name}`} asChild>
+            <Link href={`/users/${row.id}`}><Eye className="size-4" /></Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>View</TooltipContent>
+      </Tooltip>
+      {isAdmin && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
+              <Link href={`/users/${row.id}`}><Pencil className="size-4" /></Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Edit</TooltipContent>
+        </Tooltip>
+      )}
+      {isAdmin && row.status === "active" && (
+        <>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label={`More actions for ${row.name}`}>
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More actions</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem variant="destructive" onSelect={() => setShowDeactivateDialog(true)}>
+                <UserX className="size-4" />
+                Deactivate
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Deactivate {row.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will deactivate the user and revoke all their active license assignments.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={async () => {
+                  try {
+                    const result = await deactivateUser({ id: row.id });
+                    if (result.success) {
+                      toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
+                      onDeactivated();
+                    } else {
+                      toast.error(result.error);
+                    }
+                  } catch {
+                    toast.error("An unexpected error occurred");
+                  }
+                }}>
+                  Deactivate
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  );
+}
 
 function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown className="ml-2 size-4" />
-        </Button>
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
       cell: ({ row }) => (
         <Link
           href={`/users/${row.original.id}`}
@@ -47,24 +126,17 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
     },
     {
       accessorKey: "email",
-      header: "Email",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
     },
     {
       accessorKey: "circle",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Circle
-          <ArrowUpDown className="ml-2 size-4" />
-        </Button>
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Circle" />,
       cell: ({ row }) => row.getValue("circle") || "\u2014",
     },
     {
       accessorKey: "role",
-      header: "Role",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
+      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
       cell: ({ row }) => (
         <Badge variant="outline" className="capitalize">
           {row.getValue("role") as string}
@@ -73,7 +145,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
     },
     {
       accessorKey: "profile",
-      header: "Profile",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
       cell: ({ row }) => {
         const profile = row.getValue("profile") as string | null;
         return profile ? (
@@ -87,7 +159,8 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
       cell: ({ row }) => (
         <Badge
           variant={
@@ -101,60 +174,11 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" asChild>
-            <Link href={`/users/${row.original.id}`}>
-              <Eye className="size-4" />
-              <span className="sr-only">View</span>
-            </Link>
-          </Button>
-          {isAdmin && (
-            <Button size="sm" variant="ghost" asChild>
-              <Link href={`/users/${row.original.id}`}>
-                <Pencil className="size-4" />
-                <span className="sr-only">Edit</span>
-              </Link>
-            </Button>
-          )}
-          {isAdmin && row.original.status === "active" && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" variant="ghost">
-                  <UserX className="size-4" />
-                  <span className="sr-only">Deactivate</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Deactivate {row.original.name}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will deactivate the user and revoke all their active license assignments.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={async () => {
-                      try {
-                        const result = await deactivateUser({ id: row.original.id });
-                        if (result.success) {
-                          toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
-                          onDeactivated();
-                        } else {
-                          toast.error(result.error);
-                        }
-                      } catch {
-                        toast.error("An unexpected error occurred");
-                      }
-                    }}
-                  >
-                    Deactivate
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
+        <UserRowActions
+          row={row.original}
+          isAdmin={isAdmin}
+          onDeactivated={onDeactivated}
+        />
       ),
     },
   ];
@@ -194,6 +218,16 @@ export function UsersTable({
         columns={columns}
         data={filteredData}
         searchPlaceholder="Search users..."
+        facetedFilters={[
+          { columnId: "role", title: "Role", options: [
+            { label: "Admin", value: "admin" },
+            { label: "Viewer", value: "viewer" },
+          ]},
+          { columnId: "status", title: "Status", options: [
+            { label: "Active", value: "active" },
+            { label: "Inactive", value: "inactive" },
+          ]},
+        ]}
       />
     </div>
   );

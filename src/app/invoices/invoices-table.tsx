@@ -1,9 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
+import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { Download } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -20,58 +25,74 @@ interface InvoiceRow {
 const columns: ColumnDef<InvoiceRow>[] = [
   {
     accessorKey: "invoiceNumber",
-    header: "Invoice Number",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Invoice Number" />
+    ),
     cell: ({ row }) => (
       <span className="font-medium">{row.getValue("invoiceNumber")}</span>
     ),
   },
   {
     accessorKey: "invoiceDate",
-    header: "Date",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Date" />
+    ),
     cell: ({ row }) => formatDate(row.getValue("invoiceDate")),
   },
   {
     accessorKey: "amountCents",
-    header: "Amount",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Amount" />
+    ),
     cell: ({ row }) => formatCurrency(row.getValue("amountCents")),
   },
   {
     accessorKey: "vendor",
-    header: "Vendor",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Vendor" />
+    ),
     cell: ({ row }) => (row.getValue("vendor") as string) ?? "—",
   },
   {
     accessorKey: "periodLabel",
-    header: "Budget Period",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Budget Period" />
+    ),
     cell: ({ row }) => (row.getValue("periodLabel") as string) ?? "—",
   },
   {
     accessorKey: "uploaderName",
-    header: "Uploaded By",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Uploaded By" />
+    ),
     cell: ({ row }) => (row.getValue("uploaderName") as string) ?? "—",
   },
   {
     id: "actions",
-    header: "Download",
     cell: ({ row }) => (
-      <Button variant="ghost" size="icon" asChild>
-        <a
-          href={`/api/invoices/${row.original.id}/pdf`}
-          aria-label={`Download PDF for invoice ${row.original.invoiceNumber}`}
-        >
-          <Download className="size-4" />
-        </a>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Download invoice ${row.original.invoiceNumber}`}
+            asChild
+          >
+            <a href={`/api/invoices/${row.original.id}/pdf`}>
+              <Download className="size-4" />
+            </a>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Download</TooltipContent>
+      </Tooltip>
     ),
   },
 ];
 
 export function InvoicesTable({ data }: { data: InvoiceRow[] }) {
-  const memoizedColumns = useMemo(() => columns, []);
-
   return (
     <DataTable
-      columns={memoizedColumns}
+      columns={columns}
       data={data}
       searchPlaceholder="Search invoices..."
     />

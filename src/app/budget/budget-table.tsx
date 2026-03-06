@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
+import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { BudgetListActions } from "./budget-list-actions";
 
 interface BudgetRow {
@@ -16,19 +17,19 @@ interface BudgetRow {
 const columns: ColumnDef<BudgetRow>[] = [
   {
     accessorKey: "fiscalYear",
-    header: "Fiscal Year",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Fiscal Year" />,
     cell: ({ row }) => (
       <span className="font-medium">FY {row.getValue("fiscalYear")}</span>
     ),
   },
   {
     accessorKey: "totalAmountCents",
-    header: "Planned Amount",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Planned Amount" />,
     cell: ({ row }) => formatCurrency(row.getValue("totalAmountCents")),
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
       return (
@@ -37,6 +38,7 @@ const columns: ColumnDef<BudgetRow>[] = [
         </Badge>
       );
     },
+    filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
   },
   {
     id: "actions",
@@ -63,6 +65,16 @@ export function BudgetTable({ data }: BudgetTableProps) {
       columns={columns}
       data={data}
       searchPlaceholder="Search budgets..."
+      facetedFilters={[
+        {
+          columnId: "status",
+          title: "Status",
+          options: [
+            { label: "Active", value: "active" },
+            { label: "Archived", value: "archived" },
+          ],
+        },
+      ]}
     />
   );
 }
