@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LeanModeToggle } from "@/components/lean-mode-toggle";
 import type { UserRole } from "@/types";
 
 type NavItem = {
@@ -65,8 +64,8 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-4 py-3 retro:border-glitch">
-        <h2 className="text-lg font-semibold retro:neon-glow-green">AI Developer Hub</h2>
+      <SidebarHeader className="border-b px-4 py-3">
+        <h2 className="text-lg font-semibold">AI Developer Hub</h2>
       </SidebarHeader>
       <SidebarContent>
         {isAuthenticated ? (
@@ -106,28 +105,25 @@ export function AppSidebar({
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
         {isAuthenticated ? (
-          <>
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{userName}</p>
-                <p className="text-xs text-muted-foreground capitalize retro:badge-retro retro:text-phosphor-cyan">
-                  {userRole}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <ThemeToggle />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => signOut({ callbackUrl: "/login" })}
-                  aria-label="Sign out"
-                >
-                  <LogOut className="size-4" />
-                </Button>
-              </div>
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{userName}</p>
+              <p className="text-xs text-muted-foreground capitalize">
+                {userRole}
+              </p>
             </div>
-            <LeanModeToggle />
-          </>
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                aria-label="Sign out"
+              >
+                <LogOut className="size-4" />
+              </Button>
+            </div>
+          </div>
         ) : (
           <Button asChild className="w-full">
             <Link href="/login">

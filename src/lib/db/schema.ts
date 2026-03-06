@@ -55,7 +55,7 @@ export const users = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     preferences: jsonb("preferences")
       .$type<UserPreferences>()
-      .default({ theme: "system", leanMode: false }),
+      .default({ theme: "system" }),
     profile: userProfileEnum("profile"),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

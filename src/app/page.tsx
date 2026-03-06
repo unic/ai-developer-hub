@@ -69,8 +69,8 @@ async function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold retro:neon-glow-green">Dashboard</h1>
-        <p className="text-muted-foreground retro:badge-retro">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">
           AI Tool Access & Budget Overview
         </p>
       </div>
@@ -171,7 +171,7 @@ async function AdminDashboard() {
           },
         ].map((card) => (
           <Link key={card.href} href={card.href}>
-            <Card className="transition-colors hover:bg-accent retro:border-glitch">
+            <Card className="transition-colors hover:bg-accent">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <card.icon className="size-5 text-muted-foreground" />
@@ -205,8 +205,8 @@ async function ViewerDashboard({ userId }: { userId: number }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold retro:neon-glow-green">Dashboard</h1>
-        <p className="text-muted-foreground retro:badge-retro">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">
           Your AI Tool Assignments
         </p>
       </div>

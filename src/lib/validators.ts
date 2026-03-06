@@ -170,7 +170,6 @@ export const updateTierSchema = z.object({
 // User preferences
 export const userPreferencesSchema = z.object({
   theme: z.enum(["light", "dark", "system"]),
-  leanMode: z.boolean(),
 });
 
 // Type exports for form usage
