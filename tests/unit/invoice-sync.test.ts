@@ -30,7 +30,7 @@ const { selectResults, mockDb } = vi.hoisted(() => {
   }
 
   // Typed as `any` to allow self-reference in transaction mock
-  const mockDb: Record<string, unknown> & { transaction: (fn: (tx: unknown) => Promise<void>) => Promise<void> } = {
+  const mockDb: Record<string, unknown> & { transaction: (fn: (tx: unknown) => Promise<void>) => Promise<void>; execute: () => Promise<unknown[]> } = {
     select: (..._args: unknown[]) =>
       chainable(() => selectResults.shift() ?? []),
     insert: () => ({
@@ -49,6 +49,7 @@ const { selectResults, mockDb } = vi.hoisted(() => {
     transaction: async (fn: (tx: unknown) => Promise<void>) => {
       await fn(mockDb);
     },
+    execute: async () => [{ pg_try_advisory_lock: true }],
   };
 
   return { selectResults, mockDb };
@@ -67,6 +68,11 @@ vi.mock("@/lib/auth-helpers", () => ({
 vi.mock("@/actions/history", () => ({
   recordCreation: vi.fn().mockResolvedValue(undefined),
 }));
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return { ...actual };
+});
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 
@@ -107,6 +113,31 @@ describe("findPeriodForDate", () => {
     const result = await findPeriodForDate("2026-02-15");
 
     expect(result).toEqual({ id: 5, periodLabel: "Q1 2026 (active)" });
+  });
+
+  it("treats the period start date as inclusive", async () => {
+    selectResults.push([{ id: 11, periodLabel: "Feb 2026" }]);
+
+    const result = await findPeriodForDate("2026-02-01");
+
+    expect(result).toEqual({ id: 11, periodLabel: "Feb 2026" });
+  });
+
+  it("treats the period end date as exclusive", async () => {
+    selectResults.push([]);
+
+    const result = await findPeriodForDate("2026-03-01");
+
+    expect(result).toBeNull();
+  });
+
+  it("prefers the most recently created archived budget when no active match", async () => {
+    // SQL ORDER BY returns most recent archived first
+    selectResults.push([{ id: 21, periodLabel: "Q1 2025 (archived v2)" }]);
+
+    const result = await findPeriodForDate("2025-02-15");
+
+    expect(result).toEqual({ id: 21, periodLabel: "Q1 2025 (archived v2)" });
   });
 });
 

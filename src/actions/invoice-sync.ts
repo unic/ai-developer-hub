@@ -14,6 +14,9 @@ import { syncOptionsSchema } from "@/lib/validators";
 import { recordCreation } from "@/actions/history";
 import type { ActionResult, SyncInvoiceOutcome, SyncResult } from "@/types";
 
+// Stable advisory lock key for invoice sync (arbitrary constant)
+const SYNC_ADVISORY_LOCK_KEY = 839_271_456;
+
 /**
  * Find the best matching budget period for a given date.
  * Unlike findActivePeriodForDate, this searches all budgets (active + archived),
@@ -44,6 +47,7 @@ export async function findPeriodForDate(
 /**
  * Sync all invoices to their correct budget periods.
  * When dryRun is true, computes outcomes without writing to the database.
+ * Uses a PostgreSQL advisory lock to prevent concurrent sync runs.
  */
 export async function syncInvoices(
   options: { dryRun: boolean }
@@ -58,6 +62,36 @@ export async function syncInvoices(
 
   const { dryRun } = parsed.data;
 
+  // Acquire advisory lock (non-blocking) to prevent concurrent sync runs
+  if (!dryRun) {
+    const lockRows = await db.execute(
+      sql`SELECT pg_try_advisory_lock(${SYNC_ADVISORY_LOCK_KEY})`
+    );
+    const acquired = (lockRows.rows?.[0] as Record<string, unknown>)
+      ?.pg_try_advisory_lock;
+    if (!acquired) {
+      return {
+        success: false,
+        error: "Another sync is already in progress. Please try again later.",
+      };
+    }
+  }
+
+  try {
+    return await executeSyncLogic(dryRun, admin);
+  } finally {
+    if (!dryRun) {
+      await db.execute(
+        sql`SELECT pg_advisory_unlock(${SYNC_ADVISORY_LOCK_KEY})`
+      );
+    }
+  }
+}
+
+async function executeSyncLogic(
+  dryRun: boolean,
+  admin: { id: string | number }
+): Promise<ActionResult<SyncResult>> {
   // Bulk-load all invoices with their linked billed cost's period
   const allInvoices = await db
     .select({
@@ -140,19 +174,6 @@ export async function syncInvoices(
 
       if (!inv.linkedBilledCostId || !inv.currentPeriodId) {
         // Unlinked invoice — newly link
-        newlyLinked++;
-        items.push({
-          invoiceId: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          invoiceDate: inv.invoiceDate,
-          amountCents: inv.amountCents,
-          vendor: inv.vendor,
-          outcome: "newly_linked",
-          previousPeriodLabel: null,
-          newPeriodLabel: correctPeriod.periodLabel,
-          reason: null,
-        });
-
         if (!dryRun) {
           await db.transaction(async (tx) => {
             const [created] = await tx
@@ -169,9 +190,27 @@ export async function syncInvoices(
               .update(invoices)
               .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
               .where(eq(invoices.id, inv.id));
-            await recordCreation("billed_cost", created.id, Number(admin.id));
+            await recordCreation(
+              "billed_cost",
+              created.id,
+              Number(admin.id),
+              tx
+            );
           });
         }
+
+        newlyLinked++;
+        items.push({
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: inv.invoiceDate,
+          amountCents: inv.amountCents,
+          vendor: inv.vendor,
+          outcome: "newly_linked",
+          previousPeriodLabel: null,
+          newPeriodLabel: correctPeriod.periodLabel,
+          reason: null,
+        });
         continue;
       }
 
@@ -193,19 +232,6 @@ export async function syncInvoices(
       }
 
       // Linked to wrong period — correct
-      corrected++;
-      items.push({
-        invoiceId: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        invoiceDate: inv.invoiceDate,
-        amountCents: inv.amountCents,
-        vendor: inv.vendor,
-        outcome: "corrected",
-        previousPeriodLabel: inv.currentPeriodLabel,
-        newPeriodLabel: correctPeriod.periodLabel,
-        reason: null,
-      });
-
       if (!dryRun) {
         await db.transaction(async (tx) => {
           await tx
@@ -225,9 +251,27 @@ export async function syncInvoices(
             .update(invoices)
             .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
             .where(eq(invoices.id, inv.id));
-          await recordCreation("billed_cost", created.id, Number(admin.id));
+          await recordCreation(
+            "billed_cost",
+            created.id,
+            Number(admin.id),
+            tx
+          );
         });
       }
+
+      corrected++;
+      items.push({
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        amountCents: inv.amountCents,
+        vendor: inv.vendor,
+        outcome: "corrected",
+        previousPeriodLabel: inv.currentPeriodLabel,
+        newPeriodLabel: correctPeriod.periodLabel,
+        reason: null,
+      });
     } catch (err) {
       errors++;
       const message = err instanceof Error ? err.message : "Unknown error";
