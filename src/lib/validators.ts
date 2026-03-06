@@ -225,3 +225,8 @@ export const invoiceExtractionResultSchema = z.object({
 
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type InvoiceExtractionResult = z.infer<typeof invoiceExtractionResultSchema>;
+
+// Invoice sync schemas
+export const syncOptionsSchema = z.object({
+  dryRun: z.boolean(),
+});
