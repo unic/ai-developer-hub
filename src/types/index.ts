@@ -143,3 +143,33 @@ export interface CircleReportItem {
   licenseCount: number;
   totalMonthlyCost: number;
 }
+
+// Invoice sync types
+export type SyncOutcome =
+  | "verified"
+  | "newly_linked"
+  | "corrected"
+  | "unresolvable"
+  | "error";
+
+export interface SyncInvoiceOutcome {
+  invoiceId: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  amountCents: number;
+  vendor: string | null;
+  outcome: SyncOutcome;
+  previousPeriodLabel: string | null;
+  newPeriodLabel: string | null;
+  reason: string | null;
+}
+
+export interface SyncResult {
+  totalProcessed: number;
+  verified: number;
+  newlyLinked: number;
+  corrected: number;
+  unresolvable: number;
+  errors: number;
+  items: SyncInvoiceOutcome[];
+}

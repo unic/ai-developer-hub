@@ -17,8 +17,8 @@
 
 **Purpose**: Add shared types and validation schemas needed by all user stories
 
-- [ ] T001 [P] Add `SyncInvoiceOutcome` and `SyncResult` TypeScript types in `src/types/index.ts` — define outcome enum (`"verified" | "newly_linked" | "corrected" | "unresolvable" | "error"`), per-invoice outcome type (invoiceId, invoiceNumber, invoiceDate, amountCents, vendor, outcome, previousPeriodLabel, newPeriodLabel, reason), and aggregate result type (totalProcessed, verified, newlyLinked, corrected, unresolvable, errors, items)
-- [ ] T002 [P] Add Zod schemas for sync types in `src/lib/validators.ts` — add `syncOptionsSchema` (`{ dryRun: z.boolean() }`), `syncInvoiceOutcomeSchema`, and `syncResultSchema` matching the TypeScript types from T001
+- [x] T001 [P] Add `SyncInvoiceOutcome` and `SyncResult` TypeScript types in `src/types/index.ts` — define outcome enum (`"verified" | "newly_linked" | "corrected" | "unresolvable" | "error"`), per-invoice outcome type (invoiceId, invoiceNumber, invoiceDate, amountCents, vendor, outcome, previousPeriodLabel, newPeriodLabel, reason), and aggregate result type (totalProcessed, verified, newlyLinked, corrected, unresolvable, errors, items)
+- [x] T002 [P] Add Zod schemas for sync types in `src/lib/validators.ts` — add `syncOptionsSchema` (`{ dryRun: z.boolean() }`), `syncInvoiceOutcomeSchema`, and `syncResultSchema` matching the TypeScript types from T001
 
 ---
 

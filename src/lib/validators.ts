@@ -226,3 +226,40 @@ export const invoiceExtractionResultSchema = z.object({
 
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type InvoiceExtractionResult = z.infer<typeof invoiceExtractionResultSchema>;
+
+// Invoice sync schemas
+export const syncOptionsSchema = z.object({
+  dryRun: z.boolean(),
+});
+
+export const syncOutcomeEnum = z.enum([
+  "verified",
+  "newly_linked",
+  "corrected",
+  "unresolvable",
+  "error",
+]);
+
+export const syncInvoiceOutcomeSchema = z.object({
+  invoiceId: z.number().int(),
+  invoiceNumber: z.string(),
+  invoiceDate: z.string(),
+  amountCents: z.number().int(),
+  vendor: z.string().nullable(),
+  outcome: syncOutcomeEnum,
+  previousPeriodLabel: z.string().nullable(),
+  newPeriodLabel: z.string().nullable(),
+  reason: z.string().nullable(),
+});
+
+export const syncResultSchema = z.object({
+  totalProcessed: z.number().int(),
+  verified: z.number().int(),
+  newlyLinked: z.number().int(),
+  corrected: z.number().int(),
+  unresolvable: z.number().int(),
+  errors: z.number().int(),
+  items: z.array(syncInvoiceOutcomeSchema),
+});
+
+export type SyncOptionsInput = z.infer<typeof syncOptionsSchema>;
