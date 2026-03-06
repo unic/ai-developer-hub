@@ -29,7 +29,8 @@ const { selectResults, mockDb } = vi.hoisted(() => {
     return new Proxy({}, handler);
   }
 
-  const mockDb = {
+  // Typed as `any` to allow self-reference in transaction mock
+  const mockDb: Record<string, unknown> & { transaction: (fn: (tx: unknown) => Promise<void>) => Promise<void> } = {
     select: (..._args: unknown[]) =>
       chainable(() => selectResults.shift() ?? []),
     insert: () => ({
@@ -45,7 +46,7 @@ const { selectResults, mockDb } = vi.hoisted(() => {
     delete: () => ({
       where: async () => undefined,
     }),
-    transaction: async (fn: (tx: typeof mockDb) => Promise<void>) => {
+    transaction: async (fn: (tx: unknown) => Promise<void>) => {
       await fn(mockDb);
     },
   };

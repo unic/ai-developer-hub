@@ -98,10 +98,10 @@
 
 **Purpose**: Final validation and cleanup
 
-- [ ] T012 Run `pnpm typecheck` and fix any TypeScript strict mode errors across all new/modified files
-- [ ] T013 Run `pnpm lint` and fix any ESLint warnings across all new/modified files
-- [ ] T014 [P] Verify accessibility: results dialog is keyboard-navigable, focus trapped in dialog, Escape closes, ARIA labels on all interactive elements, Badge text is readable (not color-only), table uses semantic markup
-- [ ] T015 Manually test full flow: upload invoices without budget → create budget → sync → verify links created → modify invoice dates → sync again → verify corrections → test with archived budget → verify dry run matches actual
+- [x] T012 Run `pnpm typecheck` and fix any TypeScript strict mode errors across all new/modified files
+- [x] T013 Run `pnpm lint` and fix any ESLint warnings across all new/modified files
+- [x] T014 [P] Verify accessibility: results dialog is keyboard-navigable, focus trapped in dialog, Escape closes, ARIA labels on all interactive elements, Badge text is readable (not color-only), table uses semantic markup
+- [x] T015 Manually test full flow: upload invoices without budget → create budget → sync → verify links created → modify invoice dates → sync again → verify corrections → test with archived budget → verify dry run matches actual
 
 ---
 
