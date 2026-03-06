@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { Loader2, Upload, ArrowLeft, AlertTriangle } from "lucide-react";
 import {
@@ -123,17 +123,20 @@ export function BulkUploadForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ---- row mutation helper ----
-  function updateRow(
-    index: number,
-    field: "invoiceNumber" | "invoiceDate" | "amountDollars" | "vendor",
-    value: string,
-  ) {
-    setRows((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  }
+  const updateRow = useCallback(
+    (
+      index: number,
+      field: "invoiceNumber" | "invoiceDate" | "amountDollars" | "vendor",
+      value: string,
+    ) => {
+      setRows((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], [field]: value };
+        return next;
+      });
+    },
+    [],
+  );
 
   const columns: ColumnDef<EditableRow, unknown>[] = useMemo(
     () => [
@@ -216,6 +219,7 @@ export function BulkUploadForm() {
             <Input
               type="number"
               step="0.01"
+              min="0.01"
               value={row.original.amountDollars}
               onChange={(e) =>
                 updateRow(row.index, "amountDollars", e.target.value)
@@ -254,7 +258,7 @@ export function BulkUploadForm() {
           ) : null,
       },
     ],
-    [],
+    [updateRow],
   );
 
   const table = useReactTable({

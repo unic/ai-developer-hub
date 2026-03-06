@@ -259,7 +259,13 @@ export function InvoiceUploadForm() {
     setIsOverwriting(true);
     try {
       const formValues = watch();
-      const amountCents = Math.round(parseFloat(amountDollars) * 100);
+      const parsedAmount = parseFloat(amountDollars);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        toast.error("Please enter a valid positive amount before overwriting.");
+        setIsOverwriting(false);
+        return;
+      }
+      const amountCents = Math.round(parsedAmount * 100);
 
       const result = await overwriteInvoice({
         existingInvoiceId: duplicateInfo.existingInvoice.id,
@@ -441,7 +447,7 @@ export function InvoiceUploadForm() {
             error={errors.vendor?.message}
           />
 
-          <Button type="submit" disabled={isSubmitting || !blobPathname}>
+          <Button type="submit" disabled={isSubmitting || !blobPathname || !!duplicateInfo?.isDuplicate}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
@@ -455,7 +461,7 @@ export function InvoiceUploadForm() {
       )}
 
       {/* T007: Duplicate resolution dialog */}
-      <AlertDialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+      <AlertDialog open={duplicateDialogOpen} onOpenChange={(open) => { if (!open) return; setDuplicateDialogOpen(open); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Duplicate Invoice Detected</AlertDialogTitle>
