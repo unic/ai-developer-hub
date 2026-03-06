@@ -17,11 +17,11 @@
 
 **Purpose**: Schema additions, types, GitHub API client, and Zod validators shared across all stories
 
-- [ ] T001 Add `githubConnectionStatusEnum`, `githubSyncStatusEnum` enums and `githubConnections`, `githubProfiles`, `githubSyncEvents` tables with relations to `src/lib/db/schema.ts` per data-model.md
-- [ ] T002 Generate and apply Drizzle migration for the 3 new tables (`pnpm db:generate && pnpm db:push`)
-- [ ] T003 [P] Add GitHub-related type exports (GitHubConnection, GitHubProfile, GitHubSyncEvent, GitHubMemberData, SyncPreview) to `src/types/index.ts`
-- [ ] T004 [P] Add Zod validation schemas (githubTokenSchema, connectOrgSchema, confirmSyncSchema) to `src/lib/validators.ts`
-- [ ] T005 [P] Create GitHub REST API client with functions: `validateTokenAndListOrgs`, `fetchOrgMembers` (paginated), `fetchUserProfile`, `checkRateLimit` — all using native fetch with `X-OAuth-Scopes` and rate limit header parsing in `src/lib/github.ts`
+- [x] T001 Add `githubConnectionStatusEnum`, `githubSyncStatusEnum` enums and `githubConnections`, `githubProfiles`, `githubSyncEvents` tables with relations to `src/lib/db/schema.ts` per data-model.md
+- [x] T002 Generate and apply Drizzle migration for the 3 new tables (`pnpm db:generate && pnpm db:push`)
+- [x] T003 [P] Add GitHub-related type exports (GitHubConnection, GitHubProfile, GitHubSyncEvent, GitHubMemberData, SyncPreview) to `src/types/index.ts`
+- [x] T004 [P] Add Zod validation schemas (githubTokenSchema, connectOrgSchema, confirmSyncSchema) to `src/lib/validators.ts`
+- [x] T005 [P] Create GitHub REST API client with functions: `validateTokenAndListOrgs`, `fetchOrgMembers` (paginated), `fetchUserProfile`, `checkRateLimit` — all using native fetch with `X-OAuth-Scopes` and rate limit header parsing in `src/lib/github.ts`
 
 **Checkpoint**: Schema deployed, types exported, API client ready, validators defined
 
@@ -33,8 +33,8 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Create settings layout with sub-navigation tabs (Appearance | Integrations) in `src/app/settings/layout.tsx` — admin-only for Integrations tab
-- [ ] T007 Implement `getActiveGitHubConnection()` query action in `src/actions/github.ts` per server-actions contract
+- [x] T006 Create settings layout with sub-navigation tabs (Appearance | Integrations) in `src/app/settings/layout.tsx` — admin-only for Integrations tab
+- [x] T007 Implement `getActiveGitHubConnection()` query action in `src/actions/github.ts` per server-actions contract
 
 **Checkpoint**: Foundation ready — settings sub-nav works, active connection queryable
 
@@ -48,10 +48,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `validateGitHubToken()` server action in `src/actions/github.ts` — calls `validateTokenAndListOrgs` from github.ts client, checks `read:org` + `read:user` scopes, returns org list
-- [ ] T009 [US1] Implement `connectGitHubOrg()` server action in `src/actions/github.ts` — encrypts token via `encryptApiKey`, disconnects prior active connection in transaction, inserts new row, records change history, revalidates path
-- [ ] T010 [US1] Create integrations settings page (server component) in `src/app/settings/integrations/page.tsx` — fetches active connection via `getActiveGitHubConnection()`, passes to client component
-- [ ] T011 [US1] Create `GitHubIntegrationClient` component in `src/app/settings/integrations/github-integration-client.tsx` with: token input form, validate button, org selector dropdown, connect button, connection status card showing org name/avatar/connected date/last sync. Use shadcn/ui Card, Input, Button, Select, Badge. Show toast on success/error via Sonner.
+- [x] T008 [US1] Implement `validateGitHubToken()` server action in `src/actions/github.ts` — calls `validateTokenAndListOrgs` from github.ts client, checks `read:org` + `read:user` scopes, returns org list
+- [x] T009 [US1] Implement `connectGitHubOrg()` server action in `src/actions/github.ts` — encrypts token via `encryptApiKey`, disconnects prior active connection in transaction, inserts new row, records change history, revalidates path
+- [x] T010 [US1] Create integrations settings page (server component) in `src/app/settings/integrations/page.tsx` — fetches active connection via `getActiveGitHubConnection()`, passes to client component
+- [x] T011 [US1] Create `GitHubIntegrationClient` component in `src/app/settings/integrations/github-integration-client.tsx` with: token input form, validate button, org selector dropdown, connect button, connection status card showing org name/avatar/connected date/last sync. Use shadcn/ui Card, Input, Button, Select, Badge. Show toast on success/error via Sonner.
 
 **Checkpoint**: Admin can connect a GitHub org. Connection visible in settings with org name and status.
 
@@ -65,11 +65,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Implement member-to-user matching logic as a pure function `matchMembersToUsers(members, users)` in `src/lib/github.ts` — username-first matching, email fallback, cross-match conflict detection, duplicate flagging per research.md Decision 5
-- [ ] T013 [US2] Implement `fetchGitHubSyncPreview()` server action in `src/actions/github-sync.ts` — decrypts token, fetches paginated members, fetches individual profiles, runs matching, creates in_progress sync event, returns full preview per contract
-- [ ] T014 [US2] Implement `confirmGitHubSync()` server action in `src/actions/github-sync.ts` — upserts github_profiles for matched users, populates githubUsername on email matches, creates new users for selected imports (viewer/active/temp password via bcrypt), records all changes in change history, updates sync event counts and status, updates connection lastSyncAt, revalidates paths
-- [ ] T015 [US2] Implement `getSyncHistory()` query action in `src/actions/github-sync.ts` — returns recent sync events with triggeredBy user name joined
-- [ ] T016 [US2] Add sync UI to `GitHubIntegrationClient` in `src/app/settings/integrations/github-integration-client.tsx` — "Sync Members" button (shown when connected), loading state with progress, sync preview display with 3 tabs (Matched/Unmatched GitHub/Unmatched System), checkboxes on unmatched members for import selection, "Confirm Sync" button, result summary toast, sync history table at bottom
+- [x] T012 [US2] Implement member-to-user matching logic as a pure function `matchMembersToUsers(members, users)` in `src/lib/github.ts` — username-first matching, email fallback, cross-match conflict detection, duplicate flagging per research.md Decision 5
+- [x] T013 [US2] Implement `fetchGitHubSyncPreview()` server action in `src/actions/github-sync.ts` — decrypts token, fetches paginated members, fetches individual profiles, runs matching, creates in_progress sync event, returns full preview per contract
+- [x] T014 [US2] Implement `confirmGitHubSync()` server action in `src/actions/github-sync.ts` — upserts github_profiles for matched users, populates githubUsername on email matches, creates new users for selected imports (viewer/active/temp password via bcrypt), records all changes in change history, updates sync event counts and status, updates connection lastSyncAt, revalidates paths
+- [x] T015 [US2] Implement `getSyncHistory()` query action in `src/actions/github-sync.ts` — returns recent sync events with triggeredBy user name joined
+- [x] T016 [US2] Add sync UI to `GitHubIntegrationClient` in `src/app/settings/integrations/github-integration-client.tsx` — "Sync Members" button (shown when connected), loading state with progress, sync preview display with 3 tabs (Matched/Unmatched GitHub/Unmatched System), checkboxes on unmatched members for import selection, "Confirm Sync" button, result summary toast, sync history table at bottom
 
 **Checkpoint**: Full sync flow works end-to-end. Matched users enriched, imports created, audit trail recorded.
 
@@ -83,9 +83,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Implement `getGitHubProfile(userId)` query action in `src/actions/github.ts` — returns cached profile data or null per contract
-- [ ] T018 [US3] Add GitHub profile section to `src/app/users/[id]/user-detail-client.tsx` — conditionally render a Card with: avatar image (Next.js Image or img with avatar_url), display name, bio, public repos count badge, external link to GitHub profile, "Last synced" relative timestamp. Show nothing if no github_profiles row exists.
-- [ ] T019 [US3] Update `src/app/users/[id]/page.tsx` server component to fetch GitHub profile via `getGitHubProfile()` and pass as prop to client component
+- [x] T017 [US3] Implement `getGitHubProfile(userId)` query action in `src/actions/github.ts` — returns cached profile data or null per contract
+- [x] T018 [US3] Add GitHub profile section to `src/app/users/[id]/user-detail-client.tsx` — conditionally render a Card with: avatar image (Next.js Image or img with avatar_url), display name, bio, public repos count badge, external link to GitHub profile, "Last synced" relative timestamp. Show nothing if no github_profiles row exists.
+- [x] T019 [US3] Update `src/app/users/[id]/page.tsx` server component to fetch GitHub profile via `getGitHubProfile()` and pass as prop to client component
 
 **Checkpoint**: Enriched users show GitHub data on their detail page. Users without GitHub data show no section.
 
@@ -99,9 +99,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T020 [US4] Implement `disconnectGitHubOrg()` server action in `src/actions/github.ts` — sets status to "disconnected", clears tokenEncrypted, sets disconnectedAt, records change history, revalidates path. Does NOT delete github_profiles.
-- [ ] T021 [US4] Implement `updateGitHubToken()` server action in `src/actions/github.ts` — validates new token scopes and org access, encrypts and updates tokenEncrypted, records change history
-- [ ] T022 [US4] Add disconnect and update-token UI to `GitHubIntegrationClient` in `src/app/settings/integrations/github-integration-client.tsx` — disconnect button with confirmation dialog (shadcn AlertDialog), "Update Token" button that reveals token input + validate + save flow. Re-sync is already available from US2's "Sync Members" button.
+- [x] T020 [US4] Implement `disconnectGitHubOrg()` server action in `src/actions/github.ts` — sets status to "disconnected", clears tokenEncrypted, sets disconnectedAt, records change history, revalidates path. Does NOT delete github_profiles.
+- [x] T021 [US4] Implement `updateGitHubToken()` server action in `src/actions/github.ts` — validates new token scopes and org access, encrypts and updates tokenEncrypted, records change history
+- [x] T022 [US4] Add disconnect and update-token UI to `GitHubIntegrationClient` in `src/app/settings/integrations/github-integration-client.tsx` — disconnect button with confirmation dialog (shadcn AlertDialog), "Update Token" button that reveals token input + validate + save flow. Re-sync is already available from US2's "Sync Members" button.
 
 **Checkpoint**: Full lifecycle management works. Disconnect preserves data, token rotation works, re-sync available.
 
@@ -111,11 +111,11 @@
 
 **Purpose**: Error handling edge cases, accessibility, and final validation
 
-- [ ] T023 [P] Add rate limit handling UI to sync flow in `src/app/settings/integrations/github-integration-client.tsx` — show remaining rate budget, warn if approaching limit, display wait time if paused
-- [ ] T024 [P] Add keyboard navigation and ARIA labels to sync preview tabs, org selector, and confirmation dialogs in `src/app/settings/integrations/github-integration-client.tsx`
-- [ ] T025 Run `pnpm typecheck && pnpm lint` and fix any errors across all new/modified files
-- [ ] T026 Run `pnpm build` to verify production build succeeds with no errors
-- [ ] T027 Run quickstart.md validation — walk through the full feature flow manually per `specs/012-github-user-enrichment/quickstart.md`
+- [x] T023 [P] Add rate limit handling UI to sync flow in `src/app/settings/integrations/github-integration-client.tsx` — show remaining rate budget, warn if approaching limit, display wait time if paused
+- [x] T024 [P] Add keyboard navigation and ARIA labels to sync preview tabs, org selector, and confirmation dialogs in `src/app/settings/integrations/github-integration-client.tsx`
+- [x] T025 Run `pnpm typecheck && pnpm lint` and fix any errors across all new/modified files
+- [x] T026 Run `pnpm build` to verify production build succeeds with no errors
+- [x] T027 Run quickstart.md validation — walk through the full feature flow manually per `specs/012-github-user-enrichment/quickstart.md`
 
 ---
 
