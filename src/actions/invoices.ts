@@ -7,7 +7,7 @@ import {
   budgetPeriods,
   annualBudgets,
 } from "@/lib/db/schema";
-import { eq, and, lte, gt, desc } from "drizzle-orm";
+import { eq, and, lte, gt, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getR2Client, getR2Bucket } from "@/lib/r2-client";
@@ -25,6 +25,103 @@ export async function extractInvoiceFieldsAction(
   if (!admin) return { success: false, error: "Unauthorized" };
 
   return extractFromLib(input);
+}
+
+// T001: Check single invoice duplicate
+export async function checkInvoiceDuplicate(invoiceNumber: string): Promise<
+  ActionResult<{
+    isDuplicate: boolean;
+    existingInvoice?: {
+      id: number;
+      invoiceNumber: string;
+      invoiceDate: string;
+      amountCents: number;
+      vendor: string | null;
+      linkedBilledCostId: number | null;
+    };
+  }>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const existing = await db.query.invoices.findFirst({
+    where: eq(invoices.invoiceNumber, invoiceNumber),
+  });
+
+  if (!existing) {
+    return { success: true, data: { isDuplicate: false } };
+  }
+
+  return {
+    success: true,
+    data: {
+      isDuplicate: true,
+      existingInvoice: {
+        id: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        invoiceDate: existing.invoiceDate,
+        amountCents: existing.amountCents,
+        vendor: existing.vendor,
+        linkedBilledCostId: existing.linkedBilledCostId,
+      },
+    },
+  };
+}
+
+// T002: Batch check multiple invoice numbers
+export async function checkBulkDuplicates(invoiceNumbers: string[]): Promise<
+  ActionResult<{
+    duplicates: Record<
+      string,
+      { id: number; invoiceDate: string; amountCents: number; vendor: string | null }
+    >;
+  }>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  if (invoiceNumbers.length === 0) {
+    return { success: true, data: { duplicates: {} } };
+  }
+
+  const existing = await db
+    .select({
+      id: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      invoiceDate: invoices.invoiceDate,
+      amountCents: invoices.amountCents,
+      vendor: invoices.vendor,
+    })
+    .from(invoices)
+    .where(inArray(invoices.invoiceNumber, invoiceNumbers));
+
+  const duplicates: Record<
+    string,
+    { id: number; invoiceDate: string; amountCents: number; vendor: string | null }
+  > = {};
+  for (const row of existing) {
+    if (!duplicates[row.invoiceNumber]) {
+      duplicates[row.invoiceNumber] = {
+        id: row.id,
+        invoiceDate: row.invoiceDate,
+        amountCents: row.amountCents,
+        vendor: row.vendor,
+      };
+    }
+  }
+
+  return { success: true, data: { duplicates } };
+}
+
+// T003: Best-effort R2 blob cleanup
+export async function cleanupBlob(blobPathname: string): Promise<void> {
+  try {
+    await getR2Client().send(
+      new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: blobPathname })
+    );
+  } catch {
+    // Best-effort — swallow errors
+  }
 }
 
 async function findActivePeriodForDate(
@@ -79,7 +176,7 @@ async function insertBilledCostDirect(params: {
 }
 
 type SaveInvoiceResult =
-  | { success: true; data: { id: number }; warning?: string; linkedPeriodLabel?: string; linkWarning?: string }
+  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveInvoice(
@@ -98,12 +195,6 @@ export async function saveInvoice(
   }
 
   const { invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = parsed.data;
-
-  // Soft duplicate check
-  const existing = await db.query.invoices.findFirst({
-    where: eq(invoices.invoiceNumber, invoiceNumber),
-  });
-  const isDuplicate = !!existing;
 
   let newId: number;
   try {
@@ -168,7 +259,6 @@ export async function saveInvoice(
     data: { id: newId },
     linkedPeriodLabel,
     linkWarning,
-    ...(isDuplicate ? { warning: "An invoice with this number already exists." } : {}),
   };
 }
 

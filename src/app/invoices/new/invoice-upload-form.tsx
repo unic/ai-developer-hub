@@ -171,9 +171,6 @@ export function InvoiceUploadForm() {
     } else {
       toast.success("Invoice saved to archive.");
     }
-    if (result.warning) {
-      toast.warning(result.warning);
-    }
     router.push("/invoices");
   };
 
