@@ -19,8 +19,8 @@
 
 **Purpose**: Define shared types and schemas that all user stories depend on
 
-- [ ] T001 Add `BulkImportResult` and `ExistingUserFields` types in `src/types/index.ts` — add types for upsert result (created, updated, skipped, failed, errors) and existing user field map for preview lookup
-- [ ] T002 Update `bulkImportUserSchema` in `src/lib/validators.ts` — no schema changes needed but verify round-trip compatibility: empty strings for nullable fields should be accepted and normalized to null
+- [x] T001 Add `BulkImportResult` and `ExistingUserFields` types in `src/types/index.ts` — add types for upsert result (created, updated, skipped, failed, errors) and existing user field map for preview lookup
+- [x] T002 Update `bulkImportUserSchema` in `src/lib/validators.ts` — no schema changes needed but verify round-trip compatibility: empty strings for nullable fields should be accepted and normalized to null
 
 **Checkpoint**: Shared types compiled and ready for use by server actions and UI
 
@@ -34,10 +34,10 @@
 
 ### Implementation for User Story 1 + 3
 
-- [ ] T003 [US1] Add `checkExistingUsers` server action in `src/actions/users.ts` — accepts email list, returns `Record<string, ExistingUserFields>` map of lowercase email to current field values using `inArray` query. Requires admin role.
-- [ ] T004 [US1] Add field comparison helper in `src/actions/users.ts` — create a `computeUserDiff` function that compares CSV row fields (name, circle, role, githubUsername, profile) against existing user record, normalizing empty strings to null for nullable fields. Returns `Record<string, { old: unknown; new: unknown }>` for changed fields, or empty object if no changes.
-- [ ] T005 [US1] Modify `bulkImportUsers` in `src/actions/users.ts` — replace the existing "skip if email exists" logic with upsert behavior: (1) if no existing user, create with default password and `recordCreation` (existing path), (2) if existing user found, call `computeUserDiff` — if changes exist, update user fields via `db.update()` and call `recordUpdate` with diff; if no changes, increment skipped count. Never modify passwordHash or status. Return `BulkImportResult` with created/updated/skipped/failed counts.
-- [ ] T006 [US1] Update import summary toast in `src/app/users/import/bulk-import-form.tsx` — modify the post-import toast notification to display the new four-category summary: "X created, Y updated, Z skipped, W failed" instead of the current "X imported, Y failed".
+- [x] T003 [US1] Add `checkExistingUsers` server action in `src/actions/users.ts` — accepts email list, returns `Record<string, ExistingUserFields>` map of lowercase email to current field values using `inArray` query. Requires admin role.
+- [x] T004 [US1] Add field comparison helper in `src/actions/users.ts` — create a `computeUserDiff` function that compares CSV row fields (name, circle, role, githubUsername, profile) against existing user record, normalizing empty strings to null for nullable fields. Returns `Record<string, { old: unknown; new: unknown }>` for changed fields, or empty object if no changes.
+- [x] T005 [US1] Modify `bulkImportUsers` in `src/actions/users.ts` — replace the existing "skip if email exists" logic with upsert behavior: (1) if no existing user, create with default password and `recordCreation` (existing path), (2) if existing user found, call `computeUserDiff` — if changes exist, update user fields via `db.update()` and call `recordUpdate` with diff; if no changes, increment skipped count. Never modify passwordHash or status. Return `BulkImportResult` with created/updated/skipped/failed counts.
+- [x] T006 [US1] Update import summary toast in `src/app/users/import/bulk-import-form.tsx` — modify the post-import toast notification to display the new four-category summary: "X created, Y updated, Z skipped, W failed" instead of the current "X imported, Y failed".
 
 **Checkpoint**: Core upsert logic works end-to-end. Re-importing an unmodified export shows all rows skipped. Importing a mix of new and existing users shows correct counts. Passwords preserved.
 
@@ -51,7 +51,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T007 [P] [US2] Add export button to admin button group in `src/app/users/page.tsx` — add a `<Button variant="outline" asChild>` wrapping an `<a href="/api/export/users" download>` with a Download icon (from lucide-react), placed before the existing "Bulk Import" button in the admin-only button group. Only visible when `isAdmin` is true.
+- [x] T007 [P] [US2] Add export button to admin button group in `src/app/users/page.tsx` — add a `<Button variant="outline" asChild>` wrapping an `<a href="/api/export/users" download>` with a Download icon (from lucide-react), placed before the existing "Bulk Import" button in the admin-only button group. Only visible when `isAdmin` is true.
 
 **Checkpoint**: Export button visible on user overview page for admins, triggers CSV download.
 
@@ -65,10 +65,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T008 [US4] Add email lookup on CSV parse in `src/app/users/import/bulk-import-form.tsx` — after CSV parsing completes, collect all parsed emails and call `checkExistingUsers` server action. Store the returned `Record<string, ExistingUserFields>` map in component state.
-- [ ] T009 [US4] Compute row action and changed fields in `src/app/users/import/bulk-import-form.tsx` — for each parsed row, determine action ("new" if email not in existing map, "update" if in map) and compute list of changed field names by comparing CSV values to existing values (same normalization as server-side: empty string = null for nullable fields).
-- [ ] T010 [US4] Add New/Update badge column to preview table in `src/app/users/import/bulk-import-form.tsx` — add an "Action" column to the preview table showing a Badge: "New" (default/outline variant) or "Update" (secondary variant) based on the computed action for each row.
-- [ ] T011 [US4] Highlight changed fields in preview table in `src/app/users/import/bulk-import-form.tsx` — for "Update" rows, apply a visual indicator (e.g., `font-semibold text-primary` or subtle background highlight) to table cells whose field name appears in the row's changed fields list.
+- [x] T008 [US4] Add email lookup on CSV parse in `src/app/users/import/bulk-import-form.tsx` — after CSV parsing completes, collect all parsed emails and call `checkExistingUsers` server action. Store the returned `Record<string, ExistingUserFields>` map in component state.
+- [x] T009 [US4] Compute row action and changed fields in `src/app/users/import/bulk-import-form.tsx` — for each parsed row, determine action ("new" if email not in existing map, "update" if in map) and compute list of changed field names by comparing CSV values to existing values (same normalization as server-side: empty string = null for nullable fields).
+- [x] T010 [US4] Add New/Update badge column to preview table in `src/app/users/import/bulk-import-form.tsx` — add an "Action" column to the preview table showing a Badge: "New" (default/outline variant) or "Update" (secondary variant) based on the computed action for each row.
+- [x] T011 [US4] Highlight changed fields in preview table in `src/app/users/import/bulk-import-form.tsx` — for "Update" rows, apply a visual indicator (e.g., `font-semibold text-primary` or subtle background highlight) to table cells whose field name appears in the row's changed fields list.
 
 **Checkpoint**: Preview correctly labels all rows. Changed fields visually distinguishable. Error rows still show validation errors.
 
@@ -78,9 +78,9 @@
 
 **Purpose**: Final validation and edge case handling
 
-- [ ] T012 Verify round-trip compatibility by testing export → re-import with no changes in `src/app/users/import/bulk-import-form.tsx` and `src/actions/users.ts` — ensure empty string normalization in CSV parsing matches the export format (null fields exported as empty strings, empty strings imported as null). Fix any mismatches.
-- [ ] T013 Verify change history completeness in `src/actions/users.ts` — ensure `recordUpdate` is called with correct `changedBy` (admin user ID from session) and that each changed field produces a separate history entry. Test with a bulk update affecting multiple fields on multiple users.
-- [ ] T014 [P] Run `pnpm typecheck` and `pnpm lint` — fix any TypeScript errors or lint warnings introduced by the changes.
+- [x] T012 Verify round-trip compatibility by testing export → re-import with no changes in `src/app/users/import/bulk-import-form.tsx` and `src/actions/users.ts` — ensure empty string normalization in CSV parsing matches the export format (null fields exported as empty strings, empty strings imported as null). Fix any mismatches.
+- [x] T013 Verify change history completeness in `src/actions/users.ts` — ensure `recordUpdate` is called with correct `changedBy` (admin user ID from session) and that each changed field produces a separate history entry. Test with a bulk update affecting multiple fields on multiple users.
+- [x] T014 [P] Run `pnpm typecheck` and `pnpm lint` — fix any TypeScript errors or lint warnings introduced by the changes.
 - [ ] T015 Run quickstart.md manual testing workflow — follow the 9-step manual test plan from `specs/011-user-import/quickstart.md` to validate the full export-edit-import workflow end-to-end.
 
 ---
