@@ -231,6 +231,7 @@ export function BulkImportForm() {
                     <TableHead>Email</TableHead>
                     <TableHead>Circle</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>GitHub</TableHead>
                     <TableHead>Profile</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -255,6 +256,7 @@ export function BulkImportForm() {
                         <TableCell>{user.email}</TableCell>
                         <TableCell className={changed.includes("circle") ? hl : ""}>{user.circle}</TableCell>
                         <TableCell className={changed.includes("role") ? hl : ""}>{user.role}</TableCell>
+                        <TableCell className={changed.includes("githubUsername") ? hl : ""}>{user.githubUsername || "\u2014"}</TableCell>
                         <TableCell className={changed.includes("profile") ? hl : ""}>{user.profile || "\u2014"}</TableCell>
                         <TableCell>
                           {user.valid ? (

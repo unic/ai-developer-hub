@@ -30,17 +30,18 @@ export function normalizeField(value: string | undefined | null): string | null 
   return value;
 }
 
-/** Compare importable user fields, return list of field names that differ */
+/** Compare importable user fields, return list of field names that differ.
+ *  Only considers optional fields when explicitly provided (not undefined). */
 export function getChangedUserFields(
   row: { name: string; circle?: string; role?: string; githubUsername?: string; profile?: string },
   existing: { name: string; circle: string | null; role: string; githubUsername: string | null; profile: string | null }
 ): string[] {
   const changed: string[] = [];
   if (row.name !== existing.name) changed.push("name");
-  if (normalizeField(row.circle) !== existing.circle) changed.push("circle");
-  if ((row.role || "viewer") !== existing.role) changed.push("role");
-  if (normalizeField(row.githubUsername) !== existing.githubUsername) changed.push("githubUsername");
-  if (normalizeField(row.profile) !== existing.profile) changed.push("profile");
+  if (row.circle !== undefined && normalizeField(row.circle) !== existing.circle) changed.push("circle");
+  if (row.role !== undefined && row.role !== existing.role) changed.push("role");
+  if (row.githubUsername !== undefined && normalizeField(row.githubUsername) !== existing.githubUsername) changed.push("githubUsername");
+  if (row.profile !== undefined && normalizeField(row.profile) !== existing.profile) changed.push("profile");
   return changed;
 }
 
