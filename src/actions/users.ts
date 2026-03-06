@@ -12,6 +12,7 @@ import {
   bulkImportUserSchema,
 } from "@/lib/validators";
 import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
+import { normalizeField } from "@/lib/utils";
 import {
   recordCreation,
   recordUpdate,
@@ -203,13 +204,7 @@ export async function deactivateUser(input: {
   return { success: true, data: { revokedCount: activeAssignments.length } };
 }
 
-/** Normalize a CSV field value for comparison: empty/undefined → null */
-function normalize(value: string | undefined | null): string | null {
-  if (value === undefined || value === null || value === "") return null;
-  return value;
-}
-
-/** Compare CSV row fields against existing user, return changed fields */
+/** Compare CSV row fields against existing user, return changed fields with old/new values */
 export function computeUserDiff(
   row: { name: string; circle?: string; role?: string; githubUsername?: string; profile?: string },
   existing: { name: string; circle: string | null; role: string; githubUsername: string | null; profile: string | null }
@@ -219,18 +214,18 @@ export function computeUserDiff(
   if (row.name !== existing.name) {
     changes.name = { old: existing.name, new: row.name };
   }
-  if (normalize(row.circle) !== existing.circle) {
-    changes.circle = { old: existing.circle, new: normalize(row.circle) };
+  if (normalizeField(row.circle) !== existing.circle) {
+    changes.circle = { old: existing.circle, new: normalizeField(row.circle) };
   }
   const newRole = row.role || "viewer";
   if (newRole !== existing.role) {
     changes.role = { old: existing.role, new: newRole };
   }
-  if (normalize(row.githubUsername) !== existing.githubUsername) {
-    changes.githubUsername = { old: existing.githubUsername, new: normalize(row.githubUsername) };
+  if (normalizeField(row.githubUsername) !== existing.githubUsername) {
+    changes.githubUsername = { old: existing.githubUsername, new: normalizeField(row.githubUsername) };
   }
-  if (normalize(row.profile) !== existing.profile) {
-    changes.profile = { old: existing.profile, new: normalize(row.profile) };
+  if (normalizeField(row.profile) !== existing.profile) {
+    changes.profile = { old: existing.profile, new: normalizeField(row.profile) };
   }
 
   return changes;
@@ -280,6 +275,15 @@ export async function bulkImportUsers(input: {
   // Hash the default password once instead of per-row (~250ms per hash)
   const defaultPasswordHash = await hash("changeme123", 12);
 
+  // Batch-query all existing users upfront to avoid N+1
+  const allEmails = input.users
+    .map((u) => (u as { email?: string })?.email?.toLowerCase())
+    .filter((e): e is string => !!e);
+  const existingUsers = allEmails.length > 0
+    ? await db.query.users.findMany({ where: inArray(users.email, allEmails) })
+    : [];
+  const existingMap = new Map(existingUsers.map((u) => [u.email.toLowerCase(), u]));
+
   for (let i = 0; i < input.users.length; i++) {
     const parsed = bulkImportUserSchema.safeParse(input.users[i]);
     if (!parsed.success) {
@@ -294,9 +298,7 @@ export async function bulkImportUsers(input: {
     const { name, email, circle, role, githubUsername, profile } = parsed.data;
 
     try {
-      const existing = await db.query.users.findFirst({
-        where: eq(users.email, email.toLowerCase()),
-      });
+      const existing = existingMap.get(email.toLowerCase());
 
       if (existing) {
         // Upsert: update existing user (never touch password or status)

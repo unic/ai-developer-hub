@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { bulkImportUsers, checkExistingUsers } from "@/actions/users";
 import type { ExistingUserFields } from "@/types";
+import { getChangedUserFields } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -84,11 +85,6 @@ function parseCSV(text: string): ParsedUser[] {
   });
 }
 
-function normalizeField(value: string | undefined | null): string | null {
-  if (value === undefined || value === null || value === "") return null;
-  return value;
-}
-
 function enrichRows(
   rows: ParsedUser[],
   existingMap: Record<string, ExistingUserFields>
@@ -98,13 +94,7 @@ function enrichRows(
     const existing = existingMap[row.email.toLowerCase()];
     if (!existing) return { ...row, action: "new" as const, changes: [] };
 
-    const changes: string[] = [];
-    if (row.name !== existing.name) changes.push("name");
-    if (normalizeField(row.circle) !== existing.circle) changes.push("circle");
-    if ((row.role || "viewer") !== existing.role) changes.push("role");
-    if (normalizeField(row.githubUsername) !== existing.githubUsername) changes.push("githubUsername");
-    if (normalizeField(row.profile) !== existing.profile) changes.push("profile");
-
+    const changes = getChangedUserFields(row, existing);
     return { ...row, action: "update" as const, changes };
   });
 }
@@ -128,11 +118,17 @@ export function BulkImportForm() {
       const validEmails = rows.filter((r) => r.valid).map((r) => r.email);
       if (validEmails.length > 0) {
         setLoading(true);
-        const result = await checkExistingUsers({ emails: validEmails });
-        setLoading(false);
-        if (result.success) {
-          setParsedUsers(enrichRows(rows, result.data));
-          return;
+        try {
+          const result = await checkExistingUsers({ emails: validEmails });
+          if (result.success) {
+            setParsedUsers(enrichRows(rows, result.data));
+            return;
+          }
+          toast.error("Failed to check existing users");
+        } catch {
+          toast.error("Failed to check existing users");
+        } finally {
+          setLoading(false);
         }
       }
       setParsedUsers(rows);
