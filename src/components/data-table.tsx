@@ -18,9 +18,14 @@ import {
 
 // Shared filter function for faceted (multi-select) column filters.
 // Use as `filterFn: arrayIncludesFilterFn` in column definitions.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const arrayIncludesFilterFn: FilterFn<any> = (row, id, value: string[]) =>
-  value.includes(row.getValue(id));
+export function arrayIncludesFilterFn<TData>(
+  row: { getValue: (columnId: string) => unknown },
+  columnId: string,
+  value: string[]
+): boolean {
+  return value.includes(row.getValue(columnId) as string);
+}
+arrayIncludesFilterFn.autoRemove = (val: unknown) => !val || (Array.isArray(val) && val.length === 0);
 import {
   Table,
   TableBody,
