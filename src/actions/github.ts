@@ -9,7 +9,7 @@ import { validateTokenAndListOrgs } from "@/lib/github";
 import { githubTokenSchema, connectOrgSchema } from "@/lib/validators";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
 import { revalidatePath } from "next/cache";
-import type { ActionResult } from "@/types";
+import type { ActionResult, GitHubConnectionStatus } from "@/types";
 
 export async function getActiveGitHubConnection(): Promise<
   ActionResult<{
@@ -17,7 +17,7 @@ export async function getActiveGitHubConnection(): Promise<
       id: number;
       orgLogin: string;
       orgAvatarUrl: string | null;
-      status: string;
+      status: GitHubConnectionStatus;
       connectedAt: Date;
       lastSyncAt: Date | null;
     } | null;

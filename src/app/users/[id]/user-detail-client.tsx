@@ -211,7 +211,7 @@ export function UserDetailClient({
                 </div>
                 <p className="text-xs text-muted-foreground pt-1">
                   Last synced{" "}
-                  {new Date(githubProfile.lastSyncedAt).toLocaleDateString()}
+                  {formatDate(githubProfile.lastSyncedAt)}
                 </p>
               </div>
             </div>

@@ -21,10 +21,12 @@ export default async function UserDetailPage({
   const user = await getUserById(userId);
   if (!user) notFound();
 
-  const assignments = await getUserAssignments(userId);
-  const historyResult = await getEntityHistory("user", userId);
+  const [assignments, historyResult, ghResult] = await Promise.all([
+    getUserAssignments(userId),
+    getEntityHistory("user", userId),
+    getGitHubProfile(userId),
+  ]);
   const history = historyResult.success ? historyResult.data.records : [];
-  const ghResult = await getGitHubProfile(userId);
   const githubProfile = ghResult.success ? ghResult.data.profile : null;
 
   return (

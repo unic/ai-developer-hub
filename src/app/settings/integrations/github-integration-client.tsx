@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Github, ExternalLink, RefreshCw, Unplug, KeyRound, Users, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -57,20 +58,22 @@ import type {
   SyncMatchedMember,
   SyncUnmatchedMember,
   SyncUnmatchedSystemUser,
+  GitHubConnectionStatus,
+  GitHubSyncStatus,
 } from "@/types";
 
 interface ConnectionData {
   id: number;
   orgLogin: string;
   orgAvatarUrl: string | null;
-  status: string;
+  status: GitHubConnectionStatus;
   connectedAt: Date;
   lastSyncAt: Date | null;
 }
 
 interface SyncHistoryEvent {
   id: number;
-  status: string;
+  status: GitHubSyncStatus;
   totalMembers: number | null;
   matchedCount: number | null;
   importedCount: number | null;
@@ -335,12 +338,12 @@ export function GitHubIntegrationClient({
             <Badge variant="default">Connected</Badge>
           </div>
           <CardDescription>
-            Connected {new Date(connection.connectedAt).toLocaleDateString()}
+            Connected {formatDate(connection.connectedAt)}
             {connection.lastSyncAt && (
               <>
                 {" "}
                 · Last synced{" "}
-                {new Date(connection.lastSyncAt).toLocaleDateString()}
+                {formatDate(connection.lastSyncAt)}
               </>
             )}
           </CardDescription>
@@ -544,7 +547,7 @@ export function GitHubIntegrationClient({
                 {syncHistory.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell className="text-sm">
-                      {new Date(event.startedAt).toLocaleDateString()}
+                      {formatDate(event.startedAt)}
                     </TableCell>
                     <TableCell>
                       <SyncStatusBadge status={event.status} />
@@ -737,7 +740,7 @@ function SystemUsersTable({
   );
 }
 
-function SyncStatusBadge({ status }: { status: string }) {
+function SyncStatusBadge({ status }: { status: GitHubSyncStatus }) {
   switch (status) {
     case "completed":
       return (

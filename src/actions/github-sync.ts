@@ -19,15 +19,19 @@ import { confirmSyncSchema } from "@/lib/validators";
 import { recordCreation, recordUpdate } from "@/actions/history";
 import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
-import type { ActionResult, GitHubMemberData, SyncPreview } from "@/types";
+import type { ActionResult, GitHubMemberData, GitHubSyncStatus, SyncPreview } from "@/types";
 
-export async function fetchGitHubSyncPreview(): Promise<
-  ActionResult<SyncPreview>
+/** Shared helper: get active connection, decrypt token, fetch members, match to users */
+async function fetchAndMatchMembers(): Promise<
+  | { success: false; error: string }
+  | {
+      success: true;
+      connection: { id: number; orgLogin: string };
+      memberProfiles: GitHubMemberData[];
+      matchResult: ReturnType<typeof matchMembersToUsers>;
+      rateLimitRemaining: number;
+    }
 > {
-  const admin = await requireAdmin();
-  if (!admin) return { success: false, error: "Unauthorized" };
-
-  // Get active connection
   const [connection] = await db
     .select()
     .from(githubConnections)
@@ -38,27 +42,18 @@ export async function fetchGitHubSyncPreview(): Promise<
     return { success: false, error: "No active GitHub connection found" };
   }
 
-  // Decrypt token
   let token: string;
   try {
     token = await decryptApiKey(connection.tokenEncrypted);
   } catch {
-    return {
-      success: false,
-      error: "Failed to decrypt stored token. Please update your token.",
-    };
+    return { success: false, error: "Failed to decrypt stored token. Please update your token." };
   }
 
-  // Fetch org members
   const membersResult = await fetchOrgMembers(token, connection.orgLogin);
   if (membersResult.error || !membersResult.data) {
-    return {
-      success: false,
-      error: membersResult.error || "Failed to fetch organization members",
-    };
+    return { success: false, error: membersResult.error || "Failed to fetch organization members" };
   }
 
-  // Fetch full profiles for each member
   const memberProfiles: GitHubMemberData[] = [];
   let rateLimitRemaining = membersResult.rateLimitRemaining;
 
@@ -73,7 +68,6 @@ export async function fetchGitHubSyncPreview(): Promise<
     if (profileResult.data) {
       memberProfiles.push(profileResult.data);
     } else {
-      // Use basic data from member list if profile fetch fails
       memberProfiles.push({
         login: member.login,
         id: member.id,
@@ -87,7 +81,6 @@ export async function fetchGitHubSyncPreview(): Promise<
     }
   }
 
-  // Get all system users for matching
   const systemUsers = await db
     .select({
       id: users.id,
@@ -98,8 +91,23 @@ export async function fetchGitHubSyncPreview(): Promise<
     .from(users)
     .where(eq(users.status, "active"));
 
-  // Run matching
   const matchResult = matchMembersToUsers(memberProfiles, systemUsers);
+
+  return { success: true, connection, memberProfiles, matchResult, rateLimitRemaining };
+}
+
+export async function fetchGitHubSyncPreview(): Promise<
+  ActionResult<SyncPreview>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const result = await fetchAndMatchMembers();
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+
+  const { connection, memberProfiles, matchResult, rateLimitRemaining } = result;
 
   // Create sync event
   const [syncEvent] = await db
@@ -150,64 +158,12 @@ export async function confirmGitHubSync(
 
   const { syncEventId, importGitHubLogins } = parsed.data;
 
-  // Re-fetch the sync preview data by running the sync again
-  // (the preview data was shown to the user but not stored)
-  const [connection] = await db
-    .select()
-    .from(githubConnections)
-    .where(eq(githubConnections.status, "active"))
-    .limit(1);
-
-  if (!connection) {
-    return { success: false, error: "No active GitHub connection found" };
+  const fetchResult = await fetchAndMatchMembers();
+  if (!fetchResult.success) {
+    return { success: false, error: fetchResult.error };
   }
 
-  let token: string;
-  try {
-    token = await decryptApiKey(connection.tokenEncrypted);
-  } catch {
-    return { success: false, error: "Failed to decrypt stored token" };
-  }
-
-  // Fetch members again for the confirm step
-  const membersResult = await fetchOrgMembers(token, connection.orgLogin);
-  if (membersResult.error || !membersResult.data) {
-    return {
-      success: false,
-      error: membersResult.error || "Failed to fetch members",
-    };
-  }
-
-  const memberProfiles: GitHubMemberData[] = [];
-  for (const member of membersResult.data) {
-    const profileResult = await fetchUserProfile(token, member.login);
-    if (profileResult.data) {
-      memberProfiles.push(profileResult.data);
-    } else {
-      memberProfiles.push({
-        login: member.login,
-        id: member.id,
-        name: null,
-        email: null,
-        avatarUrl: member.avatar_url,
-        bio: null,
-        publicRepos: null,
-        profileUrl: `https://github.com/${member.login}`,
-      });
-    }
-  }
-
-  const systemUsers = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      githubUsername: users.githubUsername,
-    })
-    .from(users)
-    .where(eq(users.status, "active"));
-
-  const matchResult = matchMembersToUsers(memberProfiles, systemUsers);
+  const { matchResult } = fetchResult;
 
   let enrichedCount = 0;
   let importedCount = 0;
@@ -296,7 +252,7 @@ export async function confirmGitHubSync(
       .values({
         name: member.githubName || member.githubLogin,
         email:
-          member.githubEmail || `${member.githubLogin}@github.placeholder`,
+          member.githubEmail || `${member.githubLogin}@github.invalid`,
         passwordHash: tempPasswordHash,
         githubUsername: member.githubLogin,
         role: "viewer",
@@ -366,7 +322,7 @@ export async function getSyncHistory(
   ActionResult<{
     events: Array<{
       id: number;
-      status: string;
+      status: GitHubSyncStatus;
       totalMembers: number | null;
       matchedCount: number | null;
       importedCount: number | null;
