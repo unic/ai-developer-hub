@@ -143,6 +143,23 @@ export interface CircleReportItem {
   totalMonthlyCost: number;
 }
 
+// Bulk import upsert result types
+export interface BulkImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ row: number; email: string; error: string }>;
+}
+
+export interface ExistingUserFields {
+  name: string;
+  circle: string | null;
+  role: string;
+  githubUsername: string | null;
+  profile: string | null;
+}
+
 // Invoice sync types
 export type SyncOutcome =
   | "verified"

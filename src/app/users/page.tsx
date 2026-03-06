@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getUsers } from "@/actions/users";
 import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import { UsersTable } from "./users-table";
 import { AuthGuard } from "@/components/auth-guard";
 
@@ -21,6 +21,12 @@ export default async function UsersPage() {
           </div>
           {isAdmin && (
             <div className="flex gap-2">
+              <Button variant="outline" asChild>
+                <a href="/api/export/users" download>
+                  <Download className="mr-2 size-4" />
+                  Export CSV
+                </a>
+              </Button>
               <Button asChild variant="outline">
                 <Link href="/users/import">Bulk Import</Link>
               </Button>
