@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useTheme } from "next-themes";
 import { useSession } from "next-auth/react";
-import { useLeanMode } from "@/hooks/use-lean-mode";
 import { updatePreferences } from "@/actions/preferences";
 
 export function useThemePreference() {
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const { isLean, setLeanMode } = useLeanMode();
   const { data: session, update } = useSession();
   const [isPending, startTransition] = useTransition();
   const [isSavingLocal, setIsSavingLocal] = useState(false);
@@ -26,19 +24,17 @@ export function useThemePreference() {
     if (session?.user?.preferences && !hasSynced) {
       const prefs = session.user.preferences;
       setTheme(prefs.theme);
-      setLeanMode(prefs.leanMode);
       setHasSynced(true);
     }
-  }, [isAuthenticated, session?.user?.preferences, hasSynced, setTheme, setLeanMode]);
+  }, [isAuthenticated, session?.user?.preferences, hasSynced, setTheme]);
 
   const persistPreferences = useCallback(
-    async (newTheme: string, newLeanMode: boolean) => {
+    async (newTheme: string) => {
       if (!isAuthenticated) return;
       setIsSavingLocal(true);
       try {
         const result = await updatePreferences({
           theme: newTheme as "light" | "dark" | "system",
-          leanMode: newLeanMode,
         });
         if (!result.success) {
           throw new Error("Failed to persist preferences");
@@ -57,36 +53,19 @@ export function useThemePreference() {
       setTheme(value);
       startTransition(async () => {
         try {
-          await persistPreferences(value, isLean);
+          await persistPreferences(value);
         } catch {
           setTheme(prevTheme);
         }
       });
     },
-    [theme, isLean, setTheme, persistPreferences]
-  );
-
-  const setLeanModeWithPersist = useCallback(
-    (value: boolean) => {
-      const prevLean = isLean;
-      setLeanMode(value);
-      startTransition(async () => {
-        try {
-          await persistPreferences(theme ?? "system", value);
-        } catch {
-          setLeanMode(prevLean);
-        }
-      });
-    },
-    [theme, isLean, setLeanMode, persistPreferences]
+    [theme, setTheme, persistPreferences]
   );
 
   return {
     theme: theme ?? "system",
     resolvedTheme: resolvedTheme ?? "light",
     setTheme: setThemeWithPersist,
-    isLean,
-    setLeanMode: setLeanModeWithPersist,
     isSaving,
   };
 }

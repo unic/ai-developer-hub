@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LeanModeToggle } from "@/components/lean-mode-toggle";
 import type { UserRole } from "@/types";
 
 type NavItem = {
@@ -65,8 +64,8 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-4 py-3 retro:border-glitch">
-        <h2 className="text-lg font-semibold retro:neon-glow-green">AI Developer Hub</h2>
+      <SidebarHeader className="border-b px-4 py-3">
+        <h2 className="text-lg font-semibold">AI Developer Hub</h2>
       </SidebarHeader>
       <SidebarContent>
         {isAuthenticated ? (
@@ -110,7 +109,7 @@ export function AppSidebar({
             <div className="flex items-center justify-between">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{userName}</p>
-                <p className="text-xs text-muted-foreground capitalize retro:badge-retro retro:text-phosphor-cyan">
+                <p className="text-xs text-muted-foreground capitalize">
                   {userRole}
                 </p>
               </div>
@@ -126,7 +125,6 @@ export function AppSidebar({
                 </Button>
               </div>
             </div>
-            <LeanModeToggle />
           </>
         ) : (
           <Button asChild className="w-full">
