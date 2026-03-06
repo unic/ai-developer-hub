@@ -181,7 +181,7 @@ export async function confirmGitHubSync(
   for (const match of matchResult.matched) {
     // Upsert github_profiles
     const existingProfile = await db
-      .select({ id: githubProfiles.id })
+      .select({ id: githubProfiles.id, lastSyncedAt: githubProfiles.lastSyncedAt })
       .from(githubProfiles)
       .where(eq(githubProfiles.userId, match.matchedUserId))
       .limit(1);
@@ -209,7 +209,7 @@ export async function confirmGitHubSync(
         "github_profile",
         existingProfile[0].id,
         adminId,
-        { lastSyncedAt: { old: null, new: new Date().toISOString() } }
+        { lastSyncedAt: { old: existingProfile[0].lastSyncedAt?.toISOString() ?? null, new: new Date().toISOString() } }
       );
     } else {
       const [newProfile] = await db
