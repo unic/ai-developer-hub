@@ -10,6 +10,9 @@ import type {
   assignmentComments,
   billedCosts,
   invoices,
+  githubConnections,
+  githubProfiles,
+  githubSyncEvents,
 } from "@/lib/db/schema";
 
 // Action result type
@@ -171,4 +174,87 @@ export interface SyncResult {
   unresolvable: number;
   errors: number;
   items: SyncInvoiceOutcome[];
+}
+
+// GitHub integration types
+export type GitHubConnectionStatus = "active" | "disconnected";
+export type GitHubSyncStatus = "in_progress" | "completed" | "partial" | "failed";
+
+export type GitHubConnection = InferSelectModel<typeof githubConnections>;
+export type NewGitHubConnection = InferInsertModel<typeof githubConnections>;
+export type GitHubProfile = InferSelectModel<typeof githubProfiles>;
+export type NewGitHubProfile = InferInsertModel<typeof githubProfiles>;
+export type GitHubSyncEvent = InferSelectModel<typeof githubSyncEvents>;
+export type NewGitHubSyncEvent = InferInsertModel<typeof githubSyncEvents>;
+
+export interface GitHubMemberData {
+  login: string;
+  id: number;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  publicRepos: number | null;
+  profileUrl: string;
+}
+
+export interface GitHubOrgData {
+  login: string;
+  id: number;
+  avatarUrl: string | null;
+  description: string | null;
+}
+
+export type MatchType = "username" | "email";
+
+export interface SyncMatchedMember {
+  githubLogin: string;
+  githubId: number;
+  githubName: string | null;
+  githubAvatarUrl: string | null;
+  githubBio: string | null;
+  githubPublicRepos: number | null;
+  githubProfileUrl: string;
+  githubEmail: string | null;
+  matchedUserId: number;
+  matchedUserName: string;
+  matchedUserEmail: string;
+  matchType: MatchType;
+  hasConflict: boolean;
+  conflictDetail: string | null;
+}
+
+export interface SyncUnmatchedMember {
+  githubLogin: string;
+  githubId: number;
+  githubName: string | null;
+  githubAvatarUrl: string | null;
+  githubBio: string | null;
+  githubPublicRepos: number | null;
+  githubProfileUrl: string;
+  githubEmail: string | null;
+}
+
+export interface SyncUnmatchedSystemUser {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  githubUsername: string | null;
+}
+
+export interface SyncConflict {
+  githubLogin: string;
+  usernameMatchUserId: number;
+  emailMatchUserId: number;
+  detail: string;
+}
+
+export interface SyncPreview {
+  syncEventId: number;
+  totalMembers: number;
+  matched: SyncMatchedMember[];
+  unmatched: SyncUnmatchedMember[];
+  unmatchedSystemUsers: SyncUnmatchedSystemUser[];
+  conflicts: SyncConflict[];
+  rateLimitRemaining: number;
 }

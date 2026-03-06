@@ -230,3 +230,23 @@ export type InvoiceExtractionResult = z.infer<typeof invoiceExtractionResultSche
 export const syncOptionsSchema = z.object({
   dryRun: z.boolean(),
 });
+
+// GitHub integration validators
+export const githubTokenSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+});
+
+export const connectOrgSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  orgLogin: z.string().min(1, "Organization login is required"),
+  orgId: z.number().int().positive(),
+});
+
+export const confirmSyncSchema = z.object({
+  syncEventId: z.number().int().positive(),
+  importGitHubLogins: z.array(z.string()),
+});
+
+export type GitHubTokenInput = z.infer<typeof githubTokenSchema>;
+export type ConnectOrgInput = z.infer<typeof connectOrgSchema>;
+export type ConfirmSyncInput = z.infer<typeof confirmSyncSchema>;

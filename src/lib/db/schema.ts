@@ -39,6 +39,16 @@ export const userProfileEnum = pgEnum("user_profile", [
   "maxed",
   "indie",
 ]);
+export const githubConnectionStatusEnum = pgEnum("github_connection_status", [
+  "active",
+  "disconnected",
+]);
+export const githubSyncStatusEnum = pgEnum("github_sync_status", [
+  "in_progress",
+  "completed",
+  "partial",
+  "failed",
+]);
 
 // Users
 export const users = pgTable(
@@ -279,12 +289,91 @@ export const invoices = pgTable(
   ]
 );
 
+// GitHub Connections
+export const githubConnections = pgTable(
+  "github_connections",
+  {
+    id: serial("id").primaryKey(),
+    orgLogin: varchar("org_login", { length: 255 }).notNull(),
+    orgId: integer("org_id").notNull(),
+    orgAvatarUrl: varchar("org_avatar_url", { length: 500 }),
+    tokenEncrypted: varchar("token_encrypted", { length: 700 }).notNull(),
+    tokenScopesCsv: varchar("token_scopes_csv", { length: 255 }).notNull(),
+    status: githubConnectionStatusEnum("status").notNull().default("active"),
+    connectedBy: integer("connected_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    connectedAt: timestamp("connected_at").notNull().defaultNow(),
+    disconnectedAt: timestamp("disconnected_at"),
+    lastSyncAt: timestamp("last_sync_at"),
+  },
+  (table) => [index("github_connections_status_idx").on(table.status)]
+);
+
+// GitHub Profiles
+export const githubProfiles = pgTable(
+  "github_profiles",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    githubId: integer("github_id").notNull(),
+    githubLogin: varchar("github_login", { length: 255 }).notNull(),
+    avatarUrl: varchar("avatar_url", { length: 500 }),
+    bio: text("bio"),
+    publicRepos: integer("public_repos"),
+    profileUrl: varchar("profile_url", { length: 500 }),
+    name: varchar("name", { length: 255 }),
+    email: varchar("email", { length: 255 }),
+    lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("github_profiles_user_id_idx").on(table.userId),
+    index("github_profiles_github_id_idx").on(table.githubId),
+    index("github_profiles_github_login_idx").on(table.githubLogin),
+  ]
+);
+
+// GitHub Sync Events
+export const githubSyncEvents = pgTable(
+  "github_sync_events",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id")
+      .notNull()
+      .references(() => githubConnections.id, { onDelete: "cascade" }),
+    triggeredBy: integer("triggered_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: githubSyncStatusEnum("status").notNull(),
+    totalMembers: integer("total_members"),
+    matchedCount: integer("matched_count"),
+    importedCount: integer("imported_count"),
+    unmatchedCount: integer("unmatched_count"),
+    conflictCount: integer("conflict_count"),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => [
+    index("github_sync_events_connection_id_idx").on(table.connectionId),
+    index("github_sync_events_triggered_by_idx").on(table.triggeredBy),
+  ]
+);
+
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
   assignmentComments: many(assignmentComments),
   changesBy: many(changeHistory),
   invoices: many(invoices),
+  githubProfile: one(githubProfiles, {
+    fields: [users.id],
+    references: [githubProfiles.userId],
+  }),
 }));
 
 export const aiToolsRelations = relations(aiTools, ({ many }) => ({
@@ -370,3 +459,35 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
     references: [billedCosts.id],
   }),
 }));
+
+export const githubConnectionsRelations = relations(
+  githubConnections,
+  ({ one, many }) => ({
+    connectedByUser: one(users, {
+      fields: [githubConnections.connectedBy],
+      references: [users.id],
+    }),
+    syncEvents: many(githubSyncEvents),
+  })
+);
+
+export const githubProfilesRelations = relations(githubProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [githubProfiles.userId],
+    references: [users.id],
+  }),
+}));
+
+export const githubSyncEventsRelations = relations(
+  githubSyncEvents,
+  ({ one }) => ({
+    connection: one(githubConnections, {
+      fields: [githubSyncEvents.connectionId],
+      references: [githubConnections.id],
+    }),
+    triggeredByUser: one(users, {
+      fields: [githubSyncEvents.triggeredBy],
+      references: [users.id],
+    }),
+  })
+);
