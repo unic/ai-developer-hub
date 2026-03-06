@@ -243,7 +243,6 @@ export const connectOrgSchema = z.object({
 });
 
 export const confirmSyncSchema = z.object({
-  syncEventId: z.number().int().positive(),
   importGitHubLogins: z.array(z.string()),
 });
 

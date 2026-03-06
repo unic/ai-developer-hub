@@ -1,8 +1,13 @@
+import { requireAdmin } from "@/lib/auth-helpers";
+import { redirect } from "next/navigation";
 import { getActiveGitHubConnection } from "@/actions/github";
 import { getSyncHistory } from "@/actions/github-sync";
 import { GitHubIntegrationClient } from "./github-integration-client";
 
 export default async function IntegrationsPage() {
+  const admin = await requireAdmin();
+  if (!admin) redirect("/settings/appearance");
+
   const connectionResult = await getActiveGitHubConnection();
   const historyResult = await getSyncHistory();
 

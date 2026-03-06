@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { githubConnections, githubProfiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
+import { encryptApiKey } from "@/lib/crypto";
 import { validateTokenAndListOrgs } from "@/lib/github";
 import { githubTokenSchema, connectOrgSchema } from "@/lib/validators";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
@@ -269,6 +269,9 @@ export async function getGitHubProfile(
     } | null;
   }>
 > {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
   const [profile] = await db
     .select({
       githubLogin: githubProfiles.githubLogin,

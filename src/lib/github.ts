@@ -260,16 +260,33 @@ export function matchMembersToUsers(
 
   // Build lookup maps (case-insensitive)
   const usernameMap = new Map<string, (typeof systemUsers)[number]>();
+  const duplicateUsernames = new Set<string>();
   const emailMap = new Map<string, (typeof systemUsers)[number]>();
 
   for (const user of systemUsers) {
     if (user.githubUsername) {
       const key = user.githubUsername.toLowerCase();
-      if (!usernameMap.has(key)) {
+      if (usernameMap.has(key)) {
+        duplicateUsernames.add(key);
+      } else {
         usernameMap.set(key, user);
       }
     }
     emailMap.set(user.email.toLowerCase(), user);
+  }
+
+  // Emit conflicts for duplicate githubUsername values
+  for (const dupKey of duplicateUsernames) {
+    const dupes = systemUsers.filter(
+      (u) => u.githubUsername?.toLowerCase() === dupKey
+    );
+    usernameMap.delete(dupKey);
+    conflicts.push({
+      githubLogin: dupKey,
+      usernameMatchUserId: dupes[0].id,
+      emailMatchUserId: dupes[1]?.id ?? dupes[0].id,
+      detail: `Multiple system users share GitHub username "${dupKey}": ${dupes.map((u) => `"${u.name}" (ID ${u.id})`).join(", ")}. Username matching skipped for this login.`,
+    });
   }
 
   for (const member of members) {

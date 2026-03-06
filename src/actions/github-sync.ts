@@ -56,9 +56,11 @@ async function fetchAndMatchMembers(): Promise<
 
   const memberProfiles: GitHubMemberData[] = [];
   let rateLimitRemaining = membersResult.rateLimitRemaining;
+  let rateLimitedDuringFetch = false;
 
   for (const member of membersResult.data) {
     if (rateLimitRemaining < 100) {
+      rateLimitedDuringFetch = true;
       break;
     }
 
@@ -79,6 +81,13 @@ async function fetchAndMatchMembers(): Promise<
         profileUrl: `https://github.com/${member.login}`,
       });
     }
+  }
+
+  if (rateLimitedDuringFetch) {
+    return {
+      success: false,
+      error: `Rate limit low (${rateLimitRemaining} remaining). Only ${memberProfiles.length}/${membersResult.data.length} profiles fetched. Please try again later.`,
+    };
   }
 
   const systemUsers = await db
@@ -107,23 +116,11 @@ export async function fetchGitHubSyncPreview(): Promise<
     return { success: false, error: result.error };
   }
 
-  const { connection, memberProfiles, matchResult, rateLimitRemaining } = result;
-
-  // Create sync event
-  const [syncEvent] = await db
-    .insert(githubSyncEvents)
-    .values({
-      connectionId: connection.id,
-      triggeredBy: Number(admin.id),
-      status: "in_progress",
-      totalMembers: memberProfiles.length,
-    })
-    .returning({ id: githubSyncEvents.id });
+  const { memberProfiles, matchResult, rateLimitRemaining } = result;
 
   return {
     success: true,
     data: {
-      syncEventId: syncEvent.id,
       totalMembers: memberProfiles.length,
       matched: matchResult.matched,
       unmatched: matchResult.unmatched,
@@ -156,14 +153,25 @@ export async function confirmGitHubSync(
     };
   }
 
-  const { syncEventId, importGitHubLogins } = parsed.data;
+  const { importGitHubLogins } = parsed.data;
 
   const fetchResult = await fetchAndMatchMembers();
   if (!fetchResult.success) {
     return { success: false, error: fetchResult.error };
   }
 
-  const { matchResult } = fetchResult;
+  const { connection, memberProfiles, matchResult } = fetchResult;
+
+  // Create sync event at confirm time (not preview) to avoid orphaned records
+  const [syncEvent] = await db
+    .insert(githubSyncEvents)
+    .values({
+      connectionId: connection.id,
+      triggeredBy: Number(admin.id),
+      status: "in_progress",
+      totalMembers: memberProfiles.length,
+    })
+    .returning({ id: githubSyncEvents.id });
 
   let enrichedCount = 0;
   let importedCount = 0;
@@ -294,7 +302,7 @@ export async function confirmGitHubSync(
       conflictCount: matchResult.conflicts.length,
       completedAt: new Date(),
     })
-    .where(eq(githubSyncEvents.id, syncEventId));
+    .where(eq(githubSyncEvents.id, syncEvent.id));
 
   // Update connection lastSyncAt
   await db

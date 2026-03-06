@@ -250,7 +250,6 @@ export interface SyncConflict {
 }
 
 export interface SyncPreview {
-  syncEventId: number;
   totalMembers: number;
   matched: SyncMatchedMember[];
   unmatched: SyncUnmatchedMember[];

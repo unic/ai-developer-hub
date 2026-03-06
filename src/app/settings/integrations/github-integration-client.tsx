@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Github, ExternalLink, RefreshCw, Unplug, KeyRound, Users, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Github, RefreshCw, Unplug, KeyRound, Users, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
@@ -212,7 +212,6 @@ export function GitHubIntegrationClient({
 
     startTransition(async () => {
       const result = await confirmGitHubSync({
-        syncEventId: syncPreview.syncEventId,
         importGitHubLogins: Array.from(selectedImports),
       });
       if (result.success) {
