@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { auth } from "@/lib/auth";
 import {
   SidebarProvider,
@@ -9,16 +9,10 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
-import { LeanModeProvider } from "@/contexts/lean-mode-context";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
-});
-
 export const metadata: Metadata = {
   title: "AI Developer Hub",
   description: "AI Tool Access & Budget Tracker",
@@ -32,14 +26,7 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="en" suppressHydrationWarning className={jetbrainsMono.variable}>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var l=localStorage.getItem("lean-mode");if(l!=="true")document.documentElement.setAttribute("data-retro","")}catch(e){}})()`,
-          }}
-        />
-      </head>
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
@@ -48,7 +35,6 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider session={session}>
-            <LeanModeProvider>
               <SidebarProvider>
                 <AppSidebar
                   userName={session?.user?.name ?? null}
@@ -62,7 +48,6 @@ export default async function RootLayout({
                 </SidebarInset>
               </SidebarProvider>
               <Toaster />
-            </LeanModeProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

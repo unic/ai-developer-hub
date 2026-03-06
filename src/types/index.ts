@@ -20,7 +20,6 @@ export type ActionResult<T = void> =
 // User appearance preferences (stored as JSONB on users table)
 export type UserPreferences = {
   theme: "light" | "dark" | "system";
-  leanMode: boolean;
 };
 
 // Role and status types

@@ -134,7 +134,7 @@ export function ReportsChartsPanel({
                   overviewData.spendTrend === "up"
                     ? "text-destructive"
                     : overviewData.spendTrend === "down"
-                      ? "text-green-600"
+                      ? "text-primary"
                       : "text-muted-foreground"
                 }`}
               >
