@@ -9,6 +9,7 @@ import type {
   changeHistory,
   assignmentComments,
   billedCosts,
+  invoices,
 } from "@/lib/db/schema";
 
 // Action result type
@@ -53,6 +54,8 @@ export type NewBudgetPeriod = InferInsertModel<typeof budgetPeriods>;
 export type NewChangeHistory = InferInsertModel<typeof changeHistory>;
 export type NewAssignmentComment = InferInsertModel<typeof assignmentComments>;
 export type NewBilledCost = InferInsertModel<typeof billedCosts>;
+export type Invoice = InferSelectModel<typeof invoices>;
+export type NewInvoice = InferInsertModel<typeof invoices>;
 
 // Computed types for budget views
 export type PeriodWithCosts = BudgetPeriod & {

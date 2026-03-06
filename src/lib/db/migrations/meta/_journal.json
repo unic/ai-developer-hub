@@ -22,6 +22,13 @@
       "when": 1772723265843,
       "tag": "0002_outstanding_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772723109634,
+      "tag": "0003_peaceful_unus",
+      "breakpoints": true
     }
   ]
 }

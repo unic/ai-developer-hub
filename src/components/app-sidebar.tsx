@@ -9,6 +9,7 @@ import {
   KeyRound,
   DollarSign,
   BarChart3,
+  FileText,
   Settings,
   LogOut,
   LogIn,
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { title: "Assignments", href: "/assignments", icon: KeyRound, roles: ["admin", "viewer"] },
   { title: "Budget", href: "/budget", icon: DollarSign, roles: ["admin"] },
   { title: "Reports", href: "/reports", icon: BarChart3, roles: ["admin"] },
+  { title: "Invoices", href: "/invoices", icon: FileText, roles: ["admin"] },
   { title: "Settings", href: "/settings/appearance", icon: Settings, roles: ["admin", "viewer"] },
 ];
 
