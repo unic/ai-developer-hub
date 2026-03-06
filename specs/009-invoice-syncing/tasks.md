@@ -88,7 +88,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T011 [US4] Extend `src/app/invoices/sync-invoices-button.tsx` to add dry run support — add a DropdownMenu (shadcn/ui) triggered by a ChevronDown split-button or secondary action next to the main "Sync Invoices" button. Menu items: "Preview Changes (Dry Run)" and "Sync Now". "Preview Changes" calls `syncInvoices({ dryRun: true })`, sets isDryRun=true, shows results dialog. The "Apply Changes" button in the results dialog (visible only when isDryRun=true) calls `syncInvoices({ dryRun: false })` and updates the displayed results. Cancel just closes the dialog with no mutations.
+- [x] T011 [US4] Extend `src/app/invoices/sync-invoices-button.tsx` to add dry run support — add a DropdownMenu (shadcn/ui) triggered by a ChevronDown split-button or secondary action next to the main "Sync Invoices" button. Menu items: "Preview Changes (Dry Run)" and "Sync Now". "Preview Changes" calls `syncInvoices({ dryRun: true })`, sets isDryRun=true, shows results dialog. The "Apply Changes" button in the results dialog (visible only when isDryRun=true) calls `syncInvoices({ dryRun: false })` and updates the displayed results. Cancel just closes the dialog with no mutations.
 
 **Checkpoint**: Dry run flow works: preview → review → apply or cancel. SC-006 verified by comparing dry run and actual results.
 
