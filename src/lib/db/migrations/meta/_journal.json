@@ -36,6 +36,13 @@
       "when": 1772734135272,
       "tag": "0004_powerful_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772935200000,
+      "tag": "0005_fix_preferences_default",
+      "breakpoints": true
     }
   ]
 }
