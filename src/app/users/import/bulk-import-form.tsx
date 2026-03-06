@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { bulkImportUsers } from "@/actions/users";
+import { bulkImportUsers, checkExistingUsers } from "@/actions/users";
+import type { ExistingUserFields } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,6 +34,8 @@ interface ParsedUser {
   profile: string;
   valid: boolean;
   error?: string;
+  action?: "new" | "update";
+  changes?: string[];
 }
 
 function parseCSV(text: string): ParsedUser[] {
@@ -81,19 +84,58 @@ function parseCSV(text: string): ParsedUser[] {
   });
 }
 
+function normalizeField(value: string | undefined | null): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  return value;
+}
+
+function enrichRows(
+  rows: ParsedUser[],
+  existingMap: Record<string, ExistingUserFields>
+): ParsedUser[] {
+  return rows.map((row) => {
+    if (!row.valid) return row;
+    const existing = existingMap[row.email.toLowerCase()];
+    if (!existing) return { ...row, action: "new" as const, changes: [] };
+
+    const changes: string[] = [];
+    if (row.name !== existing.name) changes.push("name");
+    if (normalizeField(row.circle) !== existing.circle) changes.push("circle");
+    if ((row.role || "viewer") !== existing.role) changes.push("role");
+    if (normalizeField(row.githubUsername) !== existing.githubUsername) changes.push("githubUsername");
+    if (normalizeField(row.profile) !== existing.profile) changes.push("profile");
+
+    return { ...row, action: "update" as const, changes };
+  });
+}
+
 export function BulkImportForm() {
   const router = useRouter();
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const [importing, setImporting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target?.result as string;
-      setParsedUsers(parseCSV(text));
+      const rows = parseCSV(text);
+
+      // Look up existing users for preview labeling
+      const validEmails = rows.filter((r) => r.valid).map((r) => r.email);
+      if (validEmails.length > 0) {
+        setLoading(true);
+        const result = await checkExistingUsers({ emails: validEmails });
+        setLoading(false);
+        if (result.success) {
+          setParsedUsers(enrichRows(rows, result.data));
+          return;
+        }
+      }
+      setParsedUsers(rows);
     };
     reader.readAsText(file);
   }
@@ -188,6 +230,7 @@ export function BulkImportForm() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Action</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Circle</TableHead>
@@ -197,32 +240,43 @@ export function BulkImportForm() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {parsedUsers.map((user, i) => (
-                    <TableRow
-                      key={i}
-                      className={!user.valid ? "bg-destructive/10" : ""}
-                    >
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.circle}</TableCell>
-                      <TableCell>{user.role}</TableCell>
-                      <TableCell>{user.profile || "\u2014"}</TableCell>
-                      <TableCell>
-                        {user.valid ? (
-                          <Badge>Valid</Badge>
-                        ) : (
-                          <Badge variant="destructive">{user.error}</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {parsedUsers.map((user, i) => {
+                    const changed = user.changes ?? [];
+                    const hl = "font-semibold text-primary";
+                    return (
+                      <TableRow
+                        key={i}
+                        className={!user.valid ? "bg-destructive/10" : ""}
+                      >
+                        <TableCell>
+                          {user.action === "update" ? (
+                            <Badge variant="secondary">Update</Badge>
+                          ) : user.action === "new" ? (
+                            <Badge variant="outline">New</Badge>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className={changed.includes("name") ? hl : ""}>{user.name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell className={changed.includes("circle") ? hl : ""}>{user.circle}</TableCell>
+                        <TableCell className={changed.includes("role") ? hl : ""}>{user.role}</TableCell>
+                        <TableCell className={changed.includes("profile") ? hl : ""}>{user.profile || "\u2014"}</TableCell>
+                        <TableCell>
+                          {user.valid ? (
+                            <Badge>Valid</Badge>
+                          ) : (
+                            <Badge variant="destructive">{user.error}</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
             <div className="mt-4 flex gap-3">
               <Button
                 onClick={handleImport}
-                disabled={importing || validCount === 0}
+                disabled={importing || loading || validCount === 0}
               >
                 {importing
                   ? "Importing..."
