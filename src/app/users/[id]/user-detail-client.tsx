@@ -9,6 +9,8 @@ import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { revokeLicense } from "@/actions/assignments";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord } from "@/types";
+import { Github, ExternalLink, BookOpen } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -59,11 +61,22 @@ interface Assignment {
   tier: { id: number; name: string };
 }
 
+interface GitHubProfileData {
+  githubLogin: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  publicRepos: number | null;
+  profileUrl: string | null;
+  name: string | null;
+  lastSyncedAt: Date;
+}
+
 interface Props {
   user: User;
   assignments: Assignment[];
   history: ChangeHistoryRecord[];
   isAdmin: boolean;
+  githubProfile?: GitHubProfileData | null;
 }
 
 export function UserDetailClient({
@@ -71,6 +84,7 @@ export function UserDetailClient({
   assignments,
   history,
   isAdmin,
+  githubProfile,
 }: Props) {
   const router = useRouter();
 
@@ -141,6 +155,69 @@ export function UserDetailClient({
           )}
         </div>
       </div>
+
+      {githubProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Github className="size-5" />
+              GitHub Profile
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start gap-4">
+              {githubProfile.avatarUrl && (
+                <Image
+                  src={githubProfile.avatarUrl}
+                  alt={`${githubProfile.githubLogin}'s avatar`}
+                  width={64}
+                  height={64}
+                  className="size-16 rounded-full"
+                  unoptimized
+                />
+              )}
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">
+                    {githubProfile.name || githubProfile.githubLogin}
+                  </p>
+                  <span className="text-sm text-muted-foreground">
+                    @{githubProfile.githubLogin}
+                  </span>
+                </div>
+                {githubProfile.bio && (
+                  <p className="text-sm text-muted-foreground">
+                    {githubProfile.bio}
+                  </p>
+                )}
+                <div className="flex items-center gap-4 pt-1">
+                  {githubProfile.publicRepos != null && (
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <BookOpen className="size-4" />
+                      {githubProfile.publicRepos} public repos
+                    </span>
+                  )}
+                  {githubProfile.profileUrl && (
+                    <a
+                      href={githubProfile.profileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm text-primary hover:underline"
+                    >
+                      <ExternalLink className="size-3" />
+                      View on GitHub
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Last synced{" "}
+                  {formatDate(githubProfile.lastSyncedAt)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isAdmin && user.status === "active" && (
         <Card>

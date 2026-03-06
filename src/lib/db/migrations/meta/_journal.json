@@ -43,6 +43,13 @@
       "when": 1772935200000,
       "tag": "0005_fix_preferences_default",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772935200001,
+      "tag": "0006_shallow_ronan",
+      "breakpoints": true
     }
   ]
 }
