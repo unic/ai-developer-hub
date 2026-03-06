@@ -15,17 +15,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Plus } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
-import { BudgetListActions } from "./budget-list-actions";
+import { BudgetTable } from "./budget-table";
 
 export default async function BudgetPage() {
   const session = await auth();
@@ -164,42 +156,7 @@ export default async function BudgetPage() {
               <CardTitle>All Budgets</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fiscal Year</TableHead>
-                      <TableHead>Planned</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allBudgets.map((b) => (
-                      <TableRow key={b.id}>
-                        <TableCell className="font-medium">
-                          FY {b.fiscalYear}
-                        </TableCell>
-                        <TableCell>
-                          {formatCurrency(b.totalAmountCents)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              b.status === "active" ? "default" : "secondary"
-                            }
-                          >
-                            {b.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <BudgetListActions id={b.id} fiscalYear={b.fiscalYear} status={b.status} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <BudgetTable data={allBudgets} isAdmin={isAdmin} />
             </CardContent>
           </Card>
         )}

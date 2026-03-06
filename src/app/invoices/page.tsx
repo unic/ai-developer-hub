@@ -3,19 +3,10 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { invoices, users, billedCosts, budgetPeriods } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Download } from "lucide-react";
 import Link from "next/link";
 import { SyncInvoicesButton } from "./sync-invoices-button";
+import { InvoicesTable } from "./invoices-table";
 
 export default async function InvoicesPage() {
   const admin = await requireAdmin();
@@ -60,41 +51,7 @@ export default async function InvoicesPage() {
           </Button>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Invoice Number</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Vendor</TableHead>
-              <TableHead>Budget Period</TableHead>
-              <TableHead>Uploaded By</TableHead>
-              <TableHead className="w-16">Download</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invoiceList.map((invoice) => (
-              <TableRow key={invoice.id}>
-                <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                <TableCell>{formatCurrency(invoice.amountCents)}</TableCell>
-                <TableCell>{invoice.vendor ?? "—"}</TableCell>
-                <TableCell>{invoice.periodLabel ?? "—"}</TableCell>
-                <TableCell>{invoice.uploaderName ?? "—"}</TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="icon" asChild>
-                    <a
-                      href={`/api/invoices/${invoice.id}/pdf`}
-                      aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
-                    >
-                      <Download className="size-4" />
-                    </a>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <InvoicesTable data={invoiceList} />
       )}
     </div>
   );
