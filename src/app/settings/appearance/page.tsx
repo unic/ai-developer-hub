@@ -54,9 +54,6 @@ export default function AppearancePage() {
         </CardContent>
       </Card>
 
-      {isSaving && (
-        <p className="text-sm text-muted-foreground">Saving preferences...</p>
-      )}
     </div>
   );
 }

@@ -42,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
-          preferences: user.preferences ?? { theme: "system" },
+          preferences: user.preferences ?? DEFAULT_PREFERENCES,
         };
       },
     }),
