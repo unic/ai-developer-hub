@@ -46,12 +46,12 @@ _Phase skipped — all infrastructure already exists._
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Add `overwriteInvoice` server action in `src/actions/invoices.ts` that: (a) fetches existing invoice with old blobPathname and linkedBilledCostId, (b) updates invoice row (date, amount, vendor, blobUrl, blobPathname, updatedAt), (c) deletes old R2 blob via `cleanupBlob`, (d) handles linked billed cost: update in place if same period, or delete old + create new if period changed, or attempt auto-link if no prior link, (e) returns success with linkedPeriodLabel/linkWarning
-- [ ] T006 [US1] Add duplicate check call in `src/app/invoices/new/invoice-upload-form.tsx` — after extraction completes and form fields are populated, call `checkInvoiceDuplicate` with the extracted invoice number; store the result (isDuplicate + existingInvoice) in component state
-- [ ] T007 [US1] Build duplicate resolution dialog in `src/app/invoices/new/invoice-upload-form.tsx` — use shadcn AlertDialog showing existing invoice details (number, date, amount formatted as dollars via `formatCurrency`, vendor), with "Skip (Cancel Upload)" and "Overwrite Existing" action buttons
-- [ ] T008 [US1] Wire "Skip" action in duplicate dialog in `src/app/invoices/new/invoice-upload-form.tsx` — call `cleanupBlob` with the new upload's blobPathname, reset form state and upload state to idle, show toast confirming skip
-- [ ] T009 [US1] Wire "Overwrite" action in duplicate dialog in `src/app/invoices/new/invoice-upload-form.tsx` — call `overwriteInvoice` with existingInvoice.id and current form data (converting amountDollars to cents if US3 is done, otherwise using amountCents), handle success/error toasts and redirect to /invoices
-- [ ] T010 [US1] Add re-check on invoice number field blur in `src/app/invoices/new/invoice-upload-form.tsx` — when admin manually edits the invoice number field and it loses focus, re-run `checkInvoiceDuplicate` and update the duplicate state so the dialog triggers on submit if a match is found
+- [x] T005 [US1] Add `overwriteInvoice` server action in `src/actions/invoices.ts` that: (a) fetches existing invoice with old blobPathname and linkedBilledCostId, (b) updates invoice row (date, amount, vendor, blobUrl, blobPathname, updatedAt), (c) deletes old R2 blob via `cleanupBlob`, (d) handles linked billed cost: update in place if same period, or delete old + create new if period changed, or attempt auto-link if no prior link, (e) returns success with linkedPeriodLabel/linkWarning
+- [x] T006 [US1] Add duplicate check call in `src/app/invoices/new/invoice-upload-form.tsx` — after extraction completes and form fields are populated, call `checkInvoiceDuplicate` with the extracted invoice number; store the result (isDuplicate + existingInvoice) in component state
+- [x] T007 [US1] Build duplicate resolution dialog in `src/app/invoices/new/invoice-upload-form.tsx` — use shadcn AlertDialog showing existing invoice details (number, date, amount formatted as dollars via `formatCurrency`, vendor), with "Skip (Cancel Upload)" and "Overwrite Existing" action buttons
+- [x] T008 [US1] Wire "Skip" action in duplicate dialog in `src/app/invoices/new/invoice-upload-form.tsx` — call `cleanupBlob` with the new upload's blobPathname, reset form state and upload state to idle, show toast confirming skip
+- [x] T009 [US1] Wire "Overwrite" action in duplicate dialog in `src/app/invoices/new/invoice-upload-form.tsx` — call `overwriteInvoice` with existingInvoice.id and current form data (converting amountDollars to cents if US3 is done, otherwise using amountCents), handle success/error toasts and redirect to /invoices
+- [x] T010 [US1] Add re-check on invoice number field blur in `src/app/invoices/new/invoice-upload-form.tsx` — when admin manually edits the invoice number field and it loses focus, re-run `checkInvoiceDuplicate` and update the duplicate state so the dialog triggers on submit if a match is found
 
 **Checkpoint**: Single upload duplicate detection fully functional — skip and overwrite both work.
 
@@ -65,12 +65,12 @@ _Phase skipped — all infrastructure already exists._
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Integrate `checkBulkDuplicates` into the bulk upload flow in `src/app/invoices/bulk/bulk-upload-form.tsx` — after zip extraction results arrive, collect all extracted invoice numbers, call `checkBulkDuplicates`, and store the duplicates map in component state
-- [ ] T012 [US2] Add within-batch duplicate detection in `src/app/invoices/bulk/bulk-upload-form.tsx` — scan the extraction results client-side for repeated invoice numbers; mark second+ occurrences as within-batch duplicates in row state
-- [ ] T013 [US2] Add visual duplicate flags to the review table in `src/app/invoices/bulk/bulk-upload-form.tsx` — add a "Status" column; show "Duplicate — will be skipped" badge with warning icon for DB-match and within-batch duplicates; make flagged rows visually muted (reduced opacity or strikethrough styling); make flagged rows non-editable
-- [ ] T014 [US2] Modify `saveBulkInvoices` in `src/actions/invoices.ts` to accept an optional `skip` boolean and `skipReason` string per item; skipped items have their R2 blobs cleaned up via `cleanupBlob` and are returned in outcomes with `skipped: true` and `skipReason`
-- [ ] T015 [US2] Update the batch submit handler in `src/app/invoices/bulk/bulk-upload-form.tsx` to pass `skip: true` and `skipReason: "duplicate"` or `"within-batch-duplicate"` for flagged rows when calling `saveBulkInvoices`
-- [ ] T016 [US2] Update the outcome summary (done state) in `src/app/invoices/bulk/bulk-upload-form.tsx` to show three categories: saved (with invoice ID and period), skipped (with reason), and failed (with error); include counts for each category
+- [x] T011 [US2] Integrate `checkBulkDuplicates` into the bulk upload flow in `src/app/invoices/bulk/bulk-upload-form.tsx` — after zip extraction results arrive, collect all extracted invoice numbers, call `checkBulkDuplicates`, and store the duplicates map in component state
+- [x] T012 [US2] Add within-batch duplicate detection in `src/app/invoices/bulk/bulk-upload-form.tsx` — scan the extraction results client-side for repeated invoice numbers; mark second+ occurrences as within-batch duplicates in row state
+- [x] T013 [US2] Add visual duplicate flags to the review table in `src/app/invoices/bulk/bulk-upload-form.tsx` — add a "Status" column; show "Duplicate — will be skipped" badge with warning icon for DB-match and within-batch duplicates; make flagged rows visually muted (reduced opacity or strikethrough styling); make flagged rows non-editable
+- [x] T014 [US2] Modify `saveBulkInvoices` in `src/actions/invoices.ts` to accept an optional `skip` boolean and `skipReason` string per item; skipped items have their R2 blobs cleaned up via `cleanupBlob` and are returned in outcomes with `skipped: true` and `skipReason`
+- [x] T015 [US2] Update the batch submit handler in `src/app/invoices/bulk/bulk-upload-form.tsx` to pass `skip: true` and `skipReason: "duplicate"` or `"within-batch-duplicate"` for flagged rows when calling `saveBulkInvoices`
+- [x] T016 [US2] Update the outcome summary (done state) in `src/app/invoices/bulk/bulk-upload-form.tsx` to show three categories: saved (with invoice ID and period), skipped (with reason), and failed (with error); include counts for each category
 
 **Checkpoint**: Bulk upload duplicate handling complete — duplicates flagged on review, skipped on save, reported in summary.
 
@@ -84,10 +84,10 @@ _Phase skipped — all infrastructure already exists._
 
 ### Implementation for User Story 3
 
-- [ ] T017 [P] [US3] Change the amount field in the single upload form in `src/app/invoices/new/invoice-upload-form.tsx` — change label from "Amount (cents)" to "Amount ($)", change placeholder from "e.g. 12500 for $125.00" to "0.00", add `step="0.01"` and `min="0.01"` to the input, use a local `amountDollars` form field instead of `amountCents`
-- [ ] T018 [P] [US3] Add cents-to-dollars conversion after extraction in `src/app/invoices/new/invoice-upload-form.tsx` — when extraction returns `amountCents`, set form value to `(amountCents / 100).toFixed(2)`; on form submit, convert back with `Math.round(parseFloat(amountDollars) * 100)` before passing to `saveInvoice` or `overwriteInvoice`
-- [ ] T019 [P] [US3] Change the amount column in the bulk review table in `src/app/invoices/bulk/bulk-upload-form.tsx` — display extracted amounts as dollars (divide by 100), change the ARIA label from "Amount in cents" to "Amount in dollars", update the input to use `step="0.01"`, convert back to cents on batch submit
-- [ ] T020 [US3] Update the duplicate dialog in `src/app/invoices/new/invoice-upload-form.tsx` to display the existing invoice's amount using `formatCurrency` (already divides cents by 100) rather than raw cents
+- [x] T017 [P] [US3] Change the amount field in the single upload form in `src/app/invoices/new/invoice-upload-form.tsx` — change label from "Amount (cents)" to "Amount ($)", change placeholder from "e.g. 12500 for $125.00" to "0.00", add `step="0.01"` and `min="0.01"` to the input, use a local `amountDollars` form field instead of `amountCents`
+- [x] T018 [P] [US3] Add cents-to-dollars conversion after extraction in `src/app/invoices/new/invoice-upload-form.tsx` — when extraction returns `amountCents`, set form value to `(amountCents / 100).toFixed(2)`; on form submit, convert back with `Math.round(parseFloat(amountDollars) * 100)` before passing to `saveInvoice` or `overwriteInvoice`
+- [x] T019 [P] [US3] Change the amount column in the bulk review table in `src/app/invoices/bulk/bulk-upload-form.tsx` — display extracted amounts as dollars (divide by 100), change the ARIA label from "Amount in cents" to "Amount in dollars", update the input to use `step="0.01"`, convert back to cents on batch submit
+- [x] T020 [US3] Update the duplicate dialog in `src/app/invoices/new/invoice-upload-form.tsx` to display the existing invoice's amount using `formatCurrency` (already divides cents by 100) rather than raw cents
 
 **Checkpoint**: All amount displays show dollars. Storage unchanged at cents.
 
@@ -97,9 +97,9 @@ _Phase skipped — all infrastructure already exists._
 
 **Purpose**: Final validation across all stories.
 
-- [ ] T021 Verify all amount displays are consistent across single upload form, bulk review table, duplicate dialog, and outcome summary — spot-check with `formatCurrency` from `src/lib/utils.ts`
-- [ ] T022 Run `pnpm typecheck` and `pnpm lint` to confirm zero errors and zero warnings across all modified files
-- [ ] T023 Run `pnpm build` to confirm production build succeeds with no errors
+- [x] T021 Verify all amount displays are consistent across single upload form, bulk review table, duplicate dialog, and outcome summary — spot-check with `formatCurrency` from `src/lib/utils.ts`
+- [x] T022 Run `pnpm typecheck` and `pnpm lint` to confirm zero errors and zero warnings across all modified files
+- [x] T023 Run `pnpm build` to confirm production build succeeds with no errors
 
 ---
 
