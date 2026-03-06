@@ -1,7 +1,7 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getDocumentProxy, extractText } from "unpdf";
 import Anthropic from "@anthropic-ai/sdk";
-import { r2Client, R2_BUCKET } from "@/lib/r2-client";
+import { getR2Client, getR2Bucket } from "@/lib/r2-client";
 import { invoiceExtractionResultSchema } from "@/lib/validators";
 import type { InvoiceExtractionResult } from "@/lib/validators";
 
@@ -28,17 +28,23 @@ const EXTRACTION_TOOL = {
         description:
           "Total amount due in integer cents (e.g. $12.50 → 1250). Grand total only. Null if not found.",
       },
+      vendor: {
+        type: ["string", "null"],
+        description:
+          "Name of the vendor or company issuing the invoice. Null if not found.",
+      },
       confidence: {
         type: "object",
         properties: {
           invoice_number: { type: "string", enum: ["high", "medium", "low"] },
           invoice_date: { type: "string", enum: ["high", "medium", "low"] },
           amount_cents: { type: "string", enum: ["high", "medium", "low"] },
+          vendor: { type: "string", enum: ["high", "medium", "low"] },
         },
-        required: ["invoice_number", "invoice_date", "amount_cents"] as string[],
+        required: ["invoice_number", "invoice_date", "amount_cents", "vendor"] as string[],
       },
     },
-    required: ["invoice_number", "invoice_date", "amount_cents", "confidence"] as string[],
+    required: ["invoice_number", "invoice_date", "amount_cents", "vendor", "confidence"] as string[],
   },
 };
 
@@ -71,35 +77,48 @@ function regexFallback(text: string): InvoiceExtractionResult {
     }
   }
 
+  // Vendor heuristic: look for "From: Company" or capitalised proper noun on first 3 lines
+  const firstLines = text.split("\n").slice(0, 3).join("\n");
+  const fromMatch = firstLines.match(/From:\s*(.+)/i);
+  const vendor = fromMatch ? fromMatch[1].trim() : null;
+
   return {
     invoiceNumber: invoiceNumberMatch ? invoiceNumberMatch[1] : null,
     invoiceDate,
     amountCents,
+    vendor,
     confidence: {
       invoiceNumber: "low",
       invoiceDate: "low",
       amountCents: "low",
+      vendor: "low",
     },
   };
 }
 
 export async function extractInvoiceFields({
   objectKey,
+  pdfBytes: providedBytes,
 }: {
   objectKey: string;
+  pdfBytes?: Uint8Array;
 }): Promise<{ success: true; data: InvoiceExtractionResult } | { success: false; error: string }> {
   // 1. Fetch PDF bytes from R2
   let pdfBytes: Uint8Array;
-  try {
-    const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: objectKey });
-    const response = await r2Client.send(command);
-    if (!response.Body) {
-      return { success: false, error: "Empty response from storage" };
+  if (providedBytes) {
+    pdfBytes = providedBytes;
+  } else {
+    try {
+      const command = new GetObjectCommand({ Bucket: getR2Bucket(), Key: objectKey });
+      const response = await getR2Client().send(command);
+      if (!response.Body) {
+        return { success: false, error: "Empty response from storage" };
+      }
+      pdfBytes = await (response.Body as { transformToByteArray(): Promise<Uint8Array> }).transformToByteArray();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return { success: false, error: `Failed to fetch PDF from storage: ${message}` };
     }
-    pdfBytes = await (response.Body as { transformToByteArray(): Promise<Uint8Array> }).transformToByteArray();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, error: `Failed to fetch PDF from storage: ${message}` };
   }
 
   // 2. Extract text with unpdf
@@ -145,10 +164,12 @@ export async function extractInvoiceFields({
         invoiceNumber: typeof input.invoice_number === "string" ? input.invoice_number : null,
         invoiceDate: typeof input.invoice_date === "string" ? input.invoice_date : null,
         amountCents: typeof input.amount_cents === "number" ? input.amount_cents : null,
+        vendor: typeof input.vendor === "string" ? input.vendor : null,
         confidence: {
           invoiceNumber: (conf.invoice_number as "high" | "medium" | "low") ?? "low",
           invoiceDate: (conf.invoice_date as "high" | "medium" | "low") ?? "low",
           amountCents: (conf.amount_cents as "high" | "medium" | "low") ?? "low",
+          vendor: (conf.vendor as "high" | "medium" | "low") ?? "low",
         },
       };
     }

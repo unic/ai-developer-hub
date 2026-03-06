@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { invoices, users } from "@/lib/db/schema";
+import { invoices, users, billedCosts, budgetPeriods } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,19 +26,28 @@ export default async function InvoicesPage() {
       invoiceNumber: invoices.invoiceNumber,
       invoiceDate: invoices.invoiceDate,
       amountCents: invoices.amountCents,
+      vendor: invoices.vendor,
       uploaderName: users.name,
+      periodLabel: budgetPeriods.periodLabel,
     })
     .from(invoices)
     .leftJoin(users, eq(invoices.uploadedBy, users.id))
+    .leftJoin(billedCosts, eq(invoices.linkedBilledCostId, billedCosts.id))
+    .leftJoin(budgetPeriods, eq(billedCosts.periodId, budgetPeriods.id))
     .orderBy(desc(invoices.createdAt));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
-        <Button asChild>
-          <Link href="/invoices/new">Upload Invoice</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/invoices/bulk">Bulk Upload</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/invoices/new">Upload Invoice</Link>
+          </Button>
+        </div>
       </div>
 
       {invoiceList.length === 0 ? (
@@ -55,6 +64,8 @@ export default async function InvoicesPage() {
               <TableHead>Invoice Number</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Amount</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead>Budget Period</TableHead>
               <TableHead>Uploaded By</TableHead>
               <TableHead className="w-16">Download</TableHead>
             </TableRow>
@@ -65,6 +76,8 @@ export default async function InvoicesPage() {
                 <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                 <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
                 <TableCell>{formatCurrency(invoice.amountCents)}</TableCell>
+                <TableCell>{invoice.vendor ?? "—"}</TableCell>
+                <TableCell>{invoice.periodLabel ?? "—"}</TableCell>
                 <TableCell>{invoice.uploaderName ?? "—"}</TableCell>
                 <TableCell>
                   <Button variant="ghost" size="icon" asChild>

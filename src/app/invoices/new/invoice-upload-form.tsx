@@ -101,7 +101,7 @@ export function InvoiceUploadForm() {
     resolver: zodResolver(createInvoiceSchema),
   });
 
-  const { invoiceNumber, invoiceDate, amountCents, blobPathname } = watch();
+  const { invoiceNumber, invoiceDate, amountCents, vendor, blobPathname } = watch();
   const confidence = extractionResult?.confidence;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,6 +148,7 @@ export function InvoiceUploadForm() {
       if (extracted.invoiceNumber) setValue("invoiceNumber", extracted.invoiceNumber);
       if (extracted.invoiceDate) setValue("invoiceDate", extracted.invoiceDate);
       if (extracted.amountCents) setValue("amountCents", extracted.amountCents);
+      if (extracted.vendor) setValue("vendor", extracted.vendor);
 
       setUploadState("extracted");
     } catch (err) {
@@ -163,13 +164,16 @@ export function InvoiceUploadForm() {
       toast.error(result.error);
       return;
     }
-    if (result.warning) {
-      // Invoice was saved — notify user and navigate, showing the duplicate notice
-      toast.success("Invoice saved.", { description: result.warning });
-      router.push("/invoices");
-      return;
+    if (result.linkWarning) {
+      toast.warning("Invoice saved.", { description: result.linkWarning });
+    } else if (result.linkedPeriodLabel) {
+      toast.success(`Invoice saved. Linked to ${result.linkedPeriodLabel}.`);
+    } else {
+      toast.success("Invoice saved to archive.");
     }
-    toast.success("Invoice saved to archive.");
+    if (result.warning) {
+      toast.warning(result.warning);
+    }
     router.push("/invoices");
   };
 
@@ -250,6 +254,16 @@ export function InvoiceUploadForm() {
             confidence={confidence?.amountCents}
             watchedValue={amountCents?.toString()}
             error={errors.amountCents?.message}
+          />
+
+          <ConfidenceInput
+            id="vendor"
+            label="Vendor"
+            placeholder="e.g. Acme Corp"
+            registerProps={register("vendor")}
+            confidence={confidence?.vendor}
+            watchedValue={vendor}
+            error={errors.vendor?.message}
           />
 
           <Button type="submit" disabled={isSubmitting || !blobPathname}>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
-import { r2Client, R2_BUCKET, R2_ACCOUNT_ID } from "@/lib/r2-client";
+import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { requireAdmin } from "@/lib/auth-helpers";
 
 export async function POST(request: Request) {
@@ -30,9 +30,9 @@ export async function POST(request: Request) {
   const bytes = await file.arrayBuffer();
 
   try {
-    await r2Client.send(
+    await getR2Client().send(
       new PutObjectCommand({
-        Bucket: R2_BUCKET,
+        Bucket: getR2Bucket(),
         Key: objectKey,
         Body: Buffer.from(bytes),
         ContentType: "application/pdf",
@@ -43,6 +43,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Failed to upload: ${message}` }, { status: 500 });
   }
 
-  const blobUrl = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${objectKey}`;
+  const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
   return NextResponse.json({ objectKey, blobUrl });
 }
