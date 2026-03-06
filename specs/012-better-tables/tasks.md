@@ -17,8 +17,8 @@
 
 **Purpose**: Create the reusable shared components that multiple user stories depend on
 
-- [ ] T001 [P] Create DataTableColumnHeader component with three-state sort cycling (unsorted/asc/desc) and directional icons (ArrowUpDown/ArrowUp/ArrowDown) per contracts in `src/components/data-table-column-header.tsx`
-- [ ] T002 [P] Enhance DataTable component: wrap output in TooltipProvider, add `facetedFilters` prop support to render filter toolbar between search and table in `src/components/data-table.tsx`
+- [x] T001 [P] Create DataTableColumnHeader component with three-state sort cycling (unsorted/asc/desc) and directional icons (ArrowUpDown/ArrowUp/ArrowDown) per contracts in `src/components/data-table-column-header.tsx`
+- [x] T002 [P] Enhance DataTable component: wrap output in TooltipProvider, add `facetedFilters` prop support to render filter toolbar between search and table in `src/components/data-table.tsx`
 
 ---
 
@@ -28,10 +28,10 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Create Invoices client table component: extract table rendering from server page into new client component with TanStack Table column definitions (Invoice Number, Date, Amount, Vendor, Budget Period, Uploaded By, Download action) in `src/app/invoices/invoices-table.tsx`
-- [ ] T004 Refactor Invoices page to delegate table rendering to the new InvoicesTable client component, keeping data fetching in the server component in `src/app/invoices/page.tsx`
-- [ ] T005 Create Budget list client table component: extract table rendering from server page into new client component with TanStack Table column definitions (Fiscal Year, Planned Amount, Status, Actions) in `src/app/budget/budget-table.tsx`
-- [ ] T006 Refactor Budget list page to delegate table rendering to the new BudgetTable client component, keeping data fetching and summary cards in the server component in `src/app/budget/page.tsx`
+- [x] T003 Create Invoices client table component: extract table rendering from server page into new client component with TanStack Table column definitions (Invoice Number, Date, Amount, Vendor, Budget Period, Uploaded By, Download action) in `src/app/invoices/invoices-table.tsx`
+- [x] T004 Refactor Invoices page to delegate table rendering to the new InvoicesTable client component, keeping data fetching in the server component in `src/app/invoices/page.tsx`
+- [x] T005 Create Budget list client table component: extract table rendering from server page into new client component with TanStack Table column definitions (Fiscal Year, Planned Amount, Status, Actions) in `src/app/budget/budget-table.tsx`
+- [x] T006 Refactor Budget list page to delegate table rendering to the new BudgetTable client component, keeping data fetching and summary cards in the server component in `src/app/budget/page.tsx`
 
 **Checkpoint**: All 5 tables now use the shared DataTable component. Sorting, tooltips, and overflow menus can be applied uniformly.
 
@@ -45,11 +45,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [P] [US1] Update Tools table columns: replace inline sort buttons on Name and Vendor with DataTableColumnHeader, add DataTableColumnHeader to Active Licenses and Status columns in `src/app/tools/tools-table.tsx`
-- [ ] T008 [P] [US1] Update Users table columns: replace inline sort buttons on Name and Circle with DataTableColumnHeader, add DataTableColumnHeader to Email, Role, Profile, and Status columns in `src/app/users/users-table.tsx`
-- [ ] T009 [P] [US1] Update Assignments table columns: add DataTableColumnHeader to all data columns (User, Tool, Tier, Monthly Cost, Status, Workspace, Assigned) in `src/app/assignments/assignments-client.tsx`
-- [ ] T010 [P] [US1] Add DataTableColumnHeader to all Invoices table column definitions (Invoice Number, Date, Amount, Vendor, Budget Period, Uploaded By) in `src/app/invoices/invoices-table.tsx`
-- [ ] T011 [P] [US1] Add DataTableColumnHeader to all Budget list table column definitions (Fiscal Year, Planned Amount, Status) in `src/app/budget/budget-table.tsx`
+- [x] T007 [P] [US1] Update Tools table columns: replace inline sort buttons on Name and Vendor with DataTableColumnHeader, add DataTableColumnHeader to Active Licenses and Status columns in `src/app/tools/tools-table.tsx`
+- [x] T008 [P] [US1] Update Users table columns: replace inline sort buttons on Name and Circle with DataTableColumnHeader, add DataTableColumnHeader to Email, Role, Profile, and Status columns in `src/app/users/users-table.tsx`
+- [x] T009 [P] [US1] Update Assignments table columns: add DataTableColumnHeader to all data columns (User, Tool, Tier, Monthly Cost, Status, Workspace, Assigned) in `src/app/assignments/assignments-client.tsx`
+- [x] T010 [P] [US1] Add DataTableColumnHeader to all Invoices table column definitions (Invoice Number, Date, Amount, Vendor, Budget Period, Uploaded By) in `src/app/invoices/invoices-table.tsx`
+- [x] T011 [P] [US1] Add DataTableColumnHeader to all Budget list table column definitions (Fiscal Year, Planned Amount, Status) in `src/app/budget/budget-table.tsx`
 
 **Checkpoint**: All 5 tables have sortable columns. US1 is fully functional and testable independently.
 
@@ -63,11 +63,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [P] [US2] Update Tools table actions column: wrap View (Eye) and Edit (Pencil) buttons in Tooltip, add aria-label="View {toolName}" / "Edit {toolName}" in `src/app/tools/tools-table.tsx`
-- [ ] T013 [P] [US2] Update Users table actions column: wrap View (Eye) and Edit (Pencil) buttons in Tooltip, add aria-label="View {userName}" / "Edit {userName}" in `src/app/users/users-table.tsx`
-- [ ] T014 [P] [US2] Update Assignments table actions column: replace text-based View link with Eye icon button wrapped in Tooltip, wrap Edit (Pencil) button in Tooltip, add aria-labels in `src/app/assignments/assignments-client.tsx`
-- [ ] T015 [P] [US2] Add Tooltip with aria-label to Download (Download icon) action button in Invoices table in `src/app/invoices/invoices-table.tsx`
-- [ ] T016 [P] [US2] Add Tooltip with aria-label to View (Eye) action button in Budget list table in `src/app/budget/budget-table.tsx`
+- [x] T012 [P] [US2] Update Tools table actions column: wrap View (Eye) and Edit (Pencil) buttons in Tooltip, add aria-label="View {toolName}" / "Edit {toolName}" in `src/app/tools/tools-table.tsx`
+- [x] T013 [P] [US2] Update Users table actions column: wrap View (Eye) and Edit (Pencil) buttons in Tooltip, add aria-label="View {userName}" / "Edit {userName}" in `src/app/users/users-table.tsx`
+- [x] T014 [P] [US2] Update Assignments table actions column: replace text-based View link with Eye icon button wrapped in Tooltip, wrap Edit (Pencil) button in Tooltip, add aria-labels in `src/app/assignments/assignments-client.tsx`
+- [x] T015 [P] [US2] Add Tooltip with aria-label to Download (Download icon) action button in Invoices table in `src/app/invoices/invoices-table.tsx`
+- [x] T016 [P] [US2] Add Tooltip with aria-label to View (Eye) action button in Budget list table in `src/app/budget/budget-table.tsx`
 
 **Checkpoint**: All action buttons have tooltips and accessible labels. US2 is fully functional and testable independently.
 
@@ -81,10 +81,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T017 [P] [US3] Refactor Tools table actions: move Archive action from AlertDialogTrigger button into DropdownMenu with MoreHorizontal trigger, use state to control AlertDialog open/close, add Tooltip to overflow menu trigger, only render menu when isAdmin and status is active in `src/app/tools/tools-table.tsx`
-- [ ] T018 [P] [US3] Refactor Users table actions: move Deactivate action from AlertDialogTrigger button into DropdownMenu with MoreHorizontal trigger, use state to control AlertDialog, add Tooltip to overflow trigger, only render when isAdmin and user is active in `src/app/users/users-table.tsx`
-- [ ] T019 [P] [US3] Refactor Assignments table actions: move Revoke action from AlertDialogTrigger button into DropdownMenu with MoreHorizontal trigger, use state to control AlertDialog, add Tooltip to overflow trigger, only render when isAdmin and assignment is active in `src/app/assignments/assignments-client.tsx`
-- [ ] T020 [US3] Refactor Budget list actions: move Archive action into DropdownMenu with MoreHorizontal trigger inside the BudgetTable actions column, use state to control AlertDialog, add Tooltip to overflow trigger, only render when budget is not archived in `src/app/budget/budget-table.tsx` and `src/app/budget/budget-list-actions.tsx`
+- [x] T017 [P] [US3] Refactor Tools table actions: move Archive action from AlertDialogTrigger button into DropdownMenu with MoreHorizontal trigger, use state to control AlertDialog open/close, add Tooltip to overflow menu trigger, only render menu when isAdmin and status is active in `src/app/tools/tools-table.tsx`
+- [x] T018 [P] [US3] Refactor Users table actions: move Deactivate action from AlertDialogTrigger button into DropdownMenu with MoreHorizontal trigger, use state to control AlertDialog, add Tooltip to overflow trigger, only render when isAdmin and user is active in `src/app/users/users-table.tsx`
+- [x] T019 [P] [US3] Refactor Assignments table actions: move Revoke action from AlertDialogTrigger button into DropdownMenu with MoreHorizontal trigger, use state to control AlertDialog, add Tooltip to overflow trigger, only render when isAdmin and assignment is active in `src/app/assignments/assignments-client.tsx`
+- [x] T020 [US3] Refactor Budget list actions: move Archive action into DropdownMenu with MoreHorizontal trigger inside the BudgetTable actions column, use state to control AlertDialog, add Tooltip to overflow trigger, only render when budget is not archived in `src/app/budget/budget-table.tsx` and `src/app/budget/budget-list-actions.tsx`
 
 **Checkpoint**: All destructive actions are behind overflow menus. US3 is fully functional and testable independently.
 
@@ -98,11 +98,11 @@
 
 ### Implementation for User Story 4
 
-- [ ] T021 Create DataTableFacetedFilter component: popover with checkbox list, multi-select, badge count display, clear action, per contracts in `src/components/data-table-faceted-filter.tsx`
-- [ ] T022 [P] [US4] Add facetedFilters prop to Tools table DataTable: Status column with options Active, Archived in `src/app/tools/tools-table.tsx`
-- [ ] T023 [P] [US4] Add facetedFilters prop to Users table DataTable: Role column (Admin, Viewer) and Status column (Active, Inactive) in `src/app/users/users-table.tsx`
-- [ ] T024 [P] [US4] Add facetedFilters prop to Assignments table DataTable: Status column with options Active, Revoked in `src/app/assignments/assignments-client.tsx`
-- [ ] T025 [P] [US4] Add facetedFilters prop to Budget list table DataTable: Status column with options Active, Archived in `src/app/budget/budget-table.tsx`
+- [x] T021 Create DataTableFacetedFilter component: popover with checkbox list, multi-select, badge count display, clear action, per contracts in `src/components/data-table-faceted-filter.tsx`
+- [x] T022 [P] [US4] Add facetedFilters prop to Tools table DataTable: Status column with options Active, Archived in `src/app/tools/tools-table.tsx`
+- [x] T023 [P] [US4] Add facetedFilters prop to Users table DataTable: Role column (Admin, Viewer) and Status column (Active, Inactive) in `src/app/users/users-table.tsx`
+- [x] T024 [P] [US4] Add facetedFilters prop to Assignments table DataTable: Status column with options Active, Revoked in `src/app/assignments/assignments-client.tsx`
+- [x] T025 [P] [US4] Add facetedFilters prop to Budget list table DataTable: Status column with options Active, Archived in `src/app/budget/budget-table.tsx`
 
 **Checkpoint**: All categorical columns have faceted filters. US4 is fully functional and testable independently.
 
@@ -112,11 +112,11 @@
 
 **Purpose**: Final verification, edge case handling, and cleanup
 
-- [ ] T026 Verify edge case: null/empty values sort to end regardless of sort direction across all tables — add custom sort comparators if needed in `src/components/data-table-column-header.tsx`
-- [ ] T027 Verify edge case: non-admin users see clean actions column with no empty space where admin actions would be — adjust conditional rendering if needed across all table files
-- [ ] T028 Run `pnpm typecheck` and `pnpm lint` — fix any TypeScript or ESLint issues introduced
-- [ ] T029 Run `pnpm build` — verify production build succeeds with no errors
-- [ ] T030 Manual smoke test: verify all 5 tables on /tools, /users, /assignments, /invoices, /budget for sorting, tooltips, overflow menus, and filters
+- [x] T026 Verify edge case: null/empty values sort to end regardless of sort direction across all tables — add custom sort comparators if needed in `src/components/data-table-column-header.tsx`
+- [x] T027 Verify edge case: non-admin users see clean actions column with no empty space where admin actions would be — adjust conditional rendering if needed across all table files
+- [x] T028 Run `pnpm typecheck` and `pnpm lint` — fix any TypeScript or ESLint issues introduced
+- [x] T029 Run `pnpm build` — verify production build succeeds with no errors
+- [x] T030 Manual smoke test: verify all 5 tables on /tools, /users, /assignments, /invoices, /budget for sorting, tooltips, overflow menus, and filters
 
 ---
 
