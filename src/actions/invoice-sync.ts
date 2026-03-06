@@ -7,7 +7,7 @@ import {
   budgetPeriods,
   annualBudgets,
 } from "@/lib/db/schema";
-import { eq, lte, gt, desc, sql } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { syncOptionsSchema } from "@/lib/validators";
@@ -74,39 +74,40 @@ export async function syncInvoices(
     .leftJoin(billedCosts, eq(invoices.linkedBilledCostId, billedCosts.id))
     .leftJoin(budgetPeriods, eq(billedCosts.periodId, budgetPeriods.id));
 
-  // Bulk-load all budget periods with parent budget status for in-memory matching
-  const allPeriods = await db
-    .select({
-      id: budgetPeriods.id,
-      periodLabel: budgetPeriods.periodLabel,
-      startDate: budgetPeriods.startDate,
-      endDate: budgetPeriods.endDate,
-      budgetStatus: annualBudgets.status,
-      budgetCreatedAt: annualBudgets.createdAt,
-    })
-    .from(budgetPeriods)
-    .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id));
+  // Bulk-load all budget periods with parent budget status, pre-sorted for matching
+  const allPeriods = (
+    await db
+      .select({
+        id: budgetPeriods.id,
+        periodLabel: budgetPeriods.periodLabel,
+        startDate: budgetPeriods.startDate,
+        endDate: budgetPeriods.endDate,
+        budgetStatus: annualBudgets.status,
+        budgetCreatedAt: annualBudgets.createdAt,
+      })
+      .from(budgetPeriods)
+      .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
+  ).sort((a, b) => {
+    const aOrder = a.budgetStatus === "active" ? 0 : 1;
+    const bOrder = b.budgetStatus === "active" ? 0 : 1;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return b.budgetCreatedAt.getTime() - a.budgetCreatedAt.getTime();
+  });
 
-  // In-memory period matching function
+  // In-memory period matching — periods are pre-sorted so first match wins
   function findPeriodInMemory(
     invoiceDate: string
   ): { id: number; periodLabel: string } | null {
-    const matching = allPeriods
-      .filter((p) => p.startDate <= invoiceDate && p.endDate > invoiceDate)
-      .sort((a, b) => {
-        // Active budgets first
-        const aOrder = a.budgetStatus === "active" ? 0 : 1;
-        const bOrder = b.budgetStatus === "active" ? 0 : 1;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        // Then most recently created
-        return (
-          new Date(b.budgetCreatedAt).getTime() -
-          new Date(a.budgetCreatedAt).getTime()
-        );
-      });
-    return matching[0]
-      ? { id: matching[0].id, periodLabel: matching[0].periodLabel }
-      : null;
+    const match = allPeriods.find(
+      (p) => p.startDate <= invoiceDate && p.endDate > invoiceDate
+    );
+    return match ? { id: match.id, periodLabel: match.periodLabel } : null;
+  }
+
+  function buildDescription(invoiceNumber: string, vendor: string | null) {
+    return vendor
+      ? `Invoice ${invoiceNumber} — ${vendor}`
+      : `Invoice ${invoiceNumber}`;
   }
 
   const items: SyncInvoiceOutcome[] = [];
@@ -154,31 +155,21 @@ export async function syncInvoices(
 
         if (!dryRun) {
           await db.transaction(async (tx) => {
-            const description = inv.vendor
-              ? `Invoice ${inv.invoiceNumber} — ${inv.vendor}`
-              : `Invoice ${inv.invoiceNumber}`;
             const [created] = await tx
               .insert(billedCosts)
               .values({
                 periodId: correctPeriod.id,
                 amountCents: inv.amountCents,
                 invoiceDate: inv.invoiceDate,
-                description,
+                description: buildDescription(inv.invoiceNumber, inv.vendor),
                 vendorReference: inv.invoiceNumber,
               })
               .returning({ id: billedCosts.id });
             await tx
               .update(invoices)
-              .set({
-                linkedBilledCostId: created.id,
-                updatedAt: new Date(),
-              })
+              .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
               .where(eq(invoices.id, inv.id));
-            await recordCreation(
-              "billed_cost",
-              created.id,
-              Number(admin.id)
-            );
+            await recordCreation("billed_cost", created.id, Number(admin.id));
           });
         }
         continue;
@@ -217,40 +208,24 @@ export async function syncInvoices(
 
       if (!dryRun) {
         await db.transaction(async (tx) => {
-          // Delete old billed cost
           await tx
             .delete(billedCosts)
             .where(eq(billedCosts.id, inv.linkedBilledCostId!));
-
-          // Insert new billed cost in correct period
-          const description = inv.vendor
-            ? `Invoice ${inv.invoiceNumber} — ${inv.vendor}`
-            : `Invoice ${inv.invoiceNumber}`;
           const [created] = await tx
             .insert(billedCosts)
             .values({
               periodId: correctPeriod.id,
               amountCents: inv.amountCents,
               invoiceDate: inv.invoiceDate,
-              description,
+              description: buildDescription(inv.invoiceNumber, inv.vendor),
               vendorReference: inv.invoiceNumber,
             })
             .returning({ id: billedCosts.id });
-
-          // Update invoice link
           await tx
             .update(invoices)
-            .set({
-              linkedBilledCostId: created.id,
-              updatedAt: new Date(),
-            })
+            .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
             .where(eq(invoices.id, inv.id));
-
-          await recordCreation(
-            "billed_cost",
-            created.id,
-            Number(admin.id)
-          );
+          await recordCreation("billed_cost", created.id, Number(admin.id));
         });
       }
     } catch (err) {
