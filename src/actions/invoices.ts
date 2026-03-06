@@ -175,6 +175,146 @@ async function insertBilledCostDirect(params: {
   return created.id;
 }
 
+// T005: Overwrite existing invoice (update-in-place)
+type OverwriteInvoiceInput = {
+  existingInvoiceId: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  amountCents: number;
+  vendor?: string;
+  blobUrl: string;
+  blobPathname: string;
+};
+
+type OverwriteResult =
+  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string }
+  | { success: false; error: string };
+
+export async function overwriteInvoice(
+  input: OverwriteInvoiceInput
+): Promise<OverwriteResult> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const { existingInvoiceId, invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = input;
+
+  // Fetch existing invoice
+  const existing = await db.query.invoices.findFirst({
+    where: eq(invoices.id, existingInvoiceId),
+  });
+  if (!existing) {
+    return { success: false, error: "Existing invoice not found" };
+  }
+
+  const oldBlobPathname = existing.blobPathname;
+  const oldLinkedBilledCostId = existing.linkedBilledCostId;
+
+  // Update invoice row
+  await db
+    .update(invoices)
+    .set({
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      vendor: vendor ?? null,
+      blobUrl,
+      blobPathname,
+      updatedAt: new Date(),
+    })
+    .where(eq(invoices.id, existingInvoiceId));
+
+  // Delete old R2 blob (best-effort)
+  if (oldBlobPathname !== blobPathname) {
+    await cleanupBlob(oldBlobPathname);
+  }
+
+  // Handle linked billed cost
+  let linkedPeriodLabel: string | undefined;
+  let linkWarning: string | undefined;
+  const period = await findActivePeriodForDate(invoiceDate);
+
+  if (oldLinkedBilledCostId) {
+    // Existing billed cost — check if period changed
+    const oldCost = await db.query.billedCosts.findFirst({
+      where: eq(billedCosts.id, oldLinkedBilledCostId),
+    });
+
+    if (period && oldCost && oldCost.periodId === period.id) {
+      // Same period — update in place
+      const description = vendor
+        ? `Invoice ${invoiceNumber} — ${vendor}`
+        : `Invoice ${invoiceNumber}`;
+      await db
+        .update(billedCosts)
+        .set({
+          amountCents,
+          invoiceDate,
+          description,
+          vendorReference: invoiceNumber,
+          updatedAt: new Date(),
+        })
+        .where(eq(billedCosts.id, oldLinkedBilledCostId));
+      linkedPeriodLabel = period.periodLabel;
+    } else if (period) {
+      // Different period — delete old, create new
+      await db.delete(billedCosts).where(eq(billedCosts.id, oldLinkedBilledCostId));
+      const costId = await insertBilledCostDirect({
+        periodId: period.id,
+        amountCents,
+        invoiceDate,
+        invoiceNumber,
+        vendor,
+        uploadedById: Number(admin.id),
+      });
+      await db
+        .update(invoices)
+        .set({ linkedBilledCostId: costId })
+        .where(eq(invoices.id, existingInvoiceId));
+      linkedPeriodLabel = period.periodLabel;
+    } else {
+      // No matching period — remove link
+      await db.delete(billedCosts).where(eq(billedCosts.id, oldLinkedBilledCostId));
+      await db
+        .update(invoices)
+        .set({ linkedBilledCostId: null })
+        .where(eq(invoices.id, existingInvoiceId));
+      linkWarning = "No active budget period covers this invoice date. Previous budget link was removed.";
+    }
+  } else {
+    // No existing billed cost — attempt auto-link
+    if (period) {
+      try {
+        const costId = await insertBilledCostDirect({
+          periodId: period.id,
+          amountCents,
+          invoiceDate,
+          invoiceNumber,
+          vendor,
+          uploadedById: Number(admin.id),
+        });
+        await db
+          .update(invoices)
+          .set({ linkedBilledCostId: costId })
+          .where(eq(invoices.id, existingInvoiceId));
+        linkedPeriodLabel = period.periodLabel;
+      } catch {
+        linkWarning = "Invoice was overwritten, but automatic linking to the budget period failed.";
+      }
+    } else {
+      linkWarning = "No active budget period covers this invoice date.";
+    }
+  }
+
+  revalidatePath("/invoices");
+
+  return {
+    success: true,
+    data: { id: existingInvoiceId },
+    linkedPeriodLabel,
+    linkWarning,
+  };
+}
+
 type SaveInvoiceResult =
   | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
@@ -268,17 +408,25 @@ export type BulkSaveOutcome = {
   linkedPeriodLabel?: string;
   linkWarning?: string;
   error?: string;
+  skipped?: boolean;
+  skipReason?: string;
 };
 
 export async function saveBulkInvoices(
-  inputs: Array<CreateInvoiceInput & { filename: string }>
+  inputs: Array<CreateInvoiceInput & { filename: string; skip?: boolean; skipReason?: string }>
 ): Promise<ActionResult<BulkSaveOutcome[]>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const outcomes: BulkSaveOutcome[] = [];
 
-  for (const { filename, ...invoiceInput } of inputs) {
+  for (const { filename, skip, skipReason, ...invoiceInput } of inputs) {
+    if (skip) {
+      await cleanupBlob(invoiceInput.blobPathname);
+      outcomes.push({ filename, skipped: true, skipReason });
+      continue;
+    }
+
     try {
       const result = await saveInvoice(invoiceInput);
       if (result.success) {
