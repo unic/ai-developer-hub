@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Upload, ArrowLeft } from "lucide-react";
+import { Loader2, Upload, ArrowLeft, AlertTriangle } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,7 +21,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
-import { saveBulkInvoices, type BulkSaveOutcome } from "@/actions/invoices";
+import {
+  saveBulkInvoices,
+  checkBulkDuplicates,
+  type BulkSaveOutcome,
+} from "@/actions/invoices";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -53,7 +57,7 @@ type EditableRow = {
   blobUrl: string;
   invoiceNumber: string;
   invoiceDate: string;
-  amountCents: string;
+  amountDollars: string;
   vendor: string;
   confidence: {
     invoiceNumber: "high" | "medium" | "low";
@@ -62,6 +66,7 @@ type EditableRow = {
     vendor: "high" | "medium" | "low";
   } | null;
   error: string | null;
+  duplicateType?: "db-duplicate" | "within-batch-duplicate";
 };
 
 type State = "idle" | "uploading" | "reviewing" | "saving" | "done" | "error";
@@ -79,7 +84,10 @@ function draftsToRows(drafts: ExtractionDraft[]): EditableRow[] {
     blobUrl: d.blobUrl,
     invoiceNumber: d.extracted?.invoiceNumber ?? "",
     invoiceDate: d.extracted?.invoiceDate ?? "",
-    amountCents: d.extracted?.amountCents != null ? String(d.extracted.amountCents) : "",
+    amountDollars:
+      d.extracted?.amountCents != null
+        ? (d.extracted.amountCents / 100).toFixed(2)
+        : "",
     vendor: d.extracted?.vendor ?? "",
     confidence: d.extracted?.confidence ?? null,
     error: d.error,
@@ -115,93 +123,143 @@ export function BulkUploadForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ---- row mutation helper ----
-  function updateRow(index: number, field: "invoiceNumber" | "invoiceDate" | "amountCents" | "vendor", value: string) {
-    setRows((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  }
+  const updateRow = useCallback(
+    (
+      index: number,
+      field: "invoiceNumber" | "invoiceDate" | "amountDollars" | "vendor",
+      value: string,
+    ) => {
+      setRows((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], [field]: value };
+        return next;
+      });
+    },
+    [],
+  );
 
-  const columns: ColumnDef<EditableRow, unknown>[] = useMemo(() => [
-    {
-      accessorKey: "filename",
-      header: "Filename",
-      cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.filename}</span>
-      ),
-    },
-    {
-      accessorKey: "invoiceNumber",
-      header: "Invoice Number",
-      cell: ({ row }) => {
-        const lowConf = row.original.confidence?.invoiceNumber === "low";
-        return (
-          <Input
-            value={row.original.invoiceNumber}
-            onChange={(e) => updateRow(row.index, "invoiceNumber", e.target.value)}
-            className={cn(lowConf && "border-amber-500")}
-            aria-label={`Invoice number for ${row.original.filename}`}
-          />
-        );
+  const columns: ColumnDef<EditableRow, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "filename",
+        header: "Filename",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">{row.original.filename}</span>
+        ),
       },
-    },
-    {
-      accessorKey: "invoiceDate",
-      header: "Date",
-      cell: ({ row }) => {
-        const lowConf = row.original.confidence?.invoiceDate === "low";
-        return (
-          <Input
-            value={row.original.invoiceDate}
-            onChange={(e) => updateRow(row.index, "invoiceDate", e.target.value)}
-            className={cn(lowConf && "border-amber-500")}
-            aria-label={`Invoice date for ${row.original.filename}`}
-          />
-        );
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          const dup = row.original.duplicateType;
+          if (dup === "db-duplicate") {
+            return (
+              <Badge variant="outline" className="text-amber-600">
+                <AlertTriangle className="mr-1 size-3" />
+                Duplicate — will be skipped
+              </Badge>
+            );
+          }
+          if (dup === "within-batch-duplicate") {
+            return (
+              <Badge variant="outline" className="text-amber-600">
+                <AlertTriangle className="mr-1 size-3" />
+                Within-batch duplicate — will be skipped
+              </Badge>
+            );
+          }
+          return null;
+        },
       },
-    },
-    {
-      accessorKey: "amountCents",
-      header: "Amount",
-      cell: ({ row }) => {
-        const lowConf = row.original.confidence?.amountCents === "low";
-        return (
-          <Input
-            type="number"
-            value={row.original.amountCents}
-            onChange={(e) => updateRow(row.index, "amountCents", e.target.value)}
-            className={cn(lowConf && "border-amber-500")}
-            aria-label={`Amount in cents for ${row.original.filename}`}
-          />
-        );
+      {
+        accessorKey: "invoiceNumber",
+        header: "Invoice Number",
+        cell: ({ row }) => {
+          const lowConf = row.original.confidence?.invoiceNumber === "low";
+          const isDuplicate = !!row.original.duplicateType;
+          return (
+            <Input
+              value={row.original.invoiceNumber}
+              onChange={(e) =>
+                updateRow(row.index, "invoiceNumber", e.target.value)
+              }
+              className={cn(lowConf && "border-amber-500")}
+              aria-label={`Invoice number for ${row.original.filename}`}
+              disabled={isDuplicate}
+            />
+          );
+        },
       },
-    },
-    {
-      accessorKey: "vendor",
-      header: "Vendor",
-      cell: ({ row }) => {
-        const conf = row.original.confidence?.vendor;
-        const lowOrNull = conf === "low" || conf == null;
-        return (
-          <Input
-            value={row.original.vendor}
-            onChange={(e) => updateRow(row.index, "vendor", e.target.value)}
-            className={cn(lowOrNull && "border-amber-500")}
-            aria-label={`Vendor for ${row.original.filename}`}
-          />
-        );
+      {
+        accessorKey: "invoiceDate",
+        header: "Date",
+        cell: ({ row }) => {
+          const lowConf = row.original.confidence?.invoiceDate === "low";
+          const isDuplicate = !!row.original.duplicateType;
+          return (
+            <Input
+              value={row.original.invoiceDate}
+              onChange={(e) =>
+                updateRow(row.index, "invoiceDate", e.target.value)
+              }
+              className={cn(lowConf && "border-amber-500")}
+              aria-label={`Invoice date for ${row.original.filename}`}
+              disabled={isDuplicate}
+            />
+          );
+        },
       },
-    },
-    {
-      accessorKey: "error",
-      header: "Error",
-      cell: ({ row }) =>
-        row.original.error ? (
-          <Badge variant="destructive">{row.original.error}</Badge>
-        ) : null,
-    },
-  ], []);
+      {
+        accessorKey: "amountDollars",
+        header: "Amount",
+        cell: ({ row }) => {
+          const lowConf = row.original.confidence?.amountCents === "low";
+          const isDuplicate = !!row.original.duplicateType;
+          return (
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={row.original.amountDollars}
+              onChange={(e) =>
+                updateRow(row.index, "amountDollars", e.target.value)
+              }
+              className={cn(lowConf && "border-amber-500")}
+              aria-label={`Amount in dollars for ${row.original.filename}`}
+              disabled={isDuplicate}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "vendor",
+        header: "Vendor",
+        cell: ({ row }) => {
+          const conf = row.original.confidence?.vendor;
+          const lowOrNull = conf === "low" || conf == null;
+          const isDuplicate = !!row.original.duplicateType;
+          return (
+            <Input
+              value={row.original.vendor}
+              onChange={(e) => updateRow(row.index, "vendor", e.target.value)}
+              className={cn(lowOrNull && "border-amber-500")}
+              aria-label={`Vendor for ${row.original.filename}`}
+              disabled={isDuplicate}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "error",
+        header: "Error",
+        cell: ({ row }) =>
+          row.original.error ? (
+            <Badge variant="destructive">{row.original.error}</Badge>
+          ) : null,
+      },
+    ],
+    [updateRow],
+  );
 
   const table = useReactTable({
     data: rows,
@@ -235,10 +293,58 @@ export function BulkUploadForm() {
         results: ExtractionDraft[];
         skipped: string[];
       };
-      setRows(draftsToRows(drafts));
+
+      const editableRows = draftsToRows(drafts);
+
+      // --- T011: Check for DB duplicates ---
+      const invoiceNumbers = editableRows
+        .map((r) => r.invoiceNumber)
+        .filter(Boolean);
+
+      let dbDuplicates: Record<string, unknown> = {};
+      if (invoiceNumbers.length > 0) {
+        const dupResult = await checkBulkDuplicates(invoiceNumbers);
+        if (dupResult.success) {
+          dbDuplicates = dupResult.data.duplicates;
+        }
+      }
+
+      // --- T012: Within-batch duplicate detection ---
+      const seen = new Set<string>();
+      const batchDuplicates = new Set<number>();
+      for (let i = 0; i < editableRows.length; i++) {
+        const num = editableRows[i].invoiceNumber;
+        if (!num) continue;
+        if (seen.has(num)) {
+          batchDuplicates.add(i);
+        } else {
+          seen.add(num);
+        }
+      }
+
+      // Apply duplicate flags to rows
+      const flaggedRows = editableRows.map((row, i) => {
+        if (row.invoiceNumber && row.invoiceNumber in dbDuplicates) {
+          return { ...row, duplicateType: "db-duplicate" as const };
+        }
+        if (batchDuplicates.has(i)) {
+          return {
+            ...row,
+            duplicateType: "within-batch-duplicate" as const,
+          };
+        }
+        return row;
+      });
+
+      setRows(flaggedRows);
       setState("reviewing");
-      const skippedMsg = skipped.length > 0 ? ` (${skipped.length} non-PDF files skipped)` : "";
-      toast.success(`Extracted ${drafts.length} invoice(s). Please review.${skippedMsg}`);
+      const skippedMsg =
+        skipped.length > 0
+          ? ` (${skipped.length} non-PDF files skipped)`
+          : "";
+      toast.success(
+        `Extracted ${drafts.length} invoice(s). Please review.${skippedMsg}`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setErrorMessage(message);
@@ -253,9 +359,16 @@ export function BulkUploadForm() {
     setErrorMessage(null);
 
     try {
-      const incomplete = rows.filter((r) => !r.invoiceNumber || !r.invoiceDate || !r.amountCents);
+      // Only validate non-skipped rows for completeness
+      const incomplete = rows.filter(
+        (r) =>
+          !r.duplicateType &&
+          (!r.invoiceNumber || !r.invoiceDate || !r.amountDollars),
+      );
       if (incomplete.length > 0) {
-        toast.error(`${incomplete.length} row(s) have missing required fields.`);
+        toast.error(
+          `${incomplete.length} row(s) have missing required fields.`,
+        );
         setState("reviewing");
         return;
       }
@@ -264,10 +377,13 @@ export function BulkUploadForm() {
         filename: r.filename,
         invoiceNumber: r.invoiceNumber,
         invoiceDate: r.invoiceDate,
-        amountCents: Number(r.amountCents),
+        amountCents: Math.round(parseFloat(r.amountDollars) * 100),
         vendor: r.vendor || undefined,
         blobUrl: r.blobUrl,
         blobPathname: r.objectKey,
+        ...(r.duplicateType
+          ? { skip: true as const, skipReason: r.duplicateType }
+          : {}),
       }));
 
       const result = await saveBulkInvoices(payload);
@@ -287,10 +403,22 @@ export function BulkUploadForm() {
     }
   }
 
+  // ---- outcome summary helpers ----
+  const savedOutcomes = outcomes.filter(
+    (o) => !o.error && !o.skipped,
+  );
+  const skippedOutcomes = outcomes.filter((o) => o.skipped);
+  const failedOutcomes = outcomes.filter((o) => !!o.error);
+
   return (
     <div className="space-y-6">
       {/* ARIA live region for state announcements */}
-      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
         {stateLabel(state)}
       </div>
 
@@ -337,7 +465,10 @@ export function BulkUploadForm() {
                       <TableHead key={header.id}>
                         {header.isPlaceholder
                           ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -346,16 +477,27 @@ export function BulkUploadForm() {
               <TableBody>
                 {table.getRowModel().rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center">
+                    <TableCell
+                      colSpan={columns.length}
+                      className="text-center"
+                    >
                       No invoices extracted.
                     </TableCell>
                   </TableRow>
                 ) : (
                   table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow
+                      key={row.id}
+                      className={cn(
+                        row.original.duplicateType && "opacity-50",
+                      )}
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -380,6 +522,23 @@ export function BulkUploadForm() {
       {/* ---- DONE ---- */}
       {state === "done" && (
         <div className="space-y-4">
+          {/* Outcome summary counts */}
+          <div className="flex flex-wrap gap-4">
+            <Badge variant="default">
+              {savedOutcomes.length} invoice(s) saved
+            </Badge>
+            {skippedOutcomes.length > 0 && (
+              <Badge variant="outline" className="text-amber-600">
+                {skippedOutcomes.length} invoice(s) skipped (duplicate)
+              </Badge>
+            )}
+            {failedOutcomes.length > 0 && (
+              <Badge variant="destructive">
+                {failedOutcomes.length} invoice(s) failed
+              </Badge>
+            )}
+          </div>
+
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -391,8 +550,9 @@ export function BulkUploadForm() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {outcomes.map((outcome, i) => (
-                  <TableRow key={i}>
+                {/* Saved outcomes */}
+                {savedOutcomes.map((outcome, i) => (
+                  <TableRow key={`saved-${i}`}>
                     <TableCell className="font-mono text-sm">
                       {outcome.filename}
                     </TableCell>
@@ -407,11 +567,38 @@ export function BulkUploadForm() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {outcome.error ? (
-                        <Badge variant="destructive">{outcome.error}</Badge>
-                      ) : (
-                        <Badge variant="default">Saved</Badge>
-                      )}
+                      <Badge variant="default">Saved</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* Skipped outcomes */}
+                {skippedOutcomes.map((outcome, i) => (
+                  <TableRow key={`skipped-${i}`} className="opacity-50">
+                    <TableCell className="font-mono text-sm">
+                      {outcome.filename}
+                    </TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-amber-600">
+                        <AlertTriangle className="mr-1 size-3" />
+                        Skipped — {outcome.skipReason === "within-batch-duplicate"
+                          ? "within-batch duplicate"
+                          : "duplicate"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* Failed outcomes */}
+                {failedOutcomes.map((outcome, i) => (
+                  <TableRow key={`failed-${i}`}>
+                    <TableCell className="font-mono text-sm">
+                      {outcome.filename}
+                    </TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>—</TableCell>
+                    <TableCell>
+                      <Badge variant="destructive">{outcome.error}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
