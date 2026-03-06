@@ -1,4 +1,4 @@
-# AI Developer Hub Development Guidelines
+﻿# AI Developer Hub Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-03-02
 
@@ -19,6 +19,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (PDF blobs) (007-invoice-budget-link)
 - TypeScript 5.9.3 (strict mode), React 19.2.4, Next.js 15.5.12 (App Router) + Tailwind CSS 4.2.1, shadcn/ui (new-york), next-themes 0.4.6, Recharts 2.15.4, class-variance-authority (010-pro-dashboard-theme)
 - Neon PostgreSQL via Drizzle ORM (minor schema default change for UserPreferences) (010-pro-dashboard-theme)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Sonner (toasts), Lucide React (012-github-user-enrichment)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 3 new tables (012-github-user-enrichment)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -81,11 +83,8 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 012-github-user-enrichment: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Sonner (toasts), Lucide React
 - 010-pro-dashboard-theme: Added TypeScript 5.9.3 (strict mode), React 19.2.4, Next.js 15.5.12 (App Router) + Tailwind CSS 4.2.1, shadcn/ui (new-york), next-themes 0.4.6, Recharts 2.15.4, class-variance-authority
-- 007-invoice-budget-link: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, TanStack Table 8.21.3, shadcn/ui (new-york), Sonner (toasts), `unzipper` (NEW — zip extraction)
-- 006-optional-fields-ux: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, TanStack Table 8.21.3, shadcn/ui (new-york style), Lucide React, Sonner (toasts)
-- 009-invoice-syncing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, Zod 4.3.6, shadcn/ui, Sonner (toasts), Lucide React
-- 008-invoice-duplicate-handling: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, React Hook Form 7.71.2, Zod 4.3.6, TanStack Table 8.21.3, shadcn/ui, Sonner (toasts), @aws-sdk/client-s3 (R2)
 - 007-invoice-budget-link: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, TanStack Table 8.21.3, shadcn/ui (new-york), Sonner (toasts), `unzipper` (NEW — zip extraction)
 
 
