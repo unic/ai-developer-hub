@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { bulkImportUsers } from "@/actions/users";
+import { bulkImportUsers, checkExistingUsers } from "@/actions/users";
+import type { ExistingUserFields } from "@/types";
+import { getChangedUserFields } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,6 +35,8 @@ interface ParsedUser {
   profile: string;
   valid: boolean;
   error?: string;
+  action?: "new" | "update";
+  changes?: string[];
 }
 
 function parseCSV(text: string): ParsedUser[] {
@@ -81,19 +85,53 @@ function parseCSV(text: string): ParsedUser[] {
   });
 }
 
+function enrichRows(
+  rows: ParsedUser[],
+  existingMap: Record<string, ExistingUserFields>
+): ParsedUser[] {
+  return rows.map((row) => {
+    if (!row.valid) return row;
+    const existing = existingMap[row.email.toLowerCase()];
+    if (!existing) return { ...row, action: "new" as const, changes: [] };
+
+    const changes = getChangedUserFields(row, existing);
+    return { ...row, action: "update" as const, changes };
+  });
+}
+
 export function BulkImportForm() {
   const router = useRouter();
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const [importing, setImporting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target?.result as string;
-      setParsedUsers(parseCSV(text));
+      const rows = parseCSV(text);
+
+      // Look up existing users for preview labeling
+      const validEmails = rows.filter((r) => r.valid).map((r) => r.email);
+      if (validEmails.length > 0) {
+        setLoading(true);
+        try {
+          const result = await checkExistingUsers({ emails: validEmails });
+          if (result.success) {
+            setParsedUsers(enrichRows(rows, result.data));
+            return;
+          }
+          toast.error("Failed to check existing users");
+        } catch {
+          toast.error("Failed to check existing users");
+        } finally {
+          setLoading(false);
+        }
+      }
+      setParsedUsers(rows);
     };
     reader.readAsText(file);
   }
@@ -120,10 +158,14 @@ export function BulkImportForm() {
     setImporting(false);
 
     if (result.success) {
-      toast.success(
-        `Imported ${result.data.imported} user(s). ${result.data.failed} failed.`
-      );
-      if (result.data.imported > 0) {
+      const { created, updated, skipped, failed } = result.data;
+      const parts: string[] = [];
+      if (created > 0) parts.push(`${created} created`);
+      if (updated > 0) parts.push(`${updated} updated`);
+      if (skipped > 0) parts.push(`${skipped} skipped`);
+      if (failed > 0) parts.push(`${failed} failed`);
+      toast.success(parts.join(", ") || "No changes");
+      if (created > 0 || updated > 0) {
         router.push("/users");
       }
     } else {
@@ -156,7 +198,8 @@ export function BulkImportForm() {
         <CardHeader>
           <CardTitle>Upload CSV</CardTitle>
           <CardDescription>
-            Default password &quot;changeme123&quot; will be set for all imported users.
+            New users get default password &quot;changeme123&quot;. Existing users
+            (matched by email) are updated without changing their password.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -183,41 +226,55 @@ export function BulkImportForm() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Action</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Circle</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>GitHub</TableHead>
                     <TableHead>Profile</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {parsedUsers.map((user, i) => (
-                    <TableRow
-                      key={i}
-                      className={!user.valid ? "bg-destructive/10" : ""}
-                    >
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.circle}</TableCell>
-                      <TableCell>{user.role}</TableCell>
-                      <TableCell>{user.profile || "\u2014"}</TableCell>
-                      <TableCell>
-                        {user.valid ? (
-                          <Badge>Valid</Badge>
-                        ) : (
-                          <Badge variant="destructive">{user.error}</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {parsedUsers.map((user, i) => {
+                    const changed = user.changes ?? [];
+                    const hl = "font-semibold text-primary";
+                    return (
+                      <TableRow
+                        key={i}
+                        className={!user.valid ? "bg-destructive/10" : ""}
+                      >
+                        <TableCell>
+                          {user.action === "update" ? (
+                            <Badge variant="secondary">Update</Badge>
+                          ) : user.action === "new" ? (
+                            <Badge variant="outline">New</Badge>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className={changed.includes("name") ? hl : ""}>{user.name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell className={changed.includes("circle") ? hl : ""}>{user.circle}</TableCell>
+                        <TableCell className={changed.includes("role") ? hl : ""}>{user.role}</TableCell>
+                        <TableCell className={changed.includes("githubUsername") ? hl : ""}>{user.githubUsername || "\u2014"}</TableCell>
+                        <TableCell className={changed.includes("profile") ? hl : ""}>{user.profile || "\u2014"}</TableCell>
+                        <TableCell>
+                          {user.valid ? (
+                            <Badge>Valid</Badge>
+                          ) : (
+                            <Badge variant="destructive">{user.error}</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
             <div className="mt-4 flex gap-3">
               <Button
                 onClick={handleImport}
-                disabled={importing || validCount === 0}
+                disabled={importing || loading || validCount === 0}
               >
                 {importing
                   ? "Importing..."

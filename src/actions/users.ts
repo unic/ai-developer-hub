@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { users, licenseAssignments } from "@/lib/db/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { hash } from "bcryptjs";
@@ -11,7 +11,8 @@ import {
   updateUserSchema,
   bulkImportUserSchema,
 } from "@/lib/validators";
-import type { ActionResult, User } from "@/types";
+import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
+import { normalizeField } from "@/lib/utils";
 import {
   recordCreation,
   recordUpdate,
@@ -203,23 +204,99 @@ export async function deactivateUser(input: {
   return { success: true, data: { revokedCount: activeAssignments.length } };
 }
 
+/** Compare CSV row fields against existing user, return changed fields with old/new values.
+ *  Only considers a field changed if the CSV explicitly provides a value (not undefined). */
+function computeUserDiff(
+  row: { name: string; circle?: string; role?: string; githubUsername?: string; profile?: string },
+  existing: { name: string; circle: string | null; role: string; githubUsername: string | null; profile: string | null }
+): Record<string, { old: unknown; new: unknown }> {
+  const changes: Record<string, { old: unknown; new: unknown }> = {};
+
+  // name is always required
+  if (row.name !== existing.name) {
+    changes.name = { old: existing.name, new: row.name };
+  }
+  // Optional fields: only update when CSV explicitly provides a value
+  if (row.circle !== undefined) {
+    const newCircle = normalizeField(row.circle);
+    if (newCircle !== existing.circle) {
+      changes.circle = { old: existing.circle, new: newCircle };
+    }
+  }
+  if (row.role !== undefined && row.role !== existing.role) {
+    changes.role = { old: existing.role, new: row.role };
+  }
+  if (row.githubUsername !== undefined) {
+    const newGithubUsername = normalizeField(row.githubUsername);
+    if (newGithubUsername !== existing.githubUsername) {
+      changes.githubUsername = { old: existing.githubUsername, new: newGithubUsername };
+    }
+  }
+  if (row.profile !== undefined) {
+    const newProfile = normalizeField(row.profile);
+    if (newProfile !== existing.profile) {
+      changes.profile = { old: existing.profile, new: newProfile };
+    }
+  }
+
+  return changes;
+}
+
+/** Look up existing users by email for preview labeling */
+export async function checkExistingUsers(input: {
+  emails: string[];
+}): Promise<ActionResult<Record<string, ExistingUserFields>>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  if (input.emails.length === 0) {
+    return { success: true, data: {} };
+  }
+
+  const lowerEmails = input.emails.map((e) => e.toLowerCase());
+  const found = await db.query.users.findMany({
+    where: inArray(sql`lower(${users.email})`, lowerEmails),
+  });
+
+  const map: Record<string, ExistingUserFields> = {};
+  for (const u of found) {
+    map[u.email.toLowerCase()] = {
+      name: u.name,
+      circle: u.circle,
+      role: u.role,
+      githubUsername: u.githubUsername,
+      profile: u.profile,
+    };
+  }
+
+  return { success: true, data: map };
+}
+
 export async function bulkImportUsers(input: {
   users: unknown[];
-}): Promise<
-  ActionResult<{
-    imported: number;
-    failed: number;
-    errors: Array<{ row: number; email: string; error: string }>;
-  }>
-> {
+}): Promise<ActionResult<BulkImportResult>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const errors: Array<{ row: number; email: string; error: string }> = [];
-  let imported = 0;
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
 
   // Hash the default password once instead of per-row (~250ms per hash)
   const defaultPasswordHash = await hash("changeme123", 12);
+
+  // Batch-query all existing users upfront to avoid N+1 (case-insensitive)
+  const allEmails = input.users
+    .map((u) => (u as { email?: string })?.email?.toLowerCase())
+    .filter((e): e is string => !!e);
+  const existingUsers = allEmails.length > 0
+    ? await db.query.users.findMany({ where: inArray(sql`lower(${users.email})`, allEmails) })
+    : [];
+  const existingMap = new Map(existingUsers.map((u) => [u.email.toLowerCase(), u]));
+
+  // Track emails seen in this import to detect duplicates within the file
+  const seenEmails = new Set<string>();
 
   for (let i = 0; i < input.users.length; i++) {
     const parsed = bulkImportUserSchema.safeParse(input.users[i]);
@@ -233,39 +310,62 @@ export async function bulkImportUsers(input: {
     }
 
     const { name, email, circle, role, githubUsername, profile } = parsed.data;
+    const lowerEmail = email.toLowerCase();
 
-    const existing = await db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
-    if (existing) {
-      errors.push({ row: i + 1, email, error: "Email already exists" });
+    // Detect duplicate emails within the same file
+    if (seenEmails.has(lowerEmail)) {
+      errors.push({ row: i + 1, email, error: "Duplicate email in file" });
       continue;
     }
+    seenEmails.add(lowerEmail);
 
     try {
-      const passwordHash = defaultPasswordHash;
+      const existing = existingMap.get(lowerEmail);
 
-      const [user] = await db
-        .insert(users)
-        .values({
-          name,
-          email,
-          passwordHash,
-          circle: circle ?? null,
-          role: role ?? "viewer",
-          githubUsername: githubUsername ?? null,
-          profile: profile ?? null,
-        })
-        .returning({ id: users.id });
+      if (existing) {
+        // Upsert: update existing user (never touch password or status)
+        const diff = computeUserDiff(
+          { name, circle, role, githubUsername, profile },
+          existing
+        );
 
-      await recordCreation("user", user.id, Number(admin.id));
-      imported++;
+        if (Object.keys(diff).length === 0) {
+          skipped++;
+          continue;
+        }
+
+        const values: Record<string, unknown> = { updatedAt: new Date() };
+        for (const [field, change] of Object.entries(diff)) {
+          values[field] = change.new;
+        }
+
+        await db.update(users).set(values).where(eq(users.id, existing.id));
+        await recordUpdate("user", existing.id, Number(admin.id), diff);
+        updated++;
+      } else {
+        // Create new user with default password
+        const [user] = await db
+          .insert(users)
+          .values({
+            name,
+            email,
+            passwordHash: defaultPasswordHash,
+            circle: circle ?? null,
+            role: role ?? "viewer",
+            githubUsername: githubUsername ?? null,
+            profile: profile ?? null,
+          })
+          .returning({ id: users.id });
+
+        await recordCreation("user", user.id, Number(admin.id));
+        created++;
+      }
     } catch (err) {
       errors.push({
         row: i + 1,
         email,
         error:
-          err instanceof Error ? err.message : "Database insert failed",
+          err instanceof Error ? err.message : "Database operation failed",
       });
     }
   }
@@ -273,7 +373,7 @@ export async function bulkImportUsers(input: {
   revalidatePath("/users");
   return {
     success: true,
-    data: { imported, failed: errors.length, errors },
+    data: { created, updated, skipped, failed: errors.length, errors },
   };
 }
 
