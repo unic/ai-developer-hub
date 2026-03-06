@@ -8,9 +8,10 @@ import type { ActionResult, ChangeHistoryRecord } from "@/types";
 export async function recordCreation(
   entityType: string,
   entityId: number,
-  changedBy: number
+  changedBy: number,
+  txClient?: Pick<typeof db, "insert">
 ) {
-  await db.insert(changeHistory).values({
+  await (txClient ?? db).insert(changeHistory).values({
     entityType,
     entityId,
     changeType: "created",

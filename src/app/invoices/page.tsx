@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Download } from "lucide-react";
 import Link from "next/link";
+import { SyncInvoicesButton } from "./sync-invoices-button";
 
 export default async function InvoicesPage() {
   const admin = await requireAdmin();
@@ -41,6 +42,7 @@ export default async function InvoicesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
         <div className="flex items-center gap-2">
+          <SyncInvoicesButton />
           <Button variant="outline" asChild>
             <Link href="/invoices/bulk">Bulk Upload</Link>
           </Button>
