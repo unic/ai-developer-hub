@@ -8,7 +8,7 @@ import { users } from "@/lib/db/schema";
 import { loginSchema } from "@/lib/validators";
 import type { UserPreferences } from "@/types";
 
-const DEFAULT_PREFERENCES: UserPreferences = { theme: "system", leanMode: false };
+const DEFAULT_PREFERENCES: UserPreferences = { theme: "system" };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db),
@@ -42,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
-          preferences: user.preferences ?? { theme: "system", leanMode: false },
+          preferences: user.preferences ?? { theme: "system" },
         };
       },
     }),
