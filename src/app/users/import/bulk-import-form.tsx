@@ -120,10 +120,14 @@ export function BulkImportForm() {
     setImporting(false);
 
     if (result.success) {
-      toast.success(
-        `Imported ${result.data.imported} user(s). ${result.data.failed} failed.`
-      );
-      if (result.data.imported > 0) {
+      const { created, updated, skipped, failed } = result.data;
+      const parts: string[] = [];
+      if (created > 0) parts.push(`${created} created`);
+      if (updated > 0) parts.push(`${updated} updated`);
+      if (skipped > 0) parts.push(`${skipped} skipped`);
+      if (failed > 0) parts.push(`${failed} failed`);
+      toast.success(parts.join(", ") || "No changes");
+      if (created > 0 || updated > 0) {
         router.push("/users");
       }
     } else {
@@ -156,7 +160,8 @@ export function BulkImportForm() {
         <CardHeader>
           <CardTitle>Upload CSV</CardTitle>
           <CardDescription>
-            Default password &quot;changeme123&quot; will be set for all imported users.
+            New users get default password &quot;changeme123&quot;. Existing users
+            (matched by email) are updated without changing their password.
           </CardDescription>
         </CardHeader>
         <CardContent>
