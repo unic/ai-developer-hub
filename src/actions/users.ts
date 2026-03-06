@@ -205,7 +205,7 @@ export async function deactivateUser(input: {
 }
 
 /** Compare CSV row fields against existing user, return changed fields with old/new values */
-export function computeUserDiff(
+function computeUserDiff(
   row: { name: string; circle?: string; role?: string; githubUsername?: string; profile?: string },
   existing: { name: string; circle: string | null; role: string; githubUsername: string | null; profile: string | null }
 ): Record<string, { old: unknown; new: unknown }> {
