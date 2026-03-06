@@ -10,7 +10,7 @@ import {
 import { eq, and, lte, gt, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { r2Client, R2_BUCKET } from "@/lib/r2-client";
+import { getR2Client, getR2Bucket } from "@/lib/r2-client";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
@@ -123,7 +123,7 @@ export async function saveInvoice(
   } catch (err) {
     // Orphan cleanup: delete the uploaded R2 object if DB write fails
     try {
-      await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: blobPathname }));
+      await getR2Client().send(new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: blobPathname }));
     } catch {
       // Best-effort cleanup — ignore secondary failure
     }
@@ -139,19 +139,24 @@ export async function saveInvoice(
   let linkWarning: string | undefined;
 
   if (period) {
-    const costId = await insertBilledCostDirect({
-      periodId: period.id,
-      amountCents,
-      invoiceDate,
-      invoiceNumber,
-      vendor,
-      uploadedById: Number(admin.id),
-    });
-    await db
-      .update(invoices)
-      .set({ linkedBilledCostId: costId })
-      .where(eq(invoices.id, newId));
-    linkedPeriodLabel = period.periodLabel;
+    try {
+      const costId = await insertBilledCostDirect({
+        periodId: period.id,
+        amountCents,
+        invoiceDate,
+        invoiceNumber,
+        vendor,
+        uploadedById: Number(admin.id),
+      });
+      await db
+        .update(invoices)
+        .set({ linkedBilledCostId: costId })
+        .where(eq(invoices.id, newId));
+      linkedPeriodLabel = period.periodLabel;
+    } catch {
+      linkWarning =
+        "Invoice was saved, but automatic linking to the budget period failed. You may need to link it manually.";
+    }
   } else {
     linkWarning = "No active budget period covers this invoice date.";
   }

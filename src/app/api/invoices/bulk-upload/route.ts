@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import * as unzipper from "unzipper";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { r2Client, R2_BUCKET, R2_ACCOUNT_ID } from "@/lib/r2-client";
+import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { extractInvoiceFields } from "@/lib/invoice-extraction";
 
@@ -12,6 +12,8 @@ const MAX_ZIP_SIZE = 50 * 1024 * 1024;
 const MAX_PDFS = 50;
 
 export async function POST(request: Request) {
+  const uploadedKeys: string[] = [];
+
   try {
     const admin = await requireAdmin();
     if (!admin) {
@@ -75,33 +77,61 @@ export async function POST(request: Request) {
     }[] = [];
 
     for (const entry of pdfEntries) {
-      const buffer = await entry.buffer();
-      const objectKey = `invoices/${randomUUID()}.pdf`;
+      let objectKey = "";
+      let blobUrl = "";
+      try {
+        const buffer = await entry.buffer();
+        objectKey = `invoices/${randomUUID()}.pdf`;
 
-      await r2Client.send(
-        new PutObjectCommand({
-          Bucket: R2_BUCKET,
-          Key: objectKey,
-          Body: buffer,
-          ContentType: "application/pdf",
-        }),
-      );
+        await getR2Client().send(
+          new PutObjectCommand({
+            Bucket: getR2Bucket(),
+            Key: objectKey,
+            Body: buffer,
+            ContentType: "application/pdf",
+          }),
+        );
+        uploadedKeys.push(objectKey);
 
-      const blobUrl = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${objectKey}`;
+        blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
 
-      const result = await extractInvoiceFields({ objectKey });
+        const result = await extractInvoiceFields({
+          objectKey,
+          pdfBytes: new Uint8Array(buffer),
+        });
 
-      results.push({
-        filename: entry.path,
-        objectKey,
-        blobUrl,
-        extracted: result.success ? result.data : null,
-        error: result.success ? null : result.error,
-      });
+        results.push({
+          filename: entry.path,
+          objectKey,
+          blobUrl,
+          extracted: result.success ? result.data : null,
+          error: result.success ? null : result.error,
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        results.push({
+          filename: entry.path,
+          objectKey,
+          blobUrl,
+          extracted: null,
+          error: message,
+        });
+      }
     }
 
     return NextResponse.json({ results, skipped });
   } catch (err: unknown) {
+    // Best-effort cleanup of already-uploaded objects
+    for (const key of uploadedKeys) {
+      try {
+        await getR2Client().send(
+          new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: key }),
+        );
+      } catch {
+        // Ignore cleanup failures
+      }
+    }
+
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to process zip: ${message}` },

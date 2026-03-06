@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { r2Client, R2_BUCKET } from "@/lib/r2-client";
+import { getR2Client, getR2Bucket } from "@/lib/r2-client";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
@@ -31,8 +31,8 @@ export async function GET(
 
   let presignedUrl: string;
   try {
-    const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: invoice.blobPathname });
-    presignedUrl = await getSignedUrl(r2Client, command, { expiresIn: 300 });
+    const command = new GetObjectCommand({ Bucket: getR2Bucket(), Key: invoice.blobPathname });
+    presignedUrl = await getSignedUrl(getR2Client(), command, { expiresIn: 300 });
   } catch {
     return new NextResponse("Storage error", { status: 500 });
   }

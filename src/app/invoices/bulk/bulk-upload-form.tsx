@@ -182,7 +182,7 @@ export function BulkUploadForm() {
       header: "Vendor",
       cell: ({ row }) => {
         const conf = row.original.confidence?.vendor;
-        const lowOrNull = conf === "low" || conf === null;
+        const lowOrNull = conf === "low" || conf == null;
         return (
           <Input
             value={row.original.vendor}

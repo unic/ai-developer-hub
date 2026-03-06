@@ -25,7 +25,7 @@ pnpm add -D @types/unzipper
 ### 2. Apply database migration
 
 ```bash
-pnpm db:generate   # generates 0004_invoice_budget_link.sql
+pnpm db:generate   # generates 0004_*.sql
 pnpm db:migrate    # applies to Neon DB
 ```
 

@@ -23,12 +23,12 @@ Accepts a zip archive containing PDF invoices. Extracts each PDF, uploads to sto
 
 **Request**:
 ```
-Content-Type: multipart/form-data
-Body field: file  (zip archive, max 50 MB)
+Content-Type: application/zip
+Body: raw zip archive bytes (max 50 MB)
 ```
 
 **Validation**:
-- `file.type` must be `application/zip` or `application/x-zip-compressed`
+- `Content-Type` must be `application/zip` or `application/x-zip-compressed`
 - Zip must contain at least 1 PDF entry
 - Zip must contain at most 50 PDF entries (others skipped and reported)
 - Non-PDF entries are silently skipped and listed in `skipped`

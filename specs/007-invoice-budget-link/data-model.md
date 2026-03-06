@@ -103,7 +103,7 @@ After the invoice DB row is inserted, the `saveInvoice` action runs the followin
 ```
 POST /api/invoices/bulk-upload (zip)
   │
-  ├─ Unzip entries (unzipper, streaming)
+  ├─ Unzip entries (unzipper, buffered)
   ├─ For each PDF entry (max 50):
   │    ├─ Upload PDF bytes → R2  (objectKey, blobUrl)
   │    └─ Run extractInvoiceFields(objectKey)
@@ -123,7 +123,7 @@ saveBulkInvoices(invoices: CreateInvoiceInput[])
 
 ## Migration File
 
-**File**: `src/lib/db/migrations/0004_invoice_budget_link.sql`
+**File**: `src/lib/db/migrations/0004_powerful_virginia_dare.sql`
 
 ```sql
 ALTER TABLE "invoices" ADD COLUMN "vendor" varchar(255);
