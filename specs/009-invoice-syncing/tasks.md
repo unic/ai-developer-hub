@@ -73,8 +73,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T009 [US3] Create sync button client component in `src/app/invoices/sync-invoices-button.tsx` — a `"use client"` component with: (1) "Sync Invoices" Button (shadcn/ui, variant="outline") with RefreshCw icon from Lucide, (2) React state: `isSyncing`, `result`, `showResults`, `isDryRun`, (3) onClick: set isSyncing=true, call `syncInvoices({ dryRun: false })`, set result and showResults on completion, set isSyncing=false, show toast on error via Sonner, (4) button disabled with Loader2 spinner animation while isSyncing (prevents concurrent syncs per FR-009), (5) renders SyncResultsDialog with result data and open/close state
-- [ ] T010 [US3] Modify `src/app/invoices/page.tsx` to import and render `SyncInvoicesButton` in the header actions div alongside existing "Bulk Upload" and "Upload Invoice" buttons — place it as the first button in the flex container (before Bulk Upload)
+- [x] T009 [US3] Create sync button client component in `src/app/invoices/sync-invoices-button.tsx` — a `"use client"` component with: (1) "Sync Invoices" Button (shadcn/ui, variant="outline") with RefreshCw icon from Lucide, (2) React state: `isSyncing`, `result`, `showResults`, `isDryRun`, (3) onClick: set isSyncing=true, call `syncInvoices({ dryRun: false })`, set result and showResults on completion, set isSyncing=false, show toast on error via Sonner, (4) button disabled with Loader2 spinner animation while isSyncing (prevents concurrent syncs per FR-009), (5) renders SyncResultsDialog with result data and open/close state
+- [x] T010 [US3] Modify `src/app/invoices/page.tsx` to import and render `SyncInvoicesButton` in the header actions div alongside existing "Bulk Upload" and "Upload Invoice" buttons — place it as the first button in the flex container (before Bulk Upload)
 
 **Checkpoint**: Full sync flow works end-to-end: click button → see loading → see results dialog. Independently testable by visiting /invoices.
 
