@@ -66,18 +66,17 @@ function OutcomeBadge({ outcome }: { outcome: SyncOutcome }) {
 }
 
 function SummaryBadge({
-  label,
+  outcome,
   count,
-  className,
 }: {
-  label: string;
+  outcome: SyncOutcome;
   count: number;
-  className: string;
 }) {
   if (count === 0) return null;
+  const config = outcomeBadgeConfig[outcome];
   return (
-    <Badge variant="outline" className={className}>
-      {label}: {count}
+    <Badge variant="outline" className={config.className}>
+      {config.label}: {count}
     </Badge>
   );
 }
@@ -107,31 +106,11 @@ export function SyncResultsDialog({
 
         {/* Summary badges */}
         <div className="flex flex-wrap gap-2">
-          <SummaryBadge
-            label="Verified"
-            count={result.verified}
-            className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-          />
-          <SummaryBadge
-            label="Newly Linked"
-            count={result.newlyLinked}
-            className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-          />
-          <SummaryBadge
-            label="Corrected"
-            count={result.corrected}
-            className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-          />
-          <SummaryBadge
-            label="Unresolvable"
-            count={result.unresolvable}
-            className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-          />
-          <SummaryBadge
-            label="Errors"
-            count={result.errors}
-            className="bg-destructive text-white dark:bg-destructive/60"
-          />
+          <SummaryBadge outcome="verified" count={result.verified} />
+          <SummaryBadge outcome="newly_linked" count={result.newlyLinked} />
+          <SummaryBadge outcome="corrected" count={result.corrected} />
+          <SummaryBadge outcome="unresolvable" count={result.unresolvable} />
+          <SummaryBadge outcome="error" count={result.errors} />
         </div>
 
         {/* Scrollable table */}
