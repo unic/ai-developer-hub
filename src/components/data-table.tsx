@@ -87,6 +87,7 @@ export function DataTable<TData, TValue>({
     onPaginationChange: setPagination,
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    defaultColumn: { sortUndefined: "last" },
     state: { sorting, columnFilters, globalFilter, pagination },
   });
 

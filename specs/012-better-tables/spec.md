@@ -108,7 +108,7 @@ Currently, tables have a global search input and a couple of custom toggle filte
 - **FR-009**: Destructive menu items MUST be visually distinguished from non-destructive items (e.g., using a warning/destructive color)
 - **FR-010**: Selecting a destructive action from the overflow menu MUST still trigger the existing confirmation dialog before executing
 - **FR-011**: The three-dot overflow menu MUST only appear for users with permission to perform at least one destructive action on that row
-- **FR-012**: System MUST provide column-level filters on categorical columns: Status columns on all tables, Role on Users, Vendor on Tools
+- **FR-012**: System MUST provide column-level filters on categorical columns: Status columns on all tables, Role on Users, and Vendor on Tools
 - **FR-013**: Column filters and global search MUST work together, with results showing the intersection of all active filters
 - **FR-014**: Each active column filter MUST have a visible indicator and a way to clear it
 - **FR-015**: The Download action on the Invoices table MUST remain a direct action button (not moved to overflow menu) since it is non-destructive

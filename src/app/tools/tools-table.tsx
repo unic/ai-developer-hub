@@ -150,6 +150,7 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
     {
       accessorKey: "vendor",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Vendor" />,
+      filterFn: arrayIncludesFilterFn,
     },
     {
       accessorKey: "activeLicenses",
@@ -186,17 +187,6 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
   return columns;
 }
 
-const TOOLS_FACETED_FILTERS = [
-  {
-    columnId: "status",
-    title: "Status",
-    options: [
-      { label: "Active", value: "active" },
-      { label: "Archived", value: "archived" },
-    ],
-  },
-];
-
 export function ToolsTable({
   data,
   isAdmin,
@@ -208,12 +198,32 @@ export function ToolsTable({
   const handleRefresh = useCallback(() => router.refresh(), [router]);
   const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
 
+  const facetedFilters = useMemo(() => {
+    const uniqueVendors = [...new Set(data.map((t) => t.vendor).filter(Boolean))]
+      .sort()
+      .map((v) => ({ label: v!, value: v! }));
+
+    return [
+      {
+        columnId: "status",
+        title: "Status",
+        options: [
+          { label: "Active", value: "active" },
+          { label: "Archived", value: "archived" },
+        ],
+      },
+      ...(uniqueVendors.length > 0
+        ? [{ columnId: "vendor", title: "Vendor", options: uniqueVendors }]
+        : []),
+    ];
+  }, [data]);
+
   return (
     <DataTable
       columns={columns}
       data={data}
       searchPlaceholder="Search tools..."
-      facetedFilters={TOOLS_FACETED_FILTERS}
+      facetedFilters={facetedFilters}
     />
   );
 }

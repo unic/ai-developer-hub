@@ -23,7 +23,13 @@ export function DataTableColumnHeader<TData, TValue>({
   return (
     <Button
       variant="ghost"
-      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      onClick={() => {
+        if (column.getIsSorted() === "desc") {
+          column.clearSorting();
+        } else {
+          column.toggleSorting(column.getIsSorted() === "asc");
+        }
+      }}
       className={cn("-ml-3 h-8", className)}
     >
       {title}

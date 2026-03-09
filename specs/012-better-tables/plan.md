@@ -55,7 +55,6 @@ src/
 │   ├── data-table.tsx              # Shared DataTable (enhanced with TooltipProvider)
 │   ├── data-table-column-header.tsx # NEW: Reusable sortable column header
 │   ├── data-table-faceted-filter.tsx # NEW: Reusable faceted filter component
-│   ├── data-table-row-actions.tsx   # NEW: Shared row action patterns (view, edit, overflow)
 │   └── ui/
 │       ├── dropdown-menu.tsx        # Existing (no changes)
 │       ├── tooltip.tsx              # Existing (no changes)
@@ -75,14 +74,6 @@ src/
 │       ├── page.tsx                 # Refactored to delegate to client table
 │       ├── budget-table.tsx         # NEW: Client component with DataTable
 │       └── budget-list-actions.tsx  # Updated to use overflow menu
-
-tests/
-├── unit/
-│   ├── data-table-column-header.test.tsx  # NEW
-│   ├── data-table-faceted-filter.test.tsx # NEW
-│   └── data-table-row-actions.test.tsx    # NEW
-└── e2e/
-    └── table-consistency.spec.ts          # NEW: Cross-table consistency checks
 ```
 
 **Structure Decision**: Follows the existing Next.js App Router convention. Shared table components live in `src/components/` alongside the existing `data-table.tsx`. Page-specific table client components live alongside their pages. No new directories needed.
