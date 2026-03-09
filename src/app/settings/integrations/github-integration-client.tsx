@@ -580,7 +580,6 @@ export function GitHubIntegrationClient({
       {/* Copilot Sync Section */}
       <CopilotSyncSection
         initialStatus={copilotStatus}
-        connectionId={connection.id}
       />
     </div>
   );

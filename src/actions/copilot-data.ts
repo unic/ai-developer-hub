@@ -24,6 +24,24 @@ import type {
   CopilotAnalyticsData,
 } from "@/types";
 
+function derivePlanType(tierName: string | null): "business" | "enterprise" {
+  return (tierName ?? "").toLowerCase().includes("enterprise") ? "enterprise" : "business";
+}
+
+function getDefaultDateRange(
+  since?: string,
+  until?: string,
+  days = 28
+): { sinceDate: string; untilDate: string } {
+  const now = new Date();
+  const defaultSince = new Date(now);
+  defaultSince.setDate(defaultSince.getDate() - days);
+  return {
+    sinceDate: since || defaultSince.toISOString().split("T")[0],
+    untilDate: until || now.toISOString().split("T")[0],
+  };
+}
+
 export async function getCopilotOverview(
   input?: unknown
 ): Promise<ActionResult<CopilotOverviewData>> {
@@ -35,40 +53,26 @@ export async function getCopilotOverview(
   if (!parsed.success) return { success: false, error: "Invalid date range" };
 
   const { since, until } = parsed.data;
+  const { sinceDate, untilDate } = getDefaultDateRange(since, until);
 
-  // Default to last 28 days if no range specified
-  const now = new Date();
-  const defaultSince = new Date(now);
-  defaultSince.setDate(defaultSince.getDate() - 28);
-
-  const sinceDate = since || defaultSince.toISOString().split("T")[0];
-  const untilDate = until || now.toISOString().split("T")[0];
-
-  // Query usage metrics for date range
-  const metrics = await db
-    .select()
-    .from(copilotUsageMetrics)
-    .where(
-      and(
-        gte(copilotUsageMetrics.date, sinceDate),
-        lte(copilotUsageMetrics.date, untilDate)
+  // Query usage metrics and latest billing in parallel
+  const [metrics, [latestBilling]] = await Promise.all([
+    db
+      .select()
+      .from(copilotUsageMetrics)
+      .where(
+        and(
+          gte(copilotUsageMetrics.date, sinceDate),
+          lte(copilotUsageMetrics.date, untilDate)
+        )
       )
-    )
-    .orderBy(copilotUsageMetrics.date);
-
-  // Query latest billing snapshot for seat counts
-  const [latestBilling] = await db
-    .select()
-    .from(copilotBillingSnapshots)
-    .orderBy(desc(copilotBillingSnapshots.billingMonth))
-    .limit(1);
-
-  // Query active copilot-sync seat count
-  const [_seatCounts] = await db
-    .select({
-      active: sql<number>`count(*) filter (where ${licenseAssignments.status} = 'active' and ${licenseAssignments.source} = 'copilot-sync')`,
-    })
-    .from(licenseAssignments);
+      .orderBy(copilotUsageMetrics.date),
+    db
+      .select()
+      .from(copilotBillingSnapshots)
+      .orderBy(desc(copilotBillingSnapshots.billingMonth))
+      .limit(1),
+  ]);
 
   // Aggregate totals from metrics
   let totalSuggestions = 0;
@@ -215,11 +219,6 @@ export async function getCopilotSeats(input?: unknown): Promise<
     .offset((page - 1) * pageSize);
 
   const seats = rows.map((row) => {
-    const tierLower = (row.tierName ?? "").toLowerCase();
-    const planType: "business" | "enterprise" = tierLower.includes("enterprise")
-      ? "enterprise"
-      : "business";
-
     return {
       githubLogin: row.githubLogin ?? "",
       githubId: row.githubId ?? 0,
@@ -227,7 +226,7 @@ export async function getCopilotSeats(input?: unknown): Promise<
       assignedAt: row.assignedAt.toISOString(),
       lastActivityAt: null as string | null,
       lastActivityEditor: null as string | null,
-      planType,
+      planType: derivePlanType(row.tierName),
       status: row.assignmentStatus as "active" | "inactive" | "pending",
       matchedUserId: row.userId,
       matchedUserName: row.userName,
@@ -313,11 +312,6 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
     status: evt.status,
   }));
 
-  const tierLower = (assignment.tierName ?? "").toLowerCase();
-  const planType: "business" | "enterprise" = tierLower.includes("enterprise")
-    ? "enterprise"
-    : "business";
-
   return {
     success: true,
     data: {
@@ -327,7 +321,7 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
       assignedAt: assignment.assignedAt.toISOString(),
       lastActivityAt: null,
       lastActivityEditor: null,
-      planType,
+      planType: derivePlanType(assignment.tierName),
       status: assignment.assignmentStatus as "active" | "inactive" | "pending",
       matchedUserId: assignment.userId,
       matchedUserName: assignment.userName,
@@ -410,14 +404,7 @@ export async function getCopilotAnalytics(
   if (!parsed.success) return { success: false, error: "Invalid date range" };
 
   const { since, until } = parsed.data;
-
-  // Default to last 28 days
-  const now = new Date();
-  const defaultSince = new Date(now);
-  defaultSince.setDate(defaultSince.getDate() - 28);
-
-  const sinceDate = since || defaultSince.toISOString().split("T")[0];
-  const untilDate = until || now.toISOString().split("T")[0];
+  const { sinceDate, untilDate } = getDefaultDateRange(since, until);
 
   // Query usage metrics for date range
   const metrics = await db

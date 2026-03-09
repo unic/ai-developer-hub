@@ -35,7 +35,6 @@ interface CopilotSyncSectionProps {
     dataRange: { earliest: string; latest: string } | null;
     recordCounts: { metrics: number; billing: number; seats: number };
   };
-  connectionId: number;
 }
 
 function SyncStatusIndicator({
@@ -67,7 +66,6 @@ function SyncStatusIndicator({
 
 export function CopilotSyncSection({
   initialStatus,
-  connectionId,
 }: CopilotSyncSectionProps) {
   const [status, setStatus] = useState(initialStatus);
   const [isPending, startTransition] = useTransition();

@@ -2,12 +2,9 @@ import { getCopilotBilling } from "@/actions/copilot-data";
 import { BillingTrendChart } from "@/components/copilot/billing-trend-chart";
 import { CostUtilizationChart } from "@/components/copilot/cost-utilization-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 import { DollarSign } from "lucide-react";
 import Link from "next/link";
-
-function formatCurrency(cents: number) {
-  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default async function CopilotBillingPage() {
   const result = await getCopilotBilling();
