@@ -17,11 +17,11 @@
 
 **Purpose**: Schema changes, new types, validation schemas, and API wrapper — shared infrastructure for all user stories.
 
-- [ ] T001 Add `copilotSyncTypeEnum`, `copilotUsageMetrics` table, and `copilotBillingSnapshots` table to Drizzle schema; add `copilotSyncEnabled` and `copilotSyncSchedule` columns to `githubConnections`; add `source` column to `licenseAssignments`; add `syncType`, `seatsProcessed`, `metricsProcessed`, `billingProcessed` columns to `githubSyncEvents`; define relations in `src/lib/db/schema.ts`
-- [ ] T002 Generate and apply database migration for all schema changes via `pnpm db:generate && pnpm db:push` in `src/lib/db/migrations/`
-- [ ] T003 [P] Add Copilot-related TypeScript types to `src/types/index.ts`: select/insert types for new tables (`CopilotUsageMetric`, `CopilotBillingSnapshot`), `CopilotSyncStatus` type, `CopilotOverviewData`, `CopilotSeatData`, `CopilotBillingData`, `CopilotAnalyticsData` response types per contracts/server-actions.md
-- [ ] T004 [P] Add Copilot validation schemas to `src/lib/validators.ts`: `copilotDateRangeSchema`, `copilotSeatFilterSchema`, `copilotSeatDetailSchema` per contracts/server-actions.md input types
-- [ ] T005 [P] Create GitHub Copilot API wrapper in `src/lib/copilot-api.ts` with functions: `fetchCopilotBilling(token, org)`, `fetchCopilotSeats(token, org)`, `fetchCopilotMetrics(token, org, since?, until?)` — reuse `githubFetch` pattern from `src/lib/github.ts` for auth headers, rate limit tracking, pagination, and error handling
+- [x] T001 Add `copilotSyncTypeEnum`, `copilotUsageMetrics` table, and `copilotBillingSnapshots` table to Drizzle schema; add `copilotSyncEnabled` and `copilotSyncSchedule` columns to `githubConnections`; add `source` column to `licenseAssignments`; add `syncType`, `seatsProcessed`, `metricsProcessed`, `billingProcessed` columns to `githubSyncEvents`; define relations in `src/lib/db/schema.ts`
+- [x] T002 Generate and apply database migration for all schema changes via `pnpm db:generate && pnpm db:push` in `src/lib/db/migrations/`
+- [x] T003 [P] Add Copilot-related TypeScript types to `src/types/index.ts`: select/insert types for new tables (`CopilotUsageMetric`, `CopilotBillingSnapshot`), `CopilotSyncStatus` type, `CopilotOverviewData`, `CopilotSeatData`, `CopilotBillingData`, `CopilotAnalyticsData` response types per contracts/server-actions.md
+- [x] T004 [P] Add Copilot validation schemas to `src/lib/validators.ts`: `copilotDateRangeSchema`, `copilotSeatFilterSchema`, `copilotSeatDetailSchema` per contracts/server-actions.md input types
+- [x] T005 [P] Create GitHub Copilot API wrapper in `src/lib/copilot-api.ts` with functions: `fetchCopilotBilling(token, org)`, `fetchCopilotSeats(token, org)`, `fetchCopilotMetrics(token, org, since?, until?)` — reuse `githubFetch` pattern from `src/lib/github.ts` for auth headers, rate limit tracking, pagination, and error handling
 
 **Checkpoint**: Schema, types, validators, and API wrapper ready. All subsequent phases can build on this foundation.
 
@@ -33,12 +33,12 @@
 
 **CRITICAL**: No user story UI work can begin until the sync pipeline (T006-T009) is functional.
 
-- [ ] T006 Implement `syncBillingData` function in `src/lib/copilot-sync.ts`: fetch org Copilot billing, upsert "GitHub Copilot" AI Tool + access tiers (Business/Enterprise) via existing `aiTools`/`accessTiers` tables, update `maxLicenses`, upsert `copilotBillingSnapshots` record, create/update `billedCosts` entry if matching budget period exists (skip if no budget), tag with vendor reference for dedup
-- [ ] T007 Implement `syncSeatAssignments` function in `src/lib/copilot-sync.ts`: fetch paginated seats, match to users via `githubProfiles.githubId`, upsert `licenseAssignments` with `source: "copilot-sync"`, revoke assignments for removed seats (set inactive with `revokedAt`), handle tier upgrades/downgrades following existing pattern in `src/actions/assignments.ts`
-- [ ] T008 Implement `syncUsageMetrics` function in `src/lib/copilot-sync.ts`: determine date range (last synced + 1 to yesterday), fetch metrics, flatten nested editor→model→language structure into `copilotUsageMetrics` rows with JSONB breakdowns, upsert by (connectionId, date)
-- [ ] T009 Implement `runCopilotSync` orchestrator in `src/lib/copilot-sync.ts`: create sync event (`syncType: "copilot"`, `status: "in_progress"`), run billing→seats→metrics sequentially, update sync event with counts and final status (`completed`/`partial`/`failed`), handle rate limits and partial failures, update `githubConnections.lastSyncAt`
-- [ ] T010 [P] Implement `enableCopilotSync`, `disableCopilotSync`, `triggerCopilotSync`, `getCopilotSyncStatus` server actions in `src/actions/copilot.ts` per contracts/server-actions.md — include `requireAdmin()` guard, mutual exclusion check (no in-progress sync), scope validation via `copilot-api.ts`, history recording via `src/actions/history.ts`
-- [ ] T011 [P] Create cron sync API route in `src/app/api/copilot/sync/route.ts`: POST handler protected by `CRON_SECRET` header, fetches active connection with `copilotSyncEnabled`, calls `runCopilotSync`, returns sync event ID
+- [x] T006 Implement `syncBillingData` function in `src/lib/copilot-sync.ts`: fetch org Copilot billing, upsert "GitHub Copilot" AI Tool + access tiers (Business/Enterprise) via existing `aiTools`/`accessTiers` tables, update `maxLicenses`, upsert `copilotBillingSnapshots` record, create/update `billedCosts` entry if matching budget period exists (skip if no budget), tag with vendor reference for dedup
+- [x] T007 Implement `syncSeatAssignments` function in `src/lib/copilot-sync.ts`: fetch paginated seats, match to users via `githubProfiles.githubId`, upsert `licenseAssignments` with `source: "copilot-sync"`, revoke assignments for removed seats (set inactive with `revokedAt`), handle tier upgrades/downgrades following existing pattern in `src/actions/assignments.ts`
+- [x] T008 Implement `syncUsageMetrics` function in `src/lib/copilot-sync.ts`: determine date range (last synced + 1 to yesterday), fetch metrics, flatten nested editor→model→language structure into `copilotUsageMetrics` rows with JSONB breakdowns, upsert by (connectionId, date)
+- [x] T009 Implement `runCopilotSync` orchestrator in `src/lib/copilot-sync.ts`: create sync event (`syncType: "copilot"`, `status: "in_progress"`), run billing→seats→metrics sequentially, update sync event with counts and final status (`completed`/`partial`/`failed`), handle rate limits and partial failures, update `githubConnections.lastSyncAt`
+- [x] T010 [P] Implement `enableCopilotSync`, `disableCopilotSync`, `triggerCopilotSync`, `getCopilotSyncStatus` server actions in `src/actions/copilot.ts` per contracts/server-actions.md — include `requireAdmin()` guard, mutual exclusion check (no in-progress sync), scope validation via `copilot-api.ts`, history recording via `src/actions/history.ts`
+- [x] T011 [P] Create cron sync API route in `src/app/api/copilot/sync/route.ts`: POST handler protected by `CRON_SECRET` header, fetches active connection with `copilotSyncEnabled`, calls `runCopilotSync`, returns sync event ID
 
 **Checkpoint**: Sync pipeline fully functional. Enable/disable/trigger sync actions work. Data flows into all existing models (AI Tool, assignments, billed costs) and new Copilot tables.
 
@@ -52,10 +52,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Create Copilot sync settings section component in `src/components/copilot/copilot-sync-section.tsx`: displays scope validation status, enable/disable toggle, sync status (last sync time, result, data range, record counts), "Sync Now" button with disabled state during active sync, sync history list — calls `enableCopilotSync`, `disableCopilotSync`, `triggerCopilotSync`, `getCopilotSyncStatus` actions
-- [ ] T013 [US1] Integrate Copilot sync section into existing integrations page by modifying `src/app/settings/integrations/github-integration-client.tsx`: add `CopilotSyncSection` below the existing GitHub connection section, conditionally rendered when a GitHub connection is active
-- [ ] T014 [US1] Update existing assignments UI to handle `source: "copilot-sync"` records: add read-only badge "Managed by sync" and disable edit actions for sync-managed assignments in `src/app/assignments/assignments-client.tsx`
-- [ ] T015 [US1] Add "Copilot" navigation item to sidebar in `src/components/app-sidebar.tsx`: admin-only, with Copilot icon from Lucide React, positioned after Reports in the nav items array
+- [x] T012 [US1] Create Copilot sync settings section component in `src/components/copilot/copilot-sync-section.tsx`: displays scope validation status, enable/disable toggle, sync status (last sync time, result, data range, record counts), "Sync Now" button with disabled state during active sync, sync history list — calls `enableCopilotSync`, `disableCopilotSync`, `triggerCopilotSync`, `getCopilotSyncStatus` actions
+- [x] T013 [US1] Integrate Copilot sync section into existing integrations page by modifying `src/app/settings/integrations/github-integration-client.tsx`: add `CopilotSyncSection` below the existing GitHub connection section, conditionally rendered when a GitHub connection is active
+- [x] T014 [US1] Update existing assignments UI to handle `source: "copilot-sync"` records: add read-only badge "Managed by sync" and disable edit actions for sync-managed assignments in `src/app/assignments/assignments-client.tsx`
+- [x] T015 [US1] Add "Copilot" navigation item to sidebar in `src/components/app-sidebar.tsx`: admin-only, with Copilot icon from Lucide React, positioned after Reports in the nav items array
 
 **Checkpoint**: User Story 1 fully functional — admin can enable/disable Copilot sync, data flows into existing models, sync status visible on settings page, Copilot nav item appears.
 
@@ -69,12 +69,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Implement `getCopilotOverview` server action in `src/actions/copilot-data.ts` per contracts: query `copilotUsageMetrics` for date range, aggregate totals (suggestions, acceptances, lines, active users), compute acceptance rate, query `copilotBillingSnapshots` for seat counts, build trend array from daily metrics
-- [ ] T017 [P] [US2] Create tab bar component in `src/app/copilot/copilot-tab-bar.tsx` matching existing Reports tab bar pattern (`src/app/reports/reports-tab-bar.tsx`): tabs for Overview, Seats, Billing, Analytics with URL-based active state via `router.replace()`
-- [ ] T018 [P] [US2] Create Copilot layout in `src/app/copilot/layout.tsx`: admin-only auth guard, shared tab bar via `CopilotTabBar`, standard sidebar layout
-- [ ] T019 [P] [US2] Create overview KPI cards component in `src/components/copilot/overview-cards.tsx`: total seats, active seats, acceptance rate, total suggestions, total acceptances — follow existing dashboard card pattern from `src/app/page.tsx`
-- [ ] T020 [P] [US2] Create usage trend chart component in `src/components/copilot/usage-trend-chart.tsx`: line chart showing daily suggestions, acceptances, and active users over time — use `ChartContainer` + `LineChart` per existing `src/components/reports/trends-chart.tsx` pattern
-- [ ] T021 [US2] Create Copilot overview page in `src/app/copilot/page.tsx`: fetch data via `getCopilotOverview`, render date range picker, `OverviewCards`, `UsageTrendChart`, navigation links to Reports and Budget pages for cost info, empty state when no data synced
+- [x] T016 [US2] Implement `getCopilotOverview` server action in `src/actions/copilot-data.ts` per contracts: query `copilotUsageMetrics` for date range, aggregate totals (suggestions, acceptances, lines, active users), compute acceptance rate, query `copilotBillingSnapshots` for seat counts, build trend array from daily metrics
+- [x] T017 [P] [US2] Create tab bar component in `src/app/copilot/copilot-tab-bar.tsx` matching existing Reports tab bar pattern (`src/app/reports/reports-tab-bar.tsx`): tabs for Overview, Seats, Billing, Analytics with URL-based active state via `router.replace()`
+- [x] T018 [P] [US2] Create Copilot layout in `src/app/copilot/layout.tsx`: admin-only auth guard, shared tab bar via `CopilotTabBar`, standard sidebar layout
+- [x] T019 [P] [US2] Create overview KPI cards component in `src/components/copilot/overview-cards.tsx`: total seats, active seats, acceptance rate, total suggestions, total acceptances — follow existing dashboard card pattern from `src/app/page.tsx`
+- [x] T020 [P] [US2] Create usage trend chart component in `src/components/copilot/usage-trend-chart.tsx`: line chart showing daily suggestions, acceptances, and active users over time — use `ChartContainer` + `LineChart` per existing `src/components/reports/trends-chart.tsx` pattern
+- [x] T021 [US2] Create Copilot overview page in `src/app/copilot/page.tsx`: fetch data via `getCopilotOverview`, render date range picker, `OverviewCards`, `UsageTrendChart`, navigation links to Reports and Budget pages for cost info, empty state when no data synced
 
 **Checkpoint**: Overview dashboard functional with KPIs and trend chart. Date range selection works including historical data beyond 28 days.
 
@@ -88,10 +88,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Implement `getCopilotSeats` and `getCopilotSeatDetail` server actions in `src/actions/copilot-data.ts` per contracts: query seat data from `licenseAssignments` (source: copilot-sync) joined with `githubProfiles` and `users`, support search/filter/sort/pagination; detail action fetches seat history from sync events
-- [ ] T023 [P] [US3] Create seats data table component in `src/components/copilot/seats-table.tsx`: columns for avatar, name, GitHub username, assigned date, last activity, days since active, plan type, status, matched/unmatched indicator — reuse `DataTable` from `src/components/data-table.tsx` with faceted filters for status
-- [ ] T024 [US3] Create seats page in `src/app/copilot/seats/page.tsx`: fetch data via `getCopilotSeats`, render `SeatsTable` with search bar and status filter, show unmatched users with prompt to import via existing user import flow (`/users/import`), empty state when no seats
-- [ ] T025 [US3] Create seat detail page in `src/app/copilot/seats/[userId]/page.tsx`: fetch via `getCopilotSeatDetail`, show seat metadata (assignment date, plan type, status, last activity, editor), activity timeline visualization, link to general user profile (`/users/[id]`), back link to Seats tab
+- [x] T022 [US3] Implement `getCopilotSeats` and `getCopilotSeatDetail` server actions in `src/actions/copilot-data.ts` per contracts: query seat data from `licenseAssignments` (source: copilot-sync) joined with `githubProfiles` and `users`, support search/filter/sort/pagination; detail action fetches seat history from sync events
+- [x] T023 [P] [US3] Create seats data table component in `src/components/copilot/seats-table.tsx`: columns for avatar, name, GitHub username, assigned date, last activity, days since active, plan type, status, matched/unmatched indicator — reuse `DataTable` from `src/components/data-table.tsx` with faceted filters for status
+- [x] T024 [US3] Create seats page in `src/app/copilot/seats/page.tsx`: fetch data via `getCopilotSeats`, render `SeatsTable` with search bar and status filter, show unmatched users with prompt to import via existing user import flow (`/users/import`), empty state when no seats
+- [x] T025 [US3] Create seat detail page in `src/app/copilot/seats/[userId]/page.tsx`: fetch via `getCopilotSeatDetail`, show seat metadata (assignment date, plan type, status, last activity, editor), activity timeline visualization, link to general user profile (`/users/[id]`), back link to Seats tab
 
 **Checkpoint**: Seat allocation table and detail pages functional. Admins can identify underutilized seats within 30 seconds (SC-007).
 
@@ -105,10 +105,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T026 [US4] Implement `getCopilotBilling` server action in `src/actions/copilot-data.ts` per contracts: query `copilotBillingSnapshots` for date range, compute current month metrics, cumulative cost, cost-per-active-user, build monthly trends array
-- [ ] T027 [P] [US4] Create billing trend chart component in `src/components/copilot/billing-trend-chart.tsx`: bar or line chart showing monthly cost over time — use `ChartContainer` + `BarChart` pattern, format values as currency (cents → dollars)
-- [ ] T028 [P] [US4] Create cost vs. utilization chart component in `src/components/copilot/cost-utilization-chart.tsx`: dual-axis chart comparing cost per seat against acceptance rate or active days per month, highlighting ROI trends
-- [ ] T029 [US4] Create billing page in `src/app/copilot/billing/page.tsx`: fetch via `getCopilotBilling`, render KPI cards (current month cost, cumulative cost, cost-per-active-user, plan type), `BillingTrendChart`, `CostUtilizationChart`, date range picker, empty state
+- [x] T026 [US4] Implement `getCopilotBilling` server action in `src/actions/copilot-data.ts` per contracts: query `copilotBillingSnapshots` for date range, compute current month metrics, cumulative cost, cost-per-active-user, build monthly trends array
+- [x] T027 [P] [US4] Create billing trend chart component in `src/components/copilot/billing-trend-chart.tsx`: bar or line chart showing monthly cost over time — use `ChartContainer` + `BarChart` pattern, format values as currency (cents → dollars)
+- [x] T028 [P] [US4] Create cost vs. utilization chart component in `src/components/copilot/cost-utilization-chart.tsx`: dual-axis chart comparing cost per seat against acceptance rate or active days per month, highlighting ROI trends
+- [x] T029 [US4] Create billing page in `src/app/copilot/billing/page.tsx`: fetch via `getCopilotBilling`, render KPI cards (current month cost, cumulative cost, cost-per-active-user, plan type), `BillingTrendChart`, `CostUtilizationChart`, date range picker, empty state
 
 **Checkpoint**: Billing dashboard functional. Cost-per-active-user and ROI metrics displayed (SC-008).
 
@@ -122,11 +122,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T030 [US5] Implement `getCopilotAnalytics` server action in `src/actions/copilot-data.ts` per contracts: aggregate JSONB `languageBreakdown` and `editorBreakdown` fields across date range from `copilotUsageMetrics`, compute activity distribution from seat last-activity data, build utilization trend from daily active users vs. total seats
-- [ ] T031 [P] [US5] Create language breakdown chart component in `src/components/copilot/language-chart.tsx`: horizontal bar chart showing top languages by suggestions/acceptances with acceptance rate — use `ChartContainer` + `BarChart` pattern
-- [ ] T032 [P] [US5] Create editor breakdown chart component in `src/components/copilot/editor-chart.tsx`: bar or pie chart showing editor distribution by engaged users and suggestions
-- [ ] T033 [P] [US5] Create activity distribution component in `src/components/copilot/activity-distribution.tsx`: visualization showing user segments (power users, regular, occasional, inactive) as a donut chart or segmented bar
-- [ ] T034 [US5] Create analytics page in `src/app/copilot/analytics/page.tsx`: fetch via `getCopilotAnalytics`, render date range picker, `LanguageChart`, `EditorChart`, `ActivityDistribution`, utilization trend line chart, empty state
+- [x] T030 [US5] Implement `getCopilotAnalytics` server action in `src/actions/copilot-data.ts` per contracts: aggregate JSONB `languageBreakdown` and `editorBreakdown` fields across date range from `copilotUsageMetrics`, compute activity distribution from seat last-activity data, build utilization trend from daily active users vs. total seats
+- [x] T031 [P] [US5] Create language breakdown chart component in `src/components/copilot/language-chart.tsx`: horizontal bar chart showing top languages by suggestions/acceptances with acceptance rate — use `ChartContainer` + `BarChart` pattern
+- [x] T032 [P] [US5] Create editor breakdown chart component in `src/components/copilot/editor-chart.tsx`: bar or pie chart showing editor distribution by engaged users and suggestions
+- [x] T033 [P] [US5] Create activity distribution component in `src/components/copilot/activity-distribution.tsx`: visualization showing user segments (power users, regular, occasional, inactive) as a donut chart or segmented bar
+- [x] T034 [US5] Create analytics page in `src/app/copilot/analytics/page.tsx`: fetch via `getCopilotAnalytics`, render date range picker, `LanguageChart`, `EditorChart`, `ActivityDistribution`, utilization trend line chart, empty state
 
 **Checkpoint**: Analytics dashboard functional. Language/editor breakdowns and activity distribution visible (SC-010).
 
@@ -140,9 +140,9 @@
 
 ### Implementation for User Story 6
 
-- [ ] T035 [US6] Add data retention display to `src/components/copilot/copilot-sync-section.tsx`: query earliest/latest metric dates and record counts via `getCopilotSyncStatus`, render retention summary card showing available date range and total records per category
-- [ ] T036 [US6] Implement billing backfill logic in `src/lib/copilot-sync.ts`: add `backfillBilledCosts(connectionId)` function that finds `copilotBillingSnapshots` with null `linkedBilledCostId` where a matching `budgetPeriod` now exists, creates `billedCosts` entries and updates the link; call this during each sync and expose as action for manual trigger
-- [ ] T037 [US6] Verify all Copilot dashboard date range pickers (in pages created in T021, T024, T029, T034) allow selection of ranges exceeding 28 days back to the earliest stored record; ensure query actions in `src/actions/copilot-data.ts` have no artificial date range caps
+- [x] T035 [US6] Add data retention display to `src/components/copilot/copilot-sync-section.tsx`: query earliest/latest metric dates and record counts via `getCopilotSyncStatus`, render retention summary card showing available date range and total records per category
+- [x] T036 [US6] Implement billing backfill logic in `src/lib/copilot-sync.ts`: add `backfillBilledCosts(connectionId)` function that finds `copilotBillingSnapshots` with null `linkedBilledCostId` where a matching `budgetPeriod` now exists, creates `billedCosts` entries and updates the link; call this during each sync and expose as action for manual trigger
+- [x] T037 [US6] Verify all Copilot dashboard date range pickers (in pages created in T021, T024, T029, T034) allow selection of ranges exceeding 28 days back to the earliest stored record; ensure query actions in `src/actions/copilot-data.ts` have no artificial date range caps
 
 **Checkpoint**: Historical data fully retained. Dashboards display data beyond 28-day API limit. Billing backfill works when budgets are created after sync.
 
@@ -152,11 +152,11 @@
 
 **Purpose**: Improvements that affect multiple user stories.
 
-- [ ] T038 Add loading skeletons for all Copilot pages in `src/app/copilot/loading.tsx`, `src/app/copilot/seats/loading.tsx`, `src/app/copilot/billing/loading.tsx`, `src/app/copilot/analytics/loading.tsx`
-- [ ] T039 [P] Add error boundaries and empty states across all Copilot pages: "Copilot syncing not enabled" state, "No data yet" state, "Sync in progress" state with appropriate messaging and CTAs
-- [ ] T040 [P] Ensure all chart components include `accessibilityLayer` prop and ARIA labels on interactive elements for WCAG 2.2 AA compliance
-- [ ] T041 Verify existing features are unmodified: confirm `/assignments`, `/tools`, `/budget`, `/reports` pages automatically display Copilot data via shared models without any code changes beyond T014 (source badge) and T015 (sidebar nav) — validate SC-011
-- [ ] T042 Run `pnpm lint && pnpm typecheck && pnpm build` to ensure zero ESLint warnings, zero TypeScript errors, and successful production build
+- [x] T038 Add loading skeletons for all Copilot pages in `src/app/copilot/loading.tsx`, `src/app/copilot/seats/loading.tsx`, `src/app/copilot/billing/loading.tsx`, `src/app/copilot/analytics/loading.tsx`
+- [x] T039 [P] Add error boundaries and empty states across all Copilot pages: "Copilot syncing not enabled" state, "No data yet" state, "Sync in progress" state with appropriate messaging and CTAs
+- [x] T040 [P] Ensure all chart components include `accessibilityLayer` prop and ARIA labels on interactive elements for WCAG 2.2 AA compliance
+- [x] T041 Verify existing features are unmodified: confirm `/assignments`, `/tools`, `/budget`, `/reports` pages automatically display Copilot data via shared models without any code changes beyond T014 (source badge) and T015 (sidebar nav) — validate SC-011
+- [x] T042 Run `pnpm lint && pnpm typecheck && pnpm build` to ensure zero ESLint warnings, zero TypeScript errors, and successful production build
 
 ---
 
