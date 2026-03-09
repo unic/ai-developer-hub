@@ -9,6 +9,7 @@ import {
   githubProfiles,
   accessTiers,
   githubSyncEvents,
+  githubConnections,
 } from "@/lib/db/schema";
 import { and, sql, desc, asc, gte, lte, eq, or, ilike } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -23,6 +24,15 @@ import type {
   CopilotBillingData,
   CopilotAnalyticsData,
 } from "@/types";
+
+async function getActiveConnection() {
+  return db.query.githubConnections.findFirst({
+    where: and(
+      eq(githubConnections.status, "active"),
+      eq(githubConnections.copilotSyncEnabled, true)
+    ),
+  });
+}
 
 function derivePlanType(tierName: string | null): "business" | "enterprise" {
   return (tierName ?? "").toLowerCase().includes("enterprise") ? "enterprise" : "business";
@@ -55,6 +65,18 @@ export async function getCopilotOverview(
   const { since, until } = parsed.data;
   const { sinceDate, untilDate } = getDefaultDateRange(since, until);
 
+  const connection = await getActiveConnection();
+  if (!connection) {
+    return {
+      success: true,
+      data: {
+        totalSeats: 0, activeSeats: 0, pendingSeats: 0, acceptanceRate: 0,
+        totalSuggestions: 0, totalAcceptances: 0, totalLinesSuggested: 0,
+        totalLinesAccepted: 0, totalActiveUsers: 0, trends: [],
+      },
+    };
+  }
+
   // Query usage metrics and latest billing in parallel
   const [metrics, [latestBilling]] = await Promise.all([
     db
@@ -62,6 +84,7 @@ export async function getCopilotOverview(
       .from(copilotUsageMetrics)
       .where(
         and(
+          eq(copilotUsageMetrics.connectionId, connection.id),
           gte(copilotUsageMetrics.date, sinceDate),
           lte(copilotUsageMetrics.date, untilDate)
         )
@@ -70,6 +93,7 @@ export async function getCopilotOverview(
     db
       .select()
       .from(copilotBillingSnapshots)
+      .where(eq(copilotBillingSnapshots.connectionId, connection.id))
       .orderBy(desc(copilotBillingSnapshots.billingMonth))
       .limit(1),
   ]);
@@ -163,8 +187,8 @@ export async function getCopilotSeats(input?: unknown): Promise<
   // Build conditions
   const conditions = [eq(licenseAssignments.source, "copilot-sync")];
 
-  if (status) {
-    conditions.push(eq(licenseAssignments.status, status === "pending" ? "active" : status));
+  if (status && status !== "pending") {
+    conditions.push(eq(licenseAssignments.status, status));
   }
 
   if (search) {
@@ -290,7 +314,13 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
 
   if (!assignment) return { success: false, error: "No Copilot seat assignment found for this user" };
 
-  // Build activity timeline from sync events (copilot sync type)
+  // Build activity timeline from sync events (copilot sync type), scoped by connection
+  const connection = await getActiveConnection();
+  const syncEventConditions = [eq(githubSyncEvents.syncType, "copilot")];
+  if (connection) {
+    syncEventConditions.push(eq(githubSyncEvents.connectionId, connection.id));
+  }
+
   const syncEvents = await db
     .select({
       startedAt: githubSyncEvents.startedAt,
@@ -298,7 +328,7 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
       status: githubSyncEvents.status,
     })
     .from(githubSyncEvents)
-    .where(eq(githubSyncEvents.syncType, "copilot"))
+    .where(and(...syncEventConditions))
     .orderBy(desc(githubSyncEvents.startedAt))
     .limit(30);
 
@@ -337,8 +367,20 @@ export async function getCopilotBilling(
 
   const { since, until } = parsed.data;
 
-  // Build conditions for optional date range
-  const conditions = [];
+  const connection = await getActiveConnection();
+  if (!connection) {
+    return {
+      success: true,
+      data: {
+        currentMonth: { totalCostCents: 0, activeSeats: 0, totalSeats: 0, costPerActiveUserCents: 0, planType: "business" as const },
+        cumulativeCostCents: 0,
+        trends: [],
+      },
+    };
+  }
+
+  // Build conditions scoped by connectionId
+  const conditions = [eq(copilotBillingSnapshots.connectionId, connection.id)];
   if (since) conditions.push(gte(copilotBillingSnapshots.billingMonth, since));
   if (until) conditions.push(lte(copilotBillingSnapshots.billingMonth, until));
 
@@ -346,7 +388,7 @@ export async function getCopilotBilling(
   const snapshots = await db
     .select()
     .from(copilotBillingSnapshots)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(asc(copilotBillingSnapshots.billingMonth));
 
   // Current month = latest snapshot
@@ -402,12 +444,25 @@ export async function getCopilotAnalytics(
   const { since, until } = parsed.data;
   const { sinceDate, untilDate } = getDefaultDateRange(since, until);
 
-  // Query usage metrics for date range
+  const connection = await getActiveConnection();
+  if (!connection) {
+    return {
+      success: true,
+      data: {
+        byLanguage: [], byEditor: [],
+        activityDistribution: { powerUsers: 0, regularUsers: 0, occasionalUsers: 0, inactiveUsers: 0 },
+        utilizationTrend: [],
+      },
+    };
+  }
+
+  // Query usage metrics for date range, scoped by connectionId
   const metrics = await db
     .select()
     .from(copilotUsageMetrics)
     .where(
       and(
+        eq(copilotUsageMetrics.connectionId, connection.id),
         gte(copilotUsageMetrics.date, sinceDate),
         lte(copilotUsageMetrics.date, untilDate)
       )
@@ -489,10 +544,11 @@ export async function getCopilotAnalytics(
     }))
     .sort((a, b) => b.suggestions - a.suggestions);
 
-  // Activity distribution: derive from latest billing + seat counts
+  // Activity distribution: derive from latest billing + seat counts (scoped by connection)
   const [latestBilling] = await db
     .select()
     .from(copilotBillingSnapshots)
+    .where(eq(copilotBillingSnapshots.connectionId, connection.id))
     .orderBy(desc(copilotBillingSnapshots.billingMonth))
     .limit(1);
 
