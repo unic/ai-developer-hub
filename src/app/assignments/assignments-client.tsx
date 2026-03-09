@@ -95,6 +95,7 @@ interface AssignmentRow {
   revokedAt: Date | null;
   workspace: string | null;
   apiKeyEncrypted: string | null;
+  source: string;
   user: { id: number; name: string; email: string };
   tool: { id: number; name: string };
   tier: { id: number; name: string };
@@ -452,7 +453,19 @@ function AssignmentRowActions({
         </TooltipTrigger>
         <TooltipContent>View</TooltipContent>
       </Tooltip>
-      {isAdmin && assignment.status === "active" && (
+      {isAdmin && assignment.status === "active" && assignment.source === "copilot-sync" && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="ml-1 cursor-default text-xs text-muted-foreground">
+              Managed by sync
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            This assignment is managed by Copilot sync and cannot be edited or revoked manually.
+          </TooltipContent>
+        </Tooltip>
+      )}
+      {isAdmin && assignment.status === "active" && assignment.source !== "copilot-sync" && (
         <>
           <EditAssignmentDialog assignment={assignment} onSaved={onSaved} />
           <DropdownMenu>
@@ -549,12 +562,36 @@ function getColumns(
       ),
       filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => (
-        <Badge
-          variant={
-            row.original.status === "active" ? "default" : "secondary"
-          }
-        >
-          {row.original.status}
+        <div className="flex items-center gap-1.5">
+          <Badge
+            variant={
+              row.original.status === "active" ? "default" : "secondary"
+            }
+          >
+            {row.original.status}
+          </Badge>
+          {row.original.source === "copilot-sync" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="text-xs">
+                  Sync
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>Managed by Copilot sync</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "source",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Source" />
+      ),
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => (
+        <Badge variant={row.original.source === "copilot-sync" ? "outline" : "secondary"}>
+          {row.original.source === "copilot-sync" ? "Copilot Sync" : "Manual"}
         </Badge>
       ),
     },
@@ -593,6 +630,14 @@ const ASSIGNMENT_FACETED_FILTERS = [
     options: [
       { label: "Active", value: "active" },
       { label: "Revoked", value: "revoked" },
+    ],
+  },
+  {
+    columnId: "source",
+    title: "Source",
+    options: [
+      { label: "Manual", value: "manual" },
+      { label: "Copilot Sync", value: "copilot-sync" },
     ],
   },
 ];
