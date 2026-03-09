@@ -76,13 +76,18 @@ export async function enableCopilotSync(): Promise<
     })
     .returning({ id: githubSyncEvents.id });
 
-  runCopilotSync(connection.id, syncEvent.id).catch(console.error);
+  try {
+    await runCopilotSync(connection.id, syncEvent.id);
+  } catch (err) {
+    console.error("Initial Copilot sync failed:", err);
+  }
 
   await recordUpdate("github_connection", connection.id, Number(admin.id), {
     copilotSyncEnabled: { old: false, new: true },
   });
 
   revalidatePath("/settings/integrations");
+  revalidatePath("/copilot");
 
   return { success: true, data: { connectionId: connection.id } };
 }
@@ -142,7 +147,21 @@ export async function triggerCopilotSync(): Promise<
   });
 
   if (inProgress) {
-    return { success: false, error: "Sync already in progress" };
+    // If the in_progress event is older than 10 minutes, it was likely
+    // abandoned by a killed serverless function — mark it failed so we can proceed
+    const staleThreshold = new Date(Date.now() - 10 * 60 * 1000);
+    if (inProgress.startedAt < staleThreshold) {
+      await db
+        .update(githubSyncEvents)
+        .set({
+          status: "failed",
+          completedAt: new Date(),
+          errorMessage: "Sync timed out (stale in_progress event cleaned up)",
+        })
+        .where(eq(githubSyncEvents.id, inProgress.id));
+    } else {
+      return { success: false, error: "Sync already in progress" };
+    }
   }
 
   const [syncEvent] = await db
@@ -155,9 +174,14 @@ export async function triggerCopilotSync(): Promise<
     })
     .returning({ id: githubSyncEvents.id });
 
-  runCopilotSync(connection.id, syncEvent.id).catch(console.error);
+  try {
+    await runCopilotSync(connection.id, syncEvent.id);
+  } catch (err) {
+    console.error("Copilot sync failed:", err);
+  }
 
   revalidatePath("/copilot");
+  revalidatePath("/settings/integrations");
 
   return { success: true, data: { syncEventId: syncEvent.id } };
 }

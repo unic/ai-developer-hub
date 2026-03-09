@@ -41,10 +41,23 @@ export async function POST(request: NextRequest) {
   });
 
   if (inProgress) {
-    return NextResponse.json(
-      { success: false, error: "Sync already in progress" },
-      { status: 409 }
-    );
+    // Clean up stale events older than 10 minutes
+    const staleThreshold = new Date(Date.now() - 10 * 60 * 1000);
+    if (inProgress.startedAt < staleThreshold) {
+      await db
+        .update(githubSyncEvents)
+        .set({
+          status: "failed",
+          completedAt: new Date(),
+          errorMessage: "Sync timed out (stale in_progress event cleaned up)",
+        })
+        .where(eq(githubSyncEvents.id, inProgress.id));
+    } else {
+      return NextResponse.json(
+        { success: false, error: "Sync already in progress" },
+        { status: 409 }
+      );
+    }
   }
 
   // Create sync event (use connectedBy as the triggered_by user for cron)
@@ -58,8 +71,12 @@ export async function POST(request: NextRequest) {
     })
     .returning({ id: githubSyncEvents.id });
 
-  // Run sync in background
-  runCopilotSync(connection.id, syncEvent.id).catch(console.error);
+  // Run sync to completion before responding
+  try {
+    await runCopilotSync(connection.id, syncEvent.id);
+  } catch (err) {
+    console.error("Cron Copilot sync failed:", err);
+  }
 
   return NextResponse.json({
     success: true,
