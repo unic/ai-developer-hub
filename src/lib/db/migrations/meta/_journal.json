@@ -50,6 +50,13 @@
       "when": 1772935200001,
       "tag": "0006_shallow_ronan",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773064780340,
+      "tag": "0007_cold_marrow",
+      "breakpoints": true
     }
   ]
 }
