@@ -176,13 +176,9 @@ export async function getCopilotSeats(input?: unknown): Promise<
     );
   }
 
-  // Build sort expression
+  // Build sort expression (lastActivity falls back to assignedAt — no stored activity date yet)
   const sortColumn =
-    sortBy === "name"
-      ? users.name
-      : sortBy === "lastActivity"
-        ? licenseAssignments.assignedAt
-        : licenseAssignments.assignedAt;
+    sortBy === "name" ? users.name : licenseAssignments.assignedAt;
   const orderFn = sortOrder === "asc" ? asc : desc;
 
   // Count total matching rows

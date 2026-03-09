@@ -77,7 +77,7 @@ const columns: ColumnDef<SeatRow>[] = [
         </Badge>
       );
     },
-    filterFn: "arrIncludesSome" as any,
+    filterFn: "arrIncludesSome" as ColumnDef<SeatRow>["filterFn"],
   },
   {
     accessorKey: "assignedAt",
