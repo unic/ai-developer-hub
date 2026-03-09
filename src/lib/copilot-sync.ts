@@ -236,16 +236,17 @@ export async function syncSeatAssignments(
     tierByName.set(tier.name, tier);
   }
 
-  // Batch-fetch all existing copilot-sync assignments for this tool (eliminates N+1)
-  const existingAssignments = await db.query.licenseAssignments.findMany({
-    where: and(
-      eq(licenseAssignments.toolId, tool.id),
-      eq(licenseAssignments.source, "copilot-sync")
-    ),
+  // Batch-fetch ALL assignments for this tool (any source) to avoid duplicates
+  const allToolAssignments = await db.query.licenseAssignments.findMany({
+    where: eq(licenseAssignments.toolId, tool.id),
   });
-  const assignmentByUserId = new Map<number, typeof existingAssignments[number]>();
-  for (const a of existingAssignments) {
-    assignmentByUserId.set(a.userId, a);
+  const assignmentByUserId = new Map<number, typeof allToolAssignments[number]>();
+  for (const a of allToolAssignments) {
+    // Prefer copilot-sync over manual if both somehow exist
+    const existing = assignmentByUserId.get(a.userId);
+    if (!existing || (existing.source === "manual" && a.source === "copilot-sync")) {
+      assignmentByUserId.set(a.userId, a);
+    }
   }
 
   // Track which userIds have active seats
@@ -267,34 +268,29 @@ export async function syncSeatAssignments(
     const existing = assignmentByUserId.get(userId);
 
     if (existing) {
-      if (existing.status === "active" && isActive) {
-        // Update tier if changed
-        if (existing.tierId !== tier.id) {
-          await db
-            .update(licenseAssignments)
-            .set({
-              tierId: tier.id,
-              costAtAssignmentCents: tier.monthlyCostCents,
-              updatedAt: new Date(),
-            })
-            .where(eq(licenseAssignments.id, existing.id));
-        }
-      } else if (existing.status === "inactive" && isActive) {
-        // Reactivate
+      // Take over manual assignments — sync becomes the source of truth
+      const needsSourceUpdate = existing.source !== "copilot-sync";
+      const needsTierUpdate = existing.tierId !== tier.id;
+      const needsReactivate = existing.status === "inactive" && isActive;
+
+      if (needsSourceUpdate || needsTierUpdate || needsReactivate) {
         await db
           .update(licenseAssignments)
           .set({
-            status: "active",
+            source: "copilot-sync",
             tierId: tier.id,
             costAtAssignmentCents: tier.monthlyCostCents,
-            revokedAt: null,
-            assignedAt: new Date(),
+            ...(needsReactivate && {
+              status: "active" as const,
+              revokedAt: null,
+              assignedAt: new Date(),
+            }),
             updatedAt: new Date(),
           })
           .where(eq(licenseAssignments.id, existing.id));
       }
     } else if (isActive) {
-      // Insert new assignment
+      // No existing assignment at all — create new
       await db.insert(licenseAssignments).values({
         userId,
         toolId: tool.id,
@@ -306,9 +302,13 @@ export async function syncSeatAssignments(
     }
   }
 
-  // Revoke removed seats using the pre-fetched assignments
-  for (const assignment of existingAssignments) {
-    if (assignment.status === "active" && !activeUserIds.has(assignment.userId)) {
+  // Revoke removed seats (only copilot-sync managed assignments)
+  for (const assignment of allToolAssignments) {
+    if (
+      assignment.source === "copilot-sync" &&
+      assignment.status === "active" &&
+      !activeUserIds.has(assignment.userId)
+    ) {
       await db
         .update(licenseAssignments)
         .set({
