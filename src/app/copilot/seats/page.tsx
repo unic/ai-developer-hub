@@ -5,7 +5,7 @@ import { Users } from "lucide-react";
 import Link from "next/link";
 
 export default async function CopilotSeatsPage() {
-  const result = await getCopilotSeats();
+  const result = await getCopilotSeats({ pageSize: 100 });
 
   if (!result.success) {
     return (

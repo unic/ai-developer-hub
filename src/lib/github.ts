@@ -7,7 +7,7 @@ import type {
 
 const GITHUB_API_BASE = "https://api.github.com";
 
-interface GitHubApiResponse<T> {
+export interface GitHubApiResponse<T> {
   data: T | null;
   error: string | null;
   scopes: string[];
@@ -31,7 +31,7 @@ function parseHeaders(headers: Headers) {
   return { scopes, rateLimitRemaining, rateLimitReset };
 }
 
-async function githubFetch<T>(
+export async function githubFetch<T>(
   path: string,
   token: string,
   params?: Record<string, string>

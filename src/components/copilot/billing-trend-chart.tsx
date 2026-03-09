@@ -25,7 +25,7 @@ interface BillingTrendChartProps {
 }
 
 const chartConfig = {
-  totalCostCents: {
+  cost: {
     label: "Monthly Cost",
     color: "var(--chart-1)",
   },
@@ -81,7 +81,7 @@ export function BillingTrendChart({ data }: BillingTrendChartProps) {
             />
             <Bar
               dataKey="cost"
-              fill="var(--color-totalCostCents)"
+              fill="var(--color-cost)"
               radius={[4, 4, 0, 0]}
             />
           </BarChart>

@@ -26,8 +26,6 @@ import { eq, and, sql, desc, isNull, between, lte, gte } from "drizzle-orm";
 interface SyncConnection {
   id: number;
   orgLogin: string;
-  tokenEncrypted: string;
-  copilotSyncEnabled: boolean;
 }
 
 interface BillingSyncResult {
@@ -562,8 +560,6 @@ export async function runCopilotSync(
   const syncConnection: SyncConnection = {
     id: connection.id,
     orgLogin: connection.orgLogin,
-    tokenEncrypted: connection.tokenEncrypted,
-    copilotSyncEnabled: connection.copilotSyncEnabled,
   };
 
   const errors: string[] = [];

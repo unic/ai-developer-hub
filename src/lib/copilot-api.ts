@@ -1,15 +1,6 @@
-const GITHUB_API_BASE = "https://api.github.com";
+import { githubFetch, type GitHubApiResponse } from "@/lib/github";
 
-// ---------------------------------------------------------------------------
-// Response wrapper
-// ---------------------------------------------------------------------------
-
-interface CopilotApiResponse<T> {
-  data: T | null;
-  error: string | null;
-  rateLimitRemaining: number;
-  rateLimitReset: number;
-}
+type CopilotApiResponse<T> = Omit<GitHubApiResponse<T>, "scopes">;
 
 // ---------------------------------------------------------------------------
 // Copilot Billing types
@@ -121,66 +112,16 @@ export interface CopilotDailyMetrics {
 }
 
 // ---------------------------------------------------------------------------
-// Internal fetch helper (mirrors githubFetch in github.ts)
+// Helpers
 // ---------------------------------------------------------------------------
 
-function parseHeaders(headers: Headers) {
-  const rateLimitRemaining = parseInt(
-    headers.get("x-ratelimit-remaining") || "0",
-    10
-  );
-  const rateLimitReset = parseInt(
-    headers.get("x-ratelimit-reset") || "0",
-    10
-  );
-  const scopes = (headers.get("x-oauth-scopes") || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return { rateLimitRemaining, rateLimitReset, scopes };
-}
-
-async function copilotFetch<T>(
-  path: string,
-  token: string,
-  params?: Record<string, string>
-): Promise<CopilotApiResponse<T> & { scopes: string[] }> {
-  const url = new URL(`${GITHUB_API_BASE}${path}`);
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
-  }
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    cache: "no-store",
-  });
-
-  const { rateLimitRemaining, rateLimitReset, scopes } = parseHeaders(
-    response.headers
-  );
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const message =
-      (body as { message?: string }).message ||
-      `GitHub API error: ${response.status}`;
-    return {
-      data: null,
-      error: message,
-      scopes,
-      rateLimitRemaining,
-      rateLimitReset,
-    };
-  }
-
-  const data = (await response.json()) as T;
-  return { data, error: null, scopes, rateLimitRemaining, rateLimitReset };
+function stripScopes<T>(result: GitHubApiResponse<T>): CopilotApiResponse<T> {
+  return {
+    data: result.data,
+    error: result.error,
+    rateLimitRemaining: result.rateLimitRemaining,
+    rateLimitReset: result.rateLimitReset,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -195,17 +136,12 @@ export async function fetchCopilotBilling(
   token: string,
   org: string
 ): Promise<CopilotApiResponse<CopilotBillingData>> {
-  const result = await copilotFetch<CopilotBillingData>(
-    `/orgs/${encodeURIComponent(org)}/copilot/billing`,
-    token
+  return stripScopes(
+    await githubFetch<CopilotBillingData>(
+      `/orgs/${encodeURIComponent(org)}/copilot/billing`,
+      token
+    )
   );
-
-  return {
-    data: result.data,
-    error: result.error,
-    rateLimitRemaining: result.rateLimitRemaining,
-    rateLimitReset: result.rateLimitReset,
-  };
 }
 
 /**
@@ -222,7 +158,7 @@ export async function fetchCopilotSeats(
   let rateLimitReset = 0;
 
   while (true) {
-    const result = await copilotFetch<CopilotSeatsPage>(
+    const result = await githubFetch<CopilotSeatsPage>(
       `/orgs/${encodeURIComponent(org)}/copilot/billing/seats`,
       token,
       { per_page: "100", page: String(page) }
@@ -232,12 +168,7 @@ export async function fetchCopilotSeats(
     rateLimitReset = result.rateLimitReset;
 
     if (result.error) {
-      return {
-        data: null,
-        error: result.error,
-        rateLimitRemaining,
-        rateLimitReset,
-      };
+      return { data: null, error: result.error, rateLimitRemaining, rateLimitReset };
     }
 
     const seats = result.data?.seats || [];
@@ -256,19 +187,12 @@ export async function fetchCopilotSeats(
     }
   }
 
-  return {
-    data: allSeats,
-    error: null,
-    rateLimitRemaining,
-    rateLimitReset,
-  };
+  return { data: allSeats, error: null, rateLimitRemaining, rateLimitReset };
 }
 
 /**
  * Fetch Copilot usage metrics for an organization.
  * GET /orgs/{org}/copilot/metrics
- *
- * Optionally filter by date range using `since` and `until` (ISO date strings).
  */
 export async function fetchCopilotMetrics(
   token: string,
@@ -280,18 +204,13 @@ export async function fetchCopilotMetrics(
   if (since) params.since = since;
   if (until) params.until = until;
 
-  const result = await copilotFetch<CopilotDailyMetrics[]>(
-    `/orgs/${encodeURIComponent(org)}/copilot/metrics`,
-    token,
-    Object.keys(params).length > 0 ? params : undefined
+  return stripScopes(
+    await githubFetch<CopilotDailyMetrics[]>(
+      `/orgs/${encodeURIComponent(org)}/copilot/metrics`,
+      token,
+      Object.keys(params).length > 0 ? params : undefined
+    )
   );
-
-  return {
-    data: result.data,
-    error: result.error,
-    rateLimitRemaining: result.rateLimitRemaining,
-    rateLimitReset: result.rateLimitReset,
-  };
 }
 
 /**
@@ -301,23 +220,17 @@ export async function fetchCopilotMetrics(
 export async function validateCopilotScopes(
   token: string
 ): Promise<CopilotApiResponse<{ valid: boolean; scopes: string[] }>> {
-  // Use /user as a lightweight endpoint to inspect scopes
-  const result = await copilotFetch<unknown>("/user", token);
+  const result = await githubFetch<unknown>("/user", token);
 
   const scopes = result.scopes;
   const hasScope = scopes.some(
     (s) =>
       s === "manage_billing:copilot" ||
-      s === "admin:org" // admin:org implies billing access
+      s === "admin:org"
   );
 
   if (result.error) {
-    return {
-      data: null,
-      error: result.error,
-      rateLimitRemaining: result.rateLimitRemaining,
-      rateLimitReset: result.rateLimitReset,
-    };
+    return stripScopes({ ...result, data: null });
   }
 
   if (!hasScope) {
