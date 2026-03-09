@@ -105,6 +105,11 @@ export async function syncBillingData(
         name: tierName,
         monthlyCostCents: costCents,
       });
+    } else if (tier.monthlyCostCents !== costCents) {
+      await db
+        .update(accessTiers)
+        .set({ monthlyCostCents: costCents, updatedAt: new Date() })
+        .where(eq(accessTiers.id, tier.id));
     }
   }
 
@@ -278,6 +283,7 @@ export async function syncSeatAssignments(
           .update(licenseAssignments)
           .set({
             source: "copilot-sync",
+            workspace: connection.orgLogin,
             tierId: tier.id,
             costAtAssignmentCents: tier.monthlyCostCents,
             ...(needsReactivate && {
@@ -298,6 +304,7 @@ export async function syncSeatAssignments(
         costAtAssignmentCents: tier.monthlyCostCents,
         status: "active",
         source: "copilot-sync",
+        workspace: connection.orgLogin,
       });
     }
   }
