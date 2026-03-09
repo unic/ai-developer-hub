@@ -86,6 +86,7 @@ pnpm lighthouse        # Lighthouse CI
 
 ## Recent Changes
 - 012-better-tables: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, TanStack Table 8.21.3, shadcn/ui (new-york style), Lucide React, Sonner (toasts)
+- 012-github-user-enrichment: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Sonner (toasts), Lucide React
 - 011-user-import: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, shadcn/ui (new-york), Sonner (toasts), Lucide React, bcryptjs, Zod 4.3.6
 - 010-pro-dashboard-theme: Added TypeScript 5.9.3 (strict mode), React 19.2.4, Next.js 15.5.12 (App Router) + Tailwind CSS 4.2.1, shadcn/ui (new-york), next-themes 0.4.6, Recharts 2.15.4, class-variance-authority
 
