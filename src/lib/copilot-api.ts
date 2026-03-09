@@ -54,7 +54,14 @@ interface CopilotSeatsPage {
 // Copilot Metrics types
 // ---------------------------------------------------------------------------
 
-export interface CopilotMetricsLanguage {
+// Top-level language summary (no suggestion/acceptance counts)
+export interface CopilotMetricsLanguageSummary {
+  name: string;
+  total_engaged_users: number;
+}
+
+// Detailed language metrics (only at editors[].models[].languages[])
+export interface CopilotMetricsModelLanguage {
   name: string;
   total_engaged_users: number;
   total_code_suggestions: number;
@@ -66,39 +73,74 @@ export interface CopilotMetricsLanguage {
 export interface CopilotMetricsEditorModel {
   name: string;
   is_custom_model: boolean;
+  custom_model_training_date?: string | null;
   total_engaged_users: number;
-  total_code_suggestions: number;
-  total_code_acceptances: number;
-  total_code_lines_suggested: number;
-  total_code_lines_accepted: number;
+  languages?: CopilotMetricsModelLanguage[];
 }
 
 export interface CopilotMetricsEditor {
   name: string;
   total_engaged_users: number;
-  models: CopilotMetricsEditorModel[];
+  models?: CopilotMetricsEditorModel[];
 }
 
 export interface CopilotIdeCodeCompletions {
   total_engaged_users: number;
-  languages: CopilotMetricsLanguage[];
-  editors: CopilotMetricsEditor[];
+  languages?: CopilotMetricsLanguageSummary[];
+  editors?: CopilotMetricsEditor[];
+}
+
+export interface CopilotIdeChatModel {
+  name: string;
+  is_custom_model: boolean;
+  custom_model_training_date?: string | null;
+  total_engaged_users: number;
+  total_chats: number;
+  total_chat_insertion_events: number;
+  total_chat_copy_events: number;
+}
+
+export interface CopilotIdeChatEditor {
+  name: string;
+  total_engaged_users: number;
+  models?: CopilotIdeChatModel[];
 }
 
 export interface CopilotIdeChat {
   total_engaged_users: number;
-  total_turns: number;
-  total_acceptances: number;
+  editors?: CopilotIdeChatEditor[];
+}
+
+export interface CopilotDotcomChatModel {
+  name: string;
+  is_custom_model: boolean;
+  custom_model_training_date?: string | null;
+  total_engaged_users: number;
+  total_chats: number;
 }
 
 export interface CopilotDotcomChat {
   total_engaged_users: number;
-  total_turns: number;
+  models?: CopilotDotcomChatModel[];
+}
+
+export interface CopilotDotcomPrModel {
+  name: string;
+  is_custom_model: boolean;
+  custom_model_training_date?: string | null;
+  total_engaged_users: number;
+  total_pr_summaries_created: number;
+}
+
+export interface CopilotDotcomPrRepository {
+  name: string;
+  total_engaged_users: number;
+  models?: CopilotDotcomPrModel[];
 }
 
 export interface CopilotDotcomPullRequests {
   total_engaged_users: number;
-  total_pr_summaries_created: number;
+  repositories?: CopilotDotcomPrRepository[];
 }
 
 export interface CopilotDailyMetrics {

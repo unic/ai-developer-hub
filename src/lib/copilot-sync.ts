@@ -362,48 +362,99 @@ export async function syncUsageMetrics(
   for (const day of metrics) {
     const completions = day.copilot_ide_code_completions;
 
-    // Sum totals from language arrays
-    const totalSuggestions =
-      completions?.languages?.reduce(
-        (sum, l) => sum + l.total_code_suggestions,
-        0
-      ) ?? 0;
-    const totalAcceptances =
-      completions?.languages?.reduce(
-        (sum, l) => sum + l.total_code_acceptances,
-        0
-      ) ?? 0;
-    const totalLinesSuggested =
-      completions?.languages?.reduce(
-        (sum, l) => sum + l.total_code_lines_suggested,
-        0
-      ) ?? 0;
-    const totalLinesAccepted =
-      completions?.languages?.reduce(
-        (sum, l) => sum + l.total_code_lines_accepted,
-        0
-      ) ?? 0;
+    // Aggregate language metrics from editors[].models[].languages[]
+    // (the top-level languages[] only has name + engaged_users, no counts)
+    const langTotals = new Map<
+      string,
+      { suggestions: number; acceptances: number; linesSuggested: number; linesAccepted: number }
+    >();
 
-    // Build language breakdown array
-    const languageBreakdown =
-      completions?.languages?.map((l) => ({
-        language: l.name,
-        suggestions: l.total_code_suggestions,
-        acceptances: l.total_code_acceptances,
-        linesSuggested: l.total_code_lines_suggested,
-        linesAccepted: l.total_code_lines_accepted,
-      })) ?? [];
+    let totalSuggestions = 0;
+    let totalAcceptances = 0;
+    let totalLinesSuggested = 0;
+    let totalLinesAccepted = 0;
 
-    // Build editor breakdown from editors
+    for (const editor of completions?.editors ?? []) {
+      for (const model of editor.models ?? []) {
+        for (const lang of model.languages ?? []) {
+          totalSuggestions += lang.total_code_suggestions ?? 0;
+          totalAcceptances += lang.total_code_acceptances ?? 0;
+          totalLinesSuggested += lang.total_code_lines_suggested ?? 0;
+          totalLinesAccepted += lang.total_code_lines_accepted ?? 0;
+
+          const existing = langTotals.get(lang.name);
+          if (existing) {
+            existing.suggestions += lang.total_code_suggestions ?? 0;
+            existing.acceptances += lang.total_code_acceptances ?? 0;
+            existing.linesSuggested += lang.total_code_lines_suggested ?? 0;
+            existing.linesAccepted += lang.total_code_lines_accepted ?? 0;
+          } else {
+            langTotals.set(lang.name, {
+              suggestions: lang.total_code_suggestions ?? 0,
+              acceptances: lang.total_code_acceptances ?? 0,
+              linesSuggested: lang.total_code_lines_suggested ?? 0,
+              linesAccepted: lang.total_code_lines_accepted ?? 0,
+            });
+          }
+        }
+      }
+    }
+
+    const languageBreakdown = [...langTotals.entries()].map(
+      ([language, totals]) => ({
+        language,
+        ...totals,
+      })
+    );
+
+    // Build editor breakdown by summing across models[].languages[]
     const editorBreakdown =
-      completions?.editors?.map((e) => ({
-        editor: e.name,
-        engagedUsers: e.total_engaged_users,
-        suggestions:
-          e.models?.reduce((s, m) => s + m.total_code_suggestions, 0) ?? 0,
-        acceptances:
-          e.models?.reduce((s, m) => s + m.total_code_acceptances, 0) ?? 0,
-      })) ?? [];
+      completions?.editors?.map((e) => {
+        let suggestions = 0;
+        let acceptances = 0;
+        for (const m of e.models ?? []) {
+          for (const l of m.languages ?? []) {
+            suggestions += l.total_code_suggestions ?? 0;
+            acceptances += l.total_code_acceptances ?? 0;
+          }
+        }
+        return {
+          editor: e.name,
+          engagedUsers: e.total_engaged_users,
+          suggestions,
+          acceptances,
+        };
+      }) ?? [];
+
+    // Aggregate chat metrics from editors[].models[]
+    let totalChatTurns = 0;
+    let totalChatAcceptances = 0;
+    let hasChatData = false;
+    for (const editor of day.copilot_ide_chat?.editors ?? []) {
+      for (const model of editor.models ?? []) {
+        hasChatData = true;
+        totalChatTurns += model.total_chats ?? 0;
+        totalChatAcceptances += model.total_chat_insertion_events ?? 0;
+      }
+    }
+
+    // Aggregate dotcom chat from models[]
+    let totalDotcomChatTurns = 0;
+    let hasDotcomChat = false;
+    for (const model of day.copilot_dotcom_chat?.models ?? []) {
+      hasDotcomChat = true;
+      totalDotcomChatTurns += model.total_chats ?? 0;
+    }
+
+    // Aggregate PR summaries from repositories[].models[]
+    let totalPrSummaries = 0;
+    let hasPrData = false;
+    for (const repo of day.copilot_dotcom_pull_requests?.repositories ?? []) {
+      for (const model of repo.models ?? []) {
+        hasPrData = true;
+        totalPrSummaries += model.total_pr_summaries_created ?? 0;
+      }
+    }
 
     await db
       .insert(copilotUsageMetrics)
@@ -416,11 +467,10 @@ export async function syncUsageMetrics(
         totalAcceptances,
         totalLinesSuggested,
         totalLinesAccepted,
-        totalChatTurns: day.copilot_ide_chat?.total_turns ?? null,
-        totalChatAcceptances: day.copilot_ide_chat?.total_acceptances ?? null,
-        totalDotcomChatTurns: day.copilot_dotcom_chat?.total_turns ?? null,
-        totalPrSummaries:
-          day.copilot_dotcom_pull_requests?.total_pr_summaries_created ?? null,
+        totalChatTurns: hasChatData ? totalChatTurns : null,
+        totalChatAcceptances: hasChatData ? totalChatAcceptances : null,
+        totalDotcomChatTurns: hasDotcomChat ? totalDotcomChatTurns : null,
+        totalPrSummaries: hasPrData ? totalPrSummaries : null,
         languageBreakdown,
         editorBreakdown,
       })
@@ -436,14 +486,10 @@ export async function syncUsageMetrics(
           totalAcceptances,
           totalLinesSuggested,
           totalLinesAccepted,
-          totalChatTurns: day.copilot_ide_chat?.total_turns ?? null,
-          totalChatAcceptances:
-            day.copilot_ide_chat?.total_acceptances ?? null,
-          totalDotcomChatTurns:
-            day.copilot_dotcom_chat?.total_turns ?? null,
-          totalPrSummaries:
-            day.copilot_dotcom_pull_requests?.total_pr_summaries_created ??
-            null,
+          totalChatTurns: hasChatData ? totalChatTurns : null,
+          totalChatAcceptances: hasChatData ? totalChatAcceptances : null,
+          totalDotcomChatTurns: hasDotcomChat ? totalDotcomChatTurns : null,
+          totalPrSummaries: hasPrData ? totalPrSummaries : null,
           languageBreakdown,
           editorBreakdown,
         },
