@@ -186,42 +186,40 @@ export async function getCopilotSyncStatus(): Promise<
     };
   }
 
-  const lastSync = await db.query.githubSyncEvents.findFirst({
-    where: and(
-      eq(githubSyncEvents.connectionId, connection.id),
-      eq(githubSyncEvents.syncType, "copilot")
-    ),
-    orderBy: [desc(githubSyncEvents.completedAt)],
-  });
-
-  const [earliest] = await db
-    .select({ date: sql<string>`MIN(${copilotUsageMetrics.date})` })
-    .from(copilotUsageMetrics)
-    .where(eq(copilotUsageMetrics.connectionId, connection.id));
-
-  const [latest] = await db
-    .select({ date: sql<string>`MAX(${copilotUsageMetrics.date})` })
-    .from(copilotUsageMetrics)
-    .where(eq(copilotUsageMetrics.connectionId, connection.id));
-
-  const [metricsCount] = await db
-    .select({ value: count() })
-    .from(copilotUsageMetrics)
-    .where(eq(copilotUsageMetrics.connectionId, connection.id));
-
-  const [billingCount] = await db
-    .select({ value: count() })
-    .from(copilotBillingSnapshots)
-    .where(eq(copilotBillingSnapshots.connectionId, connection.id));
-
-  const [seatsCount] = await db
-    .select({ value: count() })
-    .from(licenseAssignments)
-    .where(eq(licenseAssignments.source, "copilot-sync"));
+  // Run all independent queries in parallel
+  const [lastSync, [dateRange], [metricsCount], [billingCount], [seatsCount]] =
+    await Promise.all([
+      db.query.githubSyncEvents.findFirst({
+        where: and(
+          eq(githubSyncEvents.connectionId, connection.id),
+          eq(githubSyncEvents.syncType, "copilot")
+        ),
+        orderBy: [desc(githubSyncEvents.completedAt)],
+      }),
+      db
+        .select({
+          earliest: sql<string>`MIN(${copilotUsageMetrics.date})`,
+          latest: sql<string>`MAX(${copilotUsageMetrics.date})`,
+        })
+        .from(copilotUsageMetrics)
+        .where(eq(copilotUsageMetrics.connectionId, connection.id)),
+      db
+        .select({ value: count() })
+        .from(copilotUsageMetrics)
+        .where(eq(copilotUsageMetrics.connectionId, connection.id)),
+      db
+        .select({ value: count() })
+        .from(copilotBillingSnapshots)
+        .where(eq(copilotBillingSnapshots.connectionId, connection.id)),
+      db
+        .select({ value: count() })
+        .from(licenseAssignments)
+        .where(eq(licenseAssignments.source, "copilot-sync")),
+    ]);
 
   const dataRange =
-    earliest?.date && latest?.date
-      ? { earliest: earliest.date, latest: latest.date }
+    dateRange?.earliest && dateRange?.latest
+      ? { earliest: dateRange.earliest, latest: dateRange.latest }
       : null;
 
   const lastSyncStatus =

@@ -238,6 +238,18 @@ export async function syncSeatAssignments(
     tierByName.set(tier.name, tier);
   }
 
+  // Batch-fetch all existing copilot-sync assignments for this tool (eliminates N+1)
+  const existingAssignments = await db.query.licenseAssignments.findMany({
+    where: and(
+      eq(licenseAssignments.toolId, tool.id),
+      eq(licenseAssignments.source, "copilot-sync")
+    ),
+  });
+  const assignmentByUserId = new Map<number, typeof existingAssignments[number]>();
+  for (const a of existingAssignments) {
+    assignmentByUserId.set(a.userId, a);
+  }
+
   // Track which userIds have active seats
   const activeUserIds = new Set<number>();
 
@@ -254,15 +266,7 @@ export async function syncSeatAssignments(
     if (!tier) continue;
 
     const isActive = !seat.pending_cancellation_date;
-
-    // Find existing assignment by userId + toolId + source="copilot-sync"
-    const existing = await db.query.licenseAssignments.findFirst({
-      where: and(
-        eq(licenseAssignments.userId, userId),
-        eq(licenseAssignments.toolId, tool.id),
-        eq(licenseAssignments.source, "copilot-sync")
-      ),
-    });
+    const existing = assignmentByUserId.get(userId);
 
     if (existing) {
       if (existing.status === "active" && isActive) {
@@ -304,17 +308,9 @@ export async function syncSeatAssignments(
     }
   }
 
-  // Revoke removed seats: find active copilot-sync assignments not in current seat list
-  const activeAssignments = await db.query.licenseAssignments.findMany({
-    where: and(
-      eq(licenseAssignments.toolId, tool.id),
-      eq(licenseAssignments.source, "copilot-sync"),
-      eq(licenseAssignments.status, "active")
-    ),
-  });
-
-  for (const assignment of activeAssignments) {
-    if (!activeUserIds.has(assignment.userId)) {
+  // Revoke removed seats using the pre-fetched assignments
+  for (const assignment of existingAssignments) {
+    if (assignment.status === "active" && !activeUserIds.has(assignment.userId)) {
       await db
         .update(licenseAssignments)
         .set({
