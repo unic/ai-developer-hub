@@ -249,3 +249,26 @@ export const confirmSyncSchema = z.object({
 export type GitHubTokenInput = z.infer<typeof githubTokenSchema>;
 export type ConnectOrgInput = z.infer<typeof connectOrgSchema>;
 export type ConfirmSyncInput = z.infer<typeof confirmSyncSchema>;
+
+// Copilot integration validators
+export const copilotDateRangeSchema = z.object({
+  since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format").optional(),
+  until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format").optional(),
+});
+
+export const copilotSeatFilterSchema = z.object({
+  search: z.string().max(255).optional(),
+  status: z.enum(["active", "inactive", "pending"]).optional(),
+  sortBy: z.enum(["lastActivity", "assignedAt", "name"]).optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
+  page: z.number().int().min(1).optional(),
+  pageSize: z.number().int().min(1).max(100).optional(),
+});
+
+export const copilotSeatDetailSchema = z.object({
+  githubId: z.number().int().positive(),
+});
+
+export type CopilotDateRangeInput = z.infer<typeof copilotDateRangeSchema>;
+export type CopilotSeatFilterInput = z.infer<typeof copilotSeatFilterSchema>;
+export type CopilotSeatDetailInput = z.infer<typeof copilotSeatDetailSchema>;

@@ -49,6 +49,10 @@ export const githubSyncStatusEnum = pgEnum("github_sync_status", [
   "partial",
   "failed",
 ]);
+export const copilotSyncTypeEnum = pgEnum("copilot_sync_type", [
+  "members",
+  "copilot",
+]);
 
 // Users
 export const users = pgTable(
@@ -138,6 +142,7 @@ export const licenseAssignments = pgTable(
     apiKeyEncrypted: varchar("api_key_encrypted", { length: 700 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    source: varchar("source", { length: 50 }).notNull().default("manual"),
   },
   (table) => [
     index("license_assignments_user_id_idx").on(table.userId),
@@ -306,6 +311,10 @@ export const githubConnections = pgTable(
     connectedAt: timestamp("connected_at").notNull().defaultNow(),
     disconnectedAt: timestamp("disconnected_at"),
     lastSyncAt: timestamp("last_sync_at"),
+    copilotSyncEnabled: boolean("copilot_sync_enabled").notNull().default(false),
+    copilotSyncSchedule: varchar("copilot_sync_schedule", { length: 50 })
+      .notNull()
+      .default("daily"),
   },
   (table) => [index("github_connections_status_idx").on(table.status)]
 );
@@ -355,12 +364,80 @@ export const githubSyncEvents = pgTable(
     unmatchedCount: integer("unmatched_count"),
     conflictCount: integer("conflict_count"),
     errorMessage: text("error_message"),
+    syncType: copilotSyncTypeEnum("sync_type").notNull().default("members"),
+    seatsProcessed: integer("seats_processed"),
+    metricsProcessed: integer("metrics_processed"),
+    billingProcessed: integer("billing_processed"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     completedAt: timestamp("completed_at"),
   },
   (table) => [
     index("github_sync_events_connection_id_idx").on(table.connectionId),
     index("github_sync_events_triggered_by_idx").on(table.triggeredBy),
+  ]
+);
+
+// Copilot Usage Metrics
+export const copilotUsageMetrics = pgTable(
+  "copilot_usage_metrics",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id")
+      .notNull()
+      .references(() => githubConnections.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    totalActiveUsers: integer("total_active_users").notNull(),
+    totalEngagedUsers: integer("total_engaged_users").notNull(),
+    totalSuggestions: integer("total_suggestions").notNull(),
+    totalAcceptances: integer("total_acceptances").notNull(),
+    totalLinesSuggested: integer("total_lines_suggested").notNull(),
+    totalLinesAccepted: integer("total_lines_accepted").notNull(),
+    totalChatTurns: integer("total_chat_turns"),
+    totalChatAcceptances: integer("total_chat_acceptances"),
+    totalDotcomChatTurns: integer("total_dotcom_chat_turns"),
+    totalPrSummaries: integer("total_pr_summaries"),
+    languageBreakdown: jsonb("language_breakdown"),
+    editorBreakdown: jsonb("editor_breakdown"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("copilot_usage_metrics_connection_date_idx").on(
+      table.connectionId,
+      table.date
+    ),
+    index("copilot_usage_metrics_date_idx").on(table.date),
+  ]
+);
+
+// Copilot Billing Snapshots
+export const copilotBillingSnapshots = pgTable(
+  "copilot_billing_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id")
+      .notNull()
+      .references(() => githubConnections.id, { onDelete: "cascade" }),
+    billingMonth: date("billing_month").notNull(),
+    planType: varchar("plan_type", { length: 50 }).notNull(),
+    totalSeats: integer("total_seats").notNull(),
+    activeSeats: integer("active_seats").notNull(),
+    seatCostCents: integer("seat_cost_cents").notNull(),
+    totalCostCents: integer("total_cost_cents").notNull(),
+    linkedBilledCostId: integer("linked_billed_cost_id").references(
+      () => billedCosts.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("copilot_billing_snapshots_connection_month_idx").on(
+      table.connectionId,
+      table.billingMonth
+    ),
+    index("copilot_billing_snapshots_linked_cost_idx").on(
+      table.linkedBilledCostId
+    ),
   ]
 );
 
@@ -468,6 +545,8 @@ export const githubConnectionsRelations = relations(
       references: [users.id],
     }),
     syncEvents: many(githubSyncEvents),
+    copilotUsageMetrics: many(copilotUsageMetrics),
+    copilotBillingSnapshots: many(copilotBillingSnapshots),
   })
 );
 
@@ -488,6 +567,30 @@ export const githubSyncEventsRelations = relations(
     triggeredByUser: one(users, {
       fields: [githubSyncEvents.triggeredBy],
       references: [users.id],
+    }),
+  })
+);
+
+export const copilotUsageMetricsRelations = relations(
+  copilotUsageMetrics,
+  ({ one }) => ({
+    connection: one(githubConnections, {
+      fields: [copilotUsageMetrics.connectionId],
+      references: [githubConnections.id],
+    }),
+  })
+);
+
+export const copilotBillingSnapshotsRelations = relations(
+  copilotBillingSnapshots,
+  ({ one }) => ({
+    connection: one(githubConnections, {
+      fields: [copilotBillingSnapshots.connectionId],
+      references: [githubConnections.id],
+    }),
+    linkedBilledCost: one(billedCosts, {
+      fields: [copilotBillingSnapshots.linkedBilledCostId],
+      references: [billedCosts.id],
     }),
   })
 );
