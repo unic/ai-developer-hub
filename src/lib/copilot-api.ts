@@ -230,7 +230,12 @@ export async function validateCopilotScopes(
   );
 
   if (result.error) {
-    return stripScopes({ ...result, data: null });
+    return {
+      data: null,
+      error: result.error,
+      rateLimitRemaining: result.rateLimitRemaining,
+      rateLimitReset: result.rateLimitReset,
+    };
   }
 
   if (!hasScope) {
