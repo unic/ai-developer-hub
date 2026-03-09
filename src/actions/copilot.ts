@@ -8,7 +8,7 @@ import {
   copilotBillingSnapshots,
   licenseAssignments,
 } from "@/lib/db/schema";
-import { eq, and, sql, desc, count } from "drizzle-orm";
+import { eq, and, sql, desc, count, ne } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import { validateCopilotScopes } from "@/lib/copilot-api";
@@ -138,44 +138,46 @@ export async function triggerCopilotSync(): Promise<
     };
   }
 
-  const inProgress = await db.query.githubSyncEvents.findFirst({
-    where: and(
-      eq(githubSyncEvents.connectionId, connection.id),
-      eq(githubSyncEvents.syncType, "copilot"),
-      eq(githubSyncEvents.status, "in_progress")
-    ),
-  });
+  // Clean up stale in_progress events older than 10 minutes (abandoned serverless runs)
+  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000);
+  await db
+    .update(githubSyncEvents)
+    .set({
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage: "Sync timed out (stale in_progress event cleaned up)",
+    })
+    .where(
+      and(
+        eq(githubSyncEvents.connectionId, connection.id),
+        eq(githubSyncEvents.syncType, "copilot"),
+        eq(githubSyncEvents.status, "in_progress"),
+        sql`${githubSyncEvents.startedAt} < ${staleThreshold}`
+      )
+    );
 
-  if (inProgress) {
-    // If the in_progress event is older than 10 minutes, it was likely
-    // abandoned by a killed serverless function — mark it failed so we can proceed
-    const staleThreshold = new Date(Date.now() - 10 * 60 * 1000);
-    if (inProgress.startedAt < staleThreshold) {
-      await db
-        .update(githubSyncEvents)
-        .set({
-          status: "failed",
-          completedAt: new Date(),
-          errorMessage: "Sync timed out (stale in_progress event cleaned up)",
-        })
-        .where(eq(githubSyncEvents.id, inProgress.id));
-    } else {
-      return { success: false, error: "Sync already in progress" };
-    }
+  // Atomic insert: only succeeds if no in_progress event exists for this connection
+  const insertResult = await db.execute<{ id: number }>(sql`
+    INSERT INTO github_sync_events (connection_id, triggered_by, status, sync_type)
+    SELECT ${connection.id}, ${Number(admin.id)}, 'in_progress', 'copilot'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM github_sync_events
+      WHERE connection_id = ${connection.id}
+        AND sync_type = 'copilot'
+        AND status = 'in_progress'
+    )
+    RETURNING id
+  `);
+
+  const rows = insertResult.rows;
+  if (!rows || rows.length === 0) {
+    return { success: false, error: "Sync already in progress" };
   }
 
-  const [syncEvent] = await db
-    .insert(githubSyncEvents)
-    .values({
-      connectionId: connection.id,
-      triggeredBy: Number(admin.id),
-      status: "in_progress",
-      syncType: "copilot",
-    })
-    .returning({ id: githubSyncEvents.id });
+  const syncEventId = rows[0].id;
 
   try {
-    await runCopilotSync(connection.id, syncEvent.id);
+    await runCopilotSync(connection.id, syncEventId);
   } catch (err) {
     console.error("Copilot sync failed:", err);
   }
@@ -183,7 +185,7 @@ export async function triggerCopilotSync(): Promise<
   revalidatePath("/copilot");
   revalidatePath("/settings/integrations");
 
-  return { success: true, data: { syncEventId: syncEvent.id } };
+  return { success: true, data: { syncEventId } };
 }
 
 export async function getCopilotSyncStatus(): Promise<
@@ -216,7 +218,8 @@ export async function getCopilotSyncStatus(): Promise<
       db.query.githubSyncEvents.findFirst({
         where: and(
           eq(githubSyncEvents.connectionId, connection.id),
-          eq(githubSyncEvents.syncType, "copilot")
+          eq(githubSyncEvents.syncType, "copilot"),
+          ne(githubSyncEvents.status, "in_progress")
         ),
         orderBy: [desc(githubSyncEvents.completedAt)],
       }),
