@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { DataTable } from "@/components/data-table";
+import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
+import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,27 +18,126 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowUpDown, Archive, Eye, Pencil } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Archive, Eye, MoreHorizontal, Pencil } from "lucide-react";
 import { archiveTool } from "@/actions/tools";
 import type { AiTool } from "@/types";
 
 type ToolRow = AiTool & { activeLicenses: number };
 
+function ToolRowActions({
+  row,
+  isAdmin,
+  onArchived,
+}: {
+  row: ToolRow;
+  isAdmin: boolean;
+  onArchived: () => void;
+}) {
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button size="sm" variant="ghost" aria-label={`View ${row.name}`} asChild>
+            <Link href={`/tools/${row.id}`}>
+              <Eye className="size-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>View</TooltipContent>
+      </Tooltip>
+      {isAdmin && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
+              <Link href={`/tools/${row.id}`}>
+                <Pencil className="size-4" />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Edit</TooltipContent>
+        </Tooltip>
+      )}
+      {isAdmin && row.status === "active" && (
+        <>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label={`More actions for ${row.name}`}>
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More actions</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setShowArchiveDialog(true)}
+              >
+                <Archive className="size-4" />
+                Archive
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Archive {row.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {row.activeLicenses > 0
+                    ? `This tool has ${row.activeLicenses} active license(s). Revoke them before archiving.`
+                    : "This will archive the tool and make it unavailable for new assignments."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={row.activeLicenses > 0}
+                  onClick={async () => {
+                    try {
+                      const result = await archiveTool({ id: row.id });
+                      if (result.success) {
+                        toast.success("Tool archived");
+                        onArchived();
+                      } else {
+                        toast.error(result.error);
+                      }
+                    } catch {
+                      toast.error("An unexpected error occurred");
+                    }
+                  }}
+                >
+                  Archive
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  );
+}
+
 function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow>[] {
   const columns: ColumnDef<ToolRow>[] = [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown className="ml-2 size-4" />
-        </Button>
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
       cell: ({ row }) => (
         <Link
           href={`/tools/${row.original.id}`}
@@ -49,23 +149,19 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
     },
     {
       accessorKey: "vendor",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Vendor
-          <ArrowUpDown className="ml-2 size-4" />
-        </Button>
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Vendor" />,
+      filterFn: arrayIncludesFilterFn,
     },
     {
       accessorKey: "activeLicenses",
-      header: "Active Licenses",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Active Licenses" />
+      ),
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => (
         <Badge
           variant={
@@ -79,67 +175,11 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" asChild>
-            <Link href={`/tools/${row.original.id}`}>
-              <Eye className="size-4" />
-              <span className="sr-only">View</span>
-            </Link>
-          </Button>
-          {isAdmin && (
-            <Button size="sm" variant="ghost" asChild>
-              <Link href={`/tools/${row.original.id}`}>
-                <Pencil className="size-4" />
-                <span className="sr-only">Edit</span>
-              </Link>
-            </Button>
-          )}
-          {isAdmin && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={row.original.status !== "active"}
-                >
-                  <Archive className="size-4" />
-                  <span className="sr-only">Archive</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archive {row.original.name}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {row.original.activeLicenses > 0
-                      ? `This tool has ${row.original.activeLicenses} active license(s). Revoke them before archiving.`
-                      : "This will archive the tool and make it unavailable for new assignments."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    disabled={row.original.activeLicenses > 0}
-                    onClick={async () => {
-                      try {
-                        const result = await archiveTool({ id: row.original.id });
-                        if (result.success) {
-                          toast.success("Tool archived");
-                          onArchived();
-                        } else {
-                          toast.error(result.error);
-                        }
-                      } catch {
-                        toast.error("An unexpected error occurred");
-                      }
-                    }}
-                  >
-                    Archive
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
+        <ToolRowActions
+          row={row.original}
+          isAdmin={isAdmin}
+          onArchived={onArchived}
+        />
       ),
     },
   ];
@@ -158,11 +198,32 @@ export function ToolsTable({
   const handleRefresh = useCallback(() => router.refresh(), [router]);
   const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
 
+  const facetedFilters = useMemo(() => {
+    const uniqueVendors = [...new Set(data.map((t) => t.vendor).filter(Boolean))]
+      .sort()
+      .map((v) => ({ label: v!, value: v! }));
+
+    return [
+      {
+        columnId: "status",
+        title: "Status",
+        options: [
+          { label: "Active", value: "active" },
+          { label: "Archived", value: "archived" },
+        ],
+      },
+      ...(uniqueVendors.length > 0
+        ? [{ columnId: "vendor", title: "Vendor", options: uniqueVendors }]
+        : []),
+    ];
+  }, [data]);
+
   return (
     <DataTable
       columns={columns}
       data={data}
       searchPlaceholder="Search tools..."
+      facetedFilters={facetedFilters}
     />
   );
 }

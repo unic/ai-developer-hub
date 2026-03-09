@@ -4,14 +4,28 @@ import { useState } from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
+  FilterFn,
   SortingState,
   flexRender,
   getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+
+// Shared filter function for faceted (multi-select) column filters.
+// Use as `filterFn: arrayIncludesFilterFn` in column definitions.
+export function arrayIncludesFilterFn<TData>(
+  row: { getValue: (columnId: string) => unknown },
+  columnId: string,
+  value: string[]
+): boolean {
+  return value.includes(row.getValue(columnId) as string);
+}
+arrayIncludesFilterFn.autoRemove = (val: unknown) => !val || (Array.isArray(val) && val.length === 0);
 import {
   Table,
   TableBody,
@@ -29,12 +43,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { DataTableFacetedFilter } from "@/components/data-table-faceted-filter";
+
+interface FacetedFilterConfig {
+  columnId: string;
+  title: string;
+  options: { label: string; value: string }[];
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchPlaceholder?: string;
   searchKey?: string;
+  facetedFilters?: FacetedFilterConfig[];
 }
 
 export function DataTable<TData, TValue>({
@@ -42,6 +67,7 @@ export function DataTable<TData, TValue>({
   data,
   searchPlaceholder = "Search...",
   searchKey,
+  facetedFilters,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -59,27 +85,45 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    defaultColumn: { sortUndefined: "last" },
     state: { sorting, columnFilters, globalFilter, pagination },
   });
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
-      <Input
-        placeholder={searchPlaceholder}
-        value={
-          searchKey
-            ? (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
-            : globalFilter
-        }
-        onChange={(e) => {
-          if (searchKey) {
-            table.getColumn(searchKey)?.setFilterValue(e.target.value);
-          } else {
-            setGlobalFilter(e.target.value);
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder={searchPlaceholder}
+          value={
+            searchKey
+              ? (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
+              : globalFilter
           }
-        }}
-        className="max-w-sm"
-      />
+          onChange={(e) => {
+            if (searchKey) {
+              table.getColumn(searchKey)?.setFilterValue(e.target.value);
+            } else {
+              setGlobalFilter(e.target.value);
+            }
+          }}
+          className="max-w-sm"
+        />
+        {facetedFilters?.map((filter) => {
+          const column = table.getColumn(filter.columnId);
+          if (!column) return null;
+          return (
+            <DataTableFacetedFilter
+              key={filter.columnId}
+              column={column}
+              title={filter.title}
+              options={filter.options}
+            />
+          );
+        })}
+      </div>
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
@@ -161,5 +205,6 @@ export function DataTable<TData, TValue>({
         </Button>
       </div>
     </div>
+    </TooltipProvider>
   );
 }

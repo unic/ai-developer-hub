@@ -16,7 +16,7 @@ import {
 import { getToolWithTiers } from "@/actions/tools";
 import { updateAssignmentSchema } from "@/lib/validators";
 import type { UpdateAssignmentInput } from "@/lib/validators";
-import { DataTable } from "@/components/data-table";
+import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,7 @@ import {
   CalendarIcon,
   AlertTriangle,
   Ban,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -72,8 +73,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DataTableColumnHeader } from "@/components/data-table-column-header";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface AssignmentRow {
   id: number;
@@ -409,6 +421,182 @@ function EditAssignmentDialog({
   );
 }
 
+// ---- Assignment Row Actions ----
+
+function AssignmentRowActions({
+  assignment,
+  isAdmin,
+  onRevoke,
+  onSaved,
+}: {
+  assignment: AssignmentRow;
+  isAdmin: boolean;
+  onRevoke: (id: number) => void;
+  onSaved: () => void;
+}) {
+  const [showRevokeDialog, setShowRevokeDialog] = useState(false);
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`View ${assignment.user.name}'s assignment`}
+            asChild
+          >
+            <Link href={`/assignments/${assignment.id}`}>
+              <Eye className="size-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>View</TooltipContent>
+      </Tooltip>
+      {isAdmin && assignment.status === "active" && (
+        <>
+          <EditAssignmentDialog assignment={assignment} onSaved={onSaved} />
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`More actions for ${assignment.user.name}'s assignment`}
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More actions</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setShowRevokeDialog(true)}
+              >
+                <Ban className="size-4" />
+                Revoke
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog
+            open={showRevokeDialog}
+            onOpenChange={setShowRevokeDialog}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will revoke {assignment.user.name}&apos;s license for{" "}
+                  {assignment.tool.name}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onRevoke(assignment.id)}>
+                  Revoke
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---- Column Definitions ----
+
+function getColumns(
+  isAdmin: boolean,
+  onRevoke: (id: number) => void,
+  onSaved: () => void
+): ColumnDef<AssignmentRow>[] {
+  return [
+    {
+      accessorFn: (row) => row.user.name,
+      id: "userName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="User" />
+      ),
+    },
+    {
+      accessorFn: (row) => row.tool.name,
+      id: "toolName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tool" />
+      ),
+    },
+    {
+      accessorFn: (row) => row.tier.name,
+      id: "tierName",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Tier" />
+      ),
+    },
+    {
+      accessorKey: "costAtAssignmentCents",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Monthly Cost" />
+      ),
+      cell: ({ row }) => formatCurrency(row.original.costAtAssignmentCents),
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => (
+        <Badge
+          variant={
+            row.original.status === "active" ? "default" : "secondary"
+          }
+        >
+          {row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "workspace",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Workspace" />
+      ),
+      cell: ({ row }) => row.original.workspace || "\u2014",
+    },
+    {
+      accessorKey: "assignedAt",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Assigned" />
+      ),
+      cell: ({ row }) => formatDate(row.original.assignedAt),
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <AssignmentRowActions
+          assignment={row.original}
+          isAdmin={isAdmin}
+          onRevoke={onRevoke}
+          onSaved={onSaved}
+        />
+      ),
+    },
+  ];
+}
+
+const ASSIGNMENT_FACETED_FILTERS = [
+  {
+    columnId: "status",
+    title: "Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Revoked", value: "revoked" },
+    ],
+  },
+];
+
 // ---- Main Component ----
 
 interface Props {
@@ -437,6 +625,21 @@ export function AssignmentsClient({
   const [selectedTierId, setSelectedTierId] = useState<string>("");
   const [availableTiers, setAvailableTiers] = useState<AccessTier[]>([]);
   const [assigning, setAssigning] = useState(false);
+
+  const handleRefresh = useCallback(() => router.refresh(), [router]);
+  const handleRevoke = useCallback(async (id: number) => {
+    const result = await revokeLicense({ id });
+    if (result.success) {
+      toast.success("License revoked");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }, [router]);
+  const columns = useMemo(
+    () => getColumns(isAdmin, handleRevoke, handleRefresh),
+    [isAdmin, handleRevoke, handleRefresh]
+  );
 
   async function handleToolChange(toolId: string) {
     setSelectedToolId(toolId);
@@ -471,102 +674,6 @@ export function AssignmentsClient({
       toast.error(result.error);
     }
   }
-
-  async function handleRevoke(id: number) {
-    const result = await revokeLicense({ id });
-    if (result.success) {
-      toast.success("License revoked");
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  }
-
-  const columns: ColumnDef<AssignmentRow>[] = [
-    {
-      accessorFn: (row) => row.user.name,
-      id: "userName",
-      header: "User",
-    },
-    {
-      accessorFn: (row) => row.tool.name,
-      id: "toolName",
-      header: "Tool",
-    },
-    {
-      accessorFn: (row) => row.tier.name,
-      id: "tierName",
-      header: "Tier",
-    },
-    {
-      accessorKey: "costAtAssignmentCents",
-      header: "Monthly Cost",
-      cell: ({ row }) => formatCurrency(row.original.costAtAssignmentCents),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            row.original.status === "active" ? "default" : "secondary"
-          }
-        >
-          {row.original.status}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "workspace",
-      header: "Workspace",
-      cell: ({ row }) => row.original.workspace || "\u2014",
-    },
-    {
-      accessorKey: "assignedAt",
-      header: "Assigned",
-      cell: ({ row }) => formatDate(row.original.assignedAt),
-    },
-    {
-      id: "actions" as const,
-      cell: ({ row }: { row: { original: AssignmentRow } }) => (
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" asChild>
-            <Link href={`/assignments/${row.original.id}`}>View</Link>
-          </Button>
-          {isAdmin && row.original.status === "active" && (
-            <>
-              <EditAssignmentDialog
-                assignment={row.original}
-                onSaved={() => router.refresh()}
-              />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="ghost">
-                    <Ban className="size-4" />
-                    <span className="sr-only">Revoke</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will revoke {row.original.user.name}&apos;s license for {row.original.tool.name}.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleRevoke(row.original.id)}>
-                      Revoke
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
-        </div>
-      ),
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -680,6 +787,7 @@ export function AssignmentsClient({
         columns={columns}
         data={filteredAssignments}
         searchPlaceholder="Search assignments..."
+        facetedFilters={ASSIGNMENT_FACETED_FILTERS}
       />
     </div>
   );
