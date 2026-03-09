@@ -29,9 +29,9 @@
 
 **⚠️ CRITICAL**: Migration generation (Phase 4) depends on this phase being complete.
 
-- [ ] T001 [P] Remove `linkedBilledCostId` column definition from `copilotBillingSnapshots` table in `src/lib/db/schema.ts` (lines ~426-429). Remove the `integer("linked_billed_cost_id").references(() => billedCosts.id, { onDelete: "set null" })` field.
-- [ ] T002 [P] Remove `copilot_billing_snapshots_linked_cost_idx` index from the table's index array in `src/lib/db/schema.ts` (line ~438). Remove the `index("copilot_billing_snapshots_linked_cost_idx").on(table.linkedBilledCostId)` entry.
-- [ ] T003 Remove `linkedBilledCost` relation from `copilotBillingSnapshotsRelations` in `src/lib/db/schema.ts` (lines ~591-594). Remove the `linkedBilledCost: one(billedCosts, { fields: [copilotBillingSnapshots.linkedBilledCostId], references: [billedCosts.id] })` entry. If `billedCosts` import is no longer used anywhere in the relations block, remove it from imports too.
+- [x] T001 [P] Remove `linkedBilledCostId` column definition from `copilotBillingSnapshots` table in `src/lib/db/schema.ts` (lines ~426-429). Remove the `integer("linked_billed_cost_id").references(() => billedCosts.id, { onDelete: "set null" })` field.
+- [x] T002 [P] Remove `copilot_billing_snapshots_linked_cost_idx` index from the table's index array in `src/lib/db/schema.ts` (line ~438). Remove the `index("copilot_billing_snapshots_linked_cost_idx").on(table.linkedBilledCostId)` entry.
+- [x] T003 Remove `linkedBilledCost` relation from `copilotBillingSnapshotsRelations` in `src/lib/db/schema.ts` (lines ~591-594). Remove the `linkedBilledCost: one(billedCosts, { fields: [copilotBillingSnapshots.linkedBilledCostId], references: [billedCosts.id] })` entry. If `billedCosts` import is no longer used anywhere in the relations block, remove it from imports too.
 
 **Checkpoint**: Schema no longer references `linkedBilledCostId`. TypeScript will report compile errors at all remaining reference sites.
 
@@ -45,10 +45,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 [P] [US1] Remove budget period lookup and `billedCosts` creation logic from `syncBillingData()` in `src/lib/copilot-sync.ts` (lines ~148-191). Delete the entire block that queries `budgetPeriods`, checks for existing `billedCosts`, inserts new `billedCosts` entries, and updates `copilotBillingSnapshots.linkedBilledCostId`. The function should end after upserting the billing snapshot.
-- [ ] T005 [P] [US1] Remove the entire `backfillBilledCosts()` function from `src/lib/copilot-sync.ts` (lines ~513-570). Delete the full exported function and its JSDoc/comments.
-- [ ] T006 [US1] Remove the `backfillBilledCosts()` call from `runCopilotSync()` in `src/lib/copilot-sync.ts` (lines ~650-655). Delete the try/catch block that calls `backfillBilledCosts(connectionId)`.
-- [ ] T007 [US1] Clean up unused imports in `src/lib/copilot-sync.ts`. Remove `billedCosts` and `budgetPeriods` from the schema import. Remove `isNull`, `lte`, `gte` from drizzle-orm imports if they are no longer used elsewhere in the file.
+- [x] T004 [P] [US1] Remove budget period lookup and `billedCosts` creation logic from `syncBillingData()` in `src/lib/copilot-sync.ts` (lines ~148-191). Delete the entire block that queries `budgetPeriods`, checks for existing `billedCosts`, inserts new `billedCosts` entries, and updates `copilotBillingSnapshots.linkedBilledCostId`. The function should end after upserting the billing snapshot.
+- [x] T005 [P] [US1] Remove the entire `backfillBilledCosts()` function from `src/lib/copilot-sync.ts` (lines ~513-570). Delete the full exported function and its JSDoc/comments.
+- [x] T006 [US1] Remove the `backfillBilledCosts()` call from `runCopilotSync()` in `src/lib/copilot-sync.ts` (lines ~650-655). Delete the try/catch block that calls `backfillBilledCosts(connectionId)`.
+- [x] T007 [US1] Clean up unused imports in `src/lib/copilot-sync.ts`. Remove `billedCosts` and `budgetPeriods` from the schema import. Remove `isNull`, `lte`, `gte` from drizzle-orm imports if they are no longer used elsewhere in the file.
 
 **Checkpoint**: Copilot sync pipeline no longer references `billedCosts`, `budgetPeriods`, or `linkedBilledCostId`. Run `pnpm typecheck` to verify zero compile errors.
 
@@ -62,8 +62,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T008 [US2] Verify `getCopilotBilling()` in `src/actions/copilot-data.ts` reads exclusively from `copilotBillingSnapshots` and does not reference `billedCosts` or `budgetPeriods`. No code changes expected — this is a verification task. If any references are found, remove them.
-- [ ] T009 [US2] Verify the Copilot billing page component in `src/app/copilot/billing/page.tsx` does not reference `billedCosts` or `linkedBilledCostId`. No code changes expected — this is a verification task.
+- [x] T008 [US2] Verify `getCopilotBilling()` in `src/actions/copilot-data.ts` reads exclusively from `copilotBillingSnapshots` and does not reference `billedCosts` or `budgetPeriods`. No code changes expected — this is a verification task. If any references are found, remove them.
+- [x] T009 [US2] Verify the Copilot billing page component in `src/app/copilot/billing/page.tsx` does not reference `billedCosts` or `linkedBilledCostId`. No code changes expected — this is a verification task.
 
 **Checkpoint**: Copilot billing page is confirmed independent of shared billing system.
 
@@ -77,8 +77,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T010 [US3] Generate a Drizzle migration by running `pnpm db:generate`. This will produce a new migration file in `src/lib/db/migrations/` that drops the `linked_billed_cost_id` column and its index from `copilot_billing_snapshots`.
-- [ ] T011 [US3] Add a data cleanup SQL statement to the generated migration file in `src/lib/db/migrations/0007_*.sql`. Append `DELETE FROM billed_costs WHERE vendor_reference LIKE 'copilot-billing-%';` to remove Copilot-sourced billing entries. This ensures reports and dashboard KPIs no longer include Copilot cost data.
+- [x] T010 [US3] Generate a Drizzle migration by running `pnpm db:generate`. This will produce a new migration file in `src/lib/db/migrations/` that drops the `linked_billed_cost_id` column and its index from `copilot_billing_snapshots`.
+- [x] T011 [US3] Add a data cleanup SQL statement to the generated migration file in `src/lib/db/migrations/0007_*.sql`. Append `DELETE FROM billed_costs WHERE vendor_reference LIKE 'copilot-billing-%';` to remove Copilot-sourced billing entries. This ensures reports and dashboard KPIs no longer include Copilot cost data.
 
 **Checkpoint**: Migration file handles both schema change and data cleanup. Reports will automatically exclude Copilot data after migration runs.
 
@@ -92,8 +92,8 @@
 
 ### Verification for User Stories 4 & 5
 
-- [ ] T012 [P] [US4] Verify `syncSeatAssignments()` in `src/lib/copilot-sync.ts` is unchanged and continues to create/update `licenseAssignments` with `source = "copilot-sync"`. No code changes expected.
-- [ ] T013 [P] [US5] Verify `syncBillingData()` in `src/lib/copilot-sync.ts` still creates/updates the "GitHub Copilot" `aiTools` record and `accessTiers` entries (Business/Enterprise). These sections should remain untouched after the T004 changes.
+- [x] T012 [P] [US4] Verify `syncSeatAssignments()` in `src/lib/copilot-sync.ts` is unchanged and continues to create/update `licenseAssignments` with `source = "copilot-sync"`. No code changes expected.
+- [x] T013 [P] [US5] Verify `syncBillingData()` in `src/lib/copilot-sync.ts` still creates/updates the "GitHub Copilot" `aiTools` record and `accessTiers` entries (Business/Enterprise). These sections should remain untouched after the T004 changes.
 
 **Checkpoint**: Seat sync and tool/tier management confirmed unaffected.
 
@@ -103,9 +103,9 @@
 
 **Purpose**: Final validation that the entire codebase builds cleanly after all changes.
 
-- [ ] T014 Run `pnpm typecheck` to verify zero TypeScript compilation errors across the entire codebase
-- [ ] T015 Run `pnpm lint` to verify zero ESLint warnings
-- [ ] T016 Run `pnpm build` to verify production build succeeds
+- [x] T014 Run `pnpm typecheck` to verify zero TypeScript compilation errors across the entire codebase
+- [x] T015 Run `pnpm lint` to verify zero ESLint warnings
+- [x] T016 Run `pnpm build` to verify production build succeeds
 
 ---
 
