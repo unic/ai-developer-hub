@@ -8,8 +8,6 @@ import {
   githubSyncEvents,
   copilotUsageMetrics,
   copilotBillingSnapshots,
-  billedCosts,
-  budgetPeriods,
 } from "@/lib/db/schema";
 import {
   fetchCopilotBilling,
@@ -17,7 +15,7 @@ import {
   fetchCopilotMetrics,
 } from "@/lib/copilot-api";
 import { decryptApiKey } from "@/lib/crypto";
-import { eq, and, sql, desc, isNull, between, lte, gte } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,51 +142,6 @@ export async function syncBillingData(
         updatedAt: new Date(),
       },
     });
-
-  // Try to link to billedCosts if a matching budget period exists
-  const matchingPeriod = await db.query.budgetPeriods.findFirst({
-    where: and(
-      sql`${budgetPeriods.startDate} <= ${billingMonth}`,
-      sql`${budgetPeriods.endDate} >= ${billingMonth}`
-    ),
-  });
-
-  if (matchingPeriod) {
-    const vendorReference = `copilot-billing-${billingMonth}`;
-    const existingCost = await db.query.billedCosts.findFirst({
-      where: eq(billedCosts.vendorReference, vendorReference),
-    });
-
-    if (!existingCost) {
-      const monthDate = new Date(billingMonth);
-      const monthName = monthDate.toLocaleString("en-US", {
-        month: "long",
-        year: "numeric",
-        timeZone: "UTC",
-      });
-
-      const [insertedCost] = await db
-        .insert(billedCosts)
-        .values({
-          periodId: matchingPeriod.id,
-          amountCents: totalCostCents,
-          invoiceDate: billingMonth,
-          description: `GitHub Copilot - ${monthName}`,
-          vendorReference,
-        })
-        .returning();
-
-      await db
-        .update(copilotBillingSnapshots)
-        .set({ linkedBilledCostId: insertedCost.id })
-        .where(
-          and(
-            eq(copilotBillingSnapshots.connectionId, connection.id),
-            eq(copilotBillingSnapshots.billingMonth, billingMonth)
-          )
-        );
-    }
-  }
 
   return {
     seatsProcessed: billing.seat_breakdown.total,
@@ -507,69 +460,6 @@ export async function syncUsageMetrics(
 }
 
 // ---------------------------------------------------------------------------
-// Function 4: backfillBilledCosts
-// ---------------------------------------------------------------------------
-
-export async function backfillBilledCosts(
-  connectionId: number
-): Promise<number> {
-  // Find unlinked billing snapshots for this connection
-  const unlinked = await db
-    .select()
-    .from(copilotBillingSnapshots)
-    .where(
-      and(
-        eq(copilotBillingSnapshots.connectionId, connectionId),
-        isNull(copilotBillingSnapshots.linkedBilledCostId)
-      )
-    );
-
-  let backfilledCount = 0;
-
-  for (const snapshot of unlinked) {
-    // Find matching budget period where startDate <= billingMonth <= endDate
-    const period = await db.query.budgetPeriods.findFirst({
-      where: and(
-        lte(budgetPeriods.startDate, snapshot.billingMonth),
-        gte(budgetPeriods.endDate, snapshot.billingMonth)
-      ),
-    });
-
-    if (!period) continue;
-
-    // Check if we already have a billedCost for this vendor reference
-    const vendorRef = `copilot-billing-${snapshot.billingMonth}`;
-    const existing = await db.query.billedCosts.findFirst({
-      where: eq(billedCosts.vendorReference, vendorRef),
-    });
-
-    if (existing) continue;
-
-    // Create billedCost entry
-    const [cost] = await db
-      .insert(billedCosts)
-      .values({
-        periodId: period.id,
-        amountCents: snapshot.totalCostCents,
-        invoiceDate: snapshot.billingMonth,
-        description: `GitHub Copilot - ${snapshot.billingMonth}`,
-        vendorReference: vendorRef,
-      })
-      .returning({ id: billedCosts.id });
-
-    // Update snapshot with link
-    await db
-      .update(copilotBillingSnapshots)
-      .set({ linkedBilledCostId: cost.id, updatedAt: new Date() })
-      .where(eq(copilotBillingSnapshots.id, snapshot.id));
-
-    backfilledCount++;
-  }
-
-  return backfilledCount;
-}
-
-// ---------------------------------------------------------------------------
 // Function 5: runCopilotSync
 // ---------------------------------------------------------------------------
 
@@ -645,13 +535,6 @@ export async function runCopilotSync(
     errors.push(
       `Metrics sync failed: ${err instanceof Error ? err.message : String(err)}`
     );
-  }
-
-  // Backfill any unlinked billing snapshots to budget periods
-  try {
-    await backfillBilledCosts(connectionId);
-  } catch {
-    // Backfill is best-effort; don't fail the sync
   }
 
   // Determine final status
