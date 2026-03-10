@@ -14,7 +14,7 @@ import {
   budgetPeriods,
   annualBudgets,
 } from "@/lib/db/schema";
-import { and, sql, desc, asc, gte, lte, eq, or, ilike, isNull, isNotNull, sum } from "drizzle-orm";
+import { and, sql, desc, asc, gte, lte, eq, or, ilike, isNull, sum, gt, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import {
   copilotDateRangeSchema,
@@ -406,6 +406,48 @@ export async function getCopilotBillingSyncHistory(): Promise<
   };
 }
 
+async function findBillingSyncConflicts(
+  connectionId: number
+): Promise<BillingSyncConflict[]> {
+  // Single query: JOIN unlinked snapshots → budget periods → manual billed costs
+  const rows = await db
+    .select({
+      billingMonth: copilotBillingSnapshots.billingMonth,
+      snapshotAmountCents: copilotBillingSnapshots.totalCostCents,
+      manualEntryAmountCents: billedCosts.amountCents,
+      manualEntryDescription: billedCosts.description,
+      periodLabel: budgetPeriods.periodLabel,
+    })
+    .from(copilotBillingSnapshots)
+    .innerJoin(
+      budgetPeriods,
+      and(
+        lte(budgetPeriods.startDate, copilotBillingSnapshots.billingMonth),
+        gt(budgetPeriods.endDate, copilotBillingSnapshots.billingMonth)
+      )
+    )
+    .innerJoin(annualBudgets, and(
+      eq(budgetPeriods.budgetId, annualBudgets.id),
+      eq(annualBudgets.status, "active")
+    ))
+    .innerJoin(
+      billedCosts,
+      and(
+        eq(billedCosts.periodId, budgetPeriods.id),
+        sql`${billedCosts.invoiceDate}::text LIKE substring(${copilotBillingSnapshots.billingMonth}::text from 1 for 7) || '%'`,
+        sql`(${billedCosts.vendorReference} IS NULL OR ${billedCosts.vendorReference} NOT LIKE 'github-billing-%')`
+      )
+    )
+    .where(
+      and(
+        eq(copilotBillingSnapshots.connectionId, connectionId),
+        isNull(copilotBillingSnapshots.linkedBilledCostId)
+      )
+    );
+
+  return rows;
+}
+
 export async function getBillingSyncConflicts(): Promise<ActionResult<BillingSyncConflict[]>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -415,73 +457,7 @@ export async function getBillingSyncConflicts(): Promise<ActionResult<BillingSyn
     return { success: true, data: [] };
   }
 
-  // Find unlinked snapshots (linkedBilledCostId IS NULL)
-  const unlinkedSnapshots = await db
-    .select({
-      billingMonth: copilotBillingSnapshots.billingMonth,
-      totalCostCents: copilotBillingSnapshots.totalCostCents,
-    })
-    .from(copilotBillingSnapshots)
-    .where(
-      and(
-        eq(copilotBillingSnapshots.connectionId, connection.id),
-        isNull(copilotBillingSnapshots.linkedBilledCostId)
-      )
-    );
-
-  if (unlinkedSnapshots.length === 0) {
-    return { success: true, data: [] };
-  }
-
-  // Find budget periods from active budgets that overlap with unlinked billing months
-  const conflicts: BillingSyncConflict[] = [];
-
-  for (const snapshot of unlinkedSnapshots) {
-    // The billingMonth is a date like "2026-01-01"; find the period that contains this date
-    const matchingPeriods = await db
-      .select({
-        periodId: budgetPeriods.id,
-        periodLabel: budgetPeriods.periodLabel,
-        startDate: budgetPeriods.startDate,
-        endDate: budgetPeriods.endDate,
-      })
-      .from(budgetPeriods)
-      .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
-      .where(
-        and(
-          eq(annualBudgets.status, "active"),
-          lte(budgetPeriods.startDate, snapshot.billingMonth),
-          gte(budgetPeriods.endDate, snapshot.billingMonth)
-        )
-      );
-
-    for (const period of matchingPeriods) {
-      // Check if a manual billedCost exists in this period for the same billing month
-      const manualEntries = await db
-        .select({
-          amountCents: billedCosts.amountCents,
-          description: billedCosts.description,
-        })
-        .from(billedCosts)
-        .where(
-          and(
-            eq(billedCosts.periodId, period.periodId),
-            eq(billedCosts.invoiceDate, snapshot.billingMonth)
-          )
-        );
-
-      for (const entry of manualEntries) {
-        conflicts.push({
-          billingMonth: snapshot.billingMonth,
-          snapshotAmountCents: snapshot.totalCostCents,
-          manualEntryAmountCents: entry.amountCents,
-          manualEntryDescription: entry.description,
-          periodLabel: period.periodLabel,
-        });
-      }
-    }
-  }
-
+  const conflicts = await findBillingSyncConflicts(connection.id);
   return { success: true, data: conflicts };
 }
 
@@ -554,12 +530,7 @@ export async function getCopilotBilling(
         totalBilledCents: sum(billedCosts.amountCents),
       })
       .from(billedCosts)
-      .where(
-        sql`${billedCosts.periodId} IN (${sql.join(
-          periodIdArray.map((id) => sql`${id}`),
-          sql`, `
-        )})`
-      )
+      .where(inArray(billedCosts.periodId, periodIdArray))
       .groupBy(billedCosts.periodId);
 
     for (const ps of periodSums) {
@@ -569,12 +540,10 @@ export async function getCopilotBilling(
   }
 
   // Get conflicts for unlinked snapshots (to determine "conflict" vs "unlinked" status)
-  const conflictsResult = await getBillingSyncConflicts();
+  const conflicts = await findBillingSyncConflicts(connection.id);
   const conflictMonths = new Set<string>();
-  if (conflictsResult.success) {
-    for (const c of conflictsResult.data) {
-      conflictMonths.add(c.billingMonth);
-    }
+  for (const c of conflicts) {
+    conflictMonths.add(c.billingMonth);
   }
 
   // Current month = latest snapshot

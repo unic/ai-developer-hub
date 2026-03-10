@@ -18,7 +18,7 @@ import {
 import { decryptApiKey } from "@/lib/crypto";
 import { findActivePeriodForDate, buildCopilotVendorRef } from "@/lib/budget-utils";
 import { recordCreation, recordUpdate } from "@/actions/history";
-import { eq, and, desc, ne, like, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import type { BillingLinkResult } from "@/types";
 
 // ---------------------------------------------------------------------------

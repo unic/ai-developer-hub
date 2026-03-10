@@ -22,19 +22,6 @@ import { formatCurrency } from "@/lib/utils";
 import { DollarSign } from "lucide-react";
 import Link from "next/link";
 
-function statusBadgeVariant(status: string) {
-  switch (status) {
-    case "completed":
-      return "default" as const;
-    case "partial":
-      return "secondary" as const;
-    case "failed":
-      return "destructive" as const;
-    default:
-      return "outline" as const;
-  }
-}
-
 function statusBadgeClass(status: string) {
   switch (status) {
     case "completed":
@@ -254,7 +241,6 @@ export default async function CopilotBillingPage() {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={statusBadgeVariant(event.status)}
                         className={statusBadgeClass(event.status)}
                       >
                         {event.status}
