@@ -8,6 +8,7 @@ import {
   githubSyncEvents,
   copilotUsageMetrics,
   copilotBillingSnapshots,
+  billedCosts,
 } from "@/lib/db/schema";
 import {
   fetchCopilotBilling,
@@ -15,7 +16,10 @@ import {
   fetchCopilotMetrics,
 } from "@/lib/copilot-api";
 import { decryptApiKey } from "@/lib/crypto";
-import { eq, and, desc } from "drizzle-orm";
+import { findActivePeriodForDate, buildCopilotVendorRef } from "@/lib/budget-utils";
+import { recordCreation, recordUpdate } from "@/actions/history";
+import { eq, and, desc, ne, like, sql } from "drizzle-orm";
+import type { BillingLinkResult } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +33,7 @@ interface SyncConnection {
 interface BillingSyncResult {
   seatsProcessed: number;
   billingProcessed: number;
+  billingLinkResult: BillingLinkResult | null;
 }
 
 interface SeatSyncResult {
@@ -45,7 +50,8 @@ interface MetricsSyncResult {
 
 export async function syncBillingData(
   connection: SyncConnection,
-  token: string
+  token: string,
+  adminUserId: number
 ): Promise<BillingSyncResult> {
   const billingResponse = await fetchCopilotBilling(
     token,
@@ -143,10 +149,142 @@ export async function syncBillingData(
       },
     });
 
+  // Sync billing data to budget periods
+  let billingLinkResult: BillingLinkResult | null = null;
+  try {
+    billingLinkResult = await syncBillingToBudget(connection.id, adminUserId);
+  } catch (err) {
+    console.error("Billing-to-budget linking failed:", err);
+  }
+
   return {
     seatsProcessed: billing.seat_breakdown.total,
     billingProcessed: 1,
+    billingLinkResult,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Function 1b: syncBillingToBudget
+// ---------------------------------------------------------------------------
+
+async function syncBillingToBudget(
+  connectionId: number,
+  adminUserId: number
+): Promise<BillingLinkResult> {
+  const result: BillingLinkResult = { linked: 0, skipped: 0, conflicts: [] };
+
+  // Fetch up to 12 months of billing snapshots for this connection
+  const snapshots = await db
+    .select()
+    .from(copilotBillingSnapshots)
+    .where(eq(copilotBillingSnapshots.connectionId, connectionId))
+    .orderBy(desc(copilotBillingSnapshots.billingMonth))
+    .limit(12);
+
+  for (const snapshot of snapshots) {
+    const vendorRef = buildCopilotVendorRef(snapshot.billingMonth);
+
+    // (a) Find matching budget period
+    const period = await findActivePeriodForDate(snapshot.billingMonth);
+    if (!period) {
+      result.skipped++;
+      result.conflicts.push({
+        billingMonth: snapshot.billingMonth,
+        reason: "no_matching_period",
+      });
+      continue;
+    }
+
+    // (c) Check for existing billed cost with matching vendor reference
+    const existingByRef = await db
+      .select()
+      .from(billedCosts)
+      .where(
+        and(
+          eq(billedCosts.periodId, period.id),
+          eq(billedCosts.vendorReference, vendorRef)
+        )
+      )
+      .limit(1);
+
+    if (existingByRef.length > 0) {
+      // (d) UPDATE existing entry
+      const existing = existingByRef[0];
+      const description = `GitHub Copilot — ${snapshot.billingMonth.substring(0, 7)}`;
+      await db
+        .update(billedCosts)
+        .set({
+          amountCents: snapshot.totalCostCents,
+          description,
+          updatedAt: new Date(),
+        })
+        .where(eq(billedCosts.id, existing.id));
+
+      await recordUpdate("billed_cost", existing.id, adminUserId, {
+        amountCents: { old: existing.amountCents, new: snapshot.totalCostCents },
+      });
+
+      // Update snapshot link
+      await db
+        .update(copilotBillingSnapshots)
+        .set({ linkedBilledCostId: existing.id, updatedAt: new Date() })
+        .where(eq(copilotBillingSnapshots.id, snapshot.id));
+
+      result.linked++;
+      continue;
+    }
+
+    // (e) Check for manual conflict: non-github-billing entries in same period with invoice date in same month
+    const billingMonthPrefix = snapshot.billingMonth.substring(0, 7); // YYYY-MM
+    const manualConflicts = await db
+      .select()
+      .from(billedCosts)
+      .where(
+        and(
+          eq(billedCosts.periodId, period.id),
+          sql`${billedCosts.invoiceDate}::text LIKE ${billingMonthPrefix + "%"}`,
+          sql`(${billedCosts.vendorReference} IS NULL OR ${billedCosts.vendorReference} NOT LIKE 'github-billing-%')`
+        )
+      )
+      .limit(1);
+
+    if (manualConflicts.length > 0) {
+      // (f) Skip — manual entry conflict
+      result.skipped++;
+      result.conflicts.push({
+        billingMonth: snapshot.billingMonth,
+        reason: "manual_entry_exists",
+        existingDescription: manualConflicts[0].description,
+      });
+      continue;
+    }
+
+    // (g) INSERT new billed cost
+    const description = `GitHub Copilot — ${snapshot.billingMonth.substring(0, 7)}`;
+    const [created] = await db
+      .insert(billedCosts)
+      .values({
+        periodId: period.id,
+        amountCents: snapshot.totalCostCents,
+        invoiceDate: snapshot.billingMonth,
+        description,
+        vendorReference: vendorRef,
+      })
+      .returning({ id: billedCosts.id });
+
+    await recordCreation("billed_cost", created.id, adminUserId);
+
+    // Update snapshot link
+    await db
+      .update(copilotBillingSnapshots)
+      .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
+      .where(eq(copilotBillingSnapshots.id, snapshot.id));
+
+    result.linked++;
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -512,7 +650,7 @@ export async function runCopilotSync(
 
   // Sync billing data
   try {
-    billingResult = await syncBillingData(syncConnection, token);
+    billingResult = await syncBillingData(syncConnection, token, connection.connectedBy);
   } catch (err) {
     errors.push(
       `Billing sync failed: ${err instanceof Error ? err.message : String(err)}`
@@ -552,6 +690,7 @@ export async function runCopilotSync(
   }
 
   // Update sync event
+  const linkResult = billingResult?.billingLinkResult;
   await db
     .update(githubSyncEvents)
     .set({
@@ -559,6 +698,8 @@ export async function runCopilotSync(
       seatsProcessed: seatResult?.seatsProcessed ?? null,
       metricsProcessed: metricsResult?.metricsProcessed ?? null,
       billingProcessed: billingResult?.billingProcessed ?? null,
+      billingLinked: linkResult?.linked ?? null,
+      billingSkipped: linkResult?.skipped ?? null,
       completedAt: new Date(),
       errorMessage: errors.length > 0 ? errors.join("; ") : null,
     })
