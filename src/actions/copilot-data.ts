@@ -442,7 +442,8 @@ async function findBillingSyncConflicts(
       and(
         eq(billedCosts.periodId, budgetPeriods.id),
         sql`${billedCosts.invoiceDate}::text LIKE substring(${copilotBillingSnapshots.billingMonth}::text from 1 for 7) || '%'`,
-        sql`(${billedCosts.vendorReference} IS NULL OR ${billedCosts.vendorReference} NOT LIKE 'github-billing-%')`
+        sql`(${billedCosts.vendorReference} IS NULL OR ${billedCosts.vendorReference} NOT LIKE 'github-billing-%')`,
+        sql`${billedCosts.description} ILIKE '%copilot%'`
       )
     )
     .where(

@@ -197,12 +197,17 @@ async function syncBillingToBudget(
     }
   }
 
-  // Batch-prefetch: get all existing billed costs by vendor reference for matched period IDs
+  // Batch-prefetch: get all existing billed costs for matched period IDs
   const periodIds = [...new Set([...periodMap.values()].map((p) => p.id))];
-  const vendorRefs = snapshots.map((s) => buildCopilotVendorRef(s.billingMonth));
+
+  // Also collect already-linked billed cost IDs from snapshots
+  const linkedCostIds = snapshots
+    .map((s) => s.linkedBilledCostId)
+    .filter((id): id is number => id !== null);
 
   const existingCostsByRef = new Map<string, typeof billedCostsRows[number]>();
-  const manualCostsByPeriodMonth = new Map<string, typeof billedCostsRows[number]>();
+  const existingCostsById = new Map<number, typeof billedCostsRows[number]>();
+  const manualCopilotCostsByPeriodMonth = new Map<string, typeof billedCostsRows[number]>();
 
   const billedCostsRows = periodIds.length > 0
     ? await db
@@ -211,18 +216,36 @@ async function syncBillingToBudget(
         .where(inArray(billedCosts.periodId, periodIds))
     : [];
 
+  // If there are linked cost IDs not covered by periodIds, fetch those too
+  const fetchedCostIds = new Set(billedCostsRows.map((c) => c.id));
+  const missingLinkedIds = linkedCostIds.filter((id) => !fetchedCostIds.has(id));
+  if (missingLinkedIds.length > 0) {
+    const extraCosts = await db
+      .select()
+      .from(billedCosts)
+      .where(inArray(billedCosts.id, missingLinkedIds));
+    billedCostsRows.push(...extraCosts);
+  }
+
   for (const cost of billedCostsRows) {
-    // Index by "periodId:vendorRef" for quick vendor-ref lookups
+    // Index by ID for linked-snapshot lookups
+    existingCostsById.set(cost.id, cost);
+    // Index by "periodId:vendorRef" for vendor-ref lookups
     if (cost.vendorReference) {
       existingCostsByRef.set(`${cost.periodId}:${cost.vendorReference}`, cost);
     }
-    // Index manual entries by "periodId:YYYY-MM" for conflict detection
-    if (!cost.vendorReference || !cost.vendorReference.startsWith("github-billing-")) {
-      const invoiceMonth = cost.invoiceDate?.substring(0, 7);
+    // Index potential manual Copilot entries for conflict detection:
+    // only entries without a github-billing vendor ref AND with a Copilot-related description
+    if (
+      (!cost.vendorReference || !cost.vendorReference.startsWith("github-billing-")) &&
+      cost.description &&
+      /copilot/i.test(cost.description)
+    ) {
+      const invoiceMonth = String(cost.invoiceDate ?? "").substring(0, 7);
       if (invoiceMonth) {
         const key = `${cost.periodId}:${invoiceMonth}`;
-        if (!manualCostsByPeriodMonth.has(key)) {
-          manualCostsByPeriodMonth.set(key, cost);
+        if (!manualCopilotCostsByPeriodMonth.has(key)) {
+          manualCopilotCostsByPeriodMonth.set(key, cost);
         }
       }
     }
@@ -240,6 +263,35 @@ async function syncBillingToBudget(
         reason: "no_matching_period",
       });
       continue;
+    }
+
+    // (b) If snapshot is already linked to a billed cost, update it directly
+    if (snapshot.linkedBilledCostId !== null) {
+      const linked = existingCostsById.get(snapshot.linkedBilledCostId);
+      if (linked) {
+        const description = `GitHub Copilot — ${snapshot.billingMonth.substring(0, 7)}`;
+        await db
+          .update(billedCosts)
+          .set({
+            amountCents: snapshot.totalCostCents,
+            description,
+            vendorReference: vendorRef,
+            updatedAt: new Date(),
+          })
+          .where(eq(billedCosts.id, linked.id));
+
+        await recordUpdate("billed_cost", linked.id, adminUserId, {
+          amountCents: { old: linked.amountCents, new: snapshot.totalCostCents },
+        });
+
+        result.linked++;
+        continue;
+      }
+      // Linked cost was deleted — clear stale link and fall through to create/match
+      await db
+        .update(copilotBillingSnapshots)
+        .set({ linkedBilledCostId: null, updatedAt: new Date() })
+        .where(eq(copilotBillingSnapshots.id, snapshot.id));
     }
 
     // (c) Check for existing billed cost with matching vendor reference
@@ -271,12 +323,12 @@ async function syncBillingToBudget(
       continue;
     }
 
-    // (e) Check for manual conflict from prefetched map
+    // (e) Check for manual Copilot conflict (only entries with Copilot-related description)
     const billingMonthPrefix = snapshot.billingMonth.substring(0, 7); // YYYY-MM
-    const manualConflict = manualCostsByPeriodMonth.get(`${period.id}:${billingMonthPrefix}`);
+    const manualConflict = manualCopilotCostsByPeriodMonth.get(`${period.id}:${billingMonthPrefix}`);
 
     if (manualConflict) {
-      // (f) Skip — manual entry conflict
+      // (f) Skip — manual Copilot entry conflict
       result.skipped++;
       result.conflicts.push({
         billingMonth: snapshot.billingMonth,
