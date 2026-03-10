@@ -84,6 +84,8 @@ interface SyncHistoryEvent {
   matchedCount: number | null;
   importedCount: number | null;
   unmatchedCount: number | null;
+  manuallyMatchedCount: number | null;
+  createdCount: number | null;
   startedAt: Date;
   completedAt: Date | null;
   triggeredByName: string;
@@ -653,9 +655,11 @@ export function GitHubIntegrationClient({
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Members</TableHead>
-                  <TableHead>Matched</TableHead>
-                  <TableHead>Imported</TableHead>
-                  <TableHead>Triggered By</TableHead>
+                  <TableHead>Auto</TableHead>
+                  <TableHead>Manual</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Unmatched</TableHead>
+                  <TableHead>By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -669,7 +673,9 @@ export function GitHubIntegrationClient({
                     </TableCell>
                     <TableCell>{event.totalMembers ?? "—"}</TableCell>
                     <TableCell>{event.matchedCount ?? "—"}</TableCell>
-                    <TableCell>{event.importedCount ?? "—"}</TableCell>
+                    <TableCell>{event.manuallyMatchedCount ?? "—"}</TableCell>
+                    <TableCell>{event.createdCount ?? "—"}</TableCell>
+                    <TableCell>{event.unmatchedCount ?? "—"}</TableCell>
                     <TableCell className="text-sm">
                       {event.triggeredByName}
                     </TableCell>

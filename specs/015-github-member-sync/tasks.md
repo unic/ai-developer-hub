@@ -112,8 +112,8 @@
 
 ### Implementation for User Story 5
 
-- [ ] T022 [US5] Update sync event metrics recording in `confirmGitHubSync` in src/actions/github-sync.ts: set `manuallyMatchedCount` and `createdCount` on the `githubSyncEvents` insert/update; ensure `unmatchedCount` correctly reflects only truly unresolved members (total - auto-matched - manually matched - created - imported)
-- [ ] T023 [US5] Update `getSyncHistory` in src/actions/github-sync.ts to include `manuallyMatchedCount` and `createdCount` in the returned sync event data; update the sync history display in src/app/settings/integrations/github-integration-client.tsx to show these new metrics alongside existing matched/imported/unmatched counts
+- [x] T022 [US5] Update sync event metrics recording in `confirmGitHubSync` in src/actions/github-sync.ts: set `manuallyMatchedCount` and `createdCount` on the `githubSyncEvents` insert/update; ensure `unmatchedCount` correctly reflects only truly unresolved members (total - auto-matched - manually matched - created - imported)
+- [x] T023 [US5] Update `getSyncHistory` in src/actions/github-sync.ts to include `manuallyMatchedCount` and `createdCount` in the returned sync event data; update the sync history display in src/app/settings/integrations/github-integration-client.tsx to show these new metrics alongside existing matched/imported/unmatched counts
 
 **Checkpoint**: US5 complete — persistence verified across syncs, history shows full metrics. Commit after this phase.
 

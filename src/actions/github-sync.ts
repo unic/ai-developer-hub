@@ -458,6 +458,8 @@ export async function getSyncHistory(
       matchedCount: number | null;
       importedCount: number | null;
       unmatchedCount: number | null;
+      manuallyMatchedCount: number | null;
+      createdCount: number | null;
       startedAt: Date;
       completedAt: Date | null;
       triggeredByName: string;
@@ -475,6 +477,8 @@ export async function getSyncHistory(
       matchedCount: githubSyncEvents.matchedCount,
       importedCount: githubSyncEvents.importedCount,
       unmatchedCount: githubSyncEvents.unmatchedCount,
+      manuallyMatchedCount: githubSyncEvents.manuallyMatchedCount,
+      createdCount: githubSyncEvents.createdCount,
       startedAt: githubSyncEvents.startedAt,
       completedAt: githubSyncEvents.completedAt,
       triggeredByName: users.name,
