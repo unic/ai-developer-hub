@@ -1,4 +1,4 @@
-﻿# AI Developer Hub Development Guidelines
+# AI Developer Hub Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-03-02
 
@@ -26,6 +26,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Zod 4.3.6, Sonner (toasts), Lucide React (013-github-copilot-integration)
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 2 new tables, 3 table modifications, 1 new enum (013-github-copilot-integration)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30 (014-decouple-copilot-billing)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, Sonner (toasts), Lucide React (015-github-billing)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -88,9 +89,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 015-github-billing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, Sonner (toasts), Lucide React
 - 014-decouple-copilot-billing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30
 - 013-github-copilot-integration: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Zod 4.3.6, Sonner (toasts), Lucide React
-- 012-better-tables: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, TanStack Table 8.21.3, shadcn/ui (new-york style), Lucide React, Sonner (toasts)
 
 
 <!-- MANUAL ADDITIONS START -->
