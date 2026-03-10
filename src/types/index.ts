@@ -277,6 +277,25 @@ export interface SyncPreview {
   rateLimitRemaining: number;
 }
 
+// Billing sync types
+export interface BillingLinkResult {
+  linked: number;
+  skipped: number;
+  conflicts: Array<{
+    billingMonth: string;
+    reason: "manual_entry_exists" | "no_matching_period";
+    existingDescription?: string;
+  }>;
+}
+
+export interface BillingSyncConflict {
+  billingMonth: string;
+  snapshotAmountCents: number;
+  manualEntryAmountCents: number;
+  manualEntryDescription: string;
+  periodLabel: string;
+}
+
 // Copilot integration types
 export type CopilotSyncType = "members" | "copilot";
 

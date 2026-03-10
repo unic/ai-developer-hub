@@ -4,10 +4,8 @@ import { db } from "@/lib/db";
 import {
   invoices,
   billedCosts,
-  budgetPeriods,
-  annualBudgets,
 } from "@/lib/db/schema";
-import { eq, and, lte, gt, desc, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getR2Client, getR2Bucket } from "@/lib/r2-client";
@@ -17,6 +15,7 @@ import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
 import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction";
 import { recordCreation } from "@/actions/history";
+import { findActivePeriodForDate } from "@/lib/budget-utils";
 import type { ActionResult } from "@/types";
 
 export async function extractInvoiceFieldsAction(
@@ -131,29 +130,6 @@ export async function cleanupBlob(blobPathname: string): Promise<void> {
   const admin = await requireAdmin();
   if (!admin) return;
   await cleanupBlobInternal(blobPathname);
-}
-
-async function findActivePeriodForDate(
-  invoiceDate: string
-): Promise<{ id: number; periodLabel: string } | null> {
-  const rows = await db
-    .select({
-      id: budgetPeriods.id,
-      periodLabel: budgetPeriods.periodLabel,
-    })
-    .from(budgetPeriods)
-    .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
-    .where(
-      and(
-        eq(annualBudgets.status, "active"),
-        lte(budgetPeriods.startDate, invoiceDate),
-        gt(budgetPeriods.endDate, invoiceDate)
-      )
-    )
-    .orderBy(desc(annualBudgets.createdAt))
-    .limit(1);
-
-  return rows[0] ?? null;
 }
 
 async function insertBilledCostDirect(params: {
