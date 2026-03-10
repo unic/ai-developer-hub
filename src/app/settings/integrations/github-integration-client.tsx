@@ -264,17 +264,33 @@ export function GitHubIntegrationClient({
   function handleConfirmSync() {
     if (!syncPreview) return;
 
+    // Extract manual matches and new users from pending resolutions
+    const manualMatches: Array<{ githubLogin: string; userId: number }> = [];
+    const newUsers: Array<{ githubLogin: string; name: string; email: string }> = [];
+
+    for (const r of pendingResolutions.values()) {
+      if (r.type === "match") {
+        manualMatches.push({ githubLogin: r.githubLogin, userId: r.userId });
+      } else if (r.type === "create") {
+        newUsers.push({ githubLogin: r.githubLogin, name: r.name, email: r.email });
+      }
+    }
+
     startTransition(async () => {
       const result = await confirmGitHubSync({
         importGitHubLogins: Array.from(selectedImports),
+        manualMatches,
+        newUsers,
       });
       if (result.success) {
         const d = result.data;
-        toast.success(
-          `Sync complete: ${d.enrichedCount} enriched, ${d.importedCount} imported, ${d.skippedCount} skipped`
-        );
+        const parts = [`${d.enrichedCount} enriched`];
+        if (d.manuallyMatchedCount > 0) parts.push(`${d.manuallyMatchedCount} manually matched`);
+        if (d.createdCount > 0) parts.push(`${d.createdCount} created`);
+        if (d.importedCount > 0) parts.push(`${d.importedCount} imported`);
+        toast.success(`Sync complete: ${parts.join(", ")}`);
         setSyncPreview(null);
-        // Refresh connection to get updated lastSyncAt
+        setPendingResolutions(new Map());
         setConnection((prev) =>
           prev ? { ...prev, lastSyncAt: new Date() } : prev
         );
@@ -493,6 +509,32 @@ export function GitHubIntegrationClient({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Resolution Progress (T017) */}
+            {resolutionSummary && resolutionSummary.total > 0 && (
+              <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg text-sm">
+                <span className="font-medium">
+                  {resolutionSummary.total - resolutionSummary.unresolved} of{" "}
+                  {resolutionSummary.total} resolved
+                </span>
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  {resolutionSummary.matched > 0 && (
+                    <span>Matched: {resolutionSummary.matched}</span>
+                  )}
+                  {resolutionSummary.created > 0 && (
+                    <span>Created: {resolutionSummary.created}</span>
+                  )}
+                  {resolutionSummary.skipped > 0 && (
+                    <span>Skipped: {resolutionSummary.skipped}</span>
+                  )}
+                  {resolutionSummary.unresolved > 0 && (
+                    <span className="text-amber-600">
+                      Unresolved: {resolutionSummary.unresolved}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Tabs */}
             <div className="flex gap-1 border-b" role="tablist" aria-label="Sync preview tabs">
               {[
@@ -556,14 +598,40 @@ export function GitHubIntegrationClient({
 
             {/* Actions */}
             <div className="flex gap-2 pt-2 border-t">
-              <Button onClick={handleConfirmSync} disabled={isPending}>
-                {isPending
-                  ? "Syncing..."
-                  : `Confirm Sync (${syncPreview.matched.length} enriched${selectedImports.size > 0 ? `, ${selectedImports.size} imported` : ""})`}
-              </Button>
+              {resolutionSummary && resolutionSummary.unresolved > 0 ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button disabled={isPending}>
+                      {isPending ? "Syncing..." : "Confirm Sync"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Unresolved Members</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {resolutionSummary.unresolved} member(s) remain unresolved. They will stay
+                        unmatched. Continue?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleConfirmSync}>
+                        Continue
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <Button onClick={handleConfirmSync} disabled={isPending}>
+                  {isPending ? "Syncing..." : "Confirm Sync"}
+                </Button>
+              )}
               <Button
                 variant="ghost"
-                onClick={() => setSyncPreview(null)}
+                onClick={() => {
+                  setSyncPreview(null);
+                  setPendingResolutions(new Map());
+                }}
               >
                 Cancel
               </Button>
