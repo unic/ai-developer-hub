@@ -251,9 +251,19 @@ export type ConnectOrgInput = z.infer<typeof connectOrgSchema>;
 export type ConfirmSyncInput = z.infer<typeof confirmSyncSchema>;
 
 // Copilot integration validators
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format")
+  .refine((value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const [y, m, d] = value.split("-").map(Number);
+    return date.getUTCFullYear() === y && date.getUTCMonth() + 1 === m && date.getUTCDate() === d;
+  }, "Invalid calendar date");
+
 export const copilotDateRangeSchema = z.object({
-  since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format").optional(),
-  until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format").optional(),
+  since: calendarDateSchema.optional(),
+  until: calendarDateSchema.optional(),
 });
 
 export const copilotSeatFilterSchema = z.object({
