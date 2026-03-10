@@ -15,9 +15,9 @@
 
 **Purpose**: Install new dependency and apply schema migration
 
-- [ ] T001 Install `string-similarity` and `@types/string-similarity` via pnpm in package.json
-- [ ] T002 Add `manuallyMatchedCount` (integer, nullable) and `createdCount` (integer, nullable) columns to `githubSyncEvents` table in src/lib/db/schema.ts
-- [ ] T003 Generate Drizzle migration for the new columns via `pnpm db:generate` and verify the migration SQL
+- [x] T001 Install `string-similarity` and `@types/string-similarity` via pnpm in package.json
+- [x] T002 Add `manuallyMatchedCount` (integer, nullable) and `createdCount` (integer, nullable) columns to `githubSyncEvents` table in src/lib/db/schema.ts
+- [x] T003 Generate Drizzle migration for the new columns via `pnpm db:generate` and verify the migration SQL
 
 **Checkpoint**: Schema updated, new dependency available. Commit after this phase.
 
