@@ -33,6 +33,18 @@ Re-establish the link between GitHub Copilot billing data and the shared budget 
 
 All gates pass. No violations to justify.
 
+### Post-Phase 1 Re-check
+
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| I. Type-Safe Code Quality | PASS | `BillingLinkResult`, `BillingSyncConflict` types defined in contracts. Shared utility has exported type. |
+| II. UX Consistency | PASS | Reuses existing Badge, Tooltip, Table components. Link status uses consistent color coding (green=linked, yellow=unlinked, red=conflict). |
+| III. Performance Budgets | PASS | No new routes. Billing queries add one LEFT JOIN to existing dashboard queries — negligible impact. |
+| IV. Accessibility-First | PASS | Conflict/unlinked badges include tooltip text for screen readers. Status column uses `aria-label`. |
+| V. Simplicity & Maintainability | PASS | One extracted utility (`findActivePeriodForDate`), one new internal function (`syncBillingToBudget`), two new DB columns. Minimal surface area. |
+
+No new violations introduced by design decisions.
+
 ## Project Structure
 
 ### Documentation (this feature)
