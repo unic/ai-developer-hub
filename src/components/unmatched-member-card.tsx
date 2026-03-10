@@ -126,6 +126,7 @@ export function UnmatchedMemberCard({
                 key={s.userId}
                 type="button"
                 className="flex items-center justify-between w-full rounded-md border px-3 py-1.5 text-left text-xs hover:bg-accent transition-colors"
+                aria-label={`Match ${member.githubLogin} to ${s.userName} (${Math.round(s.score * 100)}% ${s.reason})`}
                 onClick={() =>
                   onResolve({
                     type: "match",

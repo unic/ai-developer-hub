@@ -513,7 +513,7 @@ export function GitHubIntegrationClient({
           <CardContent className="space-y-4">
             {/* Resolution Progress (T017) */}
             {resolutionSummary && resolutionSummary.total > 0 && (
-              <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg text-sm">
+              <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg text-sm" role="status" aria-live="polite">
                 <span className="font-medium">
                   {resolutionSummary.total - resolutionSummary.unresolved} of{" "}
                   {resolutionSummary.total} resolved

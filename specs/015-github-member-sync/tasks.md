@@ -123,9 +123,9 @@
 
 **Purpose**: Testing, accessibility, and final validation
 
-- [ ] T024 [P] Create unit tests for match suggestion scoring in tests/unit/match-suggestions.test.ts: test exact name match scores highest, partial name match scored by Dice coefficient, email domain match scoring, inactive users sorted lower at equal scores, empty/null fields handled gracefully, top 3 limit enforced
-- [ ] T025 [P] Accessibility review of all new components: verify keyboard navigation through unmatched member cards and action buttons, focus management when expanding/collapsing inline forms and combobox, ARIA labels on resolution status badges, screen reader announcements for progress summary updates, color-independent status indicators for inactive users and resolution states
-- [ ] T026 Run quickstart.md validation flow end-to-end: verify pnpm typecheck passes, pnpm lint passes, dev server starts without errors, manual testing of the full sync → resolve → confirm → re-sync flow per quickstart.md verification steps
+- [x] T024 [P] Create unit tests for match suggestion scoring in tests/unit/match-suggestions.test.ts: test exact name match scores highest, partial name match scored by Dice coefficient, email domain match scoring, inactive users sorted lower at equal scores, empty/null fields handled gracefully, top 3 limit enforced
+- [x] T025 [P] Accessibility review of all new components: verify keyboard navigation through unmatched member cards and action buttons, focus management when expanding/collapsing inline forms and combobox, ARIA labels on resolution status badges, screen reader announcements for progress summary updates, color-independent status indicators for inactive users and resolution states
+- [x] T026 Run quickstart.md validation flow end-to-end: verify pnpm typecheck passes, pnpm lint passes, dev server starts without errors, manual testing of the full sync → resolve → confirm → re-sync flow per quickstart.md verification steps
 
 **Checkpoint**: All stories validated, tests passing, accessible. Final commit.
 
