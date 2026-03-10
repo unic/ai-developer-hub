@@ -368,6 +368,8 @@ export const githubSyncEvents = pgTable(
     seatsProcessed: integer("seats_processed"),
     metricsProcessed: integer("metrics_processed"),
     billingProcessed: integer("billing_processed"),
+    billingLinked: integer("billing_linked"),
+    billingSkipped: integer("billing_skipped"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     completedAt: timestamp("completed_at"),
   },
@@ -423,6 +425,10 @@ export const copilotBillingSnapshots = pgTable(
     activeSeats: integer("active_seats").notNull(),
     seatCostCents: integer("seat_cost_cents").notNull(),
     totalCostCents: integer("total_cost_cents").notNull(),
+    linkedBilledCostId: integer("linked_billed_cost_id").references(
+      () => billedCosts.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -430,6 +436,9 @@ export const copilotBillingSnapshots = pgTable(
     uniqueIndex("copilot_billing_snapshots_connection_month_idx").on(
       table.connectionId,
       table.billingMonth
+    ),
+    index("copilot_billing_snapshots_linked_cost_idx").on(
+      table.linkedBilledCostId
     ),
   ]
 );
@@ -580,6 +589,10 @@ export const copilotBillingSnapshotsRelations = relations(
     connection: one(githubConnections, {
       fields: [copilotBillingSnapshots.connectionId],
       references: [githubConnections.id],
+    }),
+    linkedBilledCost: one(billedCosts, {
+      fields: [copilotBillingSnapshots.linkedBilledCostId],
+      references: [billedCosts.id],
     }),
   })
 );
