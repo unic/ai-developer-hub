@@ -53,6 +53,7 @@ import {
   fetchGitHubSyncPreview,
   confirmGitHubSync,
 } from "@/actions/github-sync";
+import { CopilotSyncSection } from "@/components/copilot/copilot-sync-section";
 import type {
   SyncPreview,
   SyncMatchedMember,
@@ -83,9 +84,19 @@ interface SyncHistoryEvent {
   triggeredByName: string;
 }
 
+interface CopilotStatus {
+  enabled: boolean;
+  lastSyncAt: string | null;
+  lastSyncStatus: "completed" | "partial" | "failed" | null;
+  nextScheduledSync: string | null;
+  dataRange: { earliest: string; latest: string } | null;
+  recordCounts: { metrics: number; billing: number; seats: number };
+}
+
 interface Props {
   initialConnection: ConnectionData | null;
   initialSyncHistory: SyncHistoryEvent[];
+  copilotStatus: CopilotStatus;
 }
 
 type ActiveTab = "matched" | "unmatched" | "system";
@@ -93,6 +104,7 @@ type ActiveTab = "matched" | "unmatched" | "system";
 export function GitHubIntegrationClient({
   initialConnection,
   initialSyncHistory,
+  copilotStatus,
 }: Props) {
   const [connection, setConnection] = useState(initialConnection);
   const [isPending, startTransition] = useTransition();
@@ -564,6 +576,11 @@ export function GitHubIntegrationClient({
           </CardContent>
         </Card>
       )}
+
+      {/* Copilot Sync Section */}
+      <CopilotSyncSection
+        initialStatus={copilotStatus}
+      />
     </div>
   );
 }

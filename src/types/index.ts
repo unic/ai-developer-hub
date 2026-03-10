@@ -13,6 +13,8 @@ import type {
   githubConnections,
   githubProfiles,
   githubSyncEvents,
+  copilotUsageMetrics,
+  copilotBillingSnapshots,
 } from "@/lib/db/schema";
 
 // Action result type
@@ -273,4 +275,108 @@ export interface SyncPreview {
   unmatchedSystemUsers: SyncUnmatchedSystemUser[];
   conflicts: SyncConflict[];
   rateLimitRemaining: number;
+}
+
+// Copilot integration types
+export type CopilotSyncType = "members" | "copilot";
+
+export type CopilotUsageMetric = InferSelectModel<typeof copilotUsageMetrics>;
+export type NewCopilotUsageMetric = InferInsertModel<typeof copilotUsageMetrics>;
+export type CopilotBillingSnapshot = InferSelectModel<typeof copilotBillingSnapshots>;
+export type NewCopilotBillingSnapshot = InferInsertModel<typeof copilotBillingSnapshots>;
+
+export type CopilotSyncStatus = {
+  enabled: boolean;
+  lastSyncAt: string | null;
+  lastSyncStatus: "completed" | "partial" | "failed" | null;
+  nextScheduledSync: string | null;
+  dataRange: { earliest: string; latest: string } | null;
+  recordCounts: { metrics: number; billing: number; seats: number };
+};
+
+export interface CopilotOverviewData {
+  totalSeats: number;
+  activeSeats: number;
+  pendingSeats: number;
+  acceptanceRate: number;
+  totalSuggestions: number;
+  totalAcceptances: number;
+  totalLinesSuggested: number;
+  totalLinesAccepted: number;
+  totalActiveUsers: number;
+  trends: Array<{
+    date: string;
+    suggestions: number;
+    acceptances: number;
+    activeUsers: number;
+    acceptanceRate: number;
+  }>;
+}
+
+export interface CopilotSeatData {
+  githubLogin: string;
+  githubId: number;
+  avatarUrl: string | null;
+  assignedAt: string;
+  lastActivityAt: string | null;
+  lastActivityEditor: string | null;
+  planType: "business" | "enterprise";
+  status: "active" | "inactive" | "pending";
+  matchedUserId: number | null;
+  matchedUserName: string | null;
+}
+
+export interface CopilotSeatDetailData extends CopilotSeatData {
+  activityTimeline: Array<{
+    date: string;
+    lastActivityAt: string | null;
+    status: string;
+  }>;
+}
+
+export interface CopilotBillingData {
+  currentMonth: {
+    totalCostCents: number;
+    activeSeats: number;
+    totalSeats: number;
+    costPerActiveUserCents: number;
+    planType: string;
+  };
+  cumulativeCostCents: number;
+  trends: Array<{
+    month: string;
+    totalCostCents: number;
+    totalSeats: number;
+    activeSeats: number;
+    costPerActiveUserCents: number;
+  }>;
+}
+
+export interface CopilotAnalyticsData {
+  byLanguage: Array<{
+    language: string;
+    suggestions: number;
+    acceptances: number;
+    acceptanceRate: number;
+    linesSuggested: number;
+    linesAccepted: number;
+  }>;
+  byEditor: Array<{
+    editor: string;
+    engagedUsers: number;
+    suggestions: number;
+    acceptances: number;
+  }>;
+  activityDistribution: {
+    powerUsers: number;
+    regularUsers: number;
+    occasionalUsers: number;
+    inactiveUsers: number;
+  };
+  utilizationTrend: Array<{
+    date: string;
+    activeUsers: number;
+    totalSeats: number;
+    utilizationRate: number;
+  }>;
 }
