@@ -375,6 +375,13 @@ export async function getCopilotBillingSyncHistory(): Promise<
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
+  const connection = await getActiveConnection();
+
+  const conditions = [eq(githubSyncEvents.syncType, "copilot")];
+  if (connection) {
+    conditions.push(eq(githubSyncEvents.connectionId, connection.id));
+  }
+
   const rows = await db
     .select({
       id: githubSyncEvents.id,
@@ -387,7 +394,7 @@ export async function getCopilotBillingSyncHistory(): Promise<
       errorMessage: githubSyncEvents.errorMessage,
     })
     .from(githubSyncEvents)
-    .where(eq(githubSyncEvents.syncType, "copilot"))
+    .where(and(...conditions))
     .orderBy(desc(githubSyncEvents.startedAt))
     .limit(10);
 

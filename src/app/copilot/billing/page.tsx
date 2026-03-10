@@ -139,6 +139,7 @@ export default async function CopilotBillingPage() {
                         {new Date(trend.month).toLocaleDateString("en-US", {
                           month: "short",
                           year: "numeric",
+                          timeZone: "UTC",
                         })}
                       </TableCell>
                       <TableCell className="text-right text-sm">
