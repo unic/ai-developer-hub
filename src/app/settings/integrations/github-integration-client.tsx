@@ -54,6 +54,8 @@ import {
 } from "@/actions/github-sync";
 import { CopilotSyncSection } from "@/components/copilot/copilot-sync-section";
 import { UnmatchedMemberCard } from "@/components/unmatched-member-card";
+import { UserSearchCombobox } from "@/components/user-search-combobox";
+import { InlineUserForm } from "@/components/inline-user-form";
 import { computeMatchSuggestions } from "@/lib/match-suggestions";
 import type {
   SyncPreview,
@@ -703,6 +705,11 @@ function UnmatchedMembersList({
   onExpandCard: (card: { login: string; action: "match" | "create" }) => void;
   onCollapseCard: () => void;
 }) {
+  const [overwriteConfirm, setOverwriteConfirm] = useState<{
+    githubLogin: string;
+    user: { id: number; name: string; githubUsername: string };
+  } | null>(null);
+
   if (members.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
@@ -711,31 +718,120 @@ function UnmatchedMembersList({
     );
   }
 
-  return (
-    <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
-      {members.map((member) => {
-        const suggestions = computeMatchSuggestions(member, unmatchedSystemUsers);
-        const resolution = pendingResolutions.get(member.githubLogin);
-        const isMatchExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "match";
-        const isCreateExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "create";
+  // Collect already-matched user IDs to exclude from search
+  const excludeUserIds = Array.from(pendingResolutions.values())
+    .filter((r): r is PendingResolution & { type: "match" } => r.type === "match")
+    .map((r) => r.userId);
 
-        return (
-          <UnmatchedMemberCard
-            key={member.githubLogin}
-            member={member}
-            suggestions={suggestions}
-            resolution={resolution}
-            onResolve={onResolve}
-            onUndo={onUndo}
-            isMatchExpanded={isMatchExpanded}
-            isCreateExpanded={isCreateExpanded}
-            onExpandMatch={() => onExpandCard({ login: member.githubLogin, action: "match" })}
-            onExpandCreate={() => onExpandCard({ login: member.githubLogin, action: "create" })}
-            onCollapse={onCollapseCard}
-          />
-        );
-      })}
-    </div>
+  function handleMatchSelect(
+    githubLogin: string,
+    user: { id: number; name: string; email: string; status: "active" | "inactive"; githubUsername: string | null }
+  ) {
+    // FR-009: Warn if user already has a different GitHub username
+    if (user.githubUsername && user.githubUsername.toLowerCase() !== githubLogin.toLowerCase()) {
+      setOverwriteConfirm({
+        githubLogin,
+        user: { id: user.id, name: user.name, githubUsername: user.githubUsername },
+      });
+      return;
+    }
+    onResolve({
+      type: "match",
+      githubLogin,
+      userId: user.id,
+      userName: user.name,
+    });
+  }
+
+  return (
+    <>
+      <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
+        {members.map((member) => {
+          const suggestions = computeMatchSuggestions(member, unmatchedSystemUsers);
+          const resolution = pendingResolutions.get(member.githubLogin);
+          const isMatchExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "match";
+          const isCreateExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "create";
+
+          return (
+            <UnmatchedMemberCard
+              key={member.githubLogin}
+              member={member}
+              suggestions={suggestions}
+              resolution={resolution}
+              onResolve={onResolve}
+              onUndo={onUndo}
+              isMatchExpanded={isMatchExpanded}
+              isCreateExpanded={isCreateExpanded}
+              onExpandMatch={() => onExpandCard({ login: member.githubLogin, action: "match" })}
+              onExpandCreate={() => onExpandCard({ login: member.githubLogin, action: "create" })}
+              onCollapse={onCollapseCard}
+              matchActionSlot={
+                <UserSearchCombobox
+                  onSelect={(user) => handleMatchSelect(member.githubLogin, user)}
+                  excludeUserIds={excludeUserIds}
+                  onCancel={onCollapseCard}
+                />
+              }
+              createActionSlot={
+                <InlineUserForm
+                  defaultName={member.githubName || member.githubLogin}
+                  defaultEmail={member.githubEmail || ""}
+                  githubLogin={member.githubLogin}
+                  onSubmit={(data) =>
+                    onResolve({
+                      type: "create",
+                      githubLogin: data.githubLogin,
+                      name: data.name,
+                      email: data.email,
+                    })
+                  }
+                  onCancel={onCollapseCard}
+                />
+              }
+            />
+          );
+        })}
+      </div>
+
+      {/* FR-009: Overwrite confirmation dialog */}
+      <AlertDialog
+        open={!!overwriteConfirm}
+        onOpenChange={(open) => !open && setOverwriteConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace GitHub Link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {overwriteConfirm && (
+                <>
+                  {overwriteConfirm.user.name} is already linked to GitHub user{" "}
+                  <strong>{overwriteConfirm.user.githubUsername}</strong>. Replace with{" "}
+                  <strong>{overwriteConfirm.githubLogin}</strong>?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (overwriteConfirm) {
+                  onResolve({
+                    type: "match",
+                    githubLogin: overwriteConfirm.githubLogin,
+                    userId: overwriteConfirm.user.id,
+                    userName: overwriteConfirm.user.name,
+                  });
+                  setOverwriteConfirm(null);
+                }
+              }}
+            >
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

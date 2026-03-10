@@ -137,6 +137,8 @@ export async function confirmGitHubSync(
   ActionResult<{
     enrichedCount: number;
     importedCount: number;
+    manuallyMatchedCount: number;
+    createdCount: number;
     skippedCount: number;
     conflictCount: number;
   }>
@@ -153,7 +155,7 @@ export async function confirmGitHubSync(
     };
   }
 
-  const { importGitHubLogins } = parsed.data;
+  const { importGitHubLogins, manualMatches, newUsers } = parsed.data;
 
   const fetchResult = await fetchAndMatchMembers();
   if (!fetchResult.success) {
@@ -291,6 +293,123 @@ export async function confirmGitHubSync(
     importedCount++;
   }
 
+  // Process manual matches (T013)
+  let manuallyMatchedCount = 0;
+  const memberLookup = new Map(memberProfiles.map((m) => [m.login.toLowerCase(), m]));
+
+  for (const mm of manualMatches) {
+    // Validate user exists
+    const [targetUser] = await db
+      .select({ id: users.id, githubUsername: users.githubUsername })
+      .from(users)
+      .where(eq(users.id, mm.userId))
+      .limit(1);
+
+    if (!targetUser) continue;
+
+    const previousGithubUsername = targetUser.githubUsername;
+
+    // Update users.githubUsername
+    await db
+      .update(users)
+      .set({ githubUsername: mm.githubLogin, updatedAt: new Date() })
+      .where(eq(users.id, mm.userId));
+
+    await recordUpdate("user", mm.userId, adminId, {
+      githubUsername: { old: previousGithubUsername ?? null, new: mm.githubLogin },
+    });
+
+    // Upsert githubProfiles with enriched data
+    const memberData = memberLookup.get(mm.githubLogin.toLowerCase());
+    if (memberData) {
+      const existingProfile = await db
+        .select({ id: githubProfiles.id })
+        .from(githubProfiles)
+        .where(eq(githubProfiles.userId, mm.userId))
+        .limit(1);
+
+      const profileData = {
+        githubId: memberData.id,
+        githubLogin: memberData.login,
+        avatarUrl: memberData.avatarUrl,
+        bio: memberData.bio,
+        publicRepos: memberData.publicRepos,
+        profileUrl: memberData.profileUrl,
+        name: memberData.name,
+        email: memberData.email,
+        lastSyncedAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      if (existingProfile.length > 0) {
+        await db
+          .update(githubProfiles)
+          .set(profileData)
+          .where(eq(githubProfiles.id, existingProfile[0].id));
+      } else {
+        await db
+          .insert(githubProfiles)
+          .values({ userId: mm.userId, ...profileData });
+      }
+    }
+
+    manuallyMatchedCount++;
+  }
+
+  // Process new users (T016)
+  let createdCount = 0;
+
+  for (const nu of newUsers) {
+    // Validate email uniqueness
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, nu.email))
+      .limit(1);
+
+    if (existingUser) continue; // Skip if email already taken
+
+    const [newInlineUser] = await db
+      .insert(users)
+      .values({
+        name: nu.name,
+        email: nu.email,
+        passwordHash: tempPasswordHash,
+        githubUsername: nu.githubLogin,
+        role: "viewer",
+        status: "active",
+      })
+      .returning({ id: users.id });
+
+    await recordCreation("user", newInlineUser.id, adminId);
+
+    // Upsert githubProfiles
+    const memberData = memberLookup.get(nu.githubLogin.toLowerCase());
+    if (memberData) {
+      const [newProfile] = await db
+        .insert(githubProfiles)
+        .values({
+          userId: newInlineUser.id,
+          githubId: memberData.id,
+          githubLogin: memberData.login,
+          avatarUrl: memberData.avatarUrl,
+          bio: memberData.bio,
+          publicRepos: memberData.publicRepos,
+          profileUrl: memberData.profileUrl,
+          name: memberData.name,
+          email: memberData.email,
+          lastSyncedAt: new Date(),
+        })
+        .returning({ id: githubProfiles.id });
+
+      await recordCreation("github_profile", newProfile.id, adminId);
+    }
+
+    createdCount++;
+  }
+
+  const totalResolved = importedCount + manuallyMatchedCount + createdCount;
+
   // Update sync event
   await db
     .update(githubSyncEvents)
@@ -298,7 +417,9 @@ export async function confirmGitHubSync(
       status: "completed",
       matchedCount: enrichedCount,
       importedCount,
-      unmatchedCount: matchResult.unmatched.length - importedCount,
+      manuallyMatchedCount,
+      createdCount,
+      unmatchedCount: matchResult.unmatched.length - totalResolved,
       conflictCount: matchResult.conflicts.length,
       completedAt: new Date(),
     })
@@ -318,7 +439,9 @@ export async function confirmGitHubSync(
     data: {
       enrichedCount,
       importedCount,
-      skippedCount: matchResult.unmatched.length - importedCount,
+      manuallyMatchedCount,
+      createdCount,
+      skippedCount: matchResult.unmatched.length - totalResolved,
       conflictCount: matchResult.conflicts.length,
     },
   };
