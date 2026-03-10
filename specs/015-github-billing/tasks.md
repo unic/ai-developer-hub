@@ -19,10 +19,10 @@
 
 **Purpose**: Database schema changes and migration generation
 
-- [ ] T001 Add `linkedBilledCostId` column to `copilotBillingSnapshots` in `src/lib/db/schema.ts` — nullable integer FK to `billed_costs.id` with `onDelete: "set null"`, plus index `copilot_billing_snapshots_linked_cost_idx`
-- [ ] T002 Add `billingLinked` and `billingSkipped` nullable integer columns to `githubSyncEvents` in `src/lib/db/schema.ts`
-- [ ] T003 Add `linkedBilledCost` relation to `copilotBillingSnapshotsRelations` in `src/lib/db/schema.ts` — `one(billedCosts, { fields: [linkedBilledCostId], references: [id] })`
-- [ ] T004 Generate and apply Drizzle migration via `pnpm db:generate && pnpm db:migrate`
+- [x] T001 Add `linkedBilledCostId` column to `copilotBillingSnapshots` in `src/lib/db/schema.ts` — nullable integer FK to `billed_costs.id` with `onDelete: "set null"`, plus index `copilot_billing_snapshots_linked_cost_idx`
+- [x] T002 Add `billingLinked` and `billingSkipped` nullable integer columns to `githubSyncEvents` in `src/lib/db/schema.ts`
+- [x] T003 Add `linkedBilledCost` relation to `copilotBillingSnapshotsRelations` in `src/lib/db/schema.ts` — `one(billedCosts, { fields: [linkedBilledCostId], references: [id] })`
+- [x] T004 Generate and apply Drizzle migration via `pnpm db:generate && pnpm db:migrate`
 
 ---
 
@@ -32,9 +32,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Extract `findActivePeriodForDate()` from `src/actions/invoices.ts` into new `src/lib/budget-utils.ts` — export the function, update `invoices.ts` to import from new location
-- [ ] T006 [P] Add `BillingLinkResult` and `BillingSyncConflict` types to `src/types/index.ts` per contracts/server-actions.md — `BillingLinkResult { linked, skipped, conflicts[] }` and `BillingSyncConflict { billingMonth, snapshotAmountCents, manualEntryAmountCents, manualEntryDescription, periodLabel }`
-- [ ] T007 [P] Add vendor reference helper function `buildCopilotVendorRef(billingMonth: string): string` to `src/lib/budget-utils.ts` — returns `github-billing-copilot-YYYY-MM` format from a billing month date string
+- [x] T005 Extract `findActivePeriodForDate()` from `src/actions/invoices.ts` into new `src/lib/budget-utils.ts` — export the function, update `invoices.ts` to import from new location
+- [x] T006 [P] Add `BillingLinkResult` and `BillingSyncConflict` types to `src/types/index.ts` per contracts/server-actions.md — `BillingLinkResult { linked, skipped, conflicts[] }` and `BillingSyncConflict { billingMonth, snapshotAmountCents, manualEntryAmountCents, manualEntryDescription, periodLabel }`
+- [x] T007 [P] Add vendor reference helper function `buildCopilotVendorRef(billingMonth: string): string` to `src/lib/budget-utils.ts` — returns `github-billing-copilot-YYYY-MM` format from a billing month date string
 
 **Checkpoint**: Foundation ready — schema migrated, shared utilities available, types defined
 
@@ -48,10 +48,10 @@
 
 ### Implementation
 
-- [ ] T008 [US1] Implement `syncBillingToBudget()` in `src/lib/copilot-sync.ts` — new async function that takes `connectionId` and `adminUserId`, fetches up to 12 months of `copilotBillingSnapshots` for the connection, and for each snapshot: (a) calls `findActivePeriodForDate(billingMonth)`, (b) if no period → skip with reason `no_matching_period`, (c) queries `billedCosts` for existing entry with matching `vendorReference`, (d) if found → UPDATE amount/description/updatedAt and call `recordUpdate()`, (e) if not found → check for manual conflict (non-github-billing-* vendorReference in same period with invoiceDate in same month), (f) if conflict → skip with reason `manual_entry_exists`, (g) if clean → INSERT new billedCost and call `recordCreation()`, update snapshot's `linkedBilledCostId`. Return `BillingLinkResult` with counts and conflict details.
-- [ ] T009 [US1] Integrate `syncBillingToBudget()` into `syncBillingData()` in `src/lib/copilot-sync.ts` — call it after the existing snapshot upsert, passing `connection.id` and `connection.connectedBy`. Store the `BillingLinkResult` to return alongside existing `BillingSyncResult`.
-- [ ] T010 [US2] Update `runCopilotSync()` in `src/lib/copilot-sync.ts` — after `syncBillingData()` completes, write `billingLinked` and `billingSkipped` counts from `BillingLinkResult` to the `githubSyncEvents` row alongside existing `billingProcessed`, `seatsProcessed`, `metricsProcessed`.
-- [ ] T011 [US1] Verify `pnpm typecheck` passes with zero errors after all sync changes
+- [x] T008 [US1] Implement `syncBillingToBudget()` in `src/lib/copilot-sync.ts` — new async function that takes `connectionId` and `adminUserId`, fetches up to 12 months of `copilotBillingSnapshots` for the connection, and for each snapshot: (a) calls `findActivePeriodForDate(billingMonth)`, (b) if no period → skip with reason `no_matching_period`, (c) queries `billedCosts` for existing entry with matching `vendorReference`, (d) if found → UPDATE amount/description/updatedAt and call `recordUpdate()`, (e) if not found → check for manual conflict (non-github-billing-* vendorReference in same period with invoiceDate in same month), (f) if conflict → skip with reason `manual_entry_exists`, (g) if clean → INSERT new billedCost and call `recordCreation()`, update snapshot's `linkedBilledCostId`. Return `BillingLinkResult` with counts and conflict details.
+- [x] T009 [US1] Integrate `syncBillingToBudget()` into `syncBillingData()` in `src/lib/copilot-sync.ts` — call it after the existing snapshot upsert, passing `connection.id` and `connection.connectedBy`. Store the `BillingLinkResult` to return alongside existing `BillingSyncResult`.
+- [x] T010 [US2] Update `runCopilotSync()` in `src/lib/copilot-sync.ts` — after `syncBillingData()` completes, write `billingLinked` and `billingSkipped` counts from `BillingLinkResult` to the `githubSyncEvents` row alongside existing `billingProcessed`, `seatsProcessed`, `metricsProcessed`.
+- [x] T011 [US1] Verify `pnpm typecheck` passes with zero errors after all sync changes
 
 **Checkpoint**: Core billing sync works — billed costs created in budget periods, idempotent upserts, conflict detection, backfill. This is the MVP.
 
@@ -65,10 +65,10 @@
 
 ### Implementation
 
-- [ ] T012 [US3] Implement `getBillingSyncConflicts()` server action in `src/actions/copilot-data.ts` — query copilotBillingSnapshots LEFT JOIN billedCosts (via linkedBilledCostId) to find snapshots where linkedBilledCostId IS NULL but a manual billedCost exists in the matching period. Return `BillingSyncConflict[]` per contract.
-- [ ] T013 [US3] Extend `getCopilotBilling()` in `src/actions/copilot-data.ts` — LEFT JOIN copilotBillingSnapshots to billedCosts (via linkedBilledCostId), then LEFT JOIN to budgetPeriods (via billedCosts.periodId). Add `linkedBilledCostId`, `linkedPeriodLabel`, `linkedPeriodUtilization` (calculated: sum of period's billedCosts / plannedAmountCents * 100), and `linkStatus` ("linked" | "unlinked" | "conflict") to each billing row.
-- [ ] T014 [US3] Update `getCopilotSyncStatus()` in `src/actions/copilot.ts` — add `linkedBillingMonths` count to `recordCounts` by querying copilotBillingSnapshots WHERE linkedBilledCostId IS NOT NULL.
-- [ ] T015 [US3] Update Copilot billing page `src/app/copilot/billing/page.tsx` — add "Budget Period" column to billing table showing linked period label. Add link status badge using shadcn Badge component: green "Linked" with period name, yellow "Unlinked" with tooltip "No matching budget period", red "Conflict" with tooltip showing manual entry description. Add utilization percentage next to linked period name.
+- [x] T012 [US3] Implement `getBillingSyncConflicts()` server action in `src/actions/copilot-data.ts` — query copilotBillingSnapshots LEFT JOIN billedCosts (via linkedBilledCostId) to find snapshots where linkedBilledCostId IS NULL but a manual billedCost exists in the matching period. Return `BillingSyncConflict[]` per contract.
+- [x] T013 [US3] Extend `getCopilotBilling()` in `src/actions/copilot-data.ts` — LEFT JOIN copilotBillingSnapshots to billedCosts (via linkedBilledCostId), then LEFT JOIN to budgetPeriods (via billedCosts.periodId). Add `linkedBilledCostId`, `linkedPeriodLabel`, `linkedPeriodUtilization` (calculated: sum of period's billedCosts / plannedAmountCents * 100), and `linkStatus` ("linked" | "unlinked" | "conflict") to each billing row.
+- [x] T014 [US3] Update `getCopilotSyncStatus()` in `src/actions/copilot.ts` — add `linkedBillingMonths` count to `recordCounts` by querying copilotBillingSnapshots WHERE linkedBilledCostId IS NOT NULL.
+- [x] T015 [US3] Update Copilot billing page `src/app/copilot/billing/page.tsx` — add "Budget Period" column to billing table showing linked period label. Add link status badge using shadcn Badge component: green "Linked" with period name, yellow "Unlinked" with tooltip "No matching budget period", red "Conflict" with tooltip showing manual entry description. Add utilization percentage next to linked period name.
 
 **Checkpoint**: Copilot billing dashboard shows full budget context for every billing month
 
@@ -82,9 +82,9 @@
 
 ### Implementation
 
-- [ ] T016 [US4] Add billing sync trigger button to `src/app/copilot/billing/page.tsx` — shadcn Button with Lucide `RefreshCw` icon, calls existing `triggerCopilotSync()` action, shows loading spinner during sync, displays Sonner toast on completion with linked/skipped counts.
-- [ ] T017 [US4] Add sync history section to `src/app/copilot/billing/page.tsx` — query recent `githubSyncEvents` (syncType="copilot", limit 10), display as a compact table with columns: timestamp, status badge (completed/partial/failed), billing months processed, entries linked, entries skipped, error message (truncated with expand).
-- [ ] T018 [US4] Implement `getCopilotBillingSyncHistory()` server action in `src/actions/copilot-data.ts` — query `githubSyncEvents` WHERE syncType="copilot" ORDER BY startedAt DESC LIMIT 10, returning id, startedAt, completedAt, status, billingProcessed, billingLinked, billingSkipped, errorMessage.
+- [x] T016 [US4] Add billing sync trigger button to `src/app/copilot/billing/page.tsx` — shadcn Button with Lucide `RefreshCw` icon, calls existing `triggerCopilotSync()` action, shows loading spinner during sync, displays Sonner toast on completion with linked/skipped counts.
+- [x] T017 [US4] Add sync history section to `src/app/copilot/billing/page.tsx` — query recent `githubSyncEvents` (syncType="copilot", limit 10), display as a compact table with columns: timestamp, status badge (completed/partial/failed), billing months processed, entries linked, entries skipped, error message (truncated with expand).
+- [x] T018 [US4] Implement `getCopilotBillingSyncHistory()` server action in `src/actions/copilot-data.ts` — query `githubSyncEvents` WHERE syncType="copilot" ORDER BY startedAt DESC LIMIT 10, returning id, startedAt, completedAt, status, billingProcessed, billingLinked, billingSkipped, errorMessage.
 
 **Checkpoint**: Administrators can manually trigger sync and review history with billing-specific metrics
 
@@ -98,8 +98,8 @@
 
 ### Implementation
 
-- [ ] T019 [US5] Verify cron endpoint `src/app/api/copilot/sync/route.ts` automatically picks up billing linking — since T009 integrated `syncBillingToBudget()` into `syncBillingData()`, the cron endpoint requires no changes. Verify by reading the file and confirming it calls `runCopilotSync()` which calls `syncBillingData()`.
-- [ ] T020 [US5] Add billing linking metrics to cron response in `src/app/api/copilot/sync/route.ts` — extend the JSON response to include `billingLinked` and `billingSkipped` from the sync event, so external monitoring can track billing sync health.
+- [x] T019 [US5] Verify cron endpoint `src/app/api/copilot/sync/route.ts` automatically picks up billing linking — since T009 integrated `syncBillingToBudget()` into `syncBillingData()`, the cron endpoint requires no changes. Verify by reading the file and confirming it calls `runCopilotSync()` which calls `syncBillingData()`.
+- [x] T020 [US5] Add billing linking metrics to cron response in `src/app/api/copilot/sync/route.ts` — extend the JSON response to include `billingLinked` and `billingSkipped` from the sync event, so external monitoring can track billing sync health.
 
 **Checkpoint**: Scheduled syncs automatically include billing-to-budget linking with observable metrics
 
@@ -109,11 +109,11 @@
 
 **Purpose**: Final validation, type safety, and code quality
 
-- [ ] T021 Run `pnpm typecheck` to verify zero TypeScript compilation errors
-- [ ] T022 Run `pnpm lint` to verify zero ESLint warnings
-- [ ] T023 [P] Verify `src/actions/invoices.ts` still works after `findActivePeriodForDate` extraction — check imports resolve correctly
-- [ ] T024 [P] Verify main dashboard KPIs include Copilot billed costs — navigate to main dashboard after sync and confirm totals include GitHub Copilot spending from linked budget periods (FR-007)
-- [ ] T025 Run quickstart.md validation — follow all manual test steps in `specs/015-github-billing/quickstart.md`
+- [x] T021 Run `pnpm typecheck` to verify zero TypeScript compilation errors
+- [x] T022 Run `pnpm lint` to verify zero ESLint warnings
+- [x] T023 [P] Verify `src/actions/invoices.ts` still works after `findActivePeriodForDate` extraction — check imports resolve correctly
+- [x] T024 [P] Verify main dashboard KPIs include Copilot billed costs — navigate to main dashboard after sync and confirm totals include GitHub Copilot spending from linked budget periods (FR-007)
+- [x] T025 Run quickstart.md validation — follow all manual test steps in `specs/015-github-billing/quickstart.md`
 
 ---
 
