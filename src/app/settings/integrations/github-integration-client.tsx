@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useMemo, useCallback, useTransition } from "react";
 import { Github, RefreshCw, Unplug, KeyRound, Users, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -42,7 +42,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   validateGitHubToken,
   connectGitHubOrg,
@@ -54,11 +53,15 @@ import {
   confirmGitHubSync,
 } from "@/actions/github-sync";
 import { CopilotSyncSection } from "@/components/copilot/copilot-sync-section";
+import { UnmatchedMemberCard } from "@/components/unmatched-member-card";
+import { computeMatchSuggestions } from "@/lib/match-suggestions";
 import type {
   SyncPreview,
   SyncMatchedMember,
   SyncUnmatchedMember,
   SyncUnmatchedSystemUser,
+  PendingResolution,
+  ResolutionSummary,
   GitHubConnectionStatus,
   GitHubSyncStatus,
 } from "@/types";
@@ -127,6 +130,41 @@ export function GitHubIntegrationClient({
   const [activeTab, setActiveTab] = useState<ActiveTab>("matched");
   const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
   const [syncHistory, setSyncHistory] = useState(initialSyncHistory);
+
+  // Manual matching state
+  const [pendingResolutions, setPendingResolutions] = useState<Map<string, PendingResolution>>(new Map());
+  const [expandedCard, setExpandedCard] = useState<{ login: string; action: "match" | "create" } | null>(null);
+
+  const resolutionSummary = useMemo<ResolutionSummary | null>(() => {
+    if (!syncPreview) return null;
+    const total = syncPreview.unmatched.length;
+    let matched = 0;
+    let created = 0;
+    let skipped = 0;
+    for (const r of pendingResolutions.values()) {
+      if (r.type === "match") matched++;
+      else if (r.type === "create") created++;
+      else if (r.type === "skip") skipped++;
+    }
+    return { total, matched, created, skipped, unresolved: total - matched - created - skipped };
+  }, [syncPreview, pendingResolutions]);
+
+  const handleResolve = useCallback((resolution: PendingResolution) => {
+    setPendingResolutions((prev) => {
+      const next = new Map(prev);
+      next.set(resolution.githubLogin, resolution);
+      return next;
+    });
+    setExpandedCard(null);
+  }, []);
+
+  const handleUndoResolution = useCallback((githubLogin: string) => {
+    setPendingResolutions((prev) => {
+      const next = new Map(prev);
+      next.delete(githubLogin);
+      return next;
+    });
+  }, []);
 
   function handleValidateToken() {
     startTransition(async () => {
@@ -210,6 +248,8 @@ export function GitHubIntegrationClient({
         setSyncPreview(result.data);
         setActiveTab("matched");
         setSelectedImports(new Set());
+        setPendingResolutions(new Map());
+        setExpandedCard(null);
         toast.success(
           `Fetched ${result.data.totalMembers} members. ${result.data.matched.length} matched.`
         );
@@ -242,17 +282,6 @@ export function GitHubIntegrationClient({
     });
   }
 
-  function toggleImport(login: string) {
-    setSelectedImports((prev) => {
-      const next = new Set(prev);
-      if (next.has(login)) {
-        next.delete(login);
-      } else {
-        next.add(login);
-      }
-      return next;
-    });
-  }
 
   // --- Render ---
 
@@ -492,10 +521,15 @@ export function GitHubIntegrationClient({
                 <MatchedTable members={syncPreview.matched} />
               )}
               {activeTab === "unmatched" && (
-                <UnmatchedTable
+                <UnmatchedMembersList
                   members={syncPreview.unmatched}
-                  selectedImports={selectedImports}
-                  onToggle={toggleImport}
+                  unmatchedSystemUsers={syncPreview.unmatchedSystemUsers}
+                  pendingResolutions={pendingResolutions}
+                  expandedCard={expandedCard}
+                  onResolve={handleResolve}
+                  onUndo={handleUndoResolution}
+                  onExpandCard={setExpandedCard}
+                  onCollapseCard={() => setExpandedCard(null)}
                 />
               )}
               {activeTab === "system" && (
@@ -650,14 +684,24 @@ function MatchedTable({ members }: { members: SyncMatchedMember[] }) {
   );
 }
 
-function UnmatchedTable({
+function UnmatchedMembersList({
   members,
-  selectedImports,
-  onToggle,
+  unmatchedSystemUsers,
+  pendingResolutions,
+  expandedCard,
+  onResolve,
+  onUndo,
+  onExpandCard,
+  onCollapseCard,
 }: {
   members: SyncUnmatchedMember[];
-  selectedImports: Set<string>;
-  onToggle: (login: string) => void;
+  unmatchedSystemUsers: SyncUnmatchedSystemUser[];
+  pendingResolutions: Map<string, PendingResolution>;
+  expandedCard: { login: string; action: "match" | "create" } | null;
+  onResolve: (resolution: PendingResolution) => void;
+  onUndo: (githubLogin: string) => void;
+  onExpandCard: (card: { login: string; action: "match" | "create" }) => void;
+  onCollapseCard: () => void;
 }) {
   if (members.length === 0) {
     return (
@@ -668,51 +712,29 @@ function UnmatchedTable({
   }
 
   return (
-    <div className="max-h-80 overflow-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">Import</TableHead>
-            <TableHead>GitHub User</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Repos</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {members.map((m) => (
-            <TableRow key={m.githubLogin}>
-              <TableCell>
-                <Checkbox
-                  checked={selectedImports.has(m.githubLogin)}
-                  onCheckedChange={() => onToggle(m.githubLogin)}
-                  aria-label={`Import ${m.githubLogin}`}
-                />
-              </TableCell>
-              <TableCell className="font-medium">
-                <div className="flex items-center gap-2">
-                  {m.githubAvatarUrl && (
-                    <Image
-                      src={m.githubAvatarUrl}
-                      alt=""
-                      width={24}
-                      height={24}
-                      className="size-6 rounded-full"
-                      unoptimized
-                    />
-                  )}
-                  {m.githubLogin}
-                </div>
-              </TableCell>
-              <TableCell>{m.githubName || "—"}</TableCell>
-              <TableCell className="text-sm">
-                {m.githubEmail || "—"}
-              </TableCell>
-              <TableCell>{m.githubPublicRepos ?? "—"}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
+      {members.map((member) => {
+        const suggestions = computeMatchSuggestions(member, unmatchedSystemUsers);
+        const resolution = pendingResolutions.get(member.githubLogin);
+        const isMatchExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "match";
+        const isCreateExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "create";
+
+        return (
+          <UnmatchedMemberCard
+            key={member.githubLogin}
+            member={member}
+            suggestions={suggestions}
+            resolution={resolution}
+            onResolve={onResolve}
+            onUndo={onUndo}
+            isMatchExpanded={isMatchExpanded}
+            isCreateExpanded={isCreateExpanded}
+            onExpandMatch={() => onExpandCard({ login: member.githubLogin, action: "match" })}
+            onExpandCreate={() => onExpandCard({ login: member.githubLogin, action: "create" })}
+            onCollapse={onCollapseCard}
+          />
+        );
+      })}
     </div>
   );
 }
