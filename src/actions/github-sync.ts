@@ -7,7 +7,7 @@ import {
   githubSyncEvents,
   users,
 } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ilike, or, notInArray, asc } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import {
@@ -96,9 +96,9 @@ async function fetchAndMatchMembers(): Promise<
       name: users.name,
       email: users.email,
       githubUsername: users.githubUsername,
+      status: users.status,
     })
-    .from(users)
-    .where(eq(users.status, "active"));
+    .from(users);
 
   const matchResult = matchMembersToUsers(memberProfiles, systemUsers);
 
@@ -362,4 +362,65 @@ export async function getSyncHistory(
     .limit(limit);
 
   return { success: true, data: { events } };
+}
+
+export async function searchUsersForMatching(
+  input: { query: string; excludeUserIds?: number[] }
+): Promise<
+  ActionResult<
+    Array<{
+      id: number;
+      name: string;
+      email: string;
+      status: "active" | "inactive";
+      githubUsername: string | null;
+    }>
+  >
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const { query, excludeUserIds } = input;
+  if (!query || query.trim().length === 0) {
+    return { success: true, data: [] };
+  }
+
+  const searchPattern = `%${query.trim()}%`;
+
+  // Fetch more than 20 to account for excludeUserIds filtering
+  const fetchLimit = excludeUserIds?.length ? 20 + excludeUserIds.length : 20;
+
+  const results = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      status: users.status,
+      githubUsername: users.githubUsername,
+    })
+    .from(users)
+    .where(
+      or(
+        ilike(users.name, searchPattern),
+        ilike(users.email, searchPattern)
+      )
+    )
+    .orderBy(asc(users.status), asc(users.name))
+    .limit(fetchLimit);
+
+  const excludeSet = excludeUserIds ? new Set(excludeUserIds) : null;
+  const filtered = excludeSet
+    ? results.filter((u) => !excludeSet.has(u.id))
+    : results;
+
+  return {
+    success: true,
+    data: filtered.slice(0, 20) as Array<{
+      id: number;
+      name: string;
+      email: string;
+      status: "active" | "inactive";
+      githubUsername: string | null;
+    }>,
+  };
 }

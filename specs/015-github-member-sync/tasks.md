@@ -29,10 +29,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 [P] Add `PendingResolution` (discriminated union: match | create | skip), `MatchSuggestion`, and `ResolutionSummary` types to src/types/index.ts per data-model.md client-side types section
-- [ ] T005 [P] Add Zod schemas to src/lib/validators.ts: `manualMatchSchema` (githubLogin + userId), `inlineUserCreationSchema` (githubLogin + name + email), and `confirmGitHubSyncSchema` (extend existing to include manualMatches and newUsers arrays)
-- [ ] T006 [P] Create src/lib/match-suggestions.ts: implement `computeMatchSuggestions(unmatchedMember: SyncUnmatchedMember, systemUsers: SyncUnmatchedSystemUser[]): MatchSuggestion[]` using `string-similarity` compareTwoStrings for name scoring and domain extraction for email scoring; return top 3 sorted by score descending; include both active and inactive users with inactive sorted lower at equal scores
-- [ ] T007 Create `searchUsersForMatching` server action in src/actions/github-sync.ts: accepts `{ query: string; excludeUserIds?: number[] }`, searches users by name/email (case-insensitive ilike), includes active and inactive users, sorts active first then alphabetical, limits to 20 results, requires admin session per contracts/server-actions.md
+- [x] T004 [P] Add `PendingResolution` (discriminated union: match | create | skip), `MatchSuggestion`, and `ResolutionSummary` types to src/types/index.ts per data-model.md client-side types section
+- [x] T005 [P] Add Zod schemas to src/lib/validators.ts: `manualMatchSchema` (githubLogin + userId), `inlineUserCreationSchema` (githubLogin + name + email), and `confirmGitHubSyncSchema` (extend existing to include manualMatches and newUsers arrays)
+- [x] T006 [P] Create src/lib/match-suggestions.ts: implement `computeMatchSuggestions(unmatchedMember: SyncUnmatchedMember, systemUsers: SyncUnmatchedSystemUser[]): MatchSuggestion[]` using `string-similarity` compareTwoStrings for name scoring and domain extraction for email scoring; return top 3 sorted by score descending; include both active and inactive users with inactive sorted lower at equal scores
+- [x] T007 Create `searchUsersForMatching` server action in src/actions/github-sync.ts: accepts `{ query: string; excludeUserIds?: number[] }`, searches users by name/email (case-insensitive ilike), includes active and inactive users, sorts active first then alphabetical, limits to 20 results, requires admin session per contracts/server-actions.md
 
 **Checkpoint**: Foundation ready — types, validation, suggestions, and search API all available. Commit after this phase.
 

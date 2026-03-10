@@ -242,13 +242,28 @@ export const connectOrgSchema = z.object({
   orgId: z.number().int().positive(),
 });
 
+export const manualMatchSchema = z.object({
+  githubLogin: z.string().min(1),
+  userId: z.number().int().positive(),
+});
+
+export const inlineUserCreationSchema = z.object({
+  githubLogin: z.string().min(1),
+  name: z.string().min(1, "Name is required").max(255),
+  email: z.string().email("Invalid email address"),
+});
+
 export const confirmSyncSchema = z.object({
   importGitHubLogins: z.array(z.string()),
+  manualMatches: z.array(manualMatchSchema).optional().default([]),
+  newUsers: z.array(inlineUserCreationSchema).optional().default([]),
 });
 
 export type GitHubTokenInput = z.infer<typeof githubTokenSchema>;
 export type ConnectOrgInput = z.infer<typeof connectOrgSchema>;
 export type ConfirmSyncInput = z.infer<typeof confirmSyncSchema>;
+export type ManualMatchInput = z.infer<typeof manualMatchSchema>;
+export type InlineUserCreationInput = z.infer<typeof inlineUserCreationSchema>;
 
 // Copilot integration validators
 const calendarDateSchema = z
