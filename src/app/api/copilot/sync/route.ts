@@ -79,8 +79,15 @@ export async function POST(request: NextRequest) {
     console.error("Cron Copilot sync failed:", err);
   }
 
+  // Query the completed sync event to include billing metrics
+  const syncEvent = await db.query.githubSyncEvents.findFirst({
+    where: eq(githubSyncEvents.id, syncEventId),
+  });
+
   return NextResponse.json({
     success: true,
     syncEventId,
+    billingLinked: syncEvent?.billingLinked ?? null,
+    billingSkipped: syncEvent?.billingSkipped ?? null,
   });
 }

@@ -310,7 +310,12 @@ export type CopilotSyncStatus = {
   lastSyncStatus: "completed" | "partial" | "failed" | null;
   nextScheduledSync: string | null;
   dataRange: { earliest: string; latest: string } | null;
-  recordCounts: { metrics: number; billing: number; seats: number };
+  recordCounts: {
+    metrics: number;
+    billing: number;
+    seats: number;
+    linkedBillingMonths: number;
+  };
 };
 
 export interface CopilotOverviewData {
@@ -368,6 +373,10 @@ export interface CopilotBillingData {
     totalSeats: number;
     activeSeats: number;
     costPerActiveUserCents: number;
+    linkedBilledCostId: number | null;
+    linkedPeriodLabel: string | null;
+    linkedPeriodUtilization: number | null;
+    linkStatus: "linked" | "unlinked" | "conflict";
   }>;
 }
 
