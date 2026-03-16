@@ -45,15 +45,22 @@ The usage_report/messages endpoint is preferred because it supports grouping by 
 - Store in database (like `github_connections.tokenEncrypted`): More complex, requires a new table or connection entity. The GitHub pattern makes sense because multiple GitHub orgs can be connected; Anthropic has exactly one org admin key. YAGNI.
 - Store in a settings table: Over-engineered for a single value. Environment variable is simpler and follows existing patterns.
 
-## R4: Cost Computation Strategy
+## R4: Cost Computation Strategy (Revised)
 
-**Decision**: Compute costs from token counts using a pricing lookup table stored in application code, with the ability to update pricing without schema changes.
+**Decision**: Compute costs at sync time using a prefix-based pricing lookup. Store computed costs (`computedCostCents`) alongside token counts. Flag rows with unresolved pricing for admin attention.
 
-**Rationale**: The usage_report/messages endpoint returns token counts, not costs. Costs must be computed by multiplying token counts by per-model pricing. Pricing changes infrequently (roughly quarterly) and a code-level lookup table is the simplest approach that meets requirements. The spec accepts <1% variance from Console-reported costs, which this approach satisfies since we use the same token counts.
+**Rationale**: The usage_report/messages endpoint returns token counts, not costs. Costs must be computed by multiplying token counts by per-model pricing. Three key improvements over the naive approach:
+
+1. **Prefix matching instead of exact string match**: Anthropic model identifiers include version suffixes and date stamps (e.g., `claude-opus-4-6-20260301`). Prefix matching (`claude-opus-4` matches any variant) handles new versions without code changes.
+
+2. **Store computed costs at sync time**: Instead of computing on every page load, costs are stored in `computedCostCents` during sync. This provides stable historical numbers (users see consistent values), eliminates recomputation overhead, and makes it clear what cost was shown at any point.
+
+3. **Unknown model detection**: When a model doesn't match any pricing prefix, the row is flagged `pricingResolved = false` and fallback pricing is used. An admin-visible indicator surfaces unresolved rows. After updating the pricing table, an admin action recalculates affected rows.
 
 **Alternatives considered**:
 - Use the `cost_report` endpoint instead: Returns USD directly but excludes Priority Tier and cannot filter by `api_key_id`. Rejected.
 - Store pricing in database: Over-engineered. Pricing changes rarely and a code constant is simpler to maintain and deploy.
+- Compute costs purely at read time (original design): Causes historical costs to silently change when pricing is updated. Users see different numbers on different days for the same data. Rejected for consistency.
 
 ## R5: Persistent Usage History (Revised from Cache)
 

@@ -20,6 +20,8 @@ Stores daily token usage data fetched from the Anthropic Admin API as a permanen
 | cacheReadInputTokens | bigint | NOT NULL, DEFAULT 0 | Cache-read input tokens consumed |
 | cacheCreationInputTokens | bigint | NOT NULL, DEFAULT 0 | Cache creation input tokens (all durations combined) |
 | outputTokens | bigint | NOT NULL, DEFAULT 0 | Output tokens generated |
+| computedCostCents | integer | NOT NULL, DEFAULT 0 | Cost in USD cents computed at sync time from tokens × pricing. Provides stable historical costs. |
+| pricingResolved | boolean | NOT NULL, DEFAULT true | False if the model was not found in the pricing table at sync time (fallback pricing used). |
 | createdAt | timestamp | NOT NULL, DEFAULT now() | Row creation time |
 | updatedAt | timestamp | NOT NULL, DEFAULT now() | Row last update time |
 
@@ -28,13 +30,14 @@ Stores daily token usage data fetched from the Anthropic Admin API as a permanen
 **Indexes**:
 - `idx_usage_metrics_user_date` on (userId, date) — primary query pattern for profile page and historical reports
 - `idx_usage_metrics_date` on (date) — enables date-range queries across all users (admin reporting)
+- `idx_usage_metrics_unresolved` on (pricingResolved) WHERE pricingResolved = false — fast lookup of rows needing pricing updates
 
 **Relationships**:
 - `userId` → `users.id` (many-to-one, CASCADE on delete)
 
 **Notes**:
 - This is **permanent storage**, not a cache. Historical days are immutable; today's data is upserted (accumulating throughout the day).
-- Costs are NOT stored — they are computed at read time from token counts using a pricing lookup. This ensures pricing updates apply retroactively.
+- Costs are computed at sync time and stored in `computedCostCents`. This provides stable historical values. Token counts are also stored for transparency and potential recalculation.
 - Token counts use `bigint` (not `integer`) to safely handle heavy API users. A single day of aggressive long-context usage can produce hundreds of millions of tokens, exceeding 32-bit integer limits. In Drizzle, use `bigint('column', { mode: 'number' })` since values stay within JS safe integer range for daily per-model granularity.
 - The `model` field stores the exact model identifier returned by the Anthropic API (e.g., "claude-opus-4-6", "claude-sonnet-4-6").
 
@@ -54,23 +57,44 @@ Follows the incremental sync pattern established by `copilot_usage_metrics`:
 
 ### Pricing Lookup (Application Code)
 
-Not a database table — defined as a TypeScript constant map. Maps model identifiers to per-token pricing in USD.
+Not a database table — defined as a TypeScript constant map. Maps model prefixes to per-token pricing in USD.
 
 ```typescript
 type ModelPricing = {
+  prefix: string;              // Model identifier prefix for matching
   inputPerMToken: number;      // USD per million input tokens
   outputPerMToken: number;     // USD per million output tokens
   cacheReadPerMToken: number;  // USD per million cache-read tokens
   cacheWritePerMToken: number; // USD per million cache-creation tokens
 };
 
-const MODEL_PRICING: Record<string, ModelPricing> = {
-  "claude-opus-4-6": { inputPerMToken: 15, outputPerMToken: 75, cacheReadPerMToken: 1.5, cacheWritePerMToken: 18.75 },
-  "claude-sonnet-4-6": { inputPerMToken: 3, outputPerMToken: 15, cacheReadPerMToken: 0.3, cacheWritePerMToken: 3.75 },
-  "claude-haiku-4-5": { inputPerMToken: 0.80, outputPerMToken: 4, cacheReadPerMToken: 0.08, cacheWritePerMToken: 1 },
-  // Fallback for unknown models: use highest pricing (conservative)
-};
+// Ordered by prefix length (longest first) for greedy matching
+const MODEL_PRICING: ModelPricing[] = [
+  { prefix: "claude-opus-4", inputPerMToken: 15, outputPerMToken: 75, cacheReadPerMToken: 1.5, cacheWritePerMToken: 18.75 },
+  { prefix: "claude-sonnet-4", inputPerMToken: 3, outputPerMToken: 15, cacheReadPerMToken: 0.3, cacheWritePerMToken: 3.75 },
+  { prefix: "claude-haiku-4", inputPerMToken: 0.80, outputPerMToken: 4, cacheReadPerMToken: 0.08, cacheWritePerMToken: 1 },
+];
+
+function resolveModelPricing(model: string): { pricing: ModelPricing; resolved: boolean } {
+  const match = MODEL_PRICING.find(p => model.startsWith(p.prefix));
+  if (match) return { pricing: match, resolved: true };
+  // Fallback: use highest pricing (conservative) and flag as unresolved
+  return { pricing: MODEL_PRICING[0], resolved: false };
+}
 ```
+
+**Prefix matching rationale**: Anthropic model identifiers include version suffixes and date stamps (e.g., `claude-opus-4-6`, `claude-opus-4-6-20260301`). Prefix matching handles minor version bumps without requiring code changes. The pricing table is ordered by prefix length (longest first) to ensure the most specific match wins.
+
+**Cost storage at sync time**: `computedCostCents` is calculated and stored during sync. This provides:
+- Stable historical costs (users see the same number consistently)
+- Fast queries (no recomputation on every page load)
+- Clear audit trail of what cost was shown
+
+**Unresolved pricing detection**: When a model is not found in the pricing table:
+1. `pricingResolved` is set to `false` on the row
+2. Fallback pricing (highest tier) is used for `computedCostCents`
+3. An admin-visible indicator surfaces the count of unresolved rows
+4. After updating the pricing table, an admin action (`recalculateUnresolvedCosts`) recomputes `computedCostCents` for all `pricingResolved = false` rows and sets them to `true`
 
 ### anthropic_sync_status
 

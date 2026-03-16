@@ -138,10 +138,26 @@ Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metr
 
 ### getUserCostData(userId, month?)
 
-Returns cost data for a user for a given month (defaults to current month). Reads from persistent `anthropic_usage_metrics` table, computes costs at query time.
+Returns cost data for a user for a given month (defaults to current month). Reads `computedCostCents` directly from `anthropic_usage_metrics` — no recomputation needed.
 
 **Input**: `userId: number`, `month?: string` (format "YYYY-MM", defaults to current)
 
-**Output**: Same `costData` shape as above
+**Output**: Same `costData` shape as above, plus:
+```typescript
+{
+  // ...existing costData fields...
+  hasUnresolvedPricing: boolean; // True if any rows in the period have pricingResolved = false
+}
+```
 
 **Callable by**: The user themselves (profile page) or admins (user detail page)
+
+### recalculateUnresolvedCosts()
+
+Admin-only action. Recalculates `computedCostCents` for all rows where `pricingResolved = false`, using the current pricing table. Sets `pricingResolved = true` for rows that now resolve.
+
+**Input**: None (operates on all unresolved rows)
+
+**Output**: `ActionResult<{ updatedRows: number; stillUnresolved: number }>`
+
+**Callable by**: Admins only. Triggered after updating the pricing lookup table in code.
