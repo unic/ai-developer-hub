@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { MonthPicker } from "./month-picker";
 import { CostChart } from "@/components/cost-chart";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getCurrentMonth } from "@/lib/utils";
 import {
   getUserCostData,
   syncAnthropicUsage,
@@ -20,11 +20,6 @@ type AdminCostSectionProps = {
   initialData: CostData;
   availableMonths: string[];
 };
-
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export function AdminCostSection({
   userId,

@@ -6,7 +6,6 @@ import {
   anthropicSyncStatus,
   licenseAssignments,
   aiTools,
-  users,
 } from "@/lib/db/schema";
 import { eq, and, sql, desc, isNotNull } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/crypto";
@@ -134,9 +133,8 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
     );
 
   // Filter to users without cached mapping
-  const unmapped = usersWithKeys.filter(
-    (u) => !Array.from(mapping.values()).includes(u.userId)
-  );
+  const mappedUserIds = new Set(mapping.values());
+  const unmapped = usersWithKeys.filter((u) => !mappedUserIds.has(u.userId));
 
   if (unmapped.length > 0) {
     // Fetch org API keys to resolve
@@ -168,6 +166,85 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: compute sync date window
+// ---------------------------------------------------------------------------
+
+function computeSyncWindow(latestDateStr: string | null): { startingAt: string; endingAt: string } {
+  const now = new Date();
+  let startDate: Date;
+  if (latestDateStr) {
+    startDate = new Date(latestDateStr);
+    startDate.setUTCDate(startDate.getUTCDate() + 1);
+  } else {
+    startDate = new Date(now);
+    startDate.setUTCDate(startDate.getUTCDate() - 31);
+  }
+  const endDate = new Date(now);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+
+  return {
+    startingAt: startDate.toISOString().replace(/\.\d+Z$/, "Z"),
+    endingAt: endDate.toISOString().replace(/\.\d+Z$/, "Z"),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: upsert a single usage row
+// ---------------------------------------------------------------------------
+
+async function upsertUsageRow(
+  userId: number,
+  bucketDate: string,
+  result: z.infer<typeof usageBucketResultSchema>
+) {
+  const model = result.model;
+  if (!model) return;
+
+  const cacheCreationTokens =
+    (result.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
+    (result.cache_creation?.ephemeral_1h_input_tokens ?? 0);
+  const tokens = {
+    uncachedInputTokens: result.uncached_input_tokens,
+    cacheReadInputTokens: result.cache_read_input_tokens,
+    cacheCreationInputTokens: cacheCreationTokens,
+    outputTokens: result.output_tokens,
+  };
+  const { pricing, resolved } = resolveModelPricing(model);
+  const costCents = computeCostCents(tokens, pricing);
+
+  await db
+    .insert(anthropicUsageMetrics)
+    .values({
+      userId,
+      date: bucketDate,
+      model,
+      uncachedInputTokens: result.uncached_input_tokens,
+      cacheReadInputTokens: result.cache_read_input_tokens,
+      cacheCreationInputTokens: cacheCreationTokens,
+      outputTokens: result.output_tokens,
+      computedCostCents: costCents,
+      pricingResolved: resolved,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [
+        anthropicUsageMetrics.userId,
+        anthropicUsageMetrics.date,
+        anthropicUsageMetrics.model,
+      ],
+      set: {
+        uncachedInputTokens: result.uncached_input_tokens,
+        cacheReadInputTokens: result.cache_read_input_tokens,
+        cacheCreationInputTokens: cacheCreationTokens,
+        outputTokens: result.output_tokens,
+        computedCostCents: costCents,
+        pricingResolved: resolved,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Global sync: fetch all org usage and distribute to users
 // ---------------------------------------------------------------------------
 
@@ -175,32 +252,35 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
   const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, errors: [] };
 
   // Global concurrency guard: check if any sync is in progress
-  const inProgress = await db.query.anthropicSyncStatus.findFirst({
-    where: and(
-      isNotNull(anthropicSyncStatus.lastSyncStartedAt),
-      sql`${anthropicSyncStatus.lastSyncStartedAt} > NOW() - INTERVAL '60 seconds'`,
-      sql`(${anthropicSyncStatus.lastSyncCompletedAt} IS NULL OR ${anthropicSyncStatus.lastSyncCompletedAt} < ${anthropicSyncStatus.lastSyncStartedAt})`
-    ),
+  const recentSync = await db.query.anthropicSyncStatus.findFirst({
+    where: isNotNull(anthropicSyncStatus.lastSyncStartedAt),
+    orderBy: desc(anthropicSyncStatus.lastSyncStartedAt),
   });
 
-  if (inProgress) {
-    // Check for stale lock (> 5 min)
-    const staleCheck = await db.query.anthropicSyncStatus.findFirst({
-      where: and(
-        isNotNull(anthropicSyncStatus.lastSyncStartedAt),
-        sql`${anthropicSyncStatus.lastSyncStartedAt} > NOW() - INTERVAL '5 minutes'`,
-        sql`(${anthropicSyncStatus.lastSyncCompletedAt} IS NULL OR ${anthropicSyncStatus.lastSyncCompletedAt} < ${anthropicSyncStatus.lastSyncStartedAt})`
-      ),
-    });
-    if (staleCheck) {
-      return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress" }] };
+  if (recentSync?.lastSyncStartedAt) {
+    const startedMs = recentSync.lastSyncStartedAt.getTime();
+    const nowMs = Date.now();
+    const isInProgress =
+      (!recentSync.lastSyncCompletedAt ||
+        recentSync.lastSyncCompletedAt < recentSync.lastSyncStartedAt);
+
+    if (isInProgress) {
+      // If started < 5 minutes ago, it's still running — skip
+      if (nowMs - startedMs < 5 * 60 * 1000) {
+        return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress" }] };
+      }
+      // Stale lock (> 5 min) — allow new sync
+    } else if (nowMs - startedMs < 60 * 1000) {
+      // Completed less than 60 seconds ago — skip
+      return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync completed recently" }] };
     }
   }
 
-  // Set global lock
+  // Set global lock on all sync status rows
   await db
     .update(anthropicSyncStatus)
-    .set({ lastSyncStartedAt: new Date(), lastSyncError: null });
+    .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
+    .where(isNotNull(anthropicSyncStatus.userId));
 
   try {
     // Resolve all mappings
@@ -214,24 +294,7 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
       .select({ maxDate: sql<string>`MAX(${anthropicUsageMetrics.date})` })
       .from(anthropicUsageMetrics);
 
-    const now = new Date();
-    let startDate: Date;
-    if (oldestLatest[0]?.maxDate) {
-      startDate = new Date(oldestLatest[0].maxDate);
-      // Start from the day after the latest stored date
-      startDate.setUTCDate(startDate.getUTCDate() + 1);
-    } else {
-      // No data: backfill 31 days
-      startDate = new Date(now);
-      startDate.setUTCDate(startDate.getUTCDate() - 31);
-    }
-
-    // End date is tomorrow (to include today)
-    const endDate = new Date(now);
-    endDate.setUTCDate(endDate.getUTCDate() + 1);
-
-    const startingAt = startDate.toISOString().replace(/\.\d+Z$/, "Z");
-    const endingAt = endDate.toISOString().replace(/\.\d+Z$/, "Z");
+    const { startingAt, endingAt } = computeSyncWindow(oldestLatest[0]?.maxDate ?? null);
 
     // Fetch all org usage in one call
     const response = await fetchAnthropicUsage(startingAt, endingAt);
@@ -256,50 +319,7 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
 
         usersWithData.add(userId);
 
-        // Compute cost
-        const cacheCreationTokens =
-          (result.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
-          (result.cache_creation?.ephemeral_1h_input_tokens ?? 0);
-        const tokens = {
-          uncachedInputTokens: result.uncached_input_tokens,
-          cacheReadInputTokens: result.cache_read_input_tokens,
-          cacheCreationInputTokens: cacheCreationTokens,
-          outputTokens: result.output_tokens,
-        };
-        const { pricing, resolved } = resolveModelPricing(model);
-        const costCents = computeCostCents(tokens, pricing);
-
-        // Upsert
-        await db
-          .insert(anthropicUsageMetrics)
-          .values({
-            userId,
-            date: bucketDate,
-            model,
-            uncachedInputTokens: result.uncached_input_tokens,
-            cacheReadInputTokens: result.cache_read_input_tokens,
-            cacheCreationInputTokens: cacheCreationTokens,
-            outputTokens: result.output_tokens,
-            computedCostCents: costCents,
-            pricingResolved: resolved,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [
-              anthropicUsageMetrics.userId,
-              anthropicUsageMetrics.date,
-              anthropicUsageMetrics.model,
-            ],
-            set: {
-              uncachedInputTokens: result.uncached_input_tokens,
-              cacheReadInputTokens: result.cache_read_input_tokens,
-              cacheCreationInputTokens: cacheCreationTokens,
-              outputTokens: result.output_tokens,
-              computedCostCents: costCents,
-              pricingResolved: resolved,
-              updatedAt: new Date(),
-            },
-          });
+        await upsertUsageRow(userId, bucketDate, result);
       }
     }
 
@@ -319,7 +339,8 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     // Set error on all sync status rows
     await db
       .update(anthropicSyncStatus)
-      .set({ lastSyncError: errorMsg.slice(0, 500) });
+      .set({ lastSyncError: errorMsg.slice(0, 500) })
+      .where(isNotNull(anthropicSyncStatus.userId));
     summary.errors.push({ userId: 0, error: errorMsg });
   }
 
@@ -380,21 +401,7 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
     orderBy: desc(anthropicUsageMetrics.date),
   });
 
-  const now = new Date();
-  let startDate: Date;
-  if (latestRow) {
-    startDate = new Date(latestRow.date);
-    startDate.setUTCDate(startDate.getUTCDate() + 1);
-  } else {
-    startDate = new Date(now);
-    startDate.setUTCDate(startDate.getUTCDate() - 31);
-  }
-
-  const endDate = new Date(now);
-  endDate.setUTCDate(endDate.getUTCDate() + 1);
-
-  const startingAt = startDate.toISOString().replace(/\.\d+Z$/, "Z");
-  const endingAt = endDate.toISOString().replace(/\.\d+Z$/, "Z");
+  const { startingAt, endingAt } = computeSyncWindow(latestRow?.date ?? null);
 
   // Fetch filtered by this user's API key
   const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId]);
@@ -406,50 +413,7 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
     const bucketDate = bucket.starting_at.split("T")[0];
 
     for (const result of bucket.results) {
-      if (!result.model) continue;
-
-      const cacheCreationTokens =
-        (result.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
-        (result.cache_creation?.ephemeral_1h_input_tokens ?? 0);
-      const tokens = {
-        uncachedInputTokens: result.uncached_input_tokens,
-        cacheReadInputTokens: result.cache_read_input_tokens,
-        cacheCreationInputTokens: cacheCreationTokens,
-        outputTokens: result.output_tokens,
-      };
-      const { pricing, resolved } = resolveModelPricing(result.model);
-      const costCents = computeCostCents(tokens, pricing);
-
-      await db
-        .insert(anthropicUsageMetrics)
-        .values({
-          userId,
-          date: bucketDate,
-          model: result.model,
-          uncachedInputTokens: result.uncached_input_tokens,
-          cacheReadInputTokens: result.cache_read_input_tokens,
-          cacheCreationInputTokens: cacheCreationTokens,
-          outputTokens: result.output_tokens,
-          computedCostCents: costCents,
-          pricingResolved: resolved,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [
-            anthropicUsageMetrics.userId,
-            anthropicUsageMetrics.date,
-            anthropicUsageMetrics.model,
-          ],
-          set: {
-            uncachedInputTokens: result.uncached_input_tokens,
-            cacheReadInputTokens: result.cache_read_input_tokens,
-            cacheCreationInputTokens: cacheCreationTokens,
-            outputTokens: result.output_tokens,
-            computedCostCents: costCents,
-            pricingResolved: resolved,
-            updatedAt: new Date(),
-          },
-        });
+      await upsertUsageRow(userId, bucketDate, result);
     }
 
     syncedDays++;

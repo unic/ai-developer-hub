@@ -13,6 +13,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { syncSingleUser } from "@/lib/anthropic-sync";
 import { resolveModelPricing, computeCostCents } from "@/lib/anthropic-pricing";
 import { revalidatePath } from "next/cache";
+import { getCurrentMonth } from "@/lib/utils";
 import type {
   CostData,
   ProfileData,
@@ -201,6 +202,27 @@ export async function getProfileData(userId: number): Promise<ProfileData> {
     })),
     costData,
   };
+}
+
+// ---------------------------------------------------------------------------
+// getAvailableMonths — distinct months with usage data for a user
+// ---------------------------------------------------------------------------
+
+export async function getAvailableMonths(userId: number): Promise<string[]> {
+  const monthRows = await db
+    .selectDistinct({
+      month: sql<string>`TO_CHAR(${anthropicUsageMetrics.date}, 'YYYY-MM')`,
+    })
+    .from(anthropicUsageMetrics)
+    .where(eq(anthropicUsageMetrics.userId, userId))
+    .orderBy(sql`TO_CHAR(${anthropicUsageMetrics.date}, 'YYYY-MM') DESC`);
+
+  const months = monthRows.map((r) => r.month);
+  const currentMonth = getCurrentMonth();
+  if (!months.includes(currentMonth)) {
+    months.unshift(currentMonth);
+  }
+  return months;
 }
 
 // ---------------------------------------------------------------------------

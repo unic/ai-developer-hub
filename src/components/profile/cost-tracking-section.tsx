@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MonthPicker } from "./month-picker";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getCurrentMonth } from "@/lib/utils";
 import { getUserCostData } from "@/actions/anthropic-usage";
 import { CostChart } from "@/components/cost-chart";
 import { DollarSign, Info, AlertTriangle } from "lucide-react";
@@ -16,11 +16,6 @@ type CostTrackingSectionProps = {
   availableMonths: string[];
 };
 
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
 export function CostTrackingSection({
   userId,
   initialData,
@@ -29,6 +24,29 @@ export function CostTrackingSection({
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [costData, setCostData] = useState<CostData>(initialData);
   const [isPending, startTransition] = useTransition();
+
+  const topModelName = useMemo(() => {
+    if (costData.dailyBreakdown.length === 0) return "—";
+    const modelTotals = new Map<string, number>();
+    for (const day of costData.dailyBreakdown) {
+      for (const m of day.models) {
+        modelTotals.set(m.model, (modelTotals.get(m.model) ?? 0) + m.costCents);
+      }
+    }
+    const top = Array.from(modelTotals.entries()).sort((a, b) => b[1] - a[1])[0];
+    if (!top) return "—";
+    const match = top[0].match(/claude-(\w+)/);
+    return match ? match[1].charAt(0).toUpperCase() + match[1].slice(1) : top[0];
+  }, [costData.dailyBreakdown]);
+
+  const peakDayLabel = useMemo(() => {
+    if (costData.dailyBreakdown.length === 0) return "—";
+    const peak = costData.dailyBreakdown.reduce((max, day) =>
+      day.totalCents > max.totalCents ? day : max
+    );
+    const d = new Date(peak.date + "T00:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }, [costData.dailyBreakdown]);
 
   function handleMonthChange(month: string) {
     setSelectedMonth(month);
@@ -128,40 +146,13 @@ export function CostTrackingSection({
             <div className="rounded-lg border p-3">
               <p className="text-sm text-muted-foreground">Top Model</p>
               <p className="text-lg font-semibold truncate">
-                {(() => {
-                  const modelTotals = new Map<string, number>();
-                  for (const day of costData.dailyBreakdown) {
-                    for (const m of day.models) {
-                      modelTotals.set(
-                        m.model,
-                        (modelTotals.get(m.model) ?? 0) + m.costCents
-                      );
-                    }
-                  }
-                  const top = Array.from(modelTotals.entries()).sort(
-                    (a, b) => b[1] - a[1]
-                  )[0];
-                  if (!top) return "—";
-                  const match = top[0].match(/claude-(\w+)/);
-                  return match
-                    ? match[1].charAt(0).toUpperCase() + match[1].slice(1)
-                    : top[0];
-                })()}
+                {topModelName}
               </p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-sm text-muted-foreground">Peak Day</p>
               <p className="text-lg font-semibold">
-                {(() => {
-                  const peak = costData.dailyBreakdown.reduce((max, day) =>
-                    day.totalCents > max.totalCents ? day : max
-                  );
-                  const d = new Date(peak.date + "T00:00:00");
-                  return d.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  });
-                })()}
+                {peakDayLabel}
               </p>
             </div>
           </div>
