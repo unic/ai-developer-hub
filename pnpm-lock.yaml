@@ -83,9 +83,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      string-similarity:
-        specifier: ^4.0.4
-        version: 4.0.4
       tailwind-merge:
         specifier: ^3.5.0
         version: 3.5.0
@@ -132,9 +129,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
-      '@types/string-similarity':
-        specifier: ^4.0.2
-        version: 4.0.2
       '@types/unzipper':
         specifier: ^0.10.11
         version: 0.10.11
@@ -2831,9 +2825,6 @@ packages:
 
   '@types/statuses@2.0.6':
     resolution: {integrity: sha512-xMAgYwceFhRA2zY+XbEA7mxYbA093wdiW8Vu6gZPGWy9cmOyU9XesH1tNcEWsKFd5Vzrqx5T3D38PWx1FIIXkA==}
-
-  '@types/string-similarity@4.0.2':
-    resolution: {integrity: sha512-LkJQ/jsXtCVMK+sKYAmX/8zEq+/46f1PTQw7YtmQwb74jemS1SlNLmARM2Zml9DgdDTWKAtc5L13WorpHPDjDA==}
 
   '@types/unzipper@0.10.11':
     resolution: {integrity: sha512-D25im2zjyMCcgL9ag6N46+wbtJBnXIr7SI4zHf9eJD2Dw2tEB5e+p5MYkrxKIVRscs5QV0EhtU9rgXSPx90oJg==}
@@ -5894,10 +5885,6 @@ packages:
 
   strict-event-emitter@0.5.1:
     resolution: {integrity: sha512-vMgjE/GGEPEFnhFub6pa4FmJBRBVOLpIII2hvCZ8Kzb7K0hlHo7mQv6xYrBvCL2LtAIBwFUK8wvuJgTVSQ5MFQ==}
-
-  string-similarity@4.0.4:
-    resolution: {integrity: sha512-/q/8Q4Bl4ZKAPjj8WerIBJWALKkaPRfrvhfF8k/B23i4nzrlRj2/go1m90In7nG/3XDSbOo0+pu6RvCTM9RGMQ==}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   string-width@2.1.1:
     resolution: {integrity: sha512-nOqH59deCq9SRHlxq1Aw85Jnt4w6KvLKqWVik6oA9ZklXLNIOlqg4F2yrT1MVaTjAqvVwdfeZ7w7aCvJD7ugkw==}
@@ -9409,8 +9396,6 @@ snapshots:
 
   '@types/statuses@2.0.6': {}
 
-  '@types/string-similarity@4.0.2': {}
-
   '@types/unzipper@0.10.11':
     dependencies:
       '@types/node': 25.3.3
@@ -12844,8 +12829,6 @@ snapshots:
       - react-native-b4a
 
   strict-event-emitter@0.5.1: {}
-
-  string-similarity@4.0.4: {}
 
   string-width@2.1.1:
     dependencies:
