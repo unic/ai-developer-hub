@@ -33,7 +33,15 @@
    - Enter their API key (the system already supports this via the existing assignment edit UI)
    - The Anthropic `api_key_id` is resolved automatically at first sync — no manual ID entry needed
 
-4. **Verify**:
+4. **Configure cron job**:
+   Configure an external cron service to call the sync endpoint on the desired schedule (e.g., daily):
+   ```bash
+   POST https://<your-domain>/api/anthropic/sync
+   Authorization: Bearer <CRON_SECRET>
+   ```
+   Uses the same `CRON_SECRET` as the existing Copilot sync.
+
+5. **Verify**:
    - Log in as a user with a configured API Key ID
    - Navigate to Profile (sidebar footer → user dropdown → "My Profile")
    - Verify cost data loads for the current month
@@ -45,8 +53,12 @@ src/
 ├── app/profile/
 │   ├── page.tsx                      # Profile page (server component)
 │   └── profile-client.tsx            # Profile client component
+├── app/api/anthropic/sync/
+│   └── route.ts                      # Cron endpoint: POST /api/anthropic/sync
+├── lib/
+│   └── anthropic-sync.ts             # Sync orchestrator (mirrors copilot-sync.ts)
 ├── actions/
-│   └── anthropic-usage.ts            # Server actions for cost data
+│   └── anthropic-usage.ts            # Server actions for cost data + admin manual sync
 ├── components/
 │   ├── profile/
 │   │   ├── profile-header.tsx        # Read-only user info display

@@ -115,6 +115,47 @@ limit=31                              # Max days in a month
 
 If `has_more` is true, pass `page=<next_page>` to fetch additional buckets. For monthly queries with daily buckets this should not exceed 1 page (max 31 buckets).
 
+## Cron Route: POST /api/anthropic/sync
+
+Triggers usage sync for all users with valid Anthropic API keys. Called by an external cron service. Follows the same pattern as `POST /api/copilot/sync`.
+
+### Request
+
+```
+POST /api/anthropic/sync
+Authorization: Bearer {CRON_SECRET}
+```
+
+### Behavior
+
+1. Validate `CRON_SECRET` header (reject with 401 if invalid)
+2. Query all users with an active `license_assignment` that has `apiKeyEncrypted` set for an Anthropic tool
+3. For each user (sequentially to respect rate limits):
+   a. Check `anthropic_sync_status` — skip if sync already in progress or recently completed
+   b. Resolve `api_key_id` from cached `resolvedApiKeyId` or by listing org API keys
+   c. Run incremental sync (`syncAnthropicUsage`)
+4. Return JSON summary
+
+### Response
+
+```json
+{
+  "success": true,
+  "syncedUsers": 42,
+  "skippedUsers": 3,
+  "errors": [
+    { "userId": 7, "error": "API key not found in org" }
+  ]
+}
+```
+
+### Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| 401 | Missing or invalid `CRON_SECRET` |
+| 500 | Unexpected error during sync orchestration |
+
 ## Internal Server Actions
 
 ### getProfileData(userId)
@@ -169,8 +210,8 @@ Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metr
 **Output**: `ActionResult<{ syncedDays: number; latestDate: string }>`
 
 **Trigger modes**:
-- **Automatic (server-side)**: Called during `getProfileData` or `getUserCostData` if the user's last sync is older than the sync interval. Runs transparently — the user sees stored data while sync happens in the background. No user-facing refresh button.
-- **Admin manual**: Admin triggers sync from the user detail page. Admin-only access enforced via `requireAdmin()`.
+- **Cron job**: Called by the `POST /api/anthropic/sync` route for each user with a valid API key. Runs sequentially across users to respect rate limits.
+- **Admin manual**: Admin triggers sync for a specific user from the user detail page. Admin-only access enforced via `requireAdmin()`.
 
 **Behavior**:
 - **Resolve API key ID** (first sync or when cached ID is missing): Decrypts user's `apiKeyEncrypted` from `license_assignments`, calls `GET /v1/organizations/api_keys?status=active`, matches `partial_key_hint` to resolve `api_key_id`, caches it in `anthropic_sync_status.resolvedApiKeyId`

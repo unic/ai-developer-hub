@@ -81,7 +81,8 @@ This eliminates any schema modifications to `license_assignments` and requires z
 - **Incremental**: Detect latest stored date per user, fetch only new days
 - **Upsert**: Today's data is re-fetched and upserted (still accumulating). Past days are immutable.
 - **Backfill**: First sync fetches up to 31 days back (API max per query). Longer backfill chains multiple requests.
-- **Admin manual sync**: Admins can trigger a sync for any user from the admin detail page.
+- **Cron-based sync**: External cron service calls `POST /api/anthropic/sync` (same pattern as Copilot sync).
+- **Admin manual sync**: Admins can trigger a sync for a specific user from the admin detail page.
 
 **Alternatives considered**:
 - TTL-based cache (original design): Loses historical data. Cannot support month-over-month analysis or long-term trend monitoring. Rejected after requirement clarification.
@@ -114,7 +115,7 @@ Note: The spec says "user avatar/menu dropdown in the header" but the existing l
 
 **Decision**: Add an `anthropic_sync_status` table (one row per user) that tracks sync start/completion timestamps. Use this as a lightweight lock to prevent concurrent syncs and enforce rate limiting.
 
-**Rationale**: The profile page triggers automatic background syncs on page load when data is stale. With 100 users loading profiles, concurrent server-side syncs could exhaust the Anthropic Admin API rate limit (~1 req/min sustained). Manual sync is admin-only, but the automatic sync on page load still requires concurrency guards to prevent redundant API calls.
+**Rationale**: The cron job syncs all users sequentially, but concurrent cron invocations (e.g., cron fires while a previous run is still processing) or simultaneous admin manual triggers could create overlapping API calls. The concurrency guard prevents redundant API calls and protects the shared org-level rate limit (~1 req/min sustained).
 
 **Guard behavior**:
 1. Check `lastSyncStartedAt`: if within 60s and no completion → sync in progress, skip
@@ -126,3 +127,23 @@ Note: The spec says "user avatar/menu dropdown in the header" but the existing l
 - Database advisory locks (`pg_try_advisory_lock`): More elegant but Neon serverless may not support long-held advisory locks across connection pool resets. Rejected for reliability.
 - In-memory lock (Node.js): Does not survive serverless cold starts and doesn't work across multiple instances. Rejected.
 - No guard (rely on upsert idempotency): Data would be correct but redundant API calls waste the shared org rate limit. Rejected.
+
+## R9: Cron-Based Sync Trigger
+
+**Decision**: Use an external cron service calling `POST /api/anthropic/sync` (protected by `CRON_SECRET`), following the exact same pattern as the Copilot sync at `POST /api/copilot/sync`.
+
+**Rationale**: The Copilot integration already establishes this pattern. The API route authenticates via `CRON_SECRET` header, finds all users with valid Anthropic API keys, and syncs each user sequentially using the incremental sync logic. This keeps sync completely decoupled from page loads — users always see pre-synced data with no latency impact.
+
+**Cron route behavior** (`POST /api/anthropic/sync`):
+1. Validate `Authorization: Bearer <CRON_SECRET>` header
+2. Find all users with an `apiKeyEncrypted` on an Anthropic tool assignment
+3. For each user (sequentially to respect rate limits):
+   a. Check `anthropic_sync_status` concurrency guard
+   b. Resolve `api_key_id` if not cached
+   c. Run incremental sync
+4. Return summary of synced users and any errors
+
+**Alternatives considered**:
+- Sync on profile page load (original design): Adds latency to page loads. Multiple concurrent page loads could exhaust the rate limit. Rejected.
+- Vercel Cron: Would work but locks the project into Vercel. The existing pattern uses a generic `CRON_SECRET`-protected endpoint callable by any external scheduler. Consistent with existing Copilot pattern.
+- Next.js middleware: Not suitable for long-running background tasks in serverless environments. Rejected.

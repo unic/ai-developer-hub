@@ -53,7 +53,7 @@ Follows the incremental sync pattern established by `copilot_usage_metrics`:
 
 **Backfill**: On first sync for a user, fetch up to 31 days back (max per Anthropic API query). For longer backfill, chain multiple 31-day queries paginating backwards.
 
-**Manual sync**: Available to admins only (from the admin user detail page or a bulk sync action). Users see whatever data the last automatic sync produced — no user-facing refresh button.
+**Sync trigger**: Automated via a cron job calling `POST /api/anthropic/sync` (same pattern as Copilot sync at `POST /api/copilot/sync`). Admin can also trigger manually from the UI. Users have no sync controls — they see whatever data the last cron run produced.
 
 ### Pricing Lookup (Application Code)
 
@@ -164,9 +164,8 @@ anthropic_sync_status (NEW)
 
 ### Sync Triggers
 
-- **Automatic**: Sync runs automatically on profile page load if last sync is older than the sync interval (server-side, transparent to users)
-- **Admin manual sync**: Admin can trigger a sync for a user from the admin user detail page
-- **Future**: Scheduled sync via cron (out of scope for this feature, but the incremental pattern supports it)
+- **Cron job**: External cron service calls `POST /api/anthropic/sync` (protected by `CRON_SECRET`). Syncs all users with a valid API key. Same pattern as `POST /api/copilot/sync`.
+- **Admin manual sync**: Admin can trigger a sync for a specific user from the admin user detail page via a server action.
 
 ## Data Volume Estimates
 

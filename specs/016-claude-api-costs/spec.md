@@ -89,7 +89,7 @@ As a user tracking my Claude API costs, I want to see a day-by-day breakdown of 
 - **FR-006**: System MUST fetch and display daily token costs grouped by model for the current month, presented as a visual chart with supporting data.
 - **FR-007**: System MUST display costs in US dollars (the standard billing currency for Claude Console).
 - **FR-008**: System MUST handle API errors gracefully, showing user-friendly error messages.
-- **FR-009**: System MUST sync usage data automatically and incrementally (fetch only new days). Manual sync MUST only be available to admins.
+- **FR-009**: System MUST sync usage data via a cron job (external scheduler calling a dedicated API endpoint), incrementally fetching only new days. Manual sync MUST only be available to admins.
 - **FR-010**: System MUST handle the case where a user has no API key configured (admin responsibility), showing a message to contact their administrator.
 - **FR-011**: System MUST handle the case where a user has no API usage, showing an appropriate empty state.
 - **FR-012**: System MUST show the date of the latest stored usage data.

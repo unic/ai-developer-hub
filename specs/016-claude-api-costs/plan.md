@@ -66,6 +66,8 @@ src/
 │   └── profile/
 │       ├── page.tsx                      # Profile page (server component)
 │       └── profile-client.tsx            # Profile page client component
+├── app/api/anthropic/sync/
+│   └── route.ts                          # Cron endpoint: POST /api/anthropic/sync (CRON_SECRET auth)
 ├── actions/
 │   └── anthropic-usage.ts               # Server actions: getProfileData, syncAnthropicUsage (admin), getUserCostData
 ├── components/
@@ -78,6 +80,7 @@ src/
 │   ├── db/
 │   │   ├── schema.ts                     # MODIFIED: + anthropic_usage_metrics + anthropic_sync_status tables
 │   │   └── migrations/                   # New migration for schema changes
+│   ├── anthropic-sync.ts                 # Sync orchestrator (mirrors copilot-sync.ts pattern)
 │   ├── anthropic-pricing.ts              # Model pricing lookup table + cost computation
 │   └── anthropic-keys.ts                 # API key ID resolution (decrypt → list org keys → match partial_key_hint)
 ├── components/
