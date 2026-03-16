@@ -16,10 +16,10 @@ Stores daily token usage data fetched from the Anthropic Admin API as a permanen
 | userId | integer | FK → users.id, NOT NULL | The user whose usage this represents |
 | date | date | NOT NULL | The calendar date of usage |
 | model | varchar(100) | NOT NULL | Anthropic model identifier (e.g., "claude-opus-4-6") |
-| uncachedInputTokens | integer | NOT NULL, DEFAULT 0 | Non-cached input tokens consumed |
-| cacheReadInputTokens | integer | NOT NULL, DEFAULT 0 | Cache-read input tokens consumed |
-| cacheCreationInputTokens | integer | NOT NULL, DEFAULT 0 | Cache creation input tokens (all durations combined) |
-| outputTokens | integer | NOT NULL, DEFAULT 0 | Output tokens generated |
+| uncachedInputTokens | bigint | NOT NULL, DEFAULT 0 | Non-cached input tokens consumed |
+| cacheReadInputTokens | bigint | NOT NULL, DEFAULT 0 | Cache-read input tokens consumed |
+| cacheCreationInputTokens | bigint | NOT NULL, DEFAULT 0 | Cache creation input tokens (all durations combined) |
+| outputTokens | bigint | NOT NULL, DEFAULT 0 | Output tokens generated |
 | createdAt | timestamp | NOT NULL, DEFAULT now() | Row creation time |
 | updatedAt | timestamp | NOT NULL, DEFAULT now() | Row last update time |
 
@@ -35,7 +35,7 @@ Stores daily token usage data fetched from the Anthropic Admin API as a permanen
 **Notes**:
 - This is **permanent storage**, not a cache. Historical days are immutable; today's data is upserted (accumulating throughout the day).
 - Costs are NOT stored — they are computed at read time from token counts using a pricing lookup. This ensures pricing updates apply retroactively.
-- Token counts are integers (no fractional tokens).
+- Token counts use `bigint` (not `integer`) to safely handle heavy API users. A single day of aggressive long-context usage can produce hundreds of millions of tokens, exceeding 32-bit integer limits. In Drizzle, use `bigint('column', { mode: 'number' })` since values stay within JS safe integer range for daily per-model granularity.
 - The `model` field stores the exact model identifier returned by the Anthropic API (e.g., "claude-opus-4-6", "claude-sonnet-4-6").
 
 ### Sync Behavior
