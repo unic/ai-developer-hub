@@ -2,12 +2,13 @@
 
 **Feature**: 016-claude-api-costs
 **Date**: 2026-03-16
+**Updated**: 2026-03-16 (revised: persistent history instead of cache)
 
 ## New Entities
 
-### anthropic_usage_cache
+### anthropic_usage_metrics
 
-Caches daily token usage data fetched from the Anthropic Admin API. One row per user per day per model.
+Stores daily token usage data fetched from the Anthropic Admin API as a permanent historical record. One row per user per day per model. Follows the same pattern as `copilot_usage_metrics` — data is persisted indefinitely for long-term cost monitoring and trend analysis.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
@@ -19,23 +20,37 @@ Caches daily token usage data fetched from the Anthropic Admin API. One row per 
 | cacheReadInputTokens | integer | NOT NULL, DEFAULT 0 | Cache-read input tokens consumed |
 | cacheCreationInputTokens | integer | NOT NULL, DEFAULT 0 | Cache creation input tokens (all durations combined) |
 | outputTokens | integer | NOT NULL, DEFAULT 0 | Output tokens generated |
-| fetchedAt | timestamp | NOT NULL | When this data was last fetched from API |
 | createdAt | timestamp | NOT NULL, DEFAULT now() | Row creation time |
 | updatedAt | timestamp | NOT NULL, DEFAULT now() | Row last update time |
 
 **Unique constraint**: (userId, date, model)
 
 **Indexes**:
-- `idx_usage_cache_user_date` on (userId, date) — primary query pattern for profile page
-- `idx_usage_cache_fetched` on (fetchedAt) — cache invalidation queries
+- `idx_usage_metrics_user_date` on (userId, date) — primary query pattern for profile page and historical reports
+- `idx_usage_metrics_date` on (date) — enables date-range queries across all users (admin reporting)
 
 **Relationships**:
 - `userId` → `users.id` (many-to-one, CASCADE on delete)
 
 **Notes**:
+- This is **permanent storage**, not a cache. Historical days are immutable; today's data is upserted (accumulating throughout the day).
 - Costs are NOT stored — they are computed at read time from token counts using a pricing lookup. This ensures pricing updates apply retroactively.
 - Token counts are integers (no fractional tokens).
 - The `model` field stores the exact model identifier returned by the Anthropic API (e.g., "claude-opus-4-6", "claude-sonnet-4-6").
+
+### Sync Behavior
+
+Follows the incremental sync pattern established by `copilot_usage_metrics`:
+
+1. **Detect latest stored date**: Query `MAX(date)` for the user from `anthropic_usage_metrics`
+2. **Fetch only new data**: Set `starting_at` to latest date + 1 day (or first of current month if no history)
+3. **Upsert rows**: Use `onConflictDoUpdate` on the unique (userId, date, model) constraint
+4. **Today's data**: Always re-fetched and upserted (still accumulating)
+5. **Past days**: Immutable after the day is complete — upsert is a no-op for unchanged data
+
+**Manual refresh**: User can trigger a refresh which re-fetches the current day. Past days are not re-fetched unless a backfill is explicitly triggered.
+
+**Backfill**: On first sync for a user, fetch up to 31 days back (max per Anthropic API query). For longer backfill, chain multiple 31-day queries paginating backwards.
 
 ### Pricing Lookup (Application Code)
 
@@ -77,33 +92,39 @@ Add one new field to store the Anthropic API key ID used for usage filtering.
 ```
 users (existing)
   ├── 1:N → license_assignments (existing, +anthropicApiKeyId)
-  └── 1:N → anthropic_usage_cache (NEW)
+  └── 1:N → anthropic_usage_metrics (NEW)
 
 license_assignments (existing)
   └── anthropicApiKeyId: used to query Anthropic API for this user's usage
 
-anthropic_usage_cache (NEW)
+anthropic_usage_metrics (NEW)
   └── userId → users.id
 ```
 
-## State Transitions
+## Data Lifecycle
 
-### Cache Entry Lifecycle
+### Usage Metric Lifecycle
 
 ```
-[Empty] → [Fresh] → [Stale] → [Refreshed/Fresh]
+[Empty] → [Initial Backfill] → [Daily Incremental Sync] → [Immutable History]
 ```
 
-- **Empty**: No cache entry exists for this user/date/model
-- **Fresh**: `fetchedAt` is within the last 5 minutes
-- **Stale**: `fetchedAt` is older than 5 minutes
-- **Refreshed**: User triggered manual refresh, cache updated with new data
+- **Empty**: No data exists for this user. First sync triggers a backfill (up to 31 days back).
+- **Initial Backfill**: Historical data fetched in 31-day chunks via the Anthropic API.
+- **Daily Incremental Sync**: Each sync detects the latest stored date and fetches only new days. Today's row is upserted (still accumulating).
+- **Immutable History**: Past days are never modified after the day is complete. Data persists indefinitely for long-term trend analysis.
 
-Cache entries are upserted (insert or update on conflict of unique constraint).
+### Refresh Triggers
+
+- **Manual**: User clicks "Refresh" on profile page → re-syncs current day only
+- **Admin sync**: Admin can trigger a full sync for a user from the admin detail page
+- **Future**: Scheduled sync via cron (out of scope for this feature, but the incremental pattern supports it)
 
 ## Data Volume Estimates
 
-- Per user per month: ~31 days × ~3 models = ~93 rows in anthropic_usage_cache
+- Per user per month: ~31 days × ~3 models = ~93 rows
 - For 100 users: ~9,300 rows/month
-- Annual: ~112,000 rows — well within PostgreSQL comfort zone without partitioning
+- Annual (100 users): ~112,000 rows
+- 5-year projection (100 users): ~560,000 rows — well within PostgreSQL comfort zone without partitioning
 - Query pattern: Filter by userId + date range → always hits the composite index
+- Historical queries (e.g., "last 12 months"): ~1,116 rows per user — trivial

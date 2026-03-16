@@ -89,10 +89,11 @@ As a user tracking my Claude API costs, I want to see a day-by-day breakdown of 
 - **FR-006**: System MUST fetch and display daily token costs grouped by model for the current month, presented as a visual chart with supporting data.
 - **FR-007**: System MUST display costs in US dollars (the standard billing currency for Claude Console).
 - **FR-008**: System MUST handle API errors gracefully, showing user-friendly error messages.
-- **FR-009**: System MUST refresh cost data on user request to show up-to-date information.
+- **FR-009**: System MUST sync usage data incrementally (fetch only new days) and allow users to trigger a manual sync for the current day.
 - **FR-010**: System MUST handle the case where a user has no API key configured (admin responsibility), showing a message to contact their administrator.
 - **FR-011**: System MUST handle the case where a user has no API usage, showing an appropriate empty state.
-- **FR-012**: System MUST show the date and time of the last successful data fetch.
+- **FR-012**: System MUST show the date of the latest stored usage data.
+- **FR-012a**: System MUST persist usage data permanently for long-term cost monitoring and trend analysis across months.
 - **FR-013**: System MUST display a user's Claude API cost data on the admin user detail page, visible to admin users.
 - **FR-014**: System MUST provide a "My Profile" link in the user avatar/menu dropdown in the header for navigating to the profile page.
 
@@ -118,4 +119,4 @@ As a user tracking my Claude API costs, I want to see a day-by-day breakdown of 
 - Costs are reported in US dollars, consistent with Anthropic's billing practices.
 - The system already has user authentication in place (NextAuth.js). API keys are managed by admins using existing functionality — users do not store or update their own keys.
 - Cost data granularity is at the daily level per model, as this is the standard granularity available from Claude Console billing.
-- The system will cache fetched cost data locally to reduce API calls and provide faster page loads.
+- The system will persist fetched usage data permanently for long-term monitoring. Incremental sync fetches only new days. Data is served from the database, not the API, for page loads.

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a self-service profile page (`/profile`) where authenticated users can view their personal info, assigned AI tools/licenses, and Claude API cost tracking (monthly total + daily breakdown by model with visual chart). Admins can also view user cost data on the admin user detail page. Cost data is fetched from the Anthropic Admin API (`usage_report/messages` endpoint), cached in PostgreSQL, and costs are computed from token counts using a pricing lookup table.
+Add a self-service profile page (`/profile`) where authenticated users can view their personal info, assigned AI tools/licenses, and Claude API cost tracking (monthly total + daily breakdown by model with visual chart). Admins can also view user cost data on the admin user detail page. Usage data is fetched from the Anthropic Admin API (`usage_report/messages` endpoint) via incremental sync and stored permanently in PostgreSQL (following the `copilot_usage_metrics` pattern) for long-term cost monitoring. Costs are computed at read time from token counts using a pricing lookup table.
 
 ## Technical Context
 
@@ -31,7 +31,7 @@ Add a self-service profile page (`/profile`) where authenticated users can view 
 | II. UX Consistency | PASS | Using shadcn/ui components exclusively. ChartContainer for Recharts (existing pattern). Design tokens only. |
 | III. Performance Budgets | PASS | Profile page is lightweight (read-only data + 1 chart). Cache avoids blocking API calls on page load. |
 | IV. Accessibility-First | PASS | Chart uses `accessibilityLayer` (existing Recharts pattern). Read-only content is inherently accessible. Keyboard nav via shadcn. |
-| V. Simplicity & Maintainability | PASS | No new dependencies. Reuses existing patterns (server actions, Drizzle, Recharts). Pricing as code constant (no over-engineering). |
+| V. Simplicity & Maintainability | PASS | No new dependencies. Reuses existing patterns (server actions, Drizzle, Recharts, incremental sync from copilot). Pricing as code constant (no over-engineering). |
 
 ### Post-Design Gate
 
@@ -39,9 +39,9 @@ Add a self-service profile page (`/profile`) where authenticated users can view 
 |-----------|--------|-------|
 | I. Type-Safe Code Quality | PASS | Zod schema validates Anthropic API response shape. `ModelPricing` type exported. `ProfileData` type covers all profile data. |
 | II. UX Consistency | PASS | Profile page follows existing card-based layout. Chart matches copilot chart patterns. Empty/error/loading states defined. |
-| III. Performance Budgets | PASS | Cached data served from DB (no API call on render). Chart lazy-loaded via client component. No new dependencies added. |
+| III. Performance Budgets | PASS | Historical data served from DB (no API call on render). Chart lazy-loaded via client component. No new dependencies added. |
 | IV. Accessibility-First | PASS | Recharts `accessibilityLayer` provides screen reader support. Tooltips accessible via keyboard. Color not sole indicator (legend labels). |
-| V. Simplicity & Maintainability | PASS | Single cache table. Pricing in code. No abstraction layers. Direct Drizzle queries. Follows existing server action pattern exactly. |
+| V. Simplicity & Maintainability | PASS | Single metrics table (mirrors copilot pattern). Incremental sync reuses proven pattern. Pricing in code. Direct Drizzle queries. |
 
 ## Project Structure
 

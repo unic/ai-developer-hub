@@ -109,28 +109,37 @@ type ProfileData = {
       }>;
       totalCents: number;
     }>;
-    lastFetchedAt: Date | null;
+    latestDataDate: string | null;  // Latest date with stored data
   };
 };
 ```
 
-### refreshCostData(userId)
+### syncAnthropicUsage(userId)
 
-Fetches fresh data from Anthropic API and updates cache.
+Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metrics`. Follows the `copilot_usage_metrics` incremental sync pattern.
 
-**Input**: `userId: number` (from session)
+**Input**: `userId: number` (from session or admin context)
 
-**Output**: `ActionResult<{ lastFetchedAt: Date }>`
+**Output**: `ActionResult<{ syncedDays: number; latestDate: string }>`
+
+**Behavior**:
+- Detects latest stored date for the user in `anthropic_usage_metrics`
+- Fetches from (latest date + 1 day) to today via the Anthropic Admin API
+- On first sync (no history): backfills up to 31 days (API max per query)
+- Upserts all rows using `onConflictDoUpdate` on (userId, date, model)
+- Today's data is always re-fetched (still accumulating)
 
 **Constraints**:
-- Minimum 5 minutes between refreshes per user
 - Requires user to have a valid `anthropicApiKeyId` in their license assignment
 - Uses `ANTHROPIC_ADMIN_API_KEY` environment variable for authentication
+- Rate limit: avoid calling more than once per minute per user
 
-### getUserCostData(userId) — Admin variant
+### getUserCostData(userId, month?)
 
-Same as cost section of `getProfileData` but callable by admins for any user.
+Returns cost data for a user for a given month (defaults to current month). Reads from persistent `anthropic_usage_metrics` table, computes costs at query time.
 
-**Input**: `userId: number` (from admin context)
+**Input**: `userId: number`, `month?: string` (format "YYYY-MM", defaults to current)
 
 **Output**: Same `costData` shape as above
+
+**Callable by**: The user themselves (profile page) or admins (user detail page)

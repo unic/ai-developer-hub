@@ -55,16 +55,22 @@ The usage_report/messages endpoint is preferred because it supports grouping by 
 - Use the `cost_report` endpoint instead: Returns USD directly but excludes Priority Tier and cannot filter by `api_key_id`. Rejected.
 - Store pricing in database: Over-engineered. Pricing changes rarely and a code constant is simpler to maintain and deploy.
 
-## R5: Caching Strategy
+## R5: Persistent Usage History (Revised from Cache)
 
-**Decision**: Cache fetched usage data in a new database table (`anthropic_usage_cache`) with a TTL-based refresh. Refresh on user request (manual) with a minimum interval of 5 minutes.
+**Decision**: Store usage data permanently in a `anthropic_usage_metrics` table with incremental sync, following the same pattern as `copilot_usage_metrics`. This is persistent history, not a cache.
 
-**Rationale**: The Anthropic API has rate limits (~1 req/min sustained) and data freshness of ~5 minutes. Caching avoids redundant API calls when multiple users view their profiles or the same user refreshes. The cache stores raw token counts per day/model/user, and cost computation happens at read time (so pricing updates apply retroactively).
+**Rationale**: Long-term cost monitoring requires historical data to survive across months and years. A TTL-based cache would lose historical data. The Anthropic API has no documented data retention limit, but relying on API availability for historical queries is fragile. Storing data permanently enables trend analysis, month-over-month comparisons, and reporting without API dependency for past periods.
+
+**Sync strategy** (mirrors `copilot_usage_metrics`):
+- **Incremental**: Detect latest stored date per user, fetch only new days
+- **Upsert**: Today's data is re-fetched and upserted (still accumulating). Past days are immutable.
+- **Backfill**: First sync fetches up to 31 days back (API max per query). Longer backfill chains multiple requests.
+- **Manual refresh**: Re-syncs current day only.
 
 **Alternatives considered**:
-- No caching (fetch on every page load): Violates rate limits with multiple concurrent users. Rejected.
-- Client-side caching only: Does not survive page reloads and doesn't help with rate limiting on the server side. Rejected.
-- Redis/memory cache: This project uses Neon PostgreSQL only. Adding Redis is unnecessary complexity for a cache with 5-minute TTL and low write volume.
+- TTL-based cache (original design): Loses historical data. Cannot support month-over-month analysis or long-term trend monitoring. Rejected after requirement clarification.
+- Fetch from API on demand for historical data: API max is 31 days per query. Fetching 12 months of history would require 12 sequential API calls on each page load. Rejected for performance and rate limit reasons.
+- Redis/memory cache: Does not persist across deployments and cannot support historical queries. Rejected.
 
 ## R6: Profile Page Architecture
 

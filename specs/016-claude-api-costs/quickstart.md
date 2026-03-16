@@ -20,7 +20,7 @@
    pnpm db:generate
    pnpm db:migrate
    ```
-   This adds the `anthropic_usage_cache` table and `anthropic_api_key_id` column to `license_assignments`.
+   This adds the `anthropic_usage_metrics` table and `anthropic_api_key_id` column to `license_assignments`.
 
 2. **Configure environment**:
    ```bash
@@ -70,7 +70,7 @@ specs/016-claude-api-costs/          # (already exists)
 
 ```
 src/
-├── lib/db/schema.ts                  # Add anthropic_usage_cache table + license_assignments field
+├── lib/db/schema.ts                  # Add anthropic_usage_metrics table + license_assignments field
 ├── lib/validators.ts                 # Add anthropicApiKeyId to assignment schema
 ├── components/app-sidebar.tsx        # Add user dropdown with "My Profile" link
 ├── app/users/[id]/
@@ -81,8 +81,8 @@ src/
 
 ## Key Architecture Decisions
 
-- **Costs computed at read time** from cached token counts × pricing table (not stored as cents). This means pricing updates apply retroactively.
-- **Cache in PostgreSQL** (not Redis) — consistent with project's single-database approach.
-- **5-minute cache TTL** — matches Anthropic API data freshness.
+- **Persistent usage history** (not a cache) — follows the `copilot_usage_metrics` pattern. Data stored permanently for long-term cost monitoring.
+- **Incremental sync** — detects latest stored date, fetches only new days. Today's data is upserted.
+- **Costs computed at read time** from stored token counts × pricing table. Pricing updates apply retroactively.
 - **Admin API key in env var** — single org key, not per-user.
 - **Profile at `/profile`** — separate from admin `/users/[id]` route.
