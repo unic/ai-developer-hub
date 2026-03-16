@@ -216,7 +216,8 @@ export async function confirmGitHubSync(
             "github_profile",
             existingProfile[0].id,
             adminId,
-            { lastSyncedAt: { old: existingProfile[0].lastSyncedAt?.toISOString() ?? null, new: new Date().toISOString() } }
+            { lastSyncedAt: { old: existingProfile[0].lastSyncedAt?.toISOString() ?? null, new: new Date().toISOString() } },
+            tx
           );
         } else {
           const [newProfile] = await tx
@@ -227,7 +228,7 @@ export async function confirmGitHubSync(
             })
             .returning({ id: githubProfiles.id });
 
-          await recordCreation("github_profile", newProfile.id, adminId);
+          await recordCreation("github_profile", newProfile.id, adminId, tx);
         }
 
         // Populate githubUsername if matched by email and field was empty
@@ -246,7 +247,7 @@ export async function confirmGitHubSync(
 
             await recordUpdate("user", match.matchedUserId, adminId, {
               githubUsername: { old: null, new: match.githubLogin },
-            });
+            }, tx);
           }
         }
 
@@ -275,7 +276,7 @@ export async function confirmGitHubSync(
           })
           .returning({ id: users.id });
 
-        await recordCreation("user", newUser.id, adminId);
+        await recordCreation("user", newUser.id, adminId, tx);
 
         const [newProfile] = await tx
           .insert(githubProfiles)
@@ -293,7 +294,7 @@ export async function confirmGitHubSync(
           })
           .returning({ id: githubProfiles.id });
 
-        await recordCreation("github_profile", newProfile.id, adminId);
+        await recordCreation("github_profile", newProfile.id, adminId, tx);
         importedCount++;
       }
 
@@ -336,7 +337,7 @@ export async function confirmGitHubSync(
 
         await recordUpdate("user", mm.userId, adminId, {
           githubUsername: { old: previousGithubUsername ?? null, new: mm.githubLogin },
-        });
+        }, tx);
 
         // Upsert githubProfiles with enriched data
         const memberData = memberLookup.get(mm.githubLogin.toLowerCase());
@@ -418,7 +419,7 @@ export async function confirmGitHubSync(
           })
           .returning({ id: users.id });
 
-        await recordCreation("user", newInlineUser.id, adminId);
+        await recordCreation("user", newInlineUser.id, adminId, tx);
 
         const memberData = memberLookup.get(nu.githubLogin.toLowerCase());
         if (memberData) {
@@ -438,7 +439,7 @@ export async function confirmGitHubSync(
             })
             .returning({ id: githubProfiles.id });
 
-          await recordCreation("github_profile", newProfile.id, adminId);
+          await recordCreation("github_profile", newProfile.id, adminId, tx);
         }
 
         createdCount++;
