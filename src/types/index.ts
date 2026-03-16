@@ -259,6 +259,7 @@ export interface SyncUnmatchedSystemUser {
   userName: string;
   userEmail: string;
   githubUsername: string | null;
+  userStatus: "active" | "inactive";
 }
 
 export interface SyncConflict {
@@ -275,6 +276,30 @@ export interface SyncPreview {
   unmatchedSystemUsers: SyncUnmatchedSystemUser[];
   conflicts: SyncConflict[];
   rateLimitRemaining: number;
+}
+
+// GitHub member sync — manual matching types
+export type PendingResolution =
+  | { type: "match"; githubLogin: string; userId: number; userName: string }
+  | { type: "create"; githubLogin: string; name: string; email: string }
+  | { type: "skip"; githubLogin: string };
+
+export interface MatchSuggestion {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  userStatus: "active" | "inactive";
+  githubUsername: string | null;
+  score: number;
+  reason: string;
+}
+
+export interface ResolutionSummary {
+  total: number;
+  matched: number;
+  created: number;
+  skipped: number;
+  unresolved: number;
 }
 
 // Copilot integration types
