@@ -72,7 +72,7 @@ The usage_report/messages endpoint is preferred because it supports grouping by 
 - **Incremental**: Detect latest stored date per user, fetch only new days
 - **Upsert**: Today's data is re-fetched and upserted (still accumulating). Past days are immutable.
 - **Backfill**: First sync fetches up to 31 days back (API max per query). Longer backfill chains multiple requests.
-- **Manual refresh**: Re-syncs current day only.
+- **Admin manual sync**: Admins can trigger a sync for any user from the admin detail page.
 
 **Alternatives considered**:
 - TTL-based cache (original design): Loses historical data. Cannot support month-over-month analysis or long-term trend monitoring. Rejected after requirement clarification.
@@ -105,7 +105,7 @@ Note: The spec says "user avatar/menu dropdown in the header" but the existing l
 
 **Decision**: Add an `anthropic_sync_status` table (one row per user) that tracks sync start/completion timestamps. Use this as a lightweight lock to prevent concurrent syncs and enforce rate limiting.
 
-**Rationale**: The profile page exposes sync to every user (page load + manual refresh). With 100 users, concurrent syncs will rapidly exhaust the Anthropic Admin API rate limit (~1 req/min sustained). The `copilot-sync.ts` pattern lacks concurrency protection but is mitigated by admin-only triggering. The profile page needs explicit guards because any user can trigger syncs.
+**Rationale**: The profile page triggers automatic background syncs on page load when data is stale. With 100 users loading profiles, concurrent server-side syncs could exhaust the Anthropic Admin API rate limit (~1 req/min sustained). Manual sync is admin-only, but the automatic sync on page load still requires concurrency guards to prevent redundant API calls.
 
 **Guard behavior**:
 1. Check `lastSyncStartedAt`: if within 60s and no completion → sync in progress, skip

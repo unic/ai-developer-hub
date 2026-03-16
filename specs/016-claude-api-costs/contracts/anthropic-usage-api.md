@@ -118,9 +118,13 @@ type ProfileData = {
 
 Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metrics`. Follows the `copilot_usage_metrics` incremental sync pattern.
 
-**Input**: `userId: number` (from session or admin context)
+**Input**: `userId: number`
 
 **Output**: `ActionResult<{ syncedDays: number; latestDate: string }>`
+
+**Trigger modes**:
+- **Automatic (server-side)**: Called during `getProfileData` or `getUserCostData` if the user's last sync is older than the sync interval. Runs transparently — the user sees stored data while sync happens in the background. No user-facing refresh button.
+- **Admin manual**: Admin triggers sync from the user detail page. Admin-only access enforced via `requireAdmin()`.
 
 **Behavior**:
 - Detects latest stored date for the user in `anthropic_usage_metrics`

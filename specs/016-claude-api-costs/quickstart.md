@@ -70,19 +70,19 @@ specs/016-claude-api-costs/          # (already exists)
 
 ```
 src/
-├── lib/db/schema.ts                  # Add anthropic_usage_metrics table + license_assignments field
+├── lib/db/schema.ts                  # Add anthropic_usage_metrics + anthropic_sync_status tables, + license_assignments field
 ├── lib/validators.ts                 # Add anthropicApiKeyId to assignment schema
 ├── components/app-sidebar.tsx        # Add user dropdown with "My Profile" link
 ├── app/users/[id]/
 │   ├── page.tsx                      # Fetch cost data for admin view
-│   └── user-detail-client.tsx        # Add read-only cost section for admins
+│   └── user-detail-client.tsx        # Add read-only cost section + manual sync button for admins
 └── actions/assignments.ts            # Support anthropicApiKeyId in assignment updates
 ```
 
 ## Key Architecture Decisions
 
 - **Persistent usage history** (not a cache) — follows the `copilot_usage_metrics` pattern. Data stored permanently for long-term cost monitoring.
-- **Incremental sync** — detects latest stored date, fetches only new days. Today's data is upserted.
-- **Costs computed at read time** from stored token counts × pricing table. Pricing updates apply retroactively.
+- **Incremental sync** — detects latest stored date, fetches only new days. Today's data is upserted. Sync runs automatically server-side on stale data; manual trigger is admin-only.
+- **Costs computed at sync time** and stored in `computedCostCents`. Prefix-based pricing lookup handles model version suffixes.
 - **Admin API key in env var** — single org key, not per-user.
-- **Profile at `/profile`** — separate from admin `/users/[id]` route.
+- **Profile at `/profile`** — separate from admin `/users/[id]` route. No user-facing refresh button; data is always served from stored metrics.

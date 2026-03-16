@@ -51,9 +51,9 @@ Follows the incremental sync pattern established by `copilot_usage_metrics`:
 4. **Today's data**: Always re-fetched and upserted (still accumulating)
 5. **Past days**: Immutable after the day is complete — upsert is a no-op for unchanged data
 
-**Manual refresh**: User can trigger a refresh which re-fetches the current day. Past days are not re-fetched unless a backfill is explicitly triggered.
-
 **Backfill**: On first sync for a user, fetch up to 31 days back (max per Anthropic API query). For longer backfill, chain multiple 31-day queries paginating backwards.
+
+**Manual sync**: Available to admins only (from the admin user detail page or a bulk sync action). Users see whatever data the last automatic sync produced — no user-facing refresh button.
 
 ### Pricing Lookup (Application Code)
 
@@ -168,10 +168,10 @@ anthropic_sync_status (NEW)
 - **Daily Incremental Sync**: Each sync detects the latest stored date and fetches only new days. Today's row is upserted (still accumulating).
 - **Immutable History**: Past days are never modified after the day is complete. Data persists indefinitely for long-term trend analysis.
 
-### Refresh Triggers
+### Sync Triggers
 
-- **Manual**: User clicks "Refresh" on profile page → re-syncs current day only
-- **Admin sync**: Admin can trigger a full sync for a user from the admin detail page
+- **Automatic**: Sync runs automatically on profile page load if last sync is older than the sync interval (server-side, transparent to users)
+- **Admin manual sync**: Admin can trigger a sync for a user from the admin user detail page
 - **Future**: Scheduled sync via cron (out of scope for this feature, but the incremental pattern supports it)
 
 ## Data Volume Estimates

@@ -67,12 +67,12 @@ src/
 │       ├── page.tsx                      # Profile page (server component)
 │       └── profile-client.tsx            # Profile page client component
 ├── actions/
-│   └── anthropic-usage.ts               # Server actions: getProfileData, refreshCostData, getUserCostData
+│   └── anthropic-usage.ts               # Server actions: getProfileData, syncAnthropicUsage (admin), getUserCostData
 ├── components/
 │   ├── profile/
 │   │   ├── profile-header.tsx            # Read-only user info card
 │   │   ├── profile-assignments.tsx       # Read-only tool assignments list
-│   │   └── cost-tracking-section.tsx     # Monthly total + daily chart + refresh + empty/error states
+│   │   └── cost-tracking-section.tsx     # Monthly total + daily chart + empty/error states (no refresh button)
 │   └── cost-chart.tsx                    # Recharts stacked bar chart (daily costs by model)
 ├── lib/
 │   ├── db/
@@ -84,7 +84,7 @@ src/
 │   └── app-sidebar.tsx                   # MODIFIED: + user dropdown with "My Profile" link
 └── app/users/[id]/
     ├── page.tsx                          # MODIFIED: + fetch cost data for admin view
-    └── user-detail-client.tsx            # MODIFIED: + read-only cost section
+    └── user-detail-client.tsx            # MODIFIED: + read-only cost section + admin sync button
 
 tests/
 ├── unit/
