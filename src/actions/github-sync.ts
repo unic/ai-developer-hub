@@ -7,7 +7,7 @@ import {
   githubSyncEvents,
   users,
 } from "@/lib/db/schema";
-import { eq, desc, ilike, or, notInArray, asc } from "drizzle-orm";
+import { eq, desc, ilike, or, and, notInArray, asc } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import {
@@ -514,8 +514,16 @@ export async function searchUsersForMatching(
 
   const searchPattern = `%${query.trim()}%`;
 
-  // Fetch more than 20 to account for excludeUserIds filtering
-  const fetchLimit = excludeUserIds?.length ? 20 + excludeUserIds.length : 20;
+  const conditions = [
+    or(
+      ilike(users.name, searchPattern),
+      ilike(users.email, searchPattern)
+    ),
+  ];
+
+  if (excludeUserIds && excludeUserIds.length > 0) {
+    conditions.push(notInArray(users.id, excludeUserIds));
+  }
 
   const results = await db
     .select({
@@ -526,23 +534,13 @@ export async function searchUsersForMatching(
       githubUsername: users.githubUsername,
     })
     .from(users)
-    .where(
-      or(
-        ilike(users.name, searchPattern),
-        ilike(users.email, searchPattern)
-      )
-    )
+    .where(and(...conditions))
     .orderBy(asc(users.status), asc(users.name))
-    .limit(fetchLimit);
-
-  const excludeSet = excludeUserIds ? new Set(excludeUserIds) : null;
-  const filtered = excludeSet
-    ? results.filter((u) => !excludeSet.has(u.id))
-    : results;
+    .limit(20);
 
   return {
     success: true,
-    data: filtered.slice(0, 20) as Array<{
+    data: results as Array<{
       id: number;
       name: string;
       email: string;
