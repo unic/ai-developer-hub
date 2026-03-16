@@ -45,15 +45,15 @@ Stores daily token usage data fetched from the Anthropic Admin API as a permanen
 
 Follows the incremental sync pattern established by `copilot_usage_metrics`:
 
-1. **Detect latest stored date**: Query `MAX(date)` for the user from `anthropic_usage_metrics`
-2. **Fetch only new data**: Set `starting_at` to latest date + 1 day (or first of current month if no history)
-3. **Upsert rows**: Use `onConflictDoUpdate` on the unique (userId, date, model) constraint
-4. **Today's data**: Always re-fetched and upserted (still accumulating)
-5. **Past days**: Immutable after the day is complete — upsert is a no-op for unchanged data
+1. **Fetch all org usage**: Single API call with `group_by[]=model&group_by[]=api_key_id&bucket_width=1d` — no per-user filtering
+2. **Resolve api_key_id mappings**: Build a map of api_key_id → userId from `anthropic_sync_status.resolvedApiKeyId` (resolve any unmapped keys first via the org API keys listing)
+3. **Map and upsert**: For each result row, look up the userId from the api_key_id map and upsert into `anthropic_usage_metrics`
+4. **Unmatched keys**: Usage from api_key_ids that don't map to any user is silently skipped (could be API keys not managed in this system)
+5. **Incremental range**: Use the oldest `MAX(date)` across all users as the starting point, or 31 days back if no data exists
 
-**Backfill**: On first sync for a user, fetch up to 31 days back (max per Anthropic API query). For longer backfill, chain multiple 31-day queries paginating backwards.
+**Backfill**: On first sync (no data for any user), fetch up to 31 days back (max per Anthropic API query). For longer backfill, chain multiple 31-day queries paginating backwards.
 
-**Sync trigger**: Automated via a cron job calling `POST /api/anthropic/sync` (same pattern as Copilot sync at `POST /api/copilot/sync`). Admin can also trigger manually from the UI. Users have no sync controls — they see whatever data the last cron run produced.
+**Sync trigger**: Automated via a cron job calling `POST /api/anthropic/sync` (same pattern as Copilot sync at `POST /api/copilot/sync`). This is a single-pass global sync — one API call retrieves usage for the entire org, then results are mapped to individual users. Admin can also trigger manually from the UI. Users have no sync controls — they see whatever data the last cron run produced.
 
 ### Pricing Lookup (Application Code)
 
@@ -98,14 +98,14 @@ function resolveModelPricing(model: string): { pricing: ModelPricing; resolved: 
 
 ### anthropic_sync_status
 
-Tracks the last sync time per user to prevent concurrent syncs and enforce rate limiting. One row per user.
+Tracks per-user sync metadata and cached API key mappings. One row per user. Also used for route-level concurrency guards on the global sync.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | id | serial | PK, auto-increment | Row identifier |
 | userId | integer | FK → users.id, NOT NULL, UNIQUE | The user being synced |
-| lastSyncStartedAt | timestamp | NULLABLE | When the last sync started (used as a lock signal) |
-| lastSyncCompletedAt | timestamp | NULLABLE | When the last sync completed successfully |
+| lastSyncStartedAt | timestamp | NULLABLE | When the last global sync started (written to all rows atomically as a lock signal) |
+| lastSyncCompletedAt | timestamp | NULLABLE | When the last global sync completed successfully for this user |
 | lastSyncError | varchar(500) | NULLABLE | Error message from last failed sync, if any |
 | syncedDays | integer | NOT NULL, DEFAULT 0 | Number of days synced in last run |
 | resolvedApiKeyId | varchar(100) | NULLABLE | The Anthropic-internal `api_key_id` resolved from the user's stored API key via the Admin API. Cached to avoid re-resolving on every sync. |
@@ -122,13 +122,17 @@ Tracks the last sync time per user to prevent concurrent syncs and enforce rate 
 4. Store the resolved `id` as `resolvedApiKeyId` in this table
 5. On subsequent syncs, reuse `resolvedApiKeyId` without re-resolving (unless the key changes)
 
-**Concurrency guard behavior**:
-1. Before starting a sync, check `lastSyncStartedAt`:
-   - If `lastSyncStartedAt` is within the last 60 seconds AND `lastSyncCompletedAt` is older than `lastSyncStartedAt` → sync is in progress, skip
-   - If `lastSyncStartedAt` is older than 5 minutes with no completion → treat as stale/failed, allow new sync
-2. Set `lastSyncStartedAt = now()` before calling the API
-3. Set `lastSyncCompletedAt = now()` after success, or `lastSyncError` after failure
-4. This prevents: concurrent syncs per user, redundant API calls on rapid page load + refresh, and rate limit exhaustion across the org
+**Concurrency guard behavior** (global sync level):
+
+Since the sync is now a single-pass global operation (not per-user), the concurrency guard operates at the route level:
+
+1. Before starting the global sync, check if ANY `anthropic_sync_status` row has `lastSyncStartedAt` within the last 60 seconds AND `lastSyncCompletedAt` older than `lastSyncStartedAt` → a sync is already in progress, return early
+2. If the most recent `lastSyncStartedAt` across all rows is older than 5 minutes with no corresponding completion → treat as stale/failed, allow a new sync
+3. Set `lastSyncStartedAt = now()` on all user rows before calling the API (atomic update acts as a global lock)
+4. After the sync completes, set `lastSyncCompletedAt = now()` on each user row that received data, or `lastSyncError` on rows where mapping/upsert failed
+5. This prevents: overlapping global syncs from concurrent cron invocations, redundant API calls, and rate limit exhaustion
+
+Per-user rows are retained for: `resolvedApiKeyId` caching, per-user `lastSyncCompletedAt` tracking (useful for admin visibility into which users have fresh data), and per-user error reporting.
 
 ## Modified Entities
 
@@ -164,7 +168,7 @@ anthropic_sync_status (NEW)
 
 ### Sync Triggers
 
-- **Cron job**: External cron service calls `POST /api/anthropic/sync` (protected by `CRON_SECRET`). Syncs all users with a valid API key. Same pattern as `POST /api/copilot/sync`.
+- **Cron job**: External cron service calls `POST /api/anthropic/sync` (protected by `CRON_SECRET`). Fetches all org usage in one pass (1–2 API calls) regardless of user count, then maps results to users via cached api_key_id mappings. Same pattern as `POST /api/copilot/sync`.
 - **Admin manual sync**: Admin can trigger a sync for a specific user from the admin user detail page via a server action.
 
 ## Data Volume Estimates

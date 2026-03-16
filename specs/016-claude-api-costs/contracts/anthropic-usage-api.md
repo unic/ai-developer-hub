@@ -69,8 +69,7 @@ starting_at=2026-03-01T00:00:00Z    # First day of current month (RFC 3339)
 ending_at=2026-03-17T00:00:00Z      # Current date + 1 day
 bucket_width=1d                       # Daily granularity
 group_by[]=model                      # Group by model
-group_by[]=api_key_id                 # Group by API key (per-user filtering)
-api_key_ids[]=<user_api_key_id>       # Filter to specific user's key
+group_by[]=api_key_id                 # Group by API key (to attribute usage per user)
 limit=31                              # Max days in a month
 ```
 
@@ -129,12 +128,12 @@ Authorization: Bearer {CRON_SECRET}
 ### Behavior
 
 1. Validate `CRON_SECRET` header (reject with 401 if invalid)
-2. Query all users with an active `license_assignment` that has `apiKeyEncrypted` set for an Anthropic tool
-3. For each user (sequentially to respect rate limits):
-   a. Check `anthropic_sync_status` — skip if sync already in progress or recently completed
-   b. Resolve `api_key_id` from cached `resolvedApiKeyId` or by listing org API keys
-   c. Run incremental sync (`syncAnthropicUsage`)
-4. Return JSON summary
+2. Check global sync lock (skip if sync already in progress)
+3. Resolve all `api_key_id` → `userId` mappings from `anthropic_sync_status` (resolve any missing via org API keys listing)
+4. Fetch ALL org usage in one API call: `group_by[]=model&group_by[]=api_key_id&bucket_width=1d` (paginate if needed)
+5. Map each result to a `userId` via the `api_key_id` mapping
+6. Upsert into `anthropic_usage_metrics` per user
+7. Return JSON summary
 
 ### Response
 
@@ -201,16 +200,38 @@ type ProfileData = {
 };
 ```
 
+### syncAllAnthropicUsage()
+
+Global sync entry point called by the cron route. Fetches all org usage in a single API call and distributes to per-user records.
+
+**Input**: None (syncs all users)
+
+**Output**: `ActionResult<{ syncedUsers: number; skippedUsers: number; errors: Array<{ userId: number; error: string }> }>`
+
+**Behavior**:
+- Resolve all `api_key_id` → `userId` mappings from `anthropic_sync_status` (resolve any missing via org API keys listing)
+- Fetch ALL org usage in one API call: `group_by[]=model&group_by[]=api_key_id&bucket_width=1d`, starting from the earliest unsynced date across all users (paginate if `has_more` is true)
+- For each result row, map `api_key_id` to a `userId` via the resolved mapping; skip rows with unknown keys
+- Upsert into `anthropic_usage_metrics` per user using `onConflictDoUpdate` on (userId, date, model)
+- Today's data is always re-fetched (still accumulating)
+- On first sync for a user (no history): backfills up to 31 days (API max per query)
+- Return summary of synced users, skipped users (no mapping or no data), and errors
+
+**Constraints**:
+- Uses `ANTHROPIC_ADMIN_API_KEY` environment variable for authentication
+- **Global concurrency guard**: Uses a global sync lock (not per-user). If a sync is already in progress (started < 60s ago, not completed), returns immediately. If last sync completed < 60s ago, skips API call.
+- On start: sets global `lastSyncStartedAt = now()`. On success: sets `lastSyncCompletedAt = now()`. On failure: sets `lastSyncError`.
+- Stale lock recovery: if `lastSyncStartedAt` is > 5 minutes old with no completion, the lock is considered stale and a new sync is allowed.
+
 ### syncAnthropicUsage(userId)
 
-Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metrics`. Follows the `copilot_usage_metrics` incremental sync pattern.
+Syncs usage data from the Anthropic API for a single user. Used only for admin manual sync of a specific user.
 
 **Input**: `userId: number`
 
 **Output**: `ActionResult<{ syncedDays: number; latestDate: string }>`
 
 **Trigger modes**:
-- **Cron job**: Called by the `POST /api/anthropic/sync` route for each user with a valid API key. Runs sequentially across users to respect rate limits.
 - **Admin manual**: Admin triggers sync for a specific user from the user detail page. Admin-only access enforced via `requireAdmin()`.
 
 **Behavior**:
@@ -224,7 +245,7 @@ Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metr
 **Constraints**:
 - Requires user to have a stored API key (`apiKeyEncrypted`) in their license assignment for an Anthropic tool
 - Uses `ANTHROPIC_ADMIN_API_KEY` environment variable for authentication
-- **Concurrency guard**: Checks `anthropic_sync_status` before calling the API. If a sync is already in progress (started < 60s ago, not completed), returns existing data immediately. If last sync completed < 60s ago, skips API call and returns existing data.
+- **Per-user concurrency guard**: Checks `anthropic_sync_status` before calling the API. If a sync is already in progress (started < 60s ago, not completed), returns existing data immediately. If last sync completed < 60s ago, skips API call and returns existing data.
 - On start: sets `lastSyncStartedAt = now()`. On success: sets `lastSyncCompletedAt = now()`. On failure: sets `lastSyncError`.
 - Stale lock recovery: if `lastSyncStartedAt` is > 5 minutes old with no completion, the lock is considered stale and a new sync is allowed.
 

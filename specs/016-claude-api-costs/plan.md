@@ -69,7 +69,7 @@ src/
 ├── app/api/anthropic/sync/
 │   └── route.ts                          # Cron endpoint: POST /api/anthropic/sync (CRON_SECRET auth)
 ├── actions/
-│   └── anthropic-usage.ts               # Server actions: getProfileData, syncAnthropicUsage (admin), getUserCostData
+│   └── anthropic-usage.ts               # Server actions: getProfileData, syncAllAnthropicUsage, syncAnthropicUsage (admin single-user), getUserCostData
 ├── components/
 │   ├── profile/
 │   │   ├── profile-header.tsx            # Read-only user info card

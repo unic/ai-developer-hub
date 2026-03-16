@@ -136,14 +136,22 @@ Note: The spec says "user avatar/menu dropdown in the header" but the existing l
 
 **Cron route behavior** (`POST /api/anthropic/sync`):
 1. Validate `Authorization: Bearer <CRON_SECRET>` header
-2. Find all users with an `apiKeyEncrypted` on an Anthropic tool assignment
-3. For each user (sequentially to respect rate limits):
-   a. Check `anthropic_sync_status` concurrency guard
-   b. Resolve `api_key_id` if not cached
-   c. Run incremental sync
-4. Return summary of synced users and any errors
+2. Single API call fetches ALL org usage (grouped by `api_key_id` + `model`) for the sync window
+3. Results mapped to users via `api_key_id` → `userId` cache (from `anthropic_sync_status.resolvedApiKeyId`)
+4. Upsert mapped usage rows into `anthropic_usage_metrics` per user
+5. 1-2 API calls total regardless of user count (vs. N calls for N users)
+6. Return summary of synced users and any errors
 
 **Alternatives considered**:
 - Sync on profile page load (original design): Adds latency to page loads. Multiple concurrent page loads could exhaust the rate limit. Rejected.
 - Vercel Cron: Would work but locks the project into Vercel. The existing pattern uses a generic `CRON_SECRET`-protected endpoint callable by any external scheduler. Consistent with existing Copilot pattern.
 - Next.js middleware: Not suitable for long-running background tasks in serverless environments. Rejected.
+
+## R10: Global Fetch vs Per-User Fetch
+
+**Decision**: Fetch all org usage in a single API call, then map results to users.
+
+**Rationale**: With N users, per-user fetching requires N API calls at ~1 req/min = N minutes. For 100 users, that's 100+ minutes per sync cycle. Global fetch requires 1-2 calls (31 daily buckets fit in one page) regardless of user count.
+
+**Alternatives considered**:
+- Per-user filtering (original design): Scales linearly with user count, hits rate limits. Rejected.
