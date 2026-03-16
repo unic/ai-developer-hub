@@ -15,6 +15,8 @@
 - Q: How should users navigate to their profile page? → A: User avatar/menu dropdown in the header with a "My Profile" link.
 - Q: Do users manage their own API keys? → A: No — API key storage and updates are handled by admins using existing functionality. Users only view their cost data.
 - Q: Are daily token costs and visual chart separate views? → A: No — they are combined into a single unified view with chart and supporting data together.
+- Q: Can users view past months or only the current month? → A: Month picker — users can select any past month to view historical costs alongside the current month.
+- Q: How often should the cron job sync usage data? → A: Hourly — most up-to-date data, ~24 API calls/day.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -37,7 +39,7 @@ As an authenticated user, I want to access my own profile page so that I can vie
 
 ### User Story 2 - View Current Month's Total Cost (Priority: P1)
 
-As a user with a Claude Console API key configured in the system, I want to see the total cost incurred for the current billing month on my profile page so that I can monitor my spending at a glance.
+As a user with a Claude Console API key configured in the system, I want to see the total cost incurred for a selected month (defaulting to the current month) on my profile page so that I can monitor my spending at a glance and compare across months.
 
 **Why this priority**: Knowing the current month's total spend is the most fundamental cost tracking need. Without this, users have no visibility into their API consumption.
 
@@ -45,9 +47,10 @@ As a user with a Claude Console API key configured in the system, I want to see 
 
 **Acceptance Scenarios**:
 
-1. **Given** a user has a valid Claude Console API key stored in the system, **When** they navigate to their profile page, **Then** they see the total cost for the current calendar month displayed in US dollars.
-2. **Given** a user has no API usage for the current month, **When** they view the cost tracking section on their profile, **Then** they see a total of $0.00 with a clear indication that no usage has been recorded.
-3. **Given** a user's API key has not been configured or is invalid, **When** they view the cost tracking section, **Then** they see an informative message explaining that no API key is configured and to contact their administrator.
+1. **Given** a user has a valid Claude Console API key stored in the system, **When** they navigate to their profile page, **Then** they see the total cost for the current calendar month displayed in US dollars, with a month picker to select any past month.
+2. **Given** a user selects a past month via the month picker, **When** the selection changes, **Then** the total cost and daily breakdown update to reflect the selected month's data.
+3. **Given** a user has no API usage for the selected month, **When** they view the cost tracking section on their profile, **Then** they see a total of $0.00 with a clear indication that no usage has been recorded.
+4. **Given** a user's API key has not been configured or is invalid, **When** they view the cost tracking section, **Then** they see an informative message explaining that no API key is configured and to contact their administrator.
 
 ---
 
@@ -61,7 +64,7 @@ As a user tracking my Claude API costs, I want to see a day-by-day breakdown of 
 
 **Acceptance Scenarios**:
 
-1. **Given** a user has API usage across multiple models in the current month, **When** they view the daily cost section, **Then** they see a chart displaying daily costs grouped by model with a legend identifying each model.
+1. **Given** a user has API usage across multiple models in the selected month, **When** they view the daily cost section, **Then** they see a chart displaying daily costs grouped by model with a legend identifying each model.
 2. **Given** a user interacts with a chart data point (e.g., hover or tap), **When** the interaction occurs, **Then** a tooltip shows the exact cost and model breakdown for that day.
 3. **Given** a user has usage on some days but not others, **When** they view the daily breakdown, **Then** days with no usage are either omitted or shown as $0.00, and the display remains clear and readable.
 4. **Given** a user wants to understand cost trends, **When** they view the daily breakdown, **Then** the data is presented in a way that allows them to identify which days and models had the highest costs.
@@ -85,11 +88,11 @@ As a user tracking my Claude API costs, I want to see a day-by-day breakdown of 
 - **FR-002**: System MUST restrict profile page access so that users can only view their own profile data.
 - **FR-003**: The profile page MUST display the user's personal information (name, email, role) in read-only format — no editing capabilities.
 - **FR-004**: The profile page MUST display the user's currently assigned AI tools/licenses with tool name, tier, and assignment date in read-only format.
-- **FR-005**: System MUST fetch and display the total cost for the current calendar month using the admin-configured API key.
-- **FR-006**: System MUST fetch and display daily token costs grouped by model for the current month, presented as a visual chart with supporting data.
+- **FR-005**: System MUST display the total cost for a selected month (defaulting to the current calendar month), with a month picker allowing users to view any past month with stored data.
+- **FR-006**: System MUST display daily token costs grouped by model for the selected month, presented as a visual chart with supporting data.
 - **FR-007**: System MUST display costs in US dollars (the standard billing currency for Claude Console).
 - **FR-008**: System MUST handle API errors gracefully, showing user-friendly error messages.
-- **FR-009**: System MUST sync usage data via a cron job (external scheduler calling a dedicated API endpoint) that fetches all org usage in a single pass and maps results to individual users. Manual sync of a specific user MUST only be available to admins.
+- **FR-009**: System MUST sync usage data hourly via a cron job (external scheduler calling a dedicated API endpoint) that fetches all org usage in a single pass and maps results to individual users. Manual sync of a specific user MUST only be available to admins.
 - **FR-010**: System MUST handle the case where a user has no API key configured (admin responsibility), showing a message to contact their administrator.
 - **FR-011**: System MUST handle the case where a user has no API usage, showing an appropriate empty state.
 - **FR-012**: System MUST show the date of the latest stored usage data.
@@ -107,8 +110,8 @@ As a user tracking my Claude API costs, I want to see a day-by-day breakdown of 
 
 ### Measurable Outcomes
 
-- **SC-001**: Users can view their current month's total API cost within 3 seconds of navigating to the cost tracking section.
-- **SC-002**: Users can identify their highest-cost model and highest-cost day within the current month in under 10 seconds.
+- **SC-001**: Users can view their selected month's total API cost within 3 seconds of navigating to the cost tracking section or switching months.
+- **SC-002**: Users can identify their highest-cost model and highest-cost day within the selected month in under 10 seconds.
 - **SC-003**: Cost data displayed matches the Claude Console's reported costs with less than 1% variance (accounting for rounding).
 - **SC-004**: Users with an admin-configured API key can see cost data immediately upon first visit to their profile page.
 - **SC-005**: Users without an API key configured see a clear message directing them to contact their administrator.
