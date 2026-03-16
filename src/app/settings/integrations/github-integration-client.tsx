@@ -786,6 +786,15 @@ function UnmatchedMembersList({
     user: { id: number; name: string; githubUsername: string };
   } | null>(null);
 
+  // Memoize suggestions for all unmatched members to avoid O(unmatched × systemUsers) per render (#8)
+  const suggestionsMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeMatchSuggestions>>();
+    for (const member of members) {
+      map.set(member.githubLogin, computeMatchSuggestions(member, unmatchedSystemUsers));
+    }
+    return map;
+  }, [members, unmatchedSystemUsers]);
+
   if (members.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
@@ -823,7 +832,7 @@ function UnmatchedMembersList({
     <>
       <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
         {members.map((member) => {
-          const suggestions = computeMatchSuggestions(member, unmatchedSystemUsers);
+          const suggestions = suggestionsMap.get(member.githubLogin) ?? [];
           const resolution = pendingResolutions.get(member.githubLogin);
           const isMatchExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "match";
           const isCreateExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "create";
