@@ -656,6 +656,7 @@ export function GitHubIntegrationClient({
                   <TableHead>Status</TableHead>
                   <TableHead>Members</TableHead>
                   <TableHead>Auto</TableHead>
+                  <TableHead>Imported</TableHead>
                   <TableHead>Manual</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Unmatched</TableHead>
@@ -673,6 +674,7 @@ export function GitHubIntegrationClient({
                     </TableCell>
                     <TableCell>{event.totalMembers ?? "—"}</TableCell>
                     <TableCell>{event.matchedCount ?? "—"}</TableCell>
+                    <TableCell>{event.importedCount ?? "—"}</TableCell>
                     <TableCell>{event.manuallyMatchedCount ?? "—"}</TableCell>
                     <TableCell>{event.createdCount ?? "—"}</TableCell>
                     <TableCell>{event.unmatchedCount ?? "—"}</TableCell>
