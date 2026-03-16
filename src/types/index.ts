@@ -380,3 +380,45 @@ export interface CopilotAnalyticsData {
     utilizationRate: number;
   }>;
 }
+
+// Anthropic Usage Types (016-claude-api-costs)
+export type DailyModelCost = {
+  model: string;
+  costCents: number;
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export type DailyBreakdown = {
+  date: string;
+  models: DailyModelCost[];
+  totalCents: number;
+};
+
+export type CostData = {
+  available: boolean;
+  error?: string;
+  monthlyTotalCents: number;
+  dailyBreakdown: DailyBreakdown[];
+  latestDataDate: string | null;
+  hasUnresolvedPricing: boolean;
+};
+
+export type ProfileData = {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    role: "admin" | "viewer";
+    circle: string | null;
+    profile: "boost" | "maxed" | "indie" | null;
+  };
+  assignments: {
+    id: number;
+    toolName: string;
+    tierName: string;
+    assignedAt: Date;
+    status: "active" | "inactive";
+  }[];
+  costData: CostData;
+};
