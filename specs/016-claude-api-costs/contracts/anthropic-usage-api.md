@@ -132,7 +132,9 @@ Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metr
 **Constraints**:
 - Requires user to have a valid `anthropicApiKeyId` in their license assignment
 - Uses `ANTHROPIC_ADMIN_API_KEY` environment variable for authentication
-- Rate limit: avoid calling more than once per minute per user
+- **Concurrency guard**: Checks `anthropic_sync_status` before calling the API. If a sync is already in progress (started < 60s ago, not completed), returns existing data immediately. If last sync completed < 60s ago, skips API call and returns existing data.
+- On start: sets `lastSyncStartedAt = now()`. On success: sets `lastSyncCompletedAt = now()`. On failure: sets `lastSyncError`.
+- Stale lock recovery: if `lastSyncStartedAt` is > 5 minutes old with no completion, the lock is considered stale and a new sync is allowed.
 
 ### getUserCostData(userId, month?)
 

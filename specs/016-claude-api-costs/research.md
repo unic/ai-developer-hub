@@ -93,3 +93,20 @@ The usage_report/messages endpoint is preferred because it supports grouping by 
 - Add as sidebar nav item: Profile is a user-level concern, not a navigation category. Placing it in the sidebar footer (user area) is semantically correct.
 
 Note: The spec says "user avatar/menu dropdown in the header" but the existing layout uses a sidebar footer for user info. We'll implement the dropdown in the sidebar footer user area, which serves the same purpose (quick access to profile) within the existing design pattern.
+
+## R8: Sync Concurrency Guard
+
+**Decision**: Add an `anthropic_sync_status` table (one row per user) that tracks sync start/completion timestamps. Use this as a lightweight lock to prevent concurrent syncs and enforce rate limiting.
+
+**Rationale**: The profile page exposes sync to every user (page load + manual refresh). With 100 users, concurrent syncs will rapidly exhaust the Anthropic Admin API rate limit (~1 req/min sustained). The `copilot-sync.ts` pattern lacks concurrency protection but is mitigated by admin-only triggering. The profile page needs explicit guards because any user can trigger syncs.
+
+**Guard behavior**:
+1. Check `lastSyncStartedAt`: if within 60s and no completion → sync in progress, skip
+2. Check `lastSyncCompletedAt`: if within 60s → recently synced, skip
+3. Stale lock recovery: if started > 5 minutes ago with no completion → allow new sync
+4. On start: set `lastSyncStartedAt = now()`. On success: set `lastSyncCompletedAt = now()`.
+
+**Alternatives considered**:
+- Database advisory locks (`pg_try_advisory_lock`): More elegant but Neon serverless may not support long-held advisory locks across connection pool resets. Rejected for reliability.
+- In-memory lock (Node.js): Does not survive serverless cold starts and doesn't work across multiple instances. Rejected.
+- No guard (rely on upsert idempotency): Data would be correct but redundant API calls waste the shared org rate limit. Rejected.

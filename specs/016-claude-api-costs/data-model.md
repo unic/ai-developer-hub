@@ -72,6 +72,32 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 };
 ```
 
+### anthropic_sync_status
+
+Tracks the last sync time per user to prevent concurrent syncs and enforce rate limiting. One row per user.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | serial | PK, auto-increment | Row identifier |
+| userId | integer | FK → users.id, NOT NULL, UNIQUE | The user being synced |
+| lastSyncStartedAt | timestamp | NULLABLE | When the last sync started (used as a lock signal) |
+| lastSyncCompletedAt | timestamp | NULLABLE | When the last sync completed successfully |
+| lastSyncError | varchar(500) | NULLABLE | Error message from last failed sync, if any |
+| syncedDays | integer | NOT NULL, DEFAULT 0 | Number of days synced in last run |
+
+**Unique constraint**: (userId)
+
+**Relationships**:
+- `userId` → `users.id` (one-to-one, CASCADE on delete)
+
+**Concurrency guard behavior**:
+1. Before starting a sync, check `lastSyncStartedAt`:
+   - If `lastSyncStartedAt` is within the last 60 seconds AND `lastSyncCompletedAt` is older than `lastSyncStartedAt` → sync is in progress, skip
+   - If `lastSyncStartedAt` is older than 5 minutes with no completion → treat as stale/failed, allow new sync
+2. Set `lastSyncStartedAt = now()` before calling the API
+3. Set `lastSyncCompletedAt = now()` after success, or `lastSyncError` after failure
+4. This prevents: concurrent syncs per user, redundant API calls on rapid page load + refresh, and rate limit exhaustion across the org
+
 ## Modified Entities
 
 ### license_assignments (existing)
@@ -92,13 +118,17 @@ Add one new field to store the Anthropic API key ID used for usage filtering.
 ```
 users (existing)
   ├── 1:N → license_assignments (existing, +anthropicApiKeyId)
-  └── 1:N → anthropic_usage_metrics (NEW)
+  ├── 1:N → anthropic_usage_metrics (NEW)
+  └── 1:1 → anthropic_sync_status (NEW)
 
 license_assignments (existing)
   └── anthropicApiKeyId: used to query Anthropic API for this user's usage
 
 anthropic_usage_metrics (NEW)
   └── userId → users.id
+
+anthropic_sync_status (NEW)
+  └── userId → users.id (unique, one-to-one)
 ```
 
 ## Data Lifecycle

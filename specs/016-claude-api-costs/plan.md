@@ -11,7 +11,7 @@ Add a self-service profile page (`/profile`) where authenticated users can view 
 
 **Language/Version**: TypeScript 5.9.3 (strict mode)
 **Primary Dependencies**: Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
-**Storage**: Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 1 new table, 1 table modification
+**Storage**: Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 2 new tables (`anthropic_usage_metrics`, `anthropic_sync_status`), 1 table modification
 **Testing**: Vitest (unit/integration), Playwright (e2e)
 **Target Platform**: Web application (Node.js server + browser client)
 **Project Type**: Web service (Next.js full-stack)
