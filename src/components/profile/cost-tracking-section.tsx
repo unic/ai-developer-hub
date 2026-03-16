@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MonthPicker } from "./month-picker";
 import { formatCurrency } from "@/lib/utils";
 import { getUserCostData } from "@/actions/anthropic-usage";
+import { CostChart } from "@/components/cost-chart";
 import { DollarSign, Info, AlertTriangle } from "lucide-react";
 import type { CostData } from "@/types";
 
@@ -108,7 +109,63 @@ export function CostTrackingSection({
             </p>
           )}
 
-        {/* Chart placeholder - will be added in Phase 5 (US3) */}
+        {/* Daily cost chart */}
+        {costData.dailyBreakdown.length > 0 && (
+          <div className={isPending ? "opacity-50" : ""}>
+            <CostChart dailyBreakdown={costData.dailyBreakdown} />
+          </div>
+        )}
+
+        {/* Summary stats */}
+        {costData.dailyBreakdown.length > 0 && (
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground">Active Days</p>
+              <p className="text-lg font-semibold">
+                {costData.dailyBreakdown.length}
+              </p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground">Top Model</p>
+              <p className="text-lg font-semibold truncate">
+                {(() => {
+                  const modelTotals = new Map<string, number>();
+                  for (const day of costData.dailyBreakdown) {
+                    for (const m of day.models) {
+                      modelTotals.set(
+                        m.model,
+                        (modelTotals.get(m.model) ?? 0) + m.costCents
+                      );
+                    }
+                  }
+                  const top = Array.from(modelTotals.entries()).sort(
+                    (a, b) => b[1] - a[1]
+                  )[0];
+                  if (!top) return "—";
+                  const match = top[0].match(/claude-(\w+)/);
+                  return match
+                    ? match[1].charAt(0).toUpperCase() + match[1].slice(1)
+                    : top[0];
+                })()}
+              </p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground">Peak Day</p>
+              <p className="text-lg font-semibold">
+                {(() => {
+                  const peak = costData.dailyBreakdown.reduce((max, day) =>
+                    day.totalCents > max.totalCents ? day : max
+                  );
+                  const d = new Date(peak.date + "T00:00:00");
+                  return d.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  });
+                })()}
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
