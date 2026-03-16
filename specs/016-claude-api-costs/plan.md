@@ -11,7 +11,7 @@ Add a self-service profile page (`/profile`) where authenticated users can view 
 
 **Language/Version**: TypeScript 5.9.3 (strict mode)
 **Primary Dependencies**: Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
-**Storage**: Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 2 new tables (`anthropic_usage_metrics`, `anthropic_sync_status`), 1 table modification
+**Storage**: Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 2 new tables (`anthropic_usage_metrics`, `anthropic_sync_status`), no modifications to existing tables
 **Testing**: Vitest (unit/integration), Playwright (e2e)
 **Target Platform**: Web application (Node.js server + browser client)
 **Project Type**: Web service (Next.js full-stack)
@@ -76,10 +76,10 @@ src/
 │   └── cost-chart.tsx                    # Recharts stacked bar chart (daily costs by model)
 ├── lib/
 │   ├── db/
-│   │   ├── schema.ts                     # MODIFIED: + anthropic_usage_cache table, + anthropicApiKeyId field
+│   │   ├── schema.ts                     # MODIFIED: + anthropic_usage_metrics + anthropic_sync_status tables
 │   │   └── migrations/                   # New migration for schema changes
 │   ├── anthropic-pricing.ts              # Model pricing lookup table + cost computation
-│   └── validators.ts                     # MODIFIED: + anthropicApiKeyId in assignment schema
+│   └── anthropic-keys.ts                 # API key ID resolution (decrypt → list org keys → match partial_key_hint)
 ├── components/
 │   └── app-sidebar.tsx                   # MODIFIED: + user dropdown with "My Profile" link
 └── app/users/[id]/

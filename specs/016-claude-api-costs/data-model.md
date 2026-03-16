@@ -108,11 +108,19 @@ Tracks the last sync time per user to prevent concurrent syncs and enforce rate 
 | lastSyncCompletedAt | timestamp | NULLABLE | When the last sync completed successfully |
 | lastSyncError | varchar(500) | NULLABLE | Error message from last failed sync, if any |
 | syncedDays | integer | NOT NULL, DEFAULT 0 | Number of days synced in last run |
+| resolvedApiKeyId | varchar(100) | NULLABLE | The Anthropic-internal `api_key_id` resolved from the user's stored API key via the Admin API. Cached to avoid re-resolving on every sync. |
 
 **Unique constraint**: (userId)
 
 **Relationships**:
 - `userId` → `users.id` (one-to-one, CASCADE on delete)
+
+**API Key ID Resolution**: The Anthropic Admin API filters usage by `api_key_id` (an internal identifier), not by the API key string. To map a stored API key to its `api_key_id`:
+1. Decrypt the user's `apiKeyEncrypted` from their `license_assignment`
+2. Call `GET /v1/organizations/api_keys?status=active` to list all org API keys
+3. Match the decrypted key against each entry's `partial_key_hint` field (suffix match)
+4. Store the resolved `id` as `resolvedApiKeyId` in this table
+5. On subsequent syncs, reuse `resolvedApiKeyId` without re-resolving (unless the key changes)
 
 **Concurrency guard behavior**:
 1. Before starting a sync, check `lastSyncStartedAt`:
@@ -124,29 +132,15 @@ Tracks the last sync time per user to prevent concurrent syncs and enforce rate 
 
 ## Modified Entities
 
-### license_assignments (existing)
-
-Add one new field to store the Anthropic API key ID used for usage filtering.
-
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| anthropicApiKeyId | varchar(100) | NULLABLE | The Anthropic-internal API key ID, used to filter usage_report queries. Set by admin when configuring the assignment. |
-
-**Migration notes**:
-- Add column with `ALTER TABLE license_assignments ADD COLUMN anthropic_api_key_id varchar(100)` (nullable, no default)
-- Only relevant for assignments where the tool is Claude/Anthropic
-- Populated by admin when configuring a user's API key assignment
+No modifications to existing tables. The existing `license_assignments.apiKeyEncrypted` field is used as-is — the Anthropic `api_key_id` is resolved automatically at sync time and cached in `anthropic_sync_status.resolvedApiKeyId`.
 
 ## Entity Relationship Summary
 
 ```
 users (existing)
-  ├── 1:N → license_assignments (existing, +anthropicApiKeyId)
+  ├── 1:N → license_assignments (existing, unchanged — apiKeyEncrypted used for key resolution)
   ├── 1:N → anthropic_usage_metrics (NEW)
-  └── 1:1 → anthropic_sync_status (NEW)
-
-license_assignments (existing)
-  └── anthropicApiKeyId: used to query Anthropic API for this user's usage
+  └── 1:1 → anthropic_sync_status (NEW, includes cached resolvedApiKeyId)
 
 anthropic_usage_metrics (NEW)
   └── userId → users.id

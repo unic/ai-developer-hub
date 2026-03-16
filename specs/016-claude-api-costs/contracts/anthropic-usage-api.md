@@ -3,6 +3,52 @@
 **Feature**: 016-claude-api-costs
 **Date**: 2026-03-16
 
+## External API: Anthropic API Key Listing
+
+Used to resolve a stored API key string to its internal `api_key_id` for usage filtering.
+
+### Request
+
+```
+GET https://api.anthropic.com/v1/organizations/api_keys?status=active&limit=100
+```
+
+**Headers**: Same as usage report (Admin API key + anthropic-version).
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "apikey_01ABC...",
+      "name": "Production Key",
+      "partial_key_hint": "sk-ant-...xyzw",
+      "status": "active",
+      "workspace_id": null,
+      "created_at": "2026-01-15T10:00:00Z",
+      "created_by": { "id": "user_01...", "type": "user" },
+      "type": "api_key"
+    }
+  ],
+  "has_more": false
+}
+```
+
+### Key Resolution Logic
+
+```typescript
+function resolveApiKeyId(decryptedKey: string, orgKeys: OrgApiKey[]): string | null {
+  // Match by checking if the decrypted key ends with the hint's suffix
+  const match = orgKeys.find(k => {
+    const hint = k.partial_key_hint;
+    const suffix = hint.replace(/^\.+/, ''); // Strip leading dots
+    return decryptedKey.endsWith(suffix);
+  });
+  return match?.id ?? null;
+}
+```
+
 ## External API: Anthropic Usage Report
 
 ### Request
@@ -127,14 +173,15 @@ Incrementally syncs usage data from the Anthropic API into `anthropic_usage_metr
 - **Admin manual**: Admin triggers sync from the user detail page. Admin-only access enforced via `requireAdmin()`.
 
 **Behavior**:
+- **Resolve API key ID** (first sync or when cached ID is missing): Decrypts user's `apiKeyEncrypted` from `license_assignments`, calls `GET /v1/organizations/api_keys?status=active`, matches `partial_key_hint` to resolve `api_key_id`, caches it in `anthropic_sync_status.resolvedApiKeyId`
 - Detects latest stored date for the user in `anthropic_usage_metrics`
-- Fetches from (latest date + 1 day) to today via the Anthropic Admin API
+- Fetches from (latest date + 1 day) to today via the Anthropic Admin API, filtered by `api_key_ids[]=<resolvedApiKeyId>`
 - On first sync (no history): backfills up to 31 days (API max per query)
 - Upserts all rows using `onConflictDoUpdate` on (userId, date, model)
 - Today's data is always re-fetched (still accumulating)
 
 **Constraints**:
-- Requires user to have a valid `anthropicApiKeyId` in their license assignment
+- Requires user to have a stored API key (`apiKeyEncrypted`) in their license assignment for an Anthropic tool
 - Uses `ANTHROPIC_ADMIN_API_KEY` environment variable for authentication
 - **Concurrency guard**: Checks `anthropic_sync_status` before calling the API. If a sync is already in progress (started < 60s ago, not completed), returns existing data immediately. If last sync completed < 60s ago, skips API call and returns existing data.
 - On start: sets `lastSyncStartedAt = now()`. On success: sets `lastSyncCompletedAt = now()`. On failure: sets `lastSyncError`.

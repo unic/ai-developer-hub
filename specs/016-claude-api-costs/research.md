@@ -25,15 +25,24 @@ The usage_report/messages endpoint is preferred because it supports grouping by 
 - Rate limit: ~1 request/minute sustained; data freshness ~5 minutes
 - Max buckets: 31 for daily width
 
-## R2: Per-User Cost Identification
+## R2: Per-User Cost Identification (Revised)
 
-**Decision**: Store each user's Anthropic `api_key_id` in the existing `license_assignments` table (new field) and use it to filter usage queries.
+**Decision**: Resolve each user's Anthropic `api_key_id` automatically from their existing stored API key (`license_assignments.apiKeyEncrypted`) at sync time. Cache the resolved ID in `anthropic_sync_status.resolvedApiKeyId`.
 
-**Rationale**: The Anthropic Admin API groups usage by `api_key_id` (an internal Anthropic identifier for each API key). To fetch per-user costs, we need to know each user's `api_key_id`. This can be stored when the admin configures the user's API key, or resolved via an Admin API call to list organization API keys.
+**Rationale**: The Anthropic Admin API filters usage by `api_key_id` (an internal identifier), not the API key string. The existing `license_assignments` table already stores each user's encrypted API key. Rather than requiring admins to manually enter a separate `api_key_id`, we resolve it automatically:
+
+1. Decrypt the user's API key from `license_assignments.apiKeyEncrypted`
+2. Call `GET /v1/organizations/api_keys?status=active` (Admin API) to list all org API keys
+3. Match the decrypted key's suffix against each entry's `partial_key_hint` field
+4. Cache the resolved `id` as `resolvedApiKeyId` in `anthropic_sync_status`
+5. On subsequent syncs, reuse the cached ID (no re-resolution needed unless the key changes)
+
+This eliminates any schema modifications to `license_assignments` and requires zero additional admin work beyond what they already do (storing the API key).
 
 **Alternatives considered**:
-- Store `api_key_id` in a separate mapping table: Adds unnecessary schema complexity. The existing `license_assignments` table already stores the encrypted API key and is the natural place for this metadata.
-- Query all usage and filter client-side: Wastes bandwidth and exposes other users' data to the server action. Rejected for efficiency and security.
+- Add `anthropicApiKeyId` field to `license_assignments` (original plan): Requires admins to find and enter the internal Anthropic key ID separately — extra manual work and an error-prone step. Rejected.
+- Query all usage and filter client-side: Wastes bandwidth and exposes other users' data. Rejected.
+- Resolve `api_key_id` on every sync (no caching): Wastes an API call. The `api_key_id` for a given key string does not change. Caching is safe and efficient.
 
 ## R3: Admin API Key Storage
 

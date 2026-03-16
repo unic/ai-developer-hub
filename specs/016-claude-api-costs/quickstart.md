@@ -20,7 +20,7 @@
    pnpm db:generate
    pnpm db:migrate
    ```
-   This adds the `anthropic_usage_metrics` table and `anthropic_api_key_id` column to `license_assignments`.
+   This adds the `anthropic_usage_metrics` and `anthropic_sync_status` tables.
 
 2. **Configure environment**:
    ```bash
@@ -28,10 +28,10 @@
    ANTHROPIC_ADMIN_API_KEY=sk-ant-admin01-your-key-here
    ```
 
-3. **Assign API Key IDs**:
-   - Navigate to a user's license assignment for Claude/Anthropic tool
-   - Enter their Anthropic API Key ID (found in Claude Console → API Keys)
-   - Save the assignment
+3. **Assign API Keys** (if not already done):
+   - Navigate to a user's license assignment for the Claude/Anthropic tool
+   - Enter their API key (the system already supports this via the existing assignment edit UI)
+   - The Anthropic `api_key_id` is resolved automatically at first sync — no manual ID entry needed
 
 4. **Verify**:
    - Log in as a user with a configured API Key ID
@@ -54,7 +54,8 @@ src/
 │   │   └── cost-tracking-section.tsx # Monthly total + daily chart
 │   └── cost-chart.tsx                # Recharts daily cost chart
 └── lib/
-    └── anthropic-pricing.ts          # Model pricing lookup table
+    ├── anthropic-pricing.ts          # Model pricing lookup table
+    └── anthropic-keys.ts             # API key ID resolution (decrypt → list → match)
 
 specs/016-claude-api-costs/          # (already exists)
 ├── spec.md
@@ -70,13 +71,11 @@ specs/016-claude-api-costs/          # (already exists)
 
 ```
 src/
-├── lib/db/schema.ts                  # Add anthropic_usage_metrics + anthropic_sync_status tables, + license_assignments field
-├── lib/validators.ts                 # Add anthropicApiKeyId to assignment schema
+├── lib/db/schema.ts                  # Add anthropic_usage_metrics + anthropic_sync_status tables
 ├── components/app-sidebar.tsx        # Add user dropdown with "My Profile" link
-├── app/users/[id]/
-│   ├── page.tsx                      # Fetch cost data for admin view
-│   └── user-detail-client.tsx        # Add read-only cost section + manual sync button for admins
-└── actions/assignments.ts            # Support anthropicApiKeyId in assignment updates
+└── app/users/[id]/
+    ├── page.tsx                      # Fetch cost data for admin view
+    └── user-detail-client.tsx        # Add read-only cost section + manual sync button for admins
 ```
 
 ## Key Architecture Decisions
