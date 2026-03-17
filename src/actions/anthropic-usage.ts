@@ -287,7 +287,12 @@ export async function syncAnthropicUsage(
 // ---------------------------------------------------------------------------
 
 export async function syncAllAnthropicUsage(): Promise<
-  ActionResult<{ syncedUsers: number; skippedUsers: number; errorCount: number }>
+  ActionResult<{
+    syncedUsers: number;
+    skippedUsers: number;
+    errorCount: number;
+    firstError: string | null;
+  }>
 > {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -303,6 +308,7 @@ export async function syncAllAnthropicUsage(): Promise<
         syncedUsers: summary.syncedUsers,
         skippedUsers: summary.skippedUsers,
         errorCount: summary.errors.length,
+        firstError: summary.errors[0]?.error ?? null,
       },
     };
   } catch (err) {

@@ -14,12 +14,19 @@ export function SyncAllButton() {
     try {
       const result = await syncAllAnthropicUsage();
       if (result.success) {
-        const { syncedUsers, skippedUsers, errorCount } = result.data;
-        toast.success(
-          `Synced ${syncedUsers} user${syncedUsers !== 1 ? "s" : ""}` +
-            (skippedUsers > 0 ? `, ${skippedUsers} skipped` : "") +
-            (errorCount > 0 ? `, ${errorCount} error${errorCount !== 1 ? "s" : ""}` : "")
-        );
+        const { syncedUsers, skippedUsers, errorCount, firstError } =
+          result.data;
+        if (errorCount > 0 && syncedUsers === 0) {
+          toast.error(firstError ?? `Sync failed with ${errorCount} error(s)`);
+        } else {
+          toast.success(
+            `Synced ${syncedUsers} user${syncedUsers !== 1 ? "s" : ""}` +
+              (skippedUsers > 0 ? `, ${skippedUsers} skipped` : "") +
+              (errorCount > 0
+                ? `, ${errorCount} error${errorCount !== 1 ? "s" : ""}`
+                : "")
+          );
+        }
       } else {
         toast.error(result.error);
       }

@@ -35,6 +35,7 @@ const usageBucketResultSchema = z.object({
       ephemeral_5m_input_tokens: z.number().default(0),
       ephemeral_1h_input_tokens: z.number().default(0),
     })
+    .nullable()
     .optional()
     .default({ ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 }),
   output_tokens: z.number().default(0),
