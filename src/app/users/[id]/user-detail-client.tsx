@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { updateUser, deactivateUser } from "@/actions/users";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { assignLicense, revokeLicense } from "@/actions/assignments";
-import { getToolWithTiers } from "@/actions/tools";
+import { getTools, getToolWithTiers } from "@/actions/tools";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord, CostData, AiTool, AccessTier } from "@/types";
 import { AdminCostSection } from "@/components/profile/admin-cost-section";
@@ -89,7 +89,6 @@ interface Props {
   githubProfile?: GitHubProfileData | null;
   costData: CostData;
   costAvailableMonths: string[];
-  tools: AiTool[];
 }
 
 export function UserDetailClient({
@@ -100,10 +99,11 @@ export function UserDetailClient({
   githubProfile,
   costData,
   costAvailableMonths,
-  tools,
 }: Props) {
   const router = useRouter();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [tools, setTools] = useState<AiTool[]>([]);
+  const [loadingTools, setLoadingTools] = useState(false);
   const [selectedToolId, setSelectedToolId] = useState<string>("");
   const [selectedTierId, setSelectedTierId] = useState<string>("");
   const [availableTiers, setAvailableTiers] = useState<AccessTier[]>([]);
@@ -443,7 +443,14 @@ export function UserDetailClient({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setAssignDialogOpen(true)}
+              onClick={async () => {
+                setAssignDialogOpen(true);
+                if (tools.length === 0) {
+                  setLoadingTools(true);
+                  setTools(await getTools());
+                  setLoadingTools(false);
+                }
+              }}
             >
               <Plus className="mr-2 size-4" />
               Assign License
@@ -518,9 +525,9 @@ export function UserDetailClient({
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Tool</label>
-              <Select value={selectedToolId} onValueChange={handleToolChange}>
+              <Select value={selectedToolId} onValueChange={handleToolChange} disabled={loadingTools}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select tool" />
+                  <SelectValue placeholder={loadingTools ? "Loading tools..." : "Select tool"} />
                 </SelectTrigger>
                 <SelectContent>
                   {tools.filter((t) => t.status === "active").map((t) => (

@@ -13,14 +13,21 @@ export default async function IntegrationsPage() {
   const admin = await requireAdmin();
   if (!admin) redirect("/settings/appearance");
 
-  const connectionResult = await getActiveGitHubConnection();
-  const historyResult = await getSyncHistory();
+  // Fetch independent data in parallel
+  const [connectionResult, historyResult, anthropicStatus] = await Promise.all([
+    getActiveGitHubConnection(),
+    getSyncHistory(),
+    db.query.anthropicSyncStatus.findFirst({
+      where: eq(anthropicSyncStatus.userId, 0),
+    }),
+  ]);
 
   const connection =
     connectionResult.success ? connectionResult.data.connection : null;
   const syncHistory =
     historyResult.success ? historyResult.data.events : [];
 
+  // Copilot status depends on connection existing
   let copilotStatus = {
     enabled: false,
     lastSyncAt: null as string | null,
@@ -36,11 +43,6 @@ export default async function IntegrationsPage() {
       copilotStatus = statusResult.data;
     }
   }
-
-  // Fetch Anthropic sync status (global record, userId=0)
-  const anthropicStatus = await db.query.anthropicSyncStatus.findFirst({
-    where: eq(anthropicSyncStatus.userId, 0),
-  });
 
   const claudeSyncStatus = {
     lastSyncCompletedAt: anthropicStatus?.lastSyncCompletedAt?.toISOString() ?? null,

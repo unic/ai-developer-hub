@@ -73,7 +73,8 @@ export function EditUserDialog({
         profile: user.profile ?? null,
       });
     }
-  }, [open, user, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- form.reset is stable per React Hook Form docs
+  }, [open, user]);
 
   async function onSubmit(data: EditUserInput) {
     const result = await updateUser({ id: user.id, ...data });

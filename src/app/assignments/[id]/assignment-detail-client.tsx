@@ -17,7 +17,7 @@ import {
   updateAssignmentSchema,
   type UpdateAssignmentInput,
 } from "@/lib/validators";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, formatDateOnly } from "@/lib/utils";
 import type { AccessTier } from "@/types";
 import {
   Card,
@@ -87,10 +87,6 @@ interface Props {
   assignment: AssignmentData;
   comments: CommentData[];
   isAdmin: boolean;
-}
-
-function formatDateOnly(d: Date): string {
-  return format(d, "yyyy-MM-dd");
 }
 
 export function AssignmentDetailClient({

@@ -8,6 +8,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { EditUserDialog } from "@/components/edit-user-dialog";
+import { NO_CIRCLE_SENTINEL, NO_PROFILE_SENTINEL } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,13 +150,13 @@ function getColumns(
       header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
     },
     {
-      accessorFn: (row) => row.circle ?? "__no_circle__",
+      accessorFn: (row) => row.circle ?? NO_CIRCLE_SENTINEL,
       id: "circle",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Circle" />,
       filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => {
         const value = row.getValue("circle") as string;
-        return value === "__no_circle__" ? "\u2014" : value;
+        return value === NO_CIRCLE_SENTINEL ? "\u2014" : value;
       },
     },
     {
@@ -169,13 +170,13 @@ function getColumns(
       ),
     },
     {
-      accessorFn: (row) => row.profile ?? "__no_profile__",
+      accessorFn: (row) => row.profile ?? NO_PROFILE_SENTINEL,
       id: "profile",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
       filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => {
         const value = row.getValue("profile") as string;
-        return value !== "__no_profile__" ? (
+        return value !== NO_PROFILE_SENTINEL ? (
           <Badge variant="outline" className="capitalize">
             {value}
           </Badge>
@@ -242,12 +243,10 @@ export function UsersTable({
 }) {
   const router = useRouter();
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
   const handleEditUser = useCallback((user: User) => {
     setEditingUser(user);
-    setEditDialogOpen(true);
   }, []);
   const columns = useMemo(
     () => getColumns(isAdmin, handleRefresh, handleEditUser),
@@ -255,10 +254,10 @@ export function UsersTable({
   );
 
   const facetedFilters = useMemo(() => {
-    const circles = [...new Set(data.map((u) => u.circle ?? "__no_circle__"))].sort();
+    const circles = [...new Set(data.map((u) => u.circle ?? NO_CIRCLE_SENTINEL))].sort();
     const circleOptions = circles.map((c) =>
-      c === "__no_circle__"
-        ? { label: "No Circle", value: "__no_circle__" }
+      c === NO_CIRCLE_SENTINEL
+        ? { label: "No Circle", value: NO_CIRCLE_SENTINEL }
         : { label: c, value: c }
     );
 
@@ -266,7 +265,7 @@ export function UsersTable({
       { label: "Boost", value: "boost" },
       { label: "Maxed", value: "maxed" },
       { label: "Indie", value: "indie" },
-      { label: "No Profile", value: "__no_profile__" },
+      { label: "No Profile", value: NO_PROFILE_SENTINEL },
     ];
 
     return [
@@ -287,8 +286,8 @@ export function UsersTable({
       {editingUser && (
         <EditUserDialog
           user={editingUser}
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
+          open={!!editingUser}
+          onOpenChange={(open) => { if (!open) setEditingUser(null); }}
           onSaved={handleRefresh}
         />
       )}

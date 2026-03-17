@@ -18,7 +18,7 @@ import { updateAssignmentSchema } from "@/lib/validators";
 import type { UpdateAssignmentInput } from "@/lib/validators";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { UserCombobox } from "@/components/user-combobox";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatCurrency, formatDate, cn, formatDateOnly, NO_WORKSPACE_SENTINEL } from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,10 +100,6 @@ interface AssignmentRow {
   user: { id: number; name: string; email: string };
   tool: { id: number; name: string };
   tier: { id: number; name: string };
-}
-
-function formatDateOnly(d: Date): string {
-  return format(d, "yyyy-MM-dd");
 }
 
 // ---- Edit Assignment Dialog ----
@@ -599,7 +595,7 @@ function getColumns(
       ),
     },
     {
-      accessorFn: (row) => row.workspace ?? "__no_workspace__",
+      accessorFn: (row) => row.workspace ?? NO_WORKSPACE_SENTINEL,
       id: "workspace",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Workspace" />
@@ -607,7 +603,7 @@ function getColumns(
       filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => {
         const value = row.getValue("workspace") as string;
-        return value === "__no_workspace__" ? "\u2014" : value;
+        return value === NO_WORKSPACE_SENTINEL ? "\u2014" : value;
       },
     },
     {
@@ -691,7 +687,7 @@ export function AssignmentsClient({
   const facetedFilters = useMemo(() => {
     const toolNames = [...new Set(assignments.map((a) => a.tool.name))].sort();
     const tierNames = [...new Set(assignments.map((a) => a.tier.name))].sort();
-    const workspaces = [...new Set(assignments.map((a) => a.workspace ?? "__no_workspace__"))].sort();
+    const workspaces = [...new Set(assignments.map((a) => a.workspace ?? NO_WORKSPACE_SENTINEL))].sort();
 
     return [
       {
@@ -708,8 +704,8 @@ export function AssignmentsClient({
         columnId: "workspace",
         title: "Workspace",
         options: workspaces.map((w) =>
-          w === "__no_workspace__"
-            ? { label: "No Workspace", value: "__no_workspace__" }
+          w === NO_WORKSPACE_SENTINEL
+            ? { label: "No Workspace", value: NO_WORKSPACE_SENTINEL }
             : { label: w, value: w }
         ),
       },
