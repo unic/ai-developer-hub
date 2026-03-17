@@ -68,11 +68,21 @@ type ModelPricing = {
   cacheWritePerMToken: number; // USD per million cache-creation tokens
 };
 
-// Ordered by prefix length (longest first) for greedy matching
+// Ordered by prefix length (longest first) for greedy matching.
+// Pricing source: https://docs.anthropic.com/en/docs/about-claude/pricing
 const MODEL_PRICING: ModelPricing[] = [
-  { prefix: "claude-opus-4", inputPerMToken: 15, outputPerMToken: 75, cacheReadPerMToken: 1.5, cacheWritePerMToken: 18.75 },
+  // Opus 4.0/4.1 — highest priced, used as fallback for unknown models
+  { prefix: "claude-opus-4-0", inputPerMToken: 15, outputPerMToken: 75, cacheReadPerMToken: 1.5, cacheWritePerMToken: 18.75 },
+  { prefix: "claude-opus-4-1", inputPerMToken: 15, outputPerMToken: 75, cacheReadPerMToken: 1.5, cacheWritePerMToken: 18.75 },
+  // Opus 4.5/4.6
+  { prefix: "claude-opus-4-5", inputPerMToken: 5, outputPerMToken: 25, cacheReadPerMToken: 0.5, cacheWritePerMToken: 6.25 },
+  { prefix: "claude-opus-4-6", inputPerMToken: 5, outputPerMToken: 25, cacheReadPerMToken: 0.5, cacheWritePerMToken: 6.25 },
+  // Sonnet 4.x — all same pricing
   { prefix: "claude-sonnet-4", inputPerMToken: 3, outputPerMToken: 15, cacheReadPerMToken: 0.3, cacheWritePerMToken: 3.75 },
-  { prefix: "claude-haiku-4", inputPerMToken: 0.80, outputPerMToken: 4, cacheReadPerMToken: 0.08, cacheWritePerMToken: 1 },
+  // Haiku 4.5
+  { prefix: "claude-haiku-4-5", inputPerMToken: 1, outputPerMToken: 5, cacheReadPerMToken: 0.1, cacheWritePerMToken: 1.25 },
+  // Haiku 3.5
+  { prefix: "claude-haiku-3-5", inputPerMToken: 0.80, outputPerMToken: 4, cacheReadPerMToken: 0.08, cacheWritePerMToken: 1 },
 ];
 
 function resolveModelPricing(model: string): { pricing: ModelPricing; resolved: boolean } {
@@ -83,7 +93,7 @@ function resolveModelPricing(model: string): { pricing: ModelPricing; resolved: 
 }
 ```
 
-**Prefix matching rationale**: Anthropic model identifiers include version suffixes and date stamps (e.g., `claude-opus-4-6`, `claude-opus-4-6-20260301`). Prefix matching handles minor version bumps without requiring code changes. The pricing table is ordered by prefix length (longest first) to ensure the most specific match wins.
+**Prefix matching rationale**: Anthropic model identifiers include version suffixes and date stamps (e.g., `claude-opus-4-6`, `claude-opus-4-6-20260301`). Prefix matching handles date stamp variations without requiring code changes. The pricing table uses version-specific prefixes (e.g., `claude-opus-4-6` vs `claude-opus-4-0`) because different model generations have different pricing (Opus 4.0/4.1 at $15/$75 vs Opus 4.5/4.6 at $5/$25).
 
 **Cost storage at sync time**: `computedCostCents` is calculated and stored during sync. This provides:
 - Stable historical costs (users see the same number consistently)

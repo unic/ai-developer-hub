@@ -7,18 +7,44 @@ export type ModelPricing = {
 };
 
 /**
- * Anthropic model pricing table, ordered with highest-priced first for safe
- * fallback. Index 0 (Opus) is used when no prefix matches an unknown model.
+ * Anthropic model pricing table, ordered by prefix length (longest first)
+ * so that the most specific prefix matches first.
+ * Index 0 (Opus 4.0/4.1 — highest priced) is used as fallback for unknown models.
+ *
+ * Pricing source: https://docs.anthropic.com/en/docs/about-claude/pricing
  */
 export const MODEL_PRICING: ModelPricing[] = [
-  // Pricing source: https://docs.anthropic.com/en/docs/about-claude/models
+  // Opus 4.0 / 4.1 — $15/$75 (highest pricing, used as fallback)
   {
-    prefix: "claude-opus-4",
+    prefix: "claude-opus-4-0",
     inputPerMToken: 15,
     outputPerMToken: 75,
     cacheReadPerMToken: 1.5,
     cacheWritePerMToken: 18.75,
   },
+  {
+    prefix: "claude-opus-4-1",
+    inputPerMToken: 15,
+    outputPerMToken: 75,
+    cacheReadPerMToken: 1.5,
+    cacheWritePerMToken: 18.75,
+  },
+  // Opus 4.5 / 4.6 — $5/$25
+  {
+    prefix: "claude-opus-4-5",
+    inputPerMToken: 5,
+    outputPerMToken: 25,
+    cacheReadPerMToken: 0.5,
+    cacheWritePerMToken: 6.25,
+  },
+  {
+    prefix: "claude-opus-4-6",
+    inputPerMToken: 5,
+    outputPerMToken: 25,
+    cacheReadPerMToken: 0.5,
+    cacheWritePerMToken: 6.25,
+  },
+  // Sonnet 4.x — all $3/$15
   {
     prefix: "claude-sonnet-4",
     inputPerMToken: 3,
@@ -26,8 +52,17 @@ export const MODEL_PRICING: ModelPricing[] = [
     cacheReadPerMToken: 0.3,
     cacheWritePerMToken: 3.75,
   },
+  // Haiku 4.5 — $1/$5
   {
-    prefix: "claude-haiku-4",
+    prefix: "claude-haiku-4-5",
+    inputPerMToken: 1,
+    outputPerMToken: 5,
+    cacheReadPerMToken: 0.1,
+    cacheWritePerMToken: 1.25,
+  },
+  // Haiku 3.5 — $0.80/$4
+  {
+    prefix: "claude-haiku-3-5",
     inputPerMToken: 0.8,
     outputPerMToken: 4,
     cacheReadPerMToken: 0.08,
