@@ -99,12 +99,17 @@ async function fetchAnthropicUsage(
     }
   }
 
-  let url: string | null =
-    `https://api.anthropic.com/v1/organizations/usage_report/messages?${parts.join("&")}`;
+  const baseUrl = "https://api.anthropic.com/v1/organizations/usage_report/messages";
+  const baseQuery = parts.join("&");
+  let nextPageToken: string | null = null;
   const allData: z.infer<typeof usageBucketSchema>[] = [];
 
-  while (url) {
-    const res = await fetch(url, {
+  do {
+    const query = nextPageToken
+      ? `${baseQuery}&page=${encodeURIComponent(nextPageToken)}`
+      : baseQuery;
+
+    const res = await fetch(`${baseUrl}?${query}`, {
       headers: {
         "x-api-key": adminKey,
         "anthropic-version": ANTHROPIC_API_VERSION,
@@ -120,12 +125,8 @@ async function fetchAnthropicUsage(
     const page = usageReportResponseSchema.parse(await res.json());
     allData.push(...page.data);
 
-    if (page.has_more && page.next_page) {
-      url = page.next_page;
-    } else {
-      url = null;
-    }
-  }
+    nextPageToken = page.has_more && page.next_page ? page.next_page : null;
+  } while (nextPageToken);
 
   return { data: allData, has_more: false, next_page: null };
 }
@@ -147,11 +148,12 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
     }
   }
 
-  // Find users with Anthropic API keys but no cached mapping
+  // Find all users with Anthropic API keys
   const usersWithKeys = await db
     .select({
       userId: licenseAssignments.userId,
       apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
+      keyUpdatedAt: licenseAssignments.updatedAt,
     })
     .from(licenseAssignments)
     .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
@@ -163,9 +165,26 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
       )
     );
 
-  // Filter to users without cached mapping
+  // Build a set of existing sync status rows with their timestamps for staleness check
+  const existingSyncMap = new Map(
+    existing.map((row) => [row.userId, row])
+  );
+
+  // Re-resolve if: no cached mapping, or the assignment was updated after the last resolve
+  const needsResolve = usersWithKeys.filter((u) => {
+    if (!mapping.has(u.userId.toString()) && !Array.from(mapping.values()).includes(u.userId)) {
+      // No cached mapping for this user
+      return true;
+    }
+    // Check if key was updated since we last resolved
+    const syncRow = existingSyncMap.get(u.userId);
+    if (syncRow?.resolvedApiKeyId && u.keyUpdatedAt > (syncRow.lastSyncCompletedAt ?? new Date(0))) {
+      return true;
+    }
+    return false;
+  });
   const mappedUserIds = new Set(mapping.values());
-  const unmapped = usersWithKeys.filter((u) => !mappedUserIds.has(u.userId));
+  const unmapped = needsResolve;
 
   if (unmapped.length > 0) {
     // Fetch org API keys to resolve
@@ -272,27 +291,25 @@ async function batchUpsertUsageRows(
 ) {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-    for (const row of batch) {
-      await db
-        .insert(anthropicUsageMetrics)
-        .values(row)
-        .onConflictDoUpdate({
-          target: [
-            anthropicUsageMetrics.userId,
-            anthropicUsageMetrics.date,
-            anthropicUsageMetrics.model,
-          ],
-          set: {
-            uncachedInputTokens: row.uncachedInputTokens,
-            cacheReadInputTokens: row.cacheReadInputTokens,
-            cacheCreationInputTokens: row.cacheCreationInputTokens,
-            outputTokens: row.outputTokens,
-            computedCostCents: row.computedCostCents,
-            pricingResolved: row.pricingResolved,
-            updatedAt: row.updatedAt,
-          },
-        });
-    }
+    await db
+      .insert(anthropicUsageMetrics)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [
+          anthropicUsageMetrics.userId,
+          anthropicUsageMetrics.date,
+          anthropicUsageMetrics.model,
+        ],
+        set: {
+          uncachedInputTokens: sql`excluded.uncached_input_tokens`,
+          cacheReadInputTokens: sql`excluded.cache_read_input_tokens`,
+          cacheCreationInputTokens: sql`excluded.cache_creation_input_tokens`,
+          outputTokens: sql`excluded.output_tokens`,
+          computedCostCents: sql`excluded.computed_cost_cents`,
+          pricingResolved: sql`excluded.pricing_resolved`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
   }
 }
 
@@ -309,34 +326,42 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     .values({ userId: LOCK_USER_ID })
     .onConflictDoNothing({ target: [anthropicSyncStatus.userId] });
 
-  // Global concurrency guard: check the lock row
-  const recentSync = await db.query.anthropicSyncStatus.findFirst({
-    where: eq(anthropicSyncStatus.userId, LOCK_USER_ID),
-  });
+  // Atomic lock acquisition: only proceed if the row is not locked or lock is stale
+  const now = new Date();
+  const staleThreshold = new Date(now.getTime() - LOCK_TIMEOUT_MS);
+  const cooldownThreshold = new Date(now.getTime() - LOCK_COOLDOWN_MS);
 
-  if (recentSync?.lastSyncStartedAt) {
-    const startedMs = recentSync.lastSyncStartedAt.getTime();
-    const nowMs = Date.now();
-    const isInProgress =
-      (!recentSync.lastSyncCompletedAt ||
-        recentSync.lastSyncCompletedAt < recentSync.lastSyncStartedAt);
-
-    if (isInProgress) {
-      if (nowMs - startedMs < LOCK_TIMEOUT_MS) {
-        return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress" }] };
-      }
-      // Stale lock — allow new sync
-    } else if (recentSync.lastSyncCompletedAt &&
-               nowMs - recentSync.lastSyncCompletedAt.getTime() < LOCK_COOLDOWN_MS) {
-      return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync completed recently" }] };
-    }
-  }
-
-  // Set global lock on the lock row
-  await db
+  const [lockAcquired] = await db
     .update(anthropicSyncStatus)
-    .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
-    .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
+    .set({ lastSyncStartedAt: now, lastSyncError: null })
+    .where(
+      and(
+        eq(anthropicSyncStatus.userId, LOCK_USER_ID),
+        sql`(
+          ${anthropicSyncStatus.lastSyncStartedAt} IS NULL
+          OR (
+            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
+            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
+            AND ${anthropicSyncStatus.lastSyncCompletedAt} < ${cooldownThreshold}
+          )
+          OR (
+            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
+            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
+            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${cooldownThreshold}
+          )
+          OR (
+            (${anthropicSyncStatus.lastSyncCompletedAt} IS NULL
+             OR ${anthropicSyncStatus.lastSyncCompletedAt} < ${anthropicSyncStatus.lastSyncStartedAt})
+            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${staleThreshold}
+          )
+        )`
+      )
+    )
+    .returning();
+
+  if (!lockAcquired) {
+    return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress or completed recently" }] };
+  }
 
   try {
     // Resolve all mappings
@@ -345,15 +370,13 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
       return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "No users with resolved API keys" }] };
     }
 
-    // Sync All always fetches the full current month so every day is refreshed
-    const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const tomorrow = new Date(now);
-    tomorrow.setUTCHours(0, 0, 0, 0);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    // Incremental sync: start from the latest stored date (or 31 days back)
+    // This handles month boundaries correctly — if cron was down, it backfills
+    const oldestLatest = await db
+      .select({ maxDate: sql<string>`MAX(${anthropicUsageMetrics.date})` })
+      .from(anthropicUsageMetrics);
 
-    const startingAt = monthStart.toISOString().replace(/\.\d+Z$/, "Z");
-    const endingAt = tomorrow.toISOString().replace(/\.\d+Z$/, "Z");
+    const { startingAt, endingAt } = computeSyncWindow(oldestLatest[0]?.maxDate ?? null);
 
     // Fetch all org usage in one call
     const response = await fetchAnthropicUsage(startingAt, endingAt);
@@ -440,84 +463,96 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
     .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
     .where(eq(anthropicSyncStatus.userId, userId));
 
-  // Resolve API key ID if not cached
-  if (!syncStatus.resolvedApiKeyId) {
-    const [assignment] = await db
-      .select({
-        apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
-      })
-      .from(licenseAssignments)
-      .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
-      .where(
-        and(
-          eq(licenseAssignments.userId, userId),
-          eq(licenseAssignments.status, "active"),
-          isNotNull(licenseAssignments.apiKeyEncrypted),
-          anthropicToolFilter
+  try {
+    // Resolve API key ID if not cached
+    if (!syncStatus.resolvedApiKeyId) {
+      const [assignment] = await db
+        .select({
+          apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
+        })
+        .from(licenseAssignments)
+        .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
+        .where(
+          and(
+            eq(licenseAssignments.userId, userId),
+            eq(licenseAssignments.status, "active"),
+            isNotNull(licenseAssignments.apiKeyEncrypted),
+            anthropicToolFilter
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
-    if (!assignment?.apiKeyEncrypted) {
-      throw new Error("No API key configured for this user");
+      if (!assignment?.apiKeyEncrypted) {
+        throw new Error("No API key configured for this user");
+      }
+
+      const decrypted = await decryptApiKey(assignment.apiKeyEncrypted);
+      const orgKeys = await fetchOrgApiKeys();
+      const apiKeyId = resolveApiKeyId(decrypted, orgKeys);
+      if (!apiKeyId) {
+        throw new Error("Could not resolve API key ID from org keys");
+      }
+
+      await db
+        .update(anthropicSyncStatus)
+        .set({ resolvedApiKeyId: apiKeyId })
+        .where(eq(anthropicSyncStatus.userId, userId));
+
+      syncStatus = { ...syncStatus, resolvedApiKeyId: apiKeyId };
     }
 
-    const decrypted = await decryptApiKey(assignment.apiKeyEncrypted);
-    const orgKeys = await fetchOrgApiKeys();
-    const apiKeyId = resolveApiKeyId(decrypted, orgKeys);
-    if (!apiKeyId) {
-      throw new Error("Could not resolve API key ID from org keys");
+    // Determine start date
+    const latestRow = await db.query.anthropicUsageMetrics.findFirst({
+      where: eq(anthropicUsageMetrics.userId, userId),
+      orderBy: desc(anthropicUsageMetrics.date),
+    });
+
+    const { startingAt, endingAt } = computeSyncWindow(latestRow?.date ?? null);
+
+    // Fetch filtered by this user's API key
+    const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId!]);
+
+    // Collect all rows for batch upsert
+    const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
+    let syncedDays = 0;
+    let latestDate: string | null = null;
+
+    for (const bucket of response.data) {
+      const bucketDate = bucket.starting_at.split("T")[0];
+
+      for (const result of bucket.results) {
+        const row = prepareUsageRow(userId, bucketDate, result);
+        if (row) pendingRows.push(row);
+      }
+
+      syncedDays++;
+      if (!latestDate || bucketDate > latestDate) {
+        latestDate = bucketDate;
+      }
     }
+
+    // Batch upsert all collected rows
+    await batchUpsertUsageRows(pendingRows);
 
     await db
       .update(anthropicSyncStatus)
-      .set({ resolvedApiKeyId: apiKeyId })
+      .set({
+        lastSyncCompletedAt: new Date(),
+        lastSyncError: null,
+        syncedDays,
+      })
       .where(eq(anthropicSyncStatus.userId, userId));
 
-    syncStatus = { ...syncStatus, resolvedApiKeyId: apiKeyId };
+    return { syncedDays, latestDate };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    await db
+      .update(anthropicSyncStatus)
+      .set({
+        lastSyncError: errorMsg.slice(0, 500),
+        lastSyncCompletedAt: new Date(),
+      })
+      .where(eq(anthropicSyncStatus.userId, userId));
+    throw err;
   }
-
-  // Determine start date
-  const latestRow = await db.query.anthropicUsageMetrics.findFirst({
-    where: eq(anthropicUsageMetrics.userId, userId),
-    orderBy: desc(anthropicUsageMetrics.date),
-  });
-
-  const { startingAt, endingAt } = computeSyncWindow(latestRow?.date ?? null);
-
-  // Fetch filtered by this user's API key
-  const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId!]);
-
-  // Collect all rows for batch upsert
-  const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
-  let syncedDays = 0;
-  let latestDate: string | null = null;
-
-  for (const bucket of response.data) {
-    const bucketDate = bucket.starting_at.split("T")[0];
-
-    for (const result of bucket.results) {
-      const row = prepareUsageRow(userId, bucketDate, result);
-      if (row) pendingRows.push(row);
-    }
-
-    syncedDays++;
-    if (!latestDate || bucketDate > latestDate) {
-      latestDate = bucketDate;
-    }
-  }
-
-  // Batch upsert all collected rows
-  await batchUpsertUsageRows(pendingRows);
-
-  await db
-    .update(anthropicSyncStatus)
-    .set({
-      lastSyncCompletedAt: new Date(),
-      lastSyncError: null,
-      syncedDays,
-    })
-    .where(eq(anthropicSyncStatus.userId, userId));
-
-  return { syncedDays, latestDate };
 }
