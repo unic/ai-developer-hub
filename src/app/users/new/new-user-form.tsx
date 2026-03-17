@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,9 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { InviteLinkDialog } from "@/components/invite-link-dialog";
 
 export function NewUserForm() {
   const router = useRouter();
+  const [inviteDialog, setInviteDialog] = useState<{
+    open: boolean;
+    inviteUrl: string;
+    userId: number;
+  }>({ open: false, inviteUrl: "", userId: 0 });
 
   const form = useForm<UserInput>({
     resolver: zodResolver(userSchema),
@@ -41,7 +48,6 @@ export function NewUserForm() {
       circle: undefined,
       role: "viewer",
       githubUsername: "",
-      password: "",
       profile: undefined,
     },
   });
@@ -50,7 +56,11 @@ export function NewUserForm() {
     const result = await createUser(data);
     if (result.success) {
       toast.success("User created successfully");
-      router.push("/users");
+      setInviteDialog({
+        open: true,
+        inviteUrl: result.data.inviteUrl,
+        userId: result.data.id,
+      });
     } else {
       toast.error(result.error);
     }
@@ -96,19 +106,6 @@ export function NewUserForm() {
                         placeholder="jane@company.com"
                         {...field}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -208,6 +205,15 @@ export function NewUserForm() {
           </Form>
         </CardContent>
       </Card>
+      <InviteLinkDialog
+        open={inviteDialog.open}
+        onOpenChange={(open) => {
+          setInviteDialog((prev) => ({ ...prev, open }));
+          if (!open) router.push("/users");
+        }}
+        inviteUrl={inviteDialog.inviteUrl}
+        userId={inviteDialog.userId}
+      />
     </div>
   );
 }

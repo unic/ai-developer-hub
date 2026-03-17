@@ -6,11 +6,13 @@ import { eq, and, count, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { hash } from "bcryptjs";
+import { randomBytes } from "crypto";
 import {
   userSchema,
   updateUserSchema,
   bulkImportUserSchema,
 } from "@/lib/validators";
+import { generateInviteToken } from "@/actions/invite";
 import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
 import { normalizeField } from "@/lib/utils";
 import {
@@ -21,7 +23,7 @@ import {
 
 export async function createUser(
   input: unknown
-): Promise<ActionResult<{ id: number }>> {
+): Promise<ActionResult<{ id: number; inviteUrl: string }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -37,8 +39,7 @@ export async function createUser(
     };
   }
 
-  const { name, email, password, circle, role, githubUsername, profile } =
-    parsed.data;
+  const { name, email, circle, role, githubUsername, profile } = parsed.data;
 
   // Check email uniqueness
   const existing = await db.query.users.findFirst({
@@ -48,7 +49,8 @@ export async function createUser(
     return { success: false, error: "A user with this email already exists" };
   }
 
-  const passwordHash = await hash(password, 12);
+  // Set passwordHash to random bytes — user cannot sign in with this
+  const passwordHash = randomBytes(32).toString("hex");
 
   const [user] = await db
     .insert(users)
@@ -60,13 +62,18 @@ export async function createUser(
       role,
       githubUsername: githubUsername ?? null,
       profile: profile ?? null,
+      mustChangePassword: true,
     })
     .returning({ id: users.id });
 
   await recordCreation("user", user.id, Number(admin.id));
 
+  // Generate invite token
+  const tokenResult = await generateInviteToken(user.id);
+  const inviteUrl = tokenResult.success ? tokenResult.data.inviteUrl : "";
+
   revalidatePath("/users");
-  return { success: true, data: { id: user.id } };
+  return { success: true, data: { id: user.id, inviteUrl } };
 }
 
 export async function updateUser(
