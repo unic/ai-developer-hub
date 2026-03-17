@@ -27,6 +27,7 @@ async function seed() {
       circle: "Engineering",
       role: "admin",
       status: "active",
+      mustChangePassword: false,
     })
     .onConflictDoNothing({ target: users.email });
 
