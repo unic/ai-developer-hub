@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Plus, Download } from "lucide-react";
 import { UsersTable } from "./users-table";
+import { SyncAllButton } from "./sync-all-button";
 import { AuthGuard } from "@/components/auth-guard";
 
 export default async function UsersPage() {
@@ -21,6 +22,7 @@ export default async function UsersPage() {
           </div>
           {isAdmin && (
             <div className="flex gap-2">
+              <SyncAllButton />
               <Button variant="outline" asChild>
                 <a href="/api/export/users" download>
                   <Download className="mr-2 size-4" />

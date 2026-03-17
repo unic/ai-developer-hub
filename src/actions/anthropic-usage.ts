@@ -11,7 +11,7 @@ import {
 import { eq, and, sql, between, desc, isNotNull } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { auth } from "@/lib/auth";
-import { syncSingleUser } from "@/lib/anthropic-sync";
+import { syncSingleUser, runAnthropicSync } from "@/lib/anthropic-sync";
 import { resolveModelPricing, computeCostCents } from "@/lib/anthropic-pricing";
 import { revalidatePath } from "next/cache";
 import { getCurrentMonth } from "@/lib/utils";
@@ -270,6 +270,40 @@ export async function syncAnthropicUsage(
     return {
       success: true,
       data: result,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Failed to sync Anthropic usage data",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// syncAllAnthropicUsage — admin-only manual sync for all users
+// ---------------------------------------------------------------------------
+
+export async function syncAllAnthropicUsage(): Promise<
+  ActionResult<{ syncedUsers: number; skippedUsers: number; errorCount: number }>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  try {
+    const summary = await runAnthropicSync();
+
+    revalidatePath("/users");
+
+    return {
+      success: true,
+      data: {
+        syncedUsers: summary.syncedUsers,
+        skippedUsers: summary.skippedUsers,
+        errorCount: summary.errors.length,
+      },
     };
   } catch (err) {
     return {

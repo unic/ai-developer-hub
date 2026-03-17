@@ -13,10 +13,10 @@ export type ModelPricing = {
 export const MODEL_PRICING: ModelPricing[] = [
   {
     prefix: "claude-opus-4",
-    inputPerMToken: 15,
-    outputPerMToken: 75,
-    cacheReadPerMToken: 1.5,
-    cacheWritePerMToken: 18.75,
+    inputPerMToken: 5,
+    outputPerMToken: 25,
+    cacheReadPerMToken: 0.5,
+    cacheWritePerMToken: 6.25,
   },
   {
     prefix: "claude-sonnet-4",
@@ -27,10 +27,10 @@ export const MODEL_PRICING: ModelPricing[] = [
   },
   {
     prefix: "claude-haiku-4",
-    inputPerMToken: 0.8,
-    outputPerMToken: 4,
-    cacheReadPerMToken: 0.08,
-    cacheWritePerMToken: 1,
+    inputPerMToken: 1,
+    outputPerMToken: 5,
+    cacheReadPerMToken: 0.1,
+    cacheWritePerMToken: 1.25,
   },
 ];
 
