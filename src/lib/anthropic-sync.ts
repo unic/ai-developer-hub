@@ -312,12 +312,15 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
       return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "No users with resolved API keys" }] };
     }
 
-    // Determine sync window: oldest MAX(date) across all users, or 31 days back
-    const oldestLatest = await db
-      .select({ maxDate: sql<string>`MAX(${anthropicUsageMetrics.date})` })
-      .from(anthropicUsageMetrics);
+    // Sync All always fetches the full current month so every day is refreshed
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const tomorrow = new Date(now);
+    tomorrow.setUTCHours(0, 0, 0, 0);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-    const { startingAt, endingAt } = computeSyncWindow(oldestLatest[0]?.maxDate ?? null);
+    const startingAt = monthStart.toISOString().replace(/\.\d+Z$/, "Z");
+    const endingAt = tomorrow.toISOString().replace(/\.\d+Z$/, "Z");
 
     // Fetch all org usage in one call
     const response = await fetchAnthropicUsage(startingAt, endingAt);
