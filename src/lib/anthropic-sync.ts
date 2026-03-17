@@ -64,22 +64,25 @@ async function fetchAnthropicUsage(
   const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
-  const params = new URLSearchParams();
-  params.set("starting_at", startingAt);
-  params.set("ending_at", endingAt);
-  params.set("bucket_width", "1d");
-  params.append("group_by[]", "model");
-  params.append("group_by[]", "api_key_id");
-  params.set("limit", "31");
+  // Build query string manually — URLSearchParams encodes [] as %5B%5D
+  // which the Anthropic API does not recognise for array parameters.
+  const parts = [
+    `starting_at=${encodeURIComponent(startingAt)}`,
+    `ending_at=${encodeURIComponent(endingAt)}`,
+    "bucket_width=1d",
+    "group_by[]=model",
+    "group_by[]=api_key_id",
+    "limit=31",
+  ];
 
   if (apiKeyIds) {
     for (const id of apiKeyIds) {
-      params.append("api_key_ids[]", id);
+      parts.push(`api_key_ids[]=${encodeURIComponent(id)}`);
     }
   }
 
   let url: string | null =
-    `https://api.anthropic.com/v1/organizations/usage_report/messages?${params.toString()}`;
+    `https://api.anthropic.com/v1/organizations/usage_report/messages?${parts.join("&")}`;
   const allData: z.infer<typeof usageBucketSchema>[] = [];
 
   while (url) {
