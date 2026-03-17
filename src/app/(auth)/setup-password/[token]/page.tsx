@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Bot, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -6,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { validateInviteToken } from "@/actions/invite";
 import { SetupPasswordForm } from "./setup-password-form";
 
@@ -19,34 +21,51 @@ export default async function SetupPasswordPage({
 
   if (!result.success) {
     return (
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">AI Developer Hub</CardTitle>
+      <Card className="border-none shadow-lg">
+        <CardHeader className="space-y-3 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 lg:hidden">
+            <Bot className="size-6 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              AI Developer Hub
+            </CardTitle>
+          </div>
         </CardHeader>
-        <CardContent className="text-center space-y-4">
+        <CardContent className="space-y-4 text-center">
           {result.error === "expired" && (
-            <p className="text-sm text-muted-foreground">
-              This link has expired. Please contact your administrator for a new
-              one.
-            </p>
+            <div className="space-y-3">
+              <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="size-5 text-destructive" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This invitation link has expired. Please contact your
+                administrator for a new one.
+              </p>
+            </div>
           )}
           {result.error === "consumed" && (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">
+                <CheckCircle2 className="size-5 text-muted-foreground" />
+              </div>
               <p className="text-sm text-muted-foreground">
-                This link has already been used.
+                This invitation link has already been used.
               </p>
-              <Link
-                href="/login"
-                className="text-sm text-primary underline-offset-4 hover:underline"
-              >
-                Go to login
-              </Link>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/login">Go to login</Link>
+              </Button>
             </div>
           )}
           {result.error === "invalid" && (
-            <p className="text-sm text-muted-foreground">
-              This link is not valid.
-            </p>
+            <div className="space-y-3">
+              <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-destructive/10">
+                <XCircle className="size-5 text-destructive" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This invitation link is not valid.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -54,10 +73,19 @@ export default async function SetupPasswordPage({
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">AI Developer Hub</CardTitle>
-        <CardDescription>Set up your password to get started</CardDescription>
+    <Card className="border-none shadow-lg">
+      <CardHeader className="space-y-3 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 lg:hidden">
+          <Bot className="size-6 text-primary" />
+        </div>
+        <div className="space-y-1.5">
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            Set your password
+          </CardTitle>
+          <CardDescription className="text-balance">
+            Create a secure password to get started
+          </CardDescription>
+        </div>
       </CardHeader>
       <CardContent>
         <SetupPasswordForm token={token} userName={result.data.userName} />

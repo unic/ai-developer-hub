@@ -5,9 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { loginSchema, type LoginInput } from "@/lib/validators";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
@@ -46,9 +48,18 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
     }
   }
 
+  const isSubmitting = form.formState.isSubmitting;
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <FormField
           control={form.control}
           name="email"
@@ -58,7 +69,9 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
               <FormControl>
                 <Input
                   type="email"
-                  placeholder="admin@company.com"
+                  placeholder="you@company.com"
+                  autoComplete="email"
+                  disabled={isSubmitting}
                   {...field}
                 />
               </FormControl>
@@ -66,6 +79,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="password"
@@ -73,21 +87,28 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  disabled={isSubmitting}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        {error && (
-          <p className="text-sm text-destructive text-center">{error}</p>
-        )}
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={form.formState.isSubmitting}
-        >
-          {form.formState.isSubmitting ? "Signing in..." : "Sign In"}
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            "Sign In"
+          )}
         </Button>
       </form>
     </Form>

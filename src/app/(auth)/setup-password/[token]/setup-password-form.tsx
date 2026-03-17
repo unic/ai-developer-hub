@@ -4,11 +4,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { setupPasswordSchema } from "@/lib/validators";
 import { setupPassword } from "@/actions/invite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
@@ -52,12 +54,25 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
     }
   }
 
+  const isSubmitting = form.formState.isSubmitting;
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <p className="text-sm text-muted-foreground text-center">
-          Welcome, <span className="font-medium text-foreground">{userName}</span>! Please set your password.
-        </p>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+          <p className="text-sm text-muted-foreground">
+            Welcome,{" "}
+            <span className="font-semibold text-foreground">{userName}</span>
+          </p>
+        </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <FormField
           control={form.control}
           name="password"
@@ -65,12 +80,19 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
             <FormItem>
               <FormLabel>New Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  disabled={isSubmitting}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="confirmPassword"
@@ -78,21 +100,28 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
             <FormItem>
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  disabled={isSubmitting}
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        {error && (
-          <p className="text-sm text-destructive text-center">{error}</p>
-        )}
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={form.formState.isSubmitting}
-        >
-          {form.formState.isSubmitting ? "Setting password..." : "Set Password"}
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Setting password...
+            </>
+          ) : (
+            "Set Password"
+          )}
         </Button>
       </form>
     </Form>

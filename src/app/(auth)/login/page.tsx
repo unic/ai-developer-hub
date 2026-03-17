@@ -1,3 +1,4 @@
+import { Bot } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -15,10 +16,19 @@ export default async function LoginPage({
   const { callbackUrl } = await searchParams;
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">AI Developer Hub</CardTitle>
-        <CardDescription>Sign in to your account</CardDescription>
+    <Card className="border-none shadow-lg">
+      <CardHeader className="space-y-3 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 lg:hidden">
+          <Bot className="size-6 text-primary" />
+        </div>
+        <div className="space-y-1.5">
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            Welcome back
+          </CardTitle>
+          <CardDescription className="text-balance">
+            Sign in to your AI Developer Hub account
+          </CardDescription>
+        </div>
       </CardHeader>
       <CardContent>
         <LoginForm callbackUrl={callbackUrl} />
