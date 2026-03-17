@@ -190,7 +190,7 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
   if (latestDateStr) {
     startDate = new Date(latestDateStr);
     startDate.setUTCHours(0, 0, 0, 0);
-    startDate.setUTCDate(startDate.getUTCDate() + 1);
+    startDate.setUTCDate(startDate.getUTCDate() - 1);
   } else {
     startDate = new Date(now);
     startDate.setUTCDate(startDate.getUTCDate() - 31);
@@ -292,7 +292,8 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress" }] };
       }
       // Stale lock (> 5 min) — allow new sync
-    } else if (nowMs - startedMs < 60 * 1000) {
+    } else if (recentSync.lastSyncCompletedAt &&
+               nowMs - recentSync.lastSyncCompletedAt.getTime() < 60 * 1000) {
       // Completed less than 60 seconds ago — skip
       return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync completed recently" }] };
     }
@@ -353,20 +354,22 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         .where(eq(anthropicSyncStatus.userId, userId));
     }
 
-    // Mark completion on ALL sync status rows (including lock row and users without data)
+    // Mark completion on lock row
     await db
       .update(anthropicSyncStatus)
-      .set({ lastSyncCompletedAt: new Date(), lastSyncError: null });
+      .set({ lastSyncCompletedAt: new Date(), lastSyncError: null })
+      .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
 
     summary.syncedUsers = usersWithData.size;
     summary.skippedUsers = new Set(apiKeyToUser.values()).size - usersWithData.size;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error("Anthropic sync failed:", errorMsg);
-    // Set error on all sync status rows (including lock row userId=0)
+    // Set error on lock row only
     await db
       .update(anthropicSyncStatus)
-      .set({ lastSyncError: errorMsg.slice(0, 500) });
+      .set({ lastSyncError: errorMsg.slice(0, 500) })
+      .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
     summary.errors.push({ userId: 0, error: errorMsg });
   }
 
