@@ -8,6 +8,7 @@ import { formatCurrency, getCurrentMonth } from "@/lib/utils";
 import { getUserCostData } from "@/actions/anthropic-usage";
 import { CostChart } from "@/components/cost-chart";
 import { DollarSign, Info, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import type { CostData } from "@/types";
 
 type CostTrackingSectionProps = {
@@ -51,8 +52,12 @@ export function CostTrackingSection({
   function handleMonthChange(month: string) {
     setSelectedMonth(month);
     startTransition(async () => {
-      const data = await getUserCostData(userId, month);
-      setCostData(data);
+      try {
+        const data = await getUserCostData(userId, month);
+        setCostData(data);
+      } catch {
+        toast.error("Failed to load cost data. Please try again.");
+      }
     });
   }
 

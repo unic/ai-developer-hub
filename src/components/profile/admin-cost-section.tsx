@@ -34,8 +34,12 @@ export function AdminCostSection({
   function handleMonthChange(month: string) {
     setSelectedMonth(month);
     startTransition(async () => {
-      const data = await getUserCostData(userId, month);
-      setCostData(data);
+      try {
+        const data = await getUserCostData(userId, month);
+        setCostData(data);
+      } catch {
+        toast.error("Failed to load cost data. Please try again.");
+      }
     });
   }
 
