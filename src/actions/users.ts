@@ -5,7 +5,6 @@ import { users, licenseAssignments } from "@/lib/db/schema";
 import { eq, and, count, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 import {
   userSchema,
@@ -286,12 +285,10 @@ export async function bulkImportUsers(input: {
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const errors: Array<{ row: number; email: string; error: string }> = [];
+  const inviteLinks: Array<{ name: string; email: string; inviteUrl: string }> = [];
   let created = 0;
   let updated = 0;
   let skipped = 0;
-
-  // Hash the default password once instead of per-row (~250ms per hash)
-  const defaultPasswordHash = await hash("changeme123", 12);
 
   // Batch-query all existing users upfront to avoid N+1 (case-insensitive)
   const allEmails = input.users
@@ -350,21 +347,30 @@ export async function bulkImportUsers(input: {
         await recordUpdate("user", existing.id, Number(admin.id), diff);
         updated++;
       } else {
-        // Create new user with default password
+        // Create new user with random password (unusable — user must use invite link)
+        const passwordHash = randomBytes(32).toString("hex");
         const [user] = await db
           .insert(users)
           .values({
             name,
             email,
-            passwordHash: defaultPasswordHash,
+            passwordHash,
             circle: circle ?? null,
             role: role ?? "viewer",
             githubUsername: githubUsername ?? null,
             profile: profile ?? null,
+            mustChangePassword: true,
           })
           .returning({ id: users.id });
 
         await recordCreation("user", user.id, Number(admin.id));
+
+        // Generate invite token for the new user
+        const tokenResult = await generateInviteToken(user.id);
+        if (tokenResult.success) {
+          inviteLinks.push({ name, email, inviteUrl: tokenResult.data.inviteUrl });
+        }
+
         created++;
       }
     } catch (err) {
@@ -380,7 +386,14 @@ export async function bulkImportUsers(input: {
   revalidatePath("/users");
   return {
     success: true,
-    data: { created, updated, skipped, failed: errors.length, errors },
+    data: {
+      created,
+      updated,
+      skipped,
+      failed: errors.length,
+      errors,
+      inviteLinks: inviteLinks.length > 0 ? inviteLinks : undefined,
+    },
   };
 }
 

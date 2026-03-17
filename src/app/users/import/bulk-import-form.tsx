@@ -104,6 +104,7 @@ export function BulkImportForm() {
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inviteLinks, setInviteLinks] = useState<Array<{ name: string; email: string; inviteUrl: string }>>([]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -165,7 +166,9 @@ export function BulkImportForm() {
       if (skipped > 0) parts.push(`${skipped} skipped`);
       if (failed > 0) parts.push(`${failed} failed`);
       toast.success(parts.join(", ") || "No changes");
-      if (created > 0 || updated > 0) {
+      if (result.data.inviteLinks && result.data.inviteLinks.length > 0) {
+        setInviteLinks(result.data.inviteLinks);
+      } else if (created > 0 || updated > 0) {
         router.push("/users");
       }
     } else {
@@ -198,8 +201,8 @@ export function BulkImportForm() {
         <CardHeader>
           <CardTitle>Upload CSV</CardTitle>
           <CardDescription>
-            New users get default password &quot;changeme123&quot;. Existing users
-            (matched by email) are updated without changing their password.
+            New users will receive an invite link to set their password. Existing
+            users (matched by email) are updated without changing their password.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -211,6 +214,44 @@ export function BulkImportForm() {
           />
         </CardContent>
       </Card>
+
+      {inviteLinks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invite Links</CardTitle>
+            <CardDescription>
+              {inviteLinks.length} new user(s) created. Download the invite links CSV to share with them,
+              or go to the Users page to send invite emails.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  const header = "Name,Email,Invite Link";
+                  const rows = inviteLinks.map(
+                    (l) => `"${l.name}","${l.email}","${l.inviteUrl}"`
+                  );
+                  const csv = [header, ...rows].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "invite-links.csv";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download className="mr-2 size-4" />
+                Download Invite Links CSV
+              </Button>
+              <Button variant="outline" onClick={() => router.push("/users")}>
+                Go to Users
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {parsedUsers.length > 0 && (
         <Card>

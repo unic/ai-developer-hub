@@ -1,15 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { updateUser, deactivateUser } from "@/actions/users";
+import { resetUserPassword } from "@/actions/invite";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { revokeLicense } from "@/actions/assignments";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord } from "@/types";
-import { Github, ExternalLink, BookOpen } from "lucide-react";
+import { Github, ExternalLink, BookOpen, KeyRound } from "lucide-react";
+import { InviteLinkDialog } from "@/components/invite-link-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +92,10 @@ export function UserDetailClient({
   githubProfile,
 }: Props) {
   const router = useRouter();
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetSendEmail, setResetSendEmail] = useState(true);
+  const [showInviteLink, setShowInviteLink] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState("");
 
   const form = useForm<EditUserInput>({
     resolver: zodResolver(editUserSchema),
@@ -119,6 +128,27 @@ export function UserDetailClient({
       router.refresh();
     } else {
       toast.error(result.error);
+    }
+  }
+
+  async function handleResetPassword() {
+    try {
+      const result = await resetUserPassword({ userId: user.id, sendEmail: resetSendEmail });
+      if (result.success) {
+        setShowResetDialog(false);
+        setInviteUrl(result.data.inviteUrl);
+        setShowInviteLink(true);
+        if (result.data.emailSent) {
+          toast.success("Password reset. Invite email sent.");
+        } else {
+          toast.success("Password reset. Share the invite link with the user.");
+        }
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("An unexpected error occurred");
     }
   }
 
@@ -338,6 +368,17 @@ export function UserDetailClient({
                   <Button type="submit" disabled={form.formState.isSubmitting}>
                     Save Changes
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setResetSendEmail(true);
+                      setShowResetDialog(true);
+                    }}
+                  >
+                    <KeyRound className="mr-2 size-4" />
+                    Reset Password
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive">Deactivate User</Button>
@@ -361,6 +402,39 @@ export function UserDetailClient({
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
+                <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset password for {user.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will invalidate the current password and generate a new invite link.
+                        The user will not be able to sign in until they set a new password via the invite link.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="flex items-center space-x-2 py-2">
+                      <Checkbox
+                        id="reset-email-detail"
+                        checked={resetSendEmail}
+                        onCheckedChange={(checked) => setResetSendEmail(checked === true)}
+                      />
+                      <Label htmlFor="reset-email-detail">
+                        Send invite email to {user.email}
+                      </Label>
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleResetPassword}>
+                        Reset Password
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <InviteLinkDialog
+                  open={showInviteLink}
+                  onOpenChange={setShowInviteLink}
+                  inviteUrl={inviteUrl}
+                  userId={user.id}
+                />
               </form>
             </Form>
           </CardContent>

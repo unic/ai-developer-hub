@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getUsers } from "@/actions/users";
 import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Download } from "lucide-react";
 import { UsersTable } from "./users-table";
 import { AuthGuard } from "@/components/auth-guard";
@@ -10,13 +11,21 @@ export default async function UsersPage() {
   const session = await auth();
   const userList = await getUsers();
   const isAdmin = session?.user.role === "admin";
+  const pendingCount = userList.filter((u) => u.mustChangePassword).length;
 
   return (
     <AuthGuard requiredRole="admin">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Users</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">Users</h1>
+              {pendingCount > 0 && (
+                <Badge variant="secondary">
+                  {pendingCount} user{pendingCount !== 1 ? "s" : ""} pending setup
+                </Badge>
+              )}
+            </div>
             <p className="text-muted-foreground">Manage company user directory</p>
           </div>
           {isAdmin && (

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { loginSchema } from "@/lib/validators";
+import { isRateLimited, resetLimit } from "@/lib/rate-limit";
 import type { UserPreferences } from "@/types";
 
 const DEFAULT_PREFERENCES: UserPreferences = { theme: "system" };
@@ -28,6 +29,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data;
 
+        const emailKey = email.toLowerCase();
+        if (isRateLimited(emailKey, { maxAttempts: 5, windowMs: 10 * 60 * 1000 })) {
+          return null;
+        }
+
         const user = await db.query.users.findFirst({
           where: eq(users.email, email),
         });
@@ -42,6 +48,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const passwordMatch = await compare(password, user.passwordHash);
         if (!passwordMatch) return null;
+
+        resetLimit(emailKey);
 
         return {
           id: String(user.id),
