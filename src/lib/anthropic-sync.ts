@@ -80,23 +80,35 @@ async function fetchAnthropicUsage(
     }
   }
 
-  const res = await fetch(
-    `https://api.anthropic.com/v1/organizations/usage_report/messages?${params.toString()}`,
-    {
+  let url: string | null =
+    `https://api.anthropic.com/v1/organizations/usage_report/messages?${params.toString()}`;
+  const allData: z.infer<typeof usageBucketSchema>[] = [];
+
+  while (url) {
+    const res = await fetch(url, {
       headers: {
         "x-api-key": adminKey,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
-    }
-  );
+    });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Anthropic API error ${res.status}: ${body}`);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Anthropic API error ${res.status}: ${body}`);
+    }
+
+    const page = usageReportResponseSchema.parse(await res.json());
+    allData.push(...page.data);
+
+    if (page.has_more && page.next_page) {
+      url = page.next_page;
+    } else {
+      url = null;
+    }
   }
 
-  return usageReportResponseSchema.parse(await res.json());
+  return { data: allData, has_more: false, next_page: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -253,10 +265,16 @@ async function upsertUsageRow(
 export async function runAnthropicSync(): Promise<SyncSummary> {
   const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, errors: [] };
 
-  // Global concurrency guard: check if any sync is in progress
+  // Ensure a dedicated global lock row exists (userId=0 sentinel)
+  const LOCK_USER_ID = 0;
+  await db
+    .insert(anthropicSyncStatus)
+    .values({ userId: LOCK_USER_ID })
+    .onConflictDoNothing({ target: [anthropicSyncStatus.userId] });
+
+  // Global concurrency guard: check the lock row
   const recentSync = await db.query.anthropicSyncStatus.findFirst({
-    where: isNotNull(anthropicSyncStatus.lastSyncStartedAt),
-    orderBy: desc(anthropicSyncStatus.lastSyncStartedAt),
+    where: eq(anthropicSyncStatus.userId, LOCK_USER_ID),
   });
 
   if (recentSync?.lastSyncStartedAt) {
@@ -278,11 +296,11 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     }
   }
 
-  // Set global lock on all sync status rows
+  // Set global lock on the lock row
   await db
     .update(anthropicSyncStatus)
     .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
-    .where(isNotNull(anthropicSyncStatus.userId));
+    .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
 
   try {
     // Resolve all mappings
@@ -332,6 +350,11 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         .set({ lastSyncCompletedAt: new Date(), lastSyncError: null })
         .where(eq(anthropicSyncStatus.userId, userId));
     }
+
+    // Mark completion on ALL sync status rows (including lock row and users without data)
+    await db
+      .update(anthropicSyncStatus)
+      .set({ lastSyncCompletedAt: new Date(), lastSyncError: null });
 
     summary.syncedUsers = usersWithData.size;
     summary.skippedUsers = new Set(apiKeyToUser.values()).size - usersWithData.size;
