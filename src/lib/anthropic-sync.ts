@@ -128,7 +128,7 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
       and(
         eq(licenseAssignments.status, "active"),
         isNotNull(licenseAssignments.apiKeyEncrypted),
-        sql`LOWER(${aiTools.vendor}) LIKE '%anthropic%' OR LOWER(${aiTools.name}) LIKE '%claude%'`
+        sql`(LOWER(${aiTools.vendor}) LIKE '%anthropic%' OR LOWER(${aiTools.name}) LIKE '%claude%')`
       )
     );
 
@@ -171,9 +171,11 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
 
 function computeSyncWindow(latestDateStr: string | null): { startingAt: string; endingAt: string } {
   const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
   let startDate: Date;
   if (latestDateStr) {
     startDate = new Date(latestDateStr);
+    startDate.setUTCHours(0, 0, 0, 0);
     startDate.setUTCDate(startDate.getUTCDate() + 1);
   } else {
     startDate = new Date(now);
@@ -332,7 +334,7 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     }
 
     summary.syncedUsers = usersWithData.size;
-    summary.skippedUsers = apiKeyToUser.size - usersWithData.size;
+    summary.skippedUsers = new Set(apiKeyToUser.values()).size - usersWithData.size;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error("Anthropic sync failed:", errorMsg);

@@ -8,8 +8,9 @@ import {
   accessTiers,
   users,
 } from "@/lib/db/schema";
-import { eq, and, sql, between, desc } from "drizzle-orm";
+import { eq, and, sql, between, desc, isNotNull } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { auth } from "@/lib/auth";
 import { syncSingleUser } from "@/lib/anthropic-sync";
 import { resolveModelPricing, computeCostCents } from "@/lib/anthropic-pricing";
 import { revalidatePath } from "next/cache";
@@ -29,6 +30,30 @@ export async function getUserCostData(
   userId: number,
   month?: string
 ): Promise<CostData> {
+  // Auth check: caller must be the same user or an admin
+  const session = await auth();
+  if (!session?.user) {
+    return {
+      available: false,
+      error: "Unauthorized — not signed in.",
+      monthlyTotalCents: 0,
+      dailyBreakdown: [],
+      latestDataDate: null,
+      hasUnresolvedPricing: false,
+    };
+  }
+  const callerId = Number(session.user.id);
+  if (callerId !== userId && session.user.role !== "admin") {
+    return {
+      available: false,
+      error: "Unauthorized — you can only view your own cost data.",
+      monthlyTotalCents: 0,
+      dailyBreakdown: [],
+      latestDataDate: null,
+      hasUnresolvedPricing: false,
+    };
+  }
+
   // Determine month boundaries
   const now = new Date();
   const targetMonth =
@@ -42,7 +67,7 @@ export async function getUserCostData(
   const lastDay = new Date(year, mon, 0).getDate();
   const endDate = `${targetMonth}-${String(lastDay).padStart(2, "0")}`;
 
-  // Check if the user has any Anthropic API key via license_assignments + ai_tools
+  // Check if the user has an active Anthropic assignment with API key configured
   const [anthropicAssignment] = await db
     .select({ id: licenseAssignments.id })
     .from(licenseAssignments)
@@ -50,6 +75,8 @@ export async function getUserCostData(
     .where(
       and(
         eq(licenseAssignments.userId, userId),
+        eq(licenseAssignments.status, "active"),
+        isNotNull(licenseAssignments.apiKeyEncrypted),
         sql`(${aiTools.vendor} ILIKE '%anthropic%' OR ${aiTools.name} ILIKE '%claude%')`
       )
     )
@@ -238,7 +265,7 @@ export async function syncAnthropicUsage(
   try {
     const result = await syncSingleUser(userId);
 
-    revalidatePath(`/admin/users/${userId}`);
+    revalidatePath(`/users/${userId}`);
 
     return {
       success: true,
