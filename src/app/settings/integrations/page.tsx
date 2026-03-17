@@ -1,9 +1,13 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { anthropicSyncStatus } from "@/lib/db/schema";
 import { getActiveGitHubConnection } from "@/actions/github";
 import { getSyncHistory } from "@/actions/github-sync";
 import { getCopilotSyncStatus } from "@/actions/copilot";
 import { GitHubIntegrationClient } from "./github-integration-client";
+import { ClaudeSyncSection } from "@/components/claude-sync-section";
 
 export default async function IntegrationsPage() {
   const admin = await requireAdmin();
@@ -33,6 +37,17 @@ export default async function IntegrationsPage() {
     }
   }
 
+  // Fetch Anthropic sync status (global record, userId=0)
+  const anthropicStatus = await db.query.anthropicSyncStatus.findFirst({
+    where: eq(anthropicSyncStatus.userId, 0),
+  });
+
+  const claudeSyncStatus = {
+    lastSyncCompletedAt: anthropicStatus?.lastSyncCompletedAt?.toISOString() ?? null,
+    lastSyncError: anthropicStatus?.lastSyncError ?? null,
+    syncedDays: anthropicStatus?.syncedDays ?? 0,
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -47,6 +62,8 @@ export default async function IntegrationsPage() {
         initialSyncHistory={syncHistory}
         copilotStatus={copilotStatus}
       />
+
+      <ClaudeSyncSection initialStatus={claudeSyncStatus} />
     </div>
   );
 }

@@ -1,12 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { revealApiKey, updateAssignment, addAssignmentComment } from "@/actions/assignments";
-import { formatCurrency } from "@/lib/utils";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format, parseISO } from "date-fns";
+import {
+  revealApiKey,
+  updateAssignment,
+  addAssignmentComment,
+} from "@/actions/assignments";
+import { getToolWithTiers } from "@/actions/tools";
+import {
+  updateAssignmentSchema,
+  type UpdateAssignmentInput,
+} from "@/lib/validators";
+import { formatCurrency, cn } from "@/lib/utils";
+import type { AccessTier } from "@/types";
 import {
   Card,
   CardContent,
@@ -20,12 +32,34 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Eye,
   EyeOff,
   Copy,
   MessageSquare,
   Clock,
   ArrowLeft,
+  CalendarIcon,
 } from "lucide-react";
 
 interface AssignmentData {
@@ -55,6 +89,10 @@ interface Props {
   isAdmin: boolean;
 }
 
+function formatDateOnly(d: Date): string {
+  return format(d, "yyyy-MM-dd");
+}
+
 export function AssignmentDetailClient({
   assignment,
   comments,
@@ -65,9 +103,66 @@ export function AssignmentDetailClient({
   const [revealing, setRevealing] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [savingApiKey, setSavingApiKey] = useState(false);
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  // Edit form state
+  const [tiers, setTiers] = useState<AccessTier[]>([]);
+  const [loadingTiers, setLoadingTiers] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  const form = useForm<UpdateAssignmentInput>({
+    resolver: zodResolver(updateAssignmentSchema),
+    defaultValues: {
+      id: assignment.id,
+      tierId: assignment.tier.id,
+      assignedAt: assignment.assignedAt
+        ? formatDateOnly(new Date(assignment.assignedAt))
+        : undefined,
+      workspace: assignment.workspace ?? "",
+      apiKey: "",
+    },
+  });
+
+  const loadTiers = useCallback(async () => {
+    setLoadingTiers(true);
+    try {
+      const tool = await getToolWithTiers(assignment.tool.id);
+      setTiers(tool?.accessTiers.filter((t) => t.isActive) ?? []);
+    } catch {
+      toast.error("Failed to load tiers");
+    } finally {
+      setLoadingTiers(false);
+    }
+  }, [assignment.tool.id]);
+
+  useEffect(() => {
+    if (isAdmin && assignment.status === "active") {
+      loadTiers();
+    }
+  }, [isAdmin, assignment.status, loadTiers]);
+
+  async function onSubmit(data: UpdateAssignmentInput) {
+    const payload: UpdateAssignmentInput = {
+      id: data.id,
+      tierId: data.tierId,
+      assignedAt: data.assignedAt,
+      workspace: data.workspace,
+      ...(data.apiKey ? { apiKey: data.apiKey } : {}),
+    };
+
+    const result = await updateAssignment(payload);
+    if (result.success) {
+      if (result.warning) {
+        toast.warning(result.warning);
+      } else {
+        toast.success("Assignment updated");
+      }
+      form.reset({ ...payload, apiKey: "" });
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
 
   async function handleRevealApiKey() {
     if (revealedKey) {
@@ -127,50 +222,6 @@ export function AssignmentDetailClient({
     }
   }
 
-  async function handleSaveApiKey() {
-    if (!apiKeyInput.trim()) return;
-    setSavingApiKey(true);
-    try {
-      const result = await updateAssignment({
-        id: assignment.id,
-        apiKey: apiKeyInput.trim(),
-      });
-      if (result.success) {
-        toast.success("API key saved");
-        setApiKeyInput("");
-        setShowApiKeyInput(false);
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    } catch {
-      toast.error("Failed to save API key");
-    } finally {
-      setSavingApiKey(false);
-    }
-  }
-
-  async function handleClearApiKey() {
-    setSavingApiKey(true);
-    try {
-      const result = await updateAssignment({
-        id: assignment.id,
-        apiKey: "",
-      });
-      if (result.success) {
-        toast.success("API key cleared");
-        setRevealedKey(null);
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    } catch {
-      toast.error("Failed to clear API key");
-    } finally {
-      setSavingApiKey(false);
-    }
-  }
-
   const displayedKey = revealedKey ?? assignment.maskedApiKey ?? "";
 
   return (
@@ -184,8 +235,13 @@ export function AssignmentDetailClient({
           </Link>
         </Button>
         <h1 className="text-3xl font-bold">
-          {assignment.user.name} &rarr; {assignment.tool.name} at{" "}
-          {assignment.tier.name}
+          <Link
+            href={`/users/${assignment.user.id}`}
+            className="hover:underline"
+          >
+            {assignment.user.name}
+          </Link>{" "}
+          &rarr; {assignment.tool.name} at {assignment.tier.name}
         </h1>
         <p className="text-muted-foreground">
           Assignment #{assignment.id}
@@ -267,14 +323,14 @@ export function AssignmentDetailClient({
             </div>
           </div>
 
-          {/* API Key section */}
-          <Separator />
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              API Key
-            </p>
-            {assignment.hasApiKey ? (
+          {/* API Key display section */}
+          {assignment.hasApiKey && (
+            <>
+              <Separator />
               <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  API Key
+                </p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono">
                     {displayedKey}
@@ -312,83 +368,183 @@ export function AssignmentDetailClient({
                     </>
                   )}
                 </div>
-                {isAdmin && assignment.status === "active" && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {showApiKeyInput ? (
-                      <>
-                        <Input
-                          type="password"
-                          placeholder="Enter new API key"
-                          value={apiKeyInput}
-                          onChange={(e) => setApiKeyInput(e.target.value)}
-                          className="max-w-xs"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={handleSaveApiKey}
-                          disabled={savingApiKey || !apiKeyInput.trim()}
-                        >
-                          {savingApiKey ? "Saving..." : "Update"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setShowApiKeyInput(false);
-                            setApiKeyInput("");
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setShowApiKeyInput(true)}
-                        >
-                          Update API Key
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleClearApiKey}
-                          disabled={savingApiKey}
-                        >
-                          Clear API Key
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">No API key set</p>
-                {isAdmin && assignment.status === "active" && (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="password"
-                      placeholder="Enter API key"
-                      value={apiKeyInput}
-                      onChange={(e) => setApiKeyInput(e.target.value)}
-                      className="max-w-xs"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={handleSaveApiKey}
-                      disabled={savingApiKey || !apiKeyInput.trim()}
-                    >
-                      {savingApiKey ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
+
+      {/* Edit Assignment Card — admin only, active assignments */}
+      {isAdmin && assignment.status === "active" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Edit Assignment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
+                {/* Tier */}
+                <FormField
+                  control={form.control}
+                  name="tierId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tier</FormLabel>
+                      <Select
+                        value={String(field.value)}
+                        onValueChange={(val) => field.onChange(Number(val))}
+                        disabled={loadingTiers || tiers.length === 0}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                loadingTiers ? "Loading tiers..." : "Select tier"
+                              }
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {tiers.map((t) => (
+                            <SelectItem key={t.id} value={String(t.id)}>
+                              {t.name} &mdash;{" "}
+                              {formatCurrency(t.monthlyCostCents)}/mo
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Assigned Date */}
+                <FormField
+                  control={form.control}
+                  name="assignedAt"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Assigned Date</FormLabel>
+                      <Popover
+                        open={datePickerOpen}
+                        onOpenChange={setDatePickerOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 size-4" />
+                              {field.value
+                                ? format(parseISO(field.value), "PPP")
+                                : "Pick a date"}
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            captionLayout="dropdown"
+                            selected={
+                              field.value ? parseISO(field.value) : undefined
+                            }
+                            onSelect={(date) => {
+                              if (date) {
+                                field.onChange(formatDateOnly(date));
+                              }
+                              setDatePickerOpen(false);
+                            }}
+                            disabled={(date) => date > new Date()}
+                            defaultMonth={
+                              field.value ? parseISO(field.value) : undefined
+                            }
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Workspace */}
+                <FormField
+                  control={form.control}
+                  name="workspace"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Workspace</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g. team-alpha"
+                          maxLength={200}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* API Key */}
+                <FormField
+                  control={form.control}
+                  name="apiKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API Key</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            type={showApiKey ? "text" : "password"}
+                            placeholder={
+                              assignment.hasApiKey
+                                ? "Enter new key to replace existing"
+                                : "Enter API key"
+                            }
+                            {...field}
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                        >
+                          {showApiKey ? (
+                            <EyeOff className="size-4" />
+                          ) : (
+                            <Eye className="size-4" />
+                          )}
+                          <span className="sr-only">
+                            {showApiKey ? "Hide" : "Show"} API key input
+                          </span>
+                        </Button>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  disabled={form.formState.isSubmitting}
+                >
+                  {form.formState.isSubmitting
+                    ? "Saving..."
+                    : "Save Changes"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Comments Section */}
       <Card>
