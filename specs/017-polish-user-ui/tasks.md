@@ -29,8 +29,8 @@
 
 **Purpose**: Create reusable components needed by multiple user stories
 
-- [ ] T001 Create `EditUserDialog` component with React Hook Form + Zod validation (updateUserSchema) in `src/components/edit-user-dialog.tsx` — Dialog with fields: name, email, circle, role, profile, GitHub username. Follow `EditAssignmentDialog` pattern from `src/app/assignments/assignments-client.tsx`. Props: `user` data, `open`/`onOpenChange` state, `onSaved` callback.
-- [ ] T002 Create `UserCombobox` component in `src/components/user-combobox.tsx` — Searchable single-select using Popover + Command (cmdk) pattern. Props: `users` list, `value` (selected userId), `onSelect` callback. Display format: `{name} ({email})`. Client-side filtering over pre-loaded data. Include "No users found" empty state.
+- [x] T001 Create `EditUserDialog` component with React Hook Form + Zod validation (updateUserSchema) in `src/components/edit-user-dialog.tsx` — Dialog with fields: name, email, circle, role, profile, GitHub username. Follow `EditAssignmentDialog` pattern from `src/app/assignments/assignments-client.tsx`. Props: `user` data, `open`/`onOpenChange` state, `onSaved` callback.
+- [x] T002 Create `UserCombobox` component in `src/components/user-combobox.tsx` — Searchable single-select using Popover + Command (cmdk) pattern. Props: `users` list, `value` (selected userId), `onSelect` callback. Display format: `{name} ({email})`. Client-side filtering over pre-loaded data. Include "No users found" empty state.
 
 **Checkpoint**: Shared components ready — user story implementation can begin
 
@@ -44,7 +44,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] Modify `src/app/users/users-table.tsx` — Import `EditUserDialog` (T001). Add state for `editingUser` and `editDialogOpen`. In `UserRowActions`, replace the edit `<Link>` with a `<Button>` that sets `editingUser` and opens the dialog. Keep the "View" link unchanged. Render `EditUserDialog` at the table level, controlled by the state. On save callback, call `router.refresh()` to update table data. Only show edit button for admin users and active users.
+- [x] T003 [US1] Modify `src/app/users/users-table.tsx` — Import `EditUserDialog` (T001). Add state for `editingUser` and `editDialogOpen`. In `UserRowActions`, replace the edit `<Link>` with a `<Button>` that sets `editingUser` and opens the dialog. Keep the "View" link unchanged. Render `EditUserDialog` at the table level, controlled by the state. On save callback, call `router.refresh()` to update table data. Only show edit button for admin users and active users.
 
 **Checkpoint**: User Story 1 complete — admins can edit users inline from overview without navigating away
 
@@ -58,7 +58,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T004 [US2] Modify `src/app/users/users-table.tsx` — Remove the `showNoCircle` state, the pre-filtering `useMemo`, and the toggle button UI. Add `circle` and `profile` columns to the column definitions with `filterFn: arrayIncludesFilterFn`. For the `circle` column accessor, map `null`/`undefined` to a sentinel value `"__no_circle__"`. For the `profile` column accessor, map `null`/`undefined` to `"__no_profile__"`. Create dynamic `USERS_FACETED_FILTERS` via `useMemo` that extracts unique circle values from data (like `tools-table.tsx` vendor pattern), adds `{ label: "No Circle", value: "__no_circle__" }`, and includes static Profile options (Boost, Maxed, Indie, No Profile). Keep existing Role and Status filters. Pass the combined filters to `DataTable`. The circle and profile columns can be hidden from the table display if desired (set `enableHiding: true` or use column visibility).
+- [x] T004 [US2] Modify `src/app/users/users-table.tsx` — Remove the `showNoCircle` state, the pre-filtering `useMemo`, and the toggle button UI. Add `circle` and `profile` columns to the column definitions with `filterFn: arrayIncludesFilterFn`. For the `circle` column accessor, map `null`/`undefined` to a sentinel value `"__no_circle__"`. For the `profile` column accessor, map `null`/`undefined` to `"__no_profile__"`. Create dynamic `USERS_FACETED_FILTERS` via `useMemo` that extracts unique circle values from data (like `tools-table.tsx` vendor pattern), adds `{ label: "No Circle", value: "__no_circle__" }`, and includes static Profile options (Boost, Maxed, Indie, No Profile). Keep existing Role and Status filters. Pass the combined filters to `DataTable`. The circle and profile columns can be hidden from the table display if desired (set `enableHiding: true` or use column visibility).
 
 **Checkpoint**: User Story 2 complete — all filters are visually unified faceted filters
 
@@ -72,7 +72,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T005 [US3] Modify `src/app/users/new/new-user-form.tsx` — Verify that all fields are present: name, email, password, circle, role, profile, and GitHub username. The existing form already includes most fields based on `userSchema`. Ensure the Profile select field is present with options None/Boost/Maxed/Indie (matching the edit form on user detail page). Ensure the GitHub Username field is present. Verify field order and styling matches the edit form pattern for consistency. If any fields are missing, add them following the existing form field pattern.
+- [x] T005 [US3] Modify `src/app/users/new/new-user-form.tsx` — Verify that all fields are present: name, email, password, circle, role, profile, and GitHub username. The existing form already includes most fields based on `userSchema`. Ensure the Profile select field is present with options None/Boost/Maxed/Indie (matching the edit form on user detail page). Ensure the GitHub Username field is present. Verify field order and styling matches the edit form pattern for consistency. If any fields are missing, add them following the existing form field pattern.
 
 **Checkpoint**: User Story 3 complete — add user form has full field parity with edit form
 
@@ -86,7 +86,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T006 [US4] Modify `src/app/users/[id]/user-detail-client.tsx` — Add an "Assign License" button (Plus icon, admin-only, active users only) in the "Assigned Tools" card header. Add state for `assignDialogOpen`. Create an inline assign-license dialog (or extract from `assignments-client.tsx`) with: tool select (loads active tools), tier select (loads tiers for selected tool via `getToolWithTiers`), and a confirm button. The userId is pre-set (current user) — no user selection needed. On confirm, call `assignLicense({ userId, toolId, tierId })` server action. On success, show toast and call `router.refresh()`. Import necessary server actions: `assignLicense` from `src/actions/assignments.ts`, `getTools` and `getToolWithTiers` for the dropdowns.
+- [x] T006 [US4] Modify `src/app/users/[id]/user-detail-client.tsx` — Add an "Assign License" button (Plus icon, admin-only, active users only) in the "Assigned Tools" card header. Add state for `assignDialogOpen`. Create an inline assign-license dialog (or extract from `assignments-client.tsx`) with: tool select (loads active tools), tier select (loads tiers for selected tool via `getToolWithTiers`), and a confirm button. The userId is pre-set (current user) — no user selection needed. On confirm, call `assignLicense({ userId, toolId, tierId })` server action. On success, show toast and call `router.refresh()`. Import necessary server actions: `assignLicense` from `src/actions/assignments.ts`, `getTools` and `getToolWithTiers` for the dropdowns.
 
 **Checkpoint**: User Story 4 complete — admins can assign licenses directly from user detail
 
@@ -100,7 +100,7 @@
 
 ### Implementation for User Story 5
 
-- [ ] T007 [US5] Modify `src/app/users/[id]/user-detail-client.tsx` — In the assigned tools list, for each revoked (inactive) assignment where the tool is still active, add a "Reactivate" button (RotateCcw icon, admin-only). On click, show an `AlertDialog` confirmation with tool name, tier name, and current tier cost. On confirm, call `assignLicense({ userId: user.id, toolId: assignment.toolId, tierId: assignment.tierId })`. Handle capacity errors gracefully (show error toast if tool is at max capacity). On success, show toast and `router.refresh()`. Check if the tool is still active before showing the button (tool status === "active"). If the tier is no longer active, show a disabled state or hide the button.
+- [x] T007 [US5] Modify `src/app/users/[id]/user-detail-client.tsx` — In the assigned tools list, for each revoked (inactive) assignment where the tool is still active, add a "Reactivate" button (RotateCcw icon, admin-only). On click, show an `AlertDialog` confirmation with tool name, tier name, and current tier cost. On confirm, call `assignLicense({ userId: user.id, toolId: assignment.toolId, tierId: assignment.tierId })`. Handle capacity errors gracefully (show error toast if tool is at max capacity). On success, show toast and `router.refresh()`. Check if the tool is still active before showing the button (tool status === "active"). If the tier is no longer active, show a disabled state or hide the button.
 
 **Checkpoint**: User Story 5 complete — admins can reactivate revoked licenses with one click
 
@@ -114,7 +114,7 @@
 
 ### Implementation for User Story 6
 
-- [ ] T008 [US6] Modify `src/app/assignments/assignments-client.tsx` — Remove the `showNoWorkspace` state, pre-filtering useMemo, and toggle button (same pattern as circle toggle removal in T004). Add `toolName`, `tierName`, and `workspace` to column definitions with `filterFn: arrayIncludesFilterFn`. For `workspace`, map null/undefined to `"__no_workspace__"` sentinel. Create dynamic faceted filters via `useMemo`: extract unique tool names, tier names, and workspace values from loaded data. Add `{ label: "No Workspace", value: "__no_workspace__" }` to workspace options. Keep existing Status and Source filters. Pass combined filters array to `DataTable`.
+- [x] T008 [US6] Modify `src/app/assignments/assignments-client.tsx` — Remove the `showNoWorkspace` state, pre-filtering useMemo, and toggle button (same pattern as circle toggle removal in T004). Add `toolName`, `tierName`, and `workspace` to column definitions with `filterFn: arrayIncludesFilterFn`. For `workspace`, map null/undefined to `"__no_workspace__"` sentinel. Create dynamic faceted filters via `useMemo`: extract unique tool names, tier names, and workspace values from loaded data. Add `{ label: "No Workspace", value: "__no_workspace__" }` to workspace options. Keep existing Status and Source filters. Pass combined filters array to `DataTable`.
 
 **Checkpoint**: User Story 6 complete — all assignment filters are unified faceted filters
 
@@ -128,7 +128,7 @@
 
 ### Implementation for User Story 7
 
-- [ ] T009 [US7] Modify `src/app/assignments/assignments-client.tsx` — In the assign-license dialog section, replace the user `<Select>` component with `UserCombobox` (T002). Pass the `activeUsers` list as the `users` prop. Set `value` to `selectedUserId` state. Set `onSelect` to update `selectedUserId`. Ensure the combobox styling fits within the dialog layout. Remove the old Select import if no longer used for user selection.
+- [x] T009 [US7] Modify `src/app/assignments/assignments-client.tsx` — In the assign-license dialog section, replace the user `<Select>` component with `UserCombobox` (T002). Pass the `activeUsers` list as the `users` prop. Set `value` to `selectedUserId` state. Set `onSelect` to update `selectedUserId`. Ensure the combobox styling fits within the dialog layout. Remove the old Select import if no longer used for user selection.
 
 **Checkpoint**: User Story 7 complete — admins can search for users by name/email when assigning licenses
 
@@ -142,7 +142,7 @@
 
 ### Implementation for User Story 8
 
-- [ ] T010 [US8] Modify `src/app/assignments/[id]/assignment-detail-client.tsx` — Refactor the editing section to use React Hook Form with `updateAssignmentSchema` (Zod resolver). Replace individual `useState` fields (showApiKeyInput, apiKeyInput, etc.) with a single form instance. Create an "Edit Assignment" card form (matching the user detail "Edit User" card pattern) with fields: tier (select), assigned date (date picker), workspace (text input), API key (password input with reveal/copy). Add "Save Changes" button that calls `updateAssignment` server action. Keep API key reveal/copy as supplementary actions outside the form. Show the form only for admins viewing active assignments. On save, show toast and `router.refresh()`.
+- [x] T010 [US8] Modify `src/app/assignments/[id]/assignment-detail-client.tsx` — Refactor the editing section to use React Hook Form with `updateAssignmentSchema` (Zod resolver). Replace individual `useState` fields (showApiKeyInput, apiKeyInput, etc.) with a single form instance. Create an "Edit Assignment" card form (matching the user detail "Edit User" card pattern) with fields: tier (select), assigned date (date picker), workspace (text input), API key (password input with reveal/copy). Add "Save Changes" button that calls `updateAssignment` server action. Keep API key reveal/copy as supplementary actions outside the form. Show the form only for admins viewing active assignments. On save, show toast and `router.refresh()`.
 
 **Checkpoint**: User Story 8 complete — assignment detail editing is consistent with user detail page
 
@@ -156,7 +156,7 @@
 
 ### Implementation for User Story 9
 
-- [ ] T011 [US9] Modify `src/app/assignments/[id]/assignment-detail-client.tsx` — Find where the assigned user's name is displayed (in the assignment detail header or info section). Wrap the user name text in a Next.js `<Link>` component pointing to `/users/${assignment.userId}`. Style the link with underline or primary color to indicate it's clickable. Import `Link` from `next/link` if not already imported.
+- [x] T011 [US9] Modify `src/app/assignments/[id]/assignment-detail-client.tsx` — Find where the assigned user's name is displayed (in the assignment detail header or info section). Wrap the user name text in a Next.js `<Link>` component pointing to `/users/${assignment.userId}`. Style the link with underline or primary color to indicate it's clickable. Import `Link` from `next/link` if not already imported.
 
 **Checkpoint**: User Story 9 complete — one-click navigation from assignment to user detail
 
@@ -170,9 +170,9 @@
 
 ### Implementation for User Story 10
 
-- [ ] T012 [P] [US10] Create `ClaudeSyncSection` component in `src/components/claude-sync-section.tsx` — Follow `CopilotSyncSection` pattern from `src/components/copilot/copilot-sync-section.tsx`. Display: section title "Claude Console", description, "Sync All Costs" button, last sync status (lastSyncCompletedAt, lastSyncError from anthropicSyncStatus), synced days count. Use `syncAllAnthropicUsage` server action for the sync button. Show spinner during sync (RefreshCw + animate-spin). Show toast with results (synced users, errors). Accept initial sync status as props (fetched by parent server component).
-- [ ] T013 [P] [US10] Modify `src/app/settings/integrations/page.tsx` — Import `ClaudeSyncSection`. Fetch Anthropic sync status data (query `anthropicSyncStatus` table for userId=0 global record) alongside existing GitHub/Copilot data. Render `ClaudeSyncSection` below the existing Copilot section, passing sync status as props.
-- [ ] T014 [US10] Modify `src/app/users/page.tsx` — Remove the `SyncAllButton` import and its rendering from the action buttons area. The sync functionality now lives in settings. Optionally delete `src/app/users/sync-all-button.tsx` if it's no longer imported anywhere.
+- [x] T012 [P] [US10] Create `ClaudeSyncSection` component in `src/components/claude-sync-section.tsx` — Follow `CopilotSyncSection` pattern from `src/components/copilot/copilot-sync-section.tsx`. Display: section title "Claude Console", description, "Sync All Costs" button, last sync status (lastSyncCompletedAt, lastSyncError from anthropicSyncStatus), synced days count. Use `syncAllAnthropicUsage` server action for the sync button. Show spinner during sync (RefreshCw + animate-spin). Show toast with results (synced users, errors). Accept initial sync status as props (fetched by parent server component).
+- [x] T013 [P] [US10] Modify `src/app/settings/integrations/page.tsx` — Import `ClaudeSyncSection`. Fetch Anthropic sync status data (query `anthropicSyncStatus` table for userId=0 global record) alongside existing GitHub/Copilot data. Render `ClaudeSyncSection` below the existing Copilot section, passing sync status as props.
+- [x] T014 [US10] Modify `src/app/users/page.tsx` — Remove the `SyncAllButton` import and its rendering from the action buttons area. The sync functionality now lives in settings. Optionally delete `src/app/users/sync-all-button.tsx` if it's no longer imported anywhere.
 
 **Checkpoint**: User Story 10 complete — Claude sync is in settings, removed from users page
 
@@ -182,10 +182,10 @@
 
 **Purpose**: Verify consistency and cleanup
 
-- [ ] T015 Run `pnpm typecheck` to verify no TypeScript errors across all changes
-- [ ] T016 Run `pnpm lint` to verify no ESLint warnings
-- [ ] T017 Run `pnpm build` to verify production build succeeds
-- [ ] T018 Verify all sentinel filter values (`__no_circle__`, `__no_profile__`, `__no_workspace__`) are consistent and don't leak into the UI display
+- [x] T015 Run `pnpm typecheck` to verify no TypeScript errors across all changes
+- [x] T016 Run `pnpm lint` to verify no ESLint warnings
+- [x] T017 Run `pnpm build` to verify production build succeeds
+- [x] T018 Verify all sentinel filter values (`__no_circle__`, `__no_profile__`, `__no_workspace__`) are consistent and don't leak into the UI display
 
 ---
 
