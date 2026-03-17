@@ -96,7 +96,7 @@ export function CostChart({ dailyBreakdown }: CostChartProps) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value: number) => `$${value.toFixed(2)}`}
+              formatter={(value) => `$${Number(value).toFixed(2)}`}
             />
           }
         />
