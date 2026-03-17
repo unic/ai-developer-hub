@@ -23,12 +23,13 @@ export async function recordUpdate(
   entityType: string,
   entityId: number,
   changedBy: number,
-  changes: Record<string, { old: unknown; new: unknown }>
+  changes: Record<string, { old: unknown; new: unknown }>,
+  txClient?: Pick<typeof db, "insert">
 ) {
   const entries = Object.entries(changes);
   if (entries.length === 0) return;
 
-  await db.insert(changeHistory).values(
+  await (txClient ?? db).insert(changeHistory).values(
     entries.map(([fieldName, values]) => ({
       entityType,
       entityId,

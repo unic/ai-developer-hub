@@ -364,6 +364,8 @@ export const githubSyncEvents = pgTable(
     importedCount: integer("imported_count"),
     unmatchedCount: integer("unmatched_count"),
     conflictCount: integer("conflict_count"),
+    manuallyMatchedCount: integer("manually_matched_count"),
+    createdCount: integer("created_count"),
     errorMessage: text("error_message"),
     syncType: copilotSyncTypeEnum("sync_type").notNull().default("members"),
     seatsProcessed: integer("seats_processed"),
