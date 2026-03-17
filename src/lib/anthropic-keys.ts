@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
 
 export const orgApiKeySchema = z.object({
   id: z.string(),
@@ -30,7 +31,7 @@ export async function fetchOrgApiKeys(): Promise<OrgApiKey[]> {
     method: "GET",
     headers: {
       "x-api-key": adminKey,
-      "anthropic-version": "2023-06-01",
+      "anthropic-version": ANTHROPIC_API_VERSION,
       "Content-Type": "application/json",
     },
   });

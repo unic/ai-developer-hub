@@ -15,12 +15,18 @@ type CostTrackingSectionProps = {
   userId: number;
   initialData: CostData;
   availableMonths: string[];
+  /** Optional header actions (e.g. admin sync button) rendered next to the month picker */
+  headerActions?: React.ReactNode;
+  /** Whether to show summary stats below the chart (default: true) */
+  showSummaryStats?: boolean;
 };
 
 export function CostTrackingSection({
   userId,
   initialData,
   availableMonths,
+  headerActions,
+  showSummaryStats = true,
 }: CostTrackingSectionProps) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [costData, setCostData] = useState<CostData>(initialData);
@@ -61,6 +67,18 @@ export function CostTrackingSection({
     });
   }
 
+  /** Allow parent (admin sync) to refresh cost data after a sync */
+  function refreshData() {
+    startTransition(async () => {
+      try {
+        const data = await getUserCostData(userId, selectedMonth);
+        setCostData(data);
+      } catch {
+        toast.error("Failed to refresh cost data.");
+      }
+    });
+  }
+
   // State 1: No API key configured
   if (!costData.available) {
     return (
@@ -92,11 +110,14 @@ export function CostTrackingSection({
             <DollarSign className="size-5" />
             Claude API Costs
           </CardTitle>
-          <MonthPicker
-            value={selectedMonth}
-            onChange={handleMonthChange}
-            months={availableMonths}
-          />
+          <div className="flex items-center gap-2">
+            <MonthPicker
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              months={availableMonths}
+            />
+            {headerActions}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -140,7 +161,7 @@ export function CostTrackingSection({
         )}
 
         {/* Summary stats */}
-        {costData.dailyBreakdown.length > 0 && (
+        {showSummaryStats && costData.dailyBreakdown.length > 0 && (
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="rounded-lg border p-3">
               <p className="text-sm text-muted-foreground">Active Days</p>

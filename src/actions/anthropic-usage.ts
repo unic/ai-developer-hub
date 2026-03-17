@@ -8,10 +8,10 @@ import {
   accessTiers,
   users,
 } from "@/lib/db/schema";
-import { eq, and, sql, between, desc, isNotNull } from "drizzle-orm";
+import { eq, and, sql, between, isNotNull } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { auth } from "@/lib/auth";
-import { syncSingleUser, runAnthropicSync } from "@/lib/anthropic-sync";
+import { syncSingleUser, runAnthropicSync, anthropicToolFilter } from "@/lib/anthropic-sync";
 import { resolveModelPricing, computeCostCents } from "@/lib/anthropic-pricing";
 import { revalidatePath } from "next/cache";
 import { getCurrentMonth } from "@/lib/utils";
@@ -77,7 +77,7 @@ export async function getUserCostData(
         eq(licenseAssignments.userId, userId),
         eq(licenseAssignments.status, "active"),
         isNotNull(licenseAssignments.apiKeyEncrypted),
-        sql`(${aiTools.vendor} ILIKE '%anthropic%' OR ${aiTools.name} ILIKE '%claude%')`
+        anthropicToolFilter
       )
     )
     .limit(1);

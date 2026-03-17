@@ -5,14 +5,24 @@ import {
   licenseAssignments,
   aiTools,
 } from "@/lib/db/schema";
-import { eq, and, sql, desc, isNotNull } from "drizzle-orm";
+import { eq, and, sql, desc, isNotNull, inArray } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/crypto";
 import { fetchOrgApiKeys, resolveApiKeyId } from "@/lib/anthropic-keys";
 import {
   resolveModelPricing,
   computeCostCents,
 } from "@/lib/anthropic-pricing";
+import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
 import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const LOCK_USER_ID = 0;
+const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — stale lock threshold
+const LOCK_COOLDOWN_MS = 60 * 1000; // 60 seconds — minimum between syncs
+const DEFAULT_BACKFILL_DAYS = 31;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +64,13 @@ const usageReportResponseSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Shared: SQL condition for Anthropic tool matching
+// ---------------------------------------------------------------------------
+
+/** SQL filter for license_assignments joined with ai_tools that match Anthropic/Claude tools */
+export const anthropicToolFilter = sql`(${aiTools.vendor} ILIKE '%anthropic%' OR ${aiTools.name} ILIKE '%claude%')`;
+
+// ---------------------------------------------------------------------------
 // Helper: fetch usage from Anthropic Admin API
 // ---------------------------------------------------------------------------
 
@@ -73,7 +90,7 @@ async function fetchAnthropicUsage(
     "bucket_width=1d",
     "group_by[]=model",
     "group_by[]=api_key_id",
-    "limit=31",
+    `limit=${DEFAULT_BACKFILL_DAYS}`,
   ];
 
   if (apiKeyIds) {
@@ -90,7 +107,7 @@ async function fetchAnthropicUsage(
     const res = await fetch(url, {
       headers: {
         "x-api-key": adminKey,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": ANTHROPIC_API_VERSION,
         "Content-Type": "application/json",
       },
     });
@@ -142,7 +159,7 @@ async function resolveAllMappings(): Promise<Map<string, number>> {
       and(
         eq(licenseAssignments.status, "active"),
         isNotNull(licenseAssignments.apiKeyEncrypted),
-        sql`(LOWER(${aiTools.vendor}) LIKE '%anthropic%' OR LOWER(${aiTools.name}) LIKE '%claude%')`
+        anthropicToolFilter
       )
     );
 
@@ -193,7 +210,7 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
     startDate.setUTCDate(startDate.getUTCDate() - 1);
   } else {
     startDate = new Date(now);
-    startDate.setUTCDate(startDate.getUTCDate() - 31);
+    startDate.setUTCDate(startDate.getUTCDate() - DEFAULT_BACKFILL_DAYS);
   }
   const endDate = new Date(now);
   endDate.setUTCDate(endDate.getUTCDate() + 1);
@@ -205,59 +222,78 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
 }
 
 // ---------------------------------------------------------------------------
-// Helper: upsert a single usage row
+// Helper: prepare a usage row for batch upsert
 // ---------------------------------------------------------------------------
 
-async function upsertUsageRow(
+function prepareUsageRow(
   userId: number,
   bucketDate: string,
   result: z.infer<typeof usageBucketResultSchema>
 ) {
   const model = result.model;
-  if (!model) return;
+  if (!model) return null;
 
   const cacheCreationTokens =
     (result.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
     (result.cache_creation?.ephemeral_1h_input_tokens ?? 0);
-  const tokens = {
-    uncachedInputTokens: result.uncached_input_tokens,
-    cacheReadInputTokens: result.cache_read_input_tokens,
-    cacheCreationInputTokens: cacheCreationTokens,
-    outputTokens: result.output_tokens,
-  };
   const { pricing, resolved } = resolveModelPricing(model);
-  const costCents = computeCostCents(tokens, pricing);
-
-  await db
-    .insert(anthropicUsageMetrics)
-    .values({
-      userId,
-      date: bucketDate,
-      model,
+  const costCents = computeCostCents(
+    {
       uncachedInputTokens: result.uncached_input_tokens,
       cacheReadInputTokens: result.cache_read_input_tokens,
       cacheCreationInputTokens: cacheCreationTokens,
       outputTokens: result.output_tokens,
-      computedCostCents: costCents,
-      pricingResolved: resolved,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [
-        anthropicUsageMetrics.userId,
-        anthropicUsageMetrics.date,
-        anthropicUsageMetrics.model,
-      ],
-      set: {
-        uncachedInputTokens: result.uncached_input_tokens,
-        cacheReadInputTokens: result.cache_read_input_tokens,
-        cacheCreationInputTokens: cacheCreationTokens,
-        outputTokens: result.output_tokens,
-        computedCostCents: costCents,
-        pricingResolved: resolved,
-        updatedAt: new Date(),
-      },
-    });
+    },
+    pricing
+  );
+
+  return {
+    userId,
+    date: bucketDate,
+    model,
+    uncachedInputTokens: result.uncached_input_tokens,
+    cacheReadInputTokens: result.cache_read_input_tokens,
+    cacheCreationInputTokens: cacheCreationTokens,
+    outputTokens: result.output_tokens,
+    computedCostCents: costCents,
+    pricingResolved: resolved,
+    updatedAt: new Date(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: batch upsert usage rows
+// ---------------------------------------------------------------------------
+
+const BATCH_SIZE = 50;
+
+async function batchUpsertUsageRows(
+  rows: NonNullable<ReturnType<typeof prepareUsageRow>>[]
+) {
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    for (const row of batch) {
+      await db
+        .insert(anthropicUsageMetrics)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [
+            anthropicUsageMetrics.userId,
+            anthropicUsageMetrics.date,
+            anthropicUsageMetrics.model,
+          ],
+          set: {
+            uncachedInputTokens: row.uncachedInputTokens,
+            cacheReadInputTokens: row.cacheReadInputTokens,
+            cacheCreationInputTokens: row.cacheCreationInputTokens,
+            outputTokens: row.outputTokens,
+            computedCostCents: row.computedCostCents,
+            pricingResolved: row.pricingResolved,
+            updatedAt: row.updatedAt,
+          },
+        });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +304,6 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
   const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, errors: [] };
 
   // Ensure a dedicated global lock row exists (userId=0 sentinel)
-  const LOCK_USER_ID = 0;
   await db
     .insert(anthropicSyncStatus)
     .values({ userId: LOCK_USER_ID })
@@ -287,14 +322,12 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         recentSync.lastSyncCompletedAt < recentSync.lastSyncStartedAt);
 
     if (isInProgress) {
-      // If started < 5 minutes ago, it's still running — skip
-      if (nowMs - startedMs < 5 * 60 * 1000) {
+      if (nowMs - startedMs < LOCK_TIMEOUT_MS) {
         return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress" }] };
       }
-      // Stale lock (> 5 min) — allow new sync
+      // Stale lock — allow new sync
     } else if (recentSync.lastSyncCompletedAt &&
-               nowMs - recentSync.lastSyncCompletedAt.getTime() < 60 * 1000) {
-      // Completed less than 60 seconds ago — skip
+               nowMs - recentSync.lastSyncCompletedAt.getTime() < LOCK_COOLDOWN_MS) {
       return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync completed recently" }] };
     }
   }
@@ -328,7 +361,9 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     // Track which users received data
     const usersWithData = new Set<number>();
 
-    // Process each bucket (day)
+    // Collect all rows for batch upsert
+    const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
+
     for (const bucket of response.data) {
       const bucketDate = bucket.starting_at.split("T")[0];
 
@@ -338,23 +373,25 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         if (!apiKeyId || !model) continue;
 
         const userId = apiKeyToUser.get(apiKeyId);
-        if (!userId) {
-          // Unknown key — skip silently
-          continue;
-        }
+        if (!userId) continue;
 
         usersWithData.add(userId);
 
-        await upsertUsageRow(userId, bucketDate, result);
+        const row = prepareUsageRow(userId, bucketDate, result);
+        if (row) pendingRows.push(row);
       }
     }
 
-    // Update sync status per user
-    for (const userId of usersWithData) {
+    // Batch upsert all collected rows
+    await batchUpsertUsageRows(pendingRows);
+
+    // Batch update sync status for all users that received data
+    const userIds = Array.from(usersWithData);
+    if (userIds.length > 0) {
       await db
         .update(anthropicSyncStatus)
         .set({ lastSyncCompletedAt: new Date(), lastSyncError: null })
-        .where(eq(anthropicSyncStatus.userId, userId));
+        .where(inArray(anthropicSyncStatus.userId, userIds));
     }
 
     // Mark completion on lock row
@@ -416,7 +453,7 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
           eq(licenseAssignments.userId, userId),
           eq(licenseAssignments.status, "active"),
           isNotNull(licenseAssignments.apiKeyEncrypted),
-          sql`(LOWER(${aiTools.vendor}) LIKE '%anthropic%' OR LOWER(${aiTools.name}) LIKE '%claude%')`
+          anthropicToolFilter
         )
       )
       .limit(1);
@@ -451,6 +488,8 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
   // Fetch filtered by this user's API key
   const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId!]);
 
+  // Collect all rows for batch upsert
+  const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
   let syncedDays = 0;
   let latestDate: string | null = null;
 
@@ -458,7 +497,8 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
     const bucketDate = bucket.starting_at.split("T")[0];
 
     for (const result of bucket.results) {
-      await upsertUsageRow(userId, bucketDate, result);
+      const row = prepareUsageRow(userId, bucketDate, result);
+      if (row) pendingRows.push(row);
     }
 
     syncedDays++;
@@ -466,6 +506,9 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
       latestDate = bucketDate;
     }
   }
+
+  // Batch upsert all collected rows
+  await batchUpsertUsageRows(pendingRows);
 
   await db
     .update(anthropicSyncStatus)
