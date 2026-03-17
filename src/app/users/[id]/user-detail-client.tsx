@@ -8,7 +8,8 @@ import { updateUser, deactivateUser } from "@/actions/users";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { revokeLicense } from "@/actions/assignments";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { User, ChangeHistoryRecord } from "@/types";
+import type { User, ChangeHistoryRecord, CostData } from "@/types";
+import { AdminCostSection } from "@/components/profile/admin-cost-section";
 import { Github, ExternalLink, BookOpen } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,8 @@ interface Props {
   history: ChangeHistoryRecord[];
   isAdmin: boolean;
   githubProfile?: GitHubProfileData | null;
+  costData: CostData;
+  costAvailableMonths: string[];
 }
 
 export function UserDetailClient({
@@ -85,6 +88,8 @@ export function UserDetailClient({
   history,
   isAdmin,
   githubProfile,
+  costData,
+  costAvailableMonths,
 }: Props) {
   const router = useRouter();
 
@@ -418,6 +423,8 @@ export function UserDetailClient({
           )}
         </CardContent>
       </Card>
+
+      <AdminCostSection userId={user.id} initialData={costData} availableMonths={costAvailableMonths} />
 
       <Card>
         <CardHeader>
