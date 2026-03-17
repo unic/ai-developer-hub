@@ -58,7 +58,21 @@ export function resolveApiKeyId(
   orgKeys: OrgApiKey[]
 ): string | null {
   for (const orgKey of orgKeys) {
-    const suffix = orgKey.partial_key_hint.replace(/^[.\u2026]+/, "");
+    const hint = orgKey.partial_key_hint;
+
+    // Extract suffix after the last ellipsis pattern (e.g. "sk-ant-...xyzw" → "xyzw")
+    const ellipsisPatterns = ["...", "\u2026"];
+    let suffix = hint;
+    for (const pat of ellipsisPatterns) {
+      const idx = hint.lastIndexOf(pat);
+      if (idx !== -1) {
+        suffix = hint.slice(idx + pat.length);
+        break;
+      }
+    }
+    // Also strip any remaining leading dots
+    suffix = suffix.replace(/^\.+/, "");
+
     if (suffix && decryptedKey.endsWith(suffix)) {
       return orgKey.id;
     }
