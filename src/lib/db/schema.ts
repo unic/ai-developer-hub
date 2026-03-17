@@ -481,9 +481,8 @@ export const anthropicSyncStatus = pgTable(
   "anthropic_sync_status",
   {
     id: serial("id").primaryKey(),
-    userId: integer("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    // No FK constraint — userId=0 is used as a global lock sentinel row
+    userId: integer("user_id").notNull(),
     lastSyncStartedAt: timestamp("last_sync_started_at"),
     lastSyncCompletedAt: timestamp("last_sync_completed_at"),
     lastSyncError: varchar("last_sync_error", { length: 500 }),

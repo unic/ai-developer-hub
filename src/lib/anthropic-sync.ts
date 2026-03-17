@@ -1,5 +1,3 @@
-"use server";
-
 import { db } from "@/lib/db";
 import {
   anthropicUsageMetrics,
@@ -361,11 +359,10 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error("Anthropic sync failed:", errorMsg);
-    // Set error on all sync status rows
+    // Set error on all sync status rows (including lock row userId=0)
     await db
       .update(anthropicSyncStatus)
-      .set({ lastSyncError: errorMsg.slice(0, 500) })
-      .where(isNotNull(anthropicSyncStatus.userId));
+      .set({ lastSyncError: errorMsg.slice(0, 500) });
     summary.errors.push({ userId: 0, error: errorMsg });
   }
 
