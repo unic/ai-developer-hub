@@ -17,6 +17,7 @@ import { getToolWithTiers } from "@/actions/tools";
 import { updateAssignmentSchema } from "@/lib/validators";
 import type { UpdateAssignmentInput } from "@/lib/validators";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
+import { UserCombobox } from "@/components/user-combobox";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -778,21 +779,11 @@ export function AssignmentsClient({
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium">User</label>
-                  <Select
+                  <UserCombobox
+                    users={users}
                     value={selectedUserId}
-                    onValueChange={setSelectedUserId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map((u) => (
-                        <SelectItem key={u.id} value={String(u.id)}>
-                          {u.name} ({u.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onSelect={setSelectedUserId}
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Tool</label>
