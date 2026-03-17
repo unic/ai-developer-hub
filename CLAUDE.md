@@ -28,6 +28,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30 (014-decouple-copilot-billing)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, shadcn/ui (new-york), cmdk 1.1.1, string-similarity (NEW) (015-github-member-sync)
 - Neon PostgreSQL (serverless) — 2 new columns on existing table (015-github-member-sync)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1, bcryptjs 3.0.3, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React. **NEW**: resend, @react-email/components (017-first-login-experience)
+- Neon PostgreSQL (serverless) via @neondatabase/serverless — 1 new table (`invite_tokens`), 1 modified table (`users` + `must_change_password` column), 1 new enum (`invite_token_status`) (017-first-login-experience)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -90,9 +92,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 017-first-login-experience: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1, bcryptjs 3.0.3, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React. **NEW**: resend, @react-email/components
 - 015-github-member-sync: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, shadcn/ui (new-york), cmdk 1.1.1, string-similarity (NEW)
 - 014-decouple-copilot-billing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30
-- 013-github-copilot-integration: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Zod 4.3.6, Sonner (toasts), Lucide React
 
 
 <!-- MANUAL ADDITIONS START -->
