@@ -540,6 +540,7 @@ function getColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tool" />
       ),
+      filterFn: arrayIncludesFilterFn,
     },
     {
       accessorFn: (row) => row.tier.name,
@@ -547,6 +548,7 @@ function getColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tier" />
       ),
+      filterFn: arrayIncludesFilterFn,
     },
     {
       accessorKey: "costAtAssignmentCents",
@@ -596,11 +598,16 @@ function getColumns(
       ),
     },
     {
-      accessorKey: "workspace",
+      accessorFn: (row) => row.workspace ?? "__no_workspace__",
+      id: "workspace",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Workspace" />
       ),
-      cell: ({ row }) => row.original.workspace || "\u2014",
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const value = row.getValue("workspace") as string;
+        return value === "__no_workspace__" ? "\u2014" : value;
+      },
     },
     {
       accessorKey: "assignedAt",
@@ -623,7 +630,7 @@ function getColumns(
   ];
 }
 
-const ASSIGNMENT_FACETED_FILTERS = [
+const STATIC_ASSIGNMENT_FILTERS = [
   {
     columnId: "status",
     title: "Status",
@@ -658,13 +665,7 @@ export function AssignmentsClient({
   isAdmin,
 }: Props) {
   const router = useRouter();
-  const [showNoWorkspace, setShowNoWorkspace] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  const filteredAssignments = useMemo(
-    () => showNoWorkspace ? assignments.filter((a) => !a.workspace) : assignments,
-    [showNoWorkspace, assignments]
-  );
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedToolId, setSelectedToolId] = useState<string>("");
   const [selectedTierId, setSelectedTierId] = useState<string>("");
@@ -685,6 +686,35 @@ export function AssignmentsClient({
     () => getColumns(isAdmin, handleRevoke, handleRefresh),
     [isAdmin, handleRevoke, handleRefresh]
   );
+
+  const facetedFilters = useMemo(() => {
+    const toolNames = [...new Set(assignments.map((a) => a.tool.name))].sort();
+    const tierNames = [...new Set(assignments.map((a) => a.tier.name))].sort();
+    const workspaces = [...new Set(assignments.map((a) => a.workspace ?? "__no_workspace__"))].sort();
+
+    return [
+      {
+        columnId: "toolName",
+        title: "Tool",
+        options: toolNames.map((t) => ({ label: t, value: t })),
+      },
+      {
+        columnId: "tierName",
+        title: "Tier",
+        options: tierNames.map((t) => ({ label: t, value: t })),
+      },
+      {
+        columnId: "workspace",
+        title: "Workspace",
+        options: workspaces.map((w) =>
+          w === "__no_workspace__"
+            ? { label: "No Workspace", value: "__no_workspace__" }
+            : { label: w, value: w }
+        ),
+      },
+      ...STATIC_ASSIGNMENT_FILTERS,
+    ];
+  }, [assignments]);
 
   async function handleToolChange(toolId: string) {
     setSelectedToolId(toolId);
@@ -819,20 +849,11 @@ export function AssignmentsClient({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant={showNoWorkspace ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setShowNoWorkspace(!showNoWorkspace)}
-        >
-          No Workspace
-        </Button>
-      </div>
       <DataTable
         columns={columns}
-        data={filteredAssignments}
+        data={assignments}
         searchPlaceholder="Search assignments..."
-        facetedFilters={ASSIGNMENT_FACETED_FILTERS}
+        facetedFilters={facetedFilters}
       />
     </div>
   );

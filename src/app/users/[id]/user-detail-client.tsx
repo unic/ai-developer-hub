@@ -1,16 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { updateUser, deactivateUser } from "@/actions/users";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
-import { revokeLicense } from "@/actions/assignments";
+import { assignLicense, revokeLicense } from "@/actions/assignments";
+import { getToolWithTiers } from "@/actions/tools";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { User, ChangeHistoryRecord, CostData } from "@/types";
+import type { User, ChangeHistoryRecord, CostData, AiTool, AccessTier } from "@/types";
 import { AdminCostSection } from "@/components/profile/admin-cost-section";
-import { Github, ExternalLink, BookOpen } from "lucide-react";
+import { Github, ExternalLink, BookOpen, Plus, RotateCcw } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +39,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -58,7 +67,7 @@ interface Assignment {
   costAtAssignmentCents: number;
   assignedAt: Date | null;
   revokedAt: Date | null;
-  tool: { id: number; name: string };
+  tool: { id: number; name: string; status: string };
   tier: { id: number; name: string };
 }
 
@@ -80,6 +89,7 @@ interface Props {
   githubProfile?: GitHubProfileData | null;
   costData: CostData;
   costAvailableMonths: string[];
+  tools: AiTool[];
 }
 
 export function UserDetailClient({
@@ -90,8 +100,15 @@ export function UserDetailClient({
   githubProfile,
   costData,
   costAvailableMonths,
+  tools,
 }: Props) {
   const router = useRouter();
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedToolId, setSelectedToolId] = useState<string>("");
+  const [selectedTierId, setSelectedTierId] = useState<string>("");
+  const [availableTiers, setAvailableTiers] = useState<AccessTier[]>([]);
+  const [assigning, setAssigning] = useState(false);
+  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
 
   const form = useForm<EditUserInput>({
     resolver: zodResolver(editUserSchema),
@@ -131,6 +148,53 @@ export function UserDetailClient({
     const result = await revokeLicense({ id: assignmentId });
     if (result.success) {
       toast.success("License revoked");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  async function handleToolChange(toolId: string) {
+    setSelectedToolId(toolId);
+    setSelectedTierId("");
+    if (toolId) {
+      const tool = await getToolWithTiers(Number(toolId));
+      setAvailableTiers(tool?.accessTiers.filter((t) => t.isActive) ?? []);
+    } else {
+      setAvailableTiers([]);
+    }
+  }
+
+  async function handleAssign() {
+    if (!selectedToolId || !selectedTierId) return;
+    setAssigning(true);
+    const result = await assignLicense({
+      userId: user.id,
+      toolId: Number(selectedToolId),
+      tierId: Number(selectedTierId),
+    });
+    setAssigning(false);
+    if (result.success) {
+      toast.success("License assigned");
+      setAssignDialogOpen(false);
+      setSelectedToolId("");
+      setSelectedTierId("");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  async function handleReactivate(assignment: Assignment) {
+    setReactivatingId(assignment.id);
+    const result = await assignLicense({
+      userId: user.id,
+      toolId: assignment.tool.id,
+      tierId: assignment.tier.id,
+    });
+    setReactivatingId(null);
+    if (result.success) {
+      toast.success("License reactivated");
       router.refresh();
     } else {
       toast.error(result.error);
@@ -373,8 +437,18 @@ export function UserDetailClient({
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Assigned Tools</CardTitle>
+          {isAdmin && user.status === "active" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAssignDialogOpen(true)}
+            >
+              <Plus className="mr-2 size-4" />
+              Assign License
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {assignments.length > 0 ? (
@@ -412,6 +486,17 @@ export function UserDetailClient({
                         Revoke
                       </Button>
                     )}
+                    {isAdmin && a.status !== "active" && a.tool.status === "active" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReactivate(a)}
+                        disabled={reactivatingId === a.id}
+                      >
+                        <RotateCcw className="mr-1 size-3" />
+                        {reactivatingId === a.id ? "Reactivating..." : "Reactivate"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -423,6 +508,65 @@ export function UserDetailClient({
           )}
         </CardContent>
       </Card>
+
+      {/* Assign License Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign License to {user.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Tool</label>
+              <Select value={selectedToolId} onValueChange={handleToolChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tool" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tools.filter((t) => t.status === "active").map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tier</label>
+              <Select
+                value={selectedTierId}
+                onValueChange={setSelectedTierId}
+                disabled={availableTiers.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTiers.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name} — {formatCurrency(t.monthlyCostCents)}/mo
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAssignDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssign}
+              disabled={!selectedToolId || !selectedTierId || assigning}
+            >
+              {assigning ? "Assigning..." : "Assign License"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AdminCostSection userId={user.id} initialData={costData} availableMonths={costAvailableMonths} />
 
