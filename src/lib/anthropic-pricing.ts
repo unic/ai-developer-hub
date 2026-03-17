@@ -7,10 +7,17 @@ export type ModelPricing = {
 };
 
 /**
- * Anthropic model pricing table, ordered by prefix length (longest first)
- * so that the most specific prefix matches first.
+ * Anthropic model pricing table, ordered with highest-priced first for safe
+ * fallback. Index 0 (Opus) is used when no prefix matches an unknown model.
  */
 export const MODEL_PRICING: ModelPricing[] = [
+  {
+    prefix: "claude-opus-4",
+    inputPerMToken: 15,
+    outputPerMToken: 75,
+    cacheReadPerMToken: 1.5,
+    cacheWritePerMToken: 18.75,
+  },
   {
     prefix: "claude-sonnet-4",
     inputPerMToken: 3,
@@ -24,13 +31,6 @@ export const MODEL_PRICING: ModelPricing[] = [
     outputPerMToken: 4,
     cacheReadPerMToken: 0.08,
     cacheWritePerMToken: 1,
-  },
-  {
-    prefix: "claude-opus-4",
-    inputPerMToken: 15,
-    outputPerMToken: 75,
-    cacheReadPerMToken: 1.5,
-    cacheWritePerMToken: 18.75,
   },
 ];
 
