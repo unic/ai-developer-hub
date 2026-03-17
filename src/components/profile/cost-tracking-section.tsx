@@ -15,8 +15,8 @@ type CostTrackingSectionProps = {
   userId: number;
   initialData: CostData;
   availableMonths: string[];
-  /** Optional header actions (e.g. admin sync button) rendered next to the month picker */
-  headerActions?: React.ReactNode;
+  /** Optional header actions rendered next to the month picker. Receives a refresh callback. */
+  headerActions?: (onRefresh: () => void) => React.ReactNode;
   /** Whether to show summary stats below the chart (default: true) */
   showSummaryStats?: boolean;
 };
@@ -116,7 +116,7 @@ export function CostTrackingSection({
               onChange={handleMonthChange}
               months={availableMonths}
             />
-            {headerActions}
+            {headerActions?.(refreshData)}
           </div>
         </div>
       </CardHeader>

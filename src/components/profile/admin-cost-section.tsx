@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CostTrackingSection } from "./cost-tracking-section";
 import { syncAnthropicUsage } from "@/actions/anthropic-usage";
@@ -20,6 +20,7 @@ export function AdminCostSection({
   availableMonths,
 }: AdminCostSectionProps) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const refreshRef = useRef<(() => void) | null>(null);
 
   async function handleSync() {
     setIsSyncing(true);
@@ -29,6 +30,8 @@ export function AdminCostSection({
         toast.success(
           `Synced ${result.data.syncedDays} days of usage data.`
         );
+        // Refresh cost data after successful sync
+        refreshRef.current?.();
       } else {
         toast.error(result.error);
       }
@@ -45,19 +48,22 @@ export function AdminCostSection({
       initialData={initialData}
       availableMonths={availableMonths}
       showSummaryStats={false}
-      headerActions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSync}
-          disabled={isSyncing}
-        >
-          <RefreshCw
-            className={`mr-1 size-4 ${isSyncing ? "animate-spin" : ""}`}
-          />
-          Sync
-        </Button>
-      }
+      headerActions={(onRefresh) => {
+        refreshRef.current = onRefresh;
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            <RefreshCw
+              className={`mr-1 size-4 ${isSyncing ? "animate-spin" : ""}`}
+            />
+            Sync
+          </Button>
+        );
+      }}
     />
   );
 }
