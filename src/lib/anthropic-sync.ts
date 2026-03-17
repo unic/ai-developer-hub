@@ -390,16 +390,29 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
     syncStatus = created;
   }
 
+  // Mark sync start time
+  await db
+    .update(anthropicSyncStatus)
+    .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
+    .where(eq(anthropicSyncStatus.userId, userId));
+
   // Resolve API key ID if not cached
   if (!syncStatus.resolvedApiKeyId) {
-    const assignment = await db.query.licenseAssignments.findFirst({
-      where: and(
-        eq(licenseAssignments.userId, userId),
-        eq(licenseAssignments.status, "active"),
-        isNotNull(licenseAssignments.apiKeyEncrypted)
-      ),
-      with: { tool: true },
-    });
+    const [assignment] = await db
+      .select({
+        apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
+      })
+      .from(licenseAssignments)
+      .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
+      .where(
+        and(
+          eq(licenseAssignments.userId, userId),
+          eq(licenseAssignments.status, "active"),
+          isNotNull(licenseAssignments.apiKeyEncrypted),
+          sql`(LOWER(${aiTools.vendor}) LIKE '%anthropic%' OR LOWER(${aiTools.name}) LIKE '%claude%')`
+        )
+      )
+      .limit(1);
 
     if (!assignment?.apiKeyEncrypted) {
       throw new Error("No API key configured for this user");

@@ -472,6 +472,7 @@ export const anthropicUsageMetrics = pgTable(
     ),
     index("anthropic_usage_metrics_user_date_idx").on(table.userId, table.date),
     index("anthropic_usage_metrics_date_idx").on(table.date),
+    index("anthropic_usage_metrics_pricing_resolved_idx").on(table.pricingResolved),
   ]
 );
 
