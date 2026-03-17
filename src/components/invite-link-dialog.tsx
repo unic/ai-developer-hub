@@ -29,6 +29,7 @@ export function InviteLinkDialog({
 }: InviteLinkDialogProps) {
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   async function handleCopy() {
     try {
@@ -47,6 +48,7 @@ export function InviteLinkDialog({
       const result = await sendInviteEmail(userId);
       if (result.success) {
         toast.success("Invite email sent successfully");
+        setEmailSent(true);
       } else {
         toast.error(result.error ?? "Failed to send invite email");
       }
@@ -68,20 +70,28 @@ export function InviteLinkDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2">
-          <Input value={inviteUrl} readOnly className="flex-1" />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleCopy}
-            aria-label="Copy invite link"
-          >
-            {copied ? (
-              <Check className="size-4" />
-            ) : (
-              <Copy className="size-4" />
-            )}
-          </Button>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Input value={inviteUrl} readOnly className="flex-1" />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCopy}
+              aria-label="Copy invite link"
+            >
+              {copied ? (
+                <Check className="size-4" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+            </Button>
+          </div>
+          {emailSent && (
+            <p className="text-sm text-muted-foreground">
+              A fresh invite link was emailed. The link above may no longer be
+              valid.
+            </p>
+          )}
         </div>
 
         <Button

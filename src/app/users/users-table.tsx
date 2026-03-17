@@ -30,20 +30,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Eye, MoreHorizontal, Pencil, UserX, Mail, KeyRound } from "lucide-react";
 import { deactivateUser } from "@/actions/users";
-import { sendInviteEmail, resetUserPassword, sendBatchInviteEmails } from "@/actions/invite";
-import { InviteLinkDialog } from "@/components/invite-link-dialog";
+import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import type { User } from "@/types";
 
 function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: boolean; onDeactivated: () => void }) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
-  const [resetSendEmail, setResetSendEmail] = useState(true);
-  const [showInviteLink, setShowInviteLink] = useState(false);
-  const [inviteUrl, setInviteUrl] = useState("");
 
   async function handleSendInvite() {
     try {
@@ -55,27 +50,6 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
       }
     } catch {
       toast.error("Failed to send invite email");
-    }
-  }
-
-  async function handleResetPassword() {
-    try {
-      const result = await resetUserPassword({ userId: row.id, sendEmail: resetSendEmail });
-      if (result.success) {
-        setShowResetDialog(false);
-        setInviteUrl(result.data.inviteUrl);
-        setShowInviteLink(true);
-        if (result.data.emailSent) {
-          toast.success("Password reset. Invite email sent.");
-        } else {
-          toast.success("Password reset. Share the invite link with the user.");
-        }
-        onDeactivated(); // refresh data
-      } else {
-        toast.error(result.error);
-      }
-    } catch {
-      toast.error("An unexpected error occurred");
     }
   }
 
@@ -119,10 +93,7 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
                   Send Invite
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={() => {
-                setResetSendEmail(true);
-                setShowResetDialog(true);
-              }}>
+              <DropdownMenuItem onSelect={() => setShowResetDialog(true)}>
                 <KeyRound className="size-4" />
                 Reset Password
               </DropdownMenuItem>
@@ -160,38 +131,11 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Reset password for {row.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will invalidate the current password and generate a new invite link.
-                  The user will not be able to sign in until they set a new password via the invite link.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="flex items-center space-x-2 py-2">
-                <Checkbox
-                  id={`reset-email-${row.id}`}
-                  checked={resetSendEmail}
-                  onCheckedChange={(checked) => setResetSendEmail(checked === true)}
-                />
-                <Label htmlFor={`reset-email-${row.id}`}>
-                  Send invite email to {row.email}
-                </Label>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetPassword}>
-                  Reset Password
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <InviteLinkDialog
-            open={showInviteLink}
-            onOpenChange={setShowInviteLink}
-            inviteUrl={inviteUrl}
-            userId={row.id}
+          <ResetPasswordDialog
+            user={row}
+            open={showResetDialog}
+            onOpenChange={setShowResetDialog}
+            onSuccess={onDeactivated}
           />
         </>
       )}

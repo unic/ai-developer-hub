@@ -44,11 +44,6 @@ export const setupPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-// Invite token param validation
-export const inviteTokenSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-});
-
 // Bulk import user (no password — admin sets a temp one)
 export const bulkImportUserSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
@@ -195,7 +190,6 @@ export type TierInput = z.infer<typeof tierSchema>;
 export type UserInput = z.infer<typeof userSchema>;
 export type BulkImportUserInput = z.infer<typeof bulkImportUserSchema>;
 export type SetupPasswordInput = z.infer<typeof setupPasswordSchema>;
-export type InviteTokenInput = z.infer<typeof inviteTokenSchema>;
 export type AssignmentInput = z.infer<typeof assignmentSchema>;
 export type BudgetInput = z.infer<typeof budgetSchema>;
 export type BudgetAllocationInput = z.infer<typeof budgetAllocationSchema>;

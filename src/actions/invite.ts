@@ -19,20 +19,12 @@ import type { ActionResult } from "@/types";
 const INVITE_EXPIRY_HOURS = 72;
 
 // ---------------------------------------------------------------------------
-// generateInviteToken
+// createInviteTokenForUser (internal helper — no auth check, no user lookup)
 // ---------------------------------------------------------------------------
 
-export async function generateInviteToken(
+export async function createInviteTokenForUser(
   userId: number
-): Promise<ActionResult<{ inviteUrl: string }>> {
-  const admin = await requireAdmin();
-  if (!admin) return { success: false, error: "Unauthorized" };
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-  });
-  if (!user) return { success: false, error: "User not found" };
-
+): Promise<{ inviteUrl: string }> {
   // Invalidate existing active tokens for this user
   await db
     .update(inviteTokens)
@@ -61,11 +53,29 @@ export async function generateInviteToken(
     .set({ mustChangePassword: true, updatedAt: new Date() })
     .where(eq(users.id, userId));
 
-  const inviteUrl = buildInviteUrl(raw);
+  return { inviteUrl: buildInviteUrl(raw) };
+}
+
+// ---------------------------------------------------------------------------
+// generateInviteToken (public API — checks admin auth + fetches user)
+// ---------------------------------------------------------------------------
+
+export async function generateInviteToken(
+  userId: number
+): Promise<ActionResult<{ inviteUrl: string }>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+  });
+  if (!user) return { success: false, error: "User not found" };
+
+  const result = await createInviteTokenForUser(userId);
 
   revalidatePath("/users");
   revalidatePath(`/users/${userId}`);
-  return { success: true, data: { inviteUrl } };
+  return { success: true, data: result };
 }
 
 // ---------------------------------------------------------------------------
@@ -201,12 +211,7 @@ export async function resetUserPassword(input: {
     .where(eq(users.id, input.userId));
 
   // Generate new invite token (invalidates previous)
-  const tokenResult = await generateInviteToken(input.userId);
-  if (!tokenResult.success) {
-    return { success: false, error: tokenResult.error };
-  }
-
-  const inviteUrl = tokenResult.data.inviteUrl;
+  const { inviteUrl } = await createInviteTokenForUser(input.userId);
   let emailSent = false;
 
   // Optionally send invite email
@@ -247,12 +252,8 @@ export async function sendInviteEmail(
   if (!user) return { success: false, error: "User not found" };
 
   // Always generate a fresh token so we have the raw value for the URL.
-  // generateInviteToken invalidates any previous active tokens.
-  const tokenResult = await generateInviteToken(userId);
-  if (!tokenResult.success) {
-    return { success: false, error: tokenResult.error };
-  }
-  const inviteUrl = tokenResult.data.inviteUrl;
+  // createInviteTokenForUser invalidates any previous active tokens.
+  const { inviteUrl } = await createInviteTokenForUser(userId);
 
   const emailResult = await sendEmail({
     to: user.email,
@@ -298,19 +299,14 @@ export async function sendBatchInviteEmails(): Promise<
   for (const user of pendingUsers) {
     try {
       // Generate a fresh token for each user
-      const tokenResult = await generateInviteToken(user.id);
-      if (!tokenResult.success) {
-        failed++;
-        errors.push({ userId: user.id, email: user.email, error: tokenResult.error });
-        continue;
-      }
+      const { inviteUrl } = await createInviteTokenForUser(user.id);
 
       const emailResult = await sendEmail({
         to: user.email,
         subject: "You're invited to AI Developer Hub",
         react: InviteEmail({
           userName: user.name,
-          inviteUrl: tokenResult.data.inviteUrl,
+          inviteUrl,
           expiresInHours: INVITE_EXPIRY_HOURS,
         }),
       });

@@ -11,7 +11,7 @@ import {
   updateUserSchema,
   bulkImportUserSchema,
 } from "@/lib/validators";
-import { generateInviteToken } from "@/actions/invite";
+import { createInviteTokenForUser } from "@/actions/invite";
 import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
 import { normalizeField } from "@/lib/utils";
 import {
@@ -68,8 +68,7 @@ export async function createUser(
   await recordCreation("user", user.id, Number(admin.id));
 
   // Generate invite token
-  const tokenResult = await generateInviteToken(user.id);
-  const inviteUrl = tokenResult.success ? tokenResult.data.inviteUrl : "";
+  const { inviteUrl } = await createInviteTokenForUser(user.id);
 
   revalidatePath("/users");
   return { success: true, data: { id: user.id, inviteUrl } };
@@ -366,10 +365,8 @@ export async function bulkImportUsers(input: {
         await recordCreation("user", user.id, Number(admin.id));
 
         // Generate invite token for the new user
-        const tokenResult = await generateInviteToken(user.id);
-        if (tokenResult.success) {
-          inviteLinks.push({ name, email, inviteUrl: tokenResult.data.inviteUrl });
-        }
+        const { inviteUrl } = await createInviteTokenForUser(user.id);
+        inviteLinks.push({ name, email, inviteUrl });
 
         created++;
       }
