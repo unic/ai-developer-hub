@@ -11,12 +11,13 @@ export type ModelPricing = {
  * fallback. Index 0 (Opus) is used when no prefix matches an unknown model.
  */
 export const MODEL_PRICING: ModelPricing[] = [
+  // Pricing source: https://docs.anthropic.com/en/docs/about-claude/models
   {
     prefix: "claude-opus-4",
-    inputPerMToken: 5,
-    outputPerMToken: 25,
-    cacheReadPerMToken: 0.5,
-    cacheWritePerMToken: 6.25,
+    inputPerMToken: 15,
+    outputPerMToken: 75,
+    cacheReadPerMToken: 1.5,
+    cacheWritePerMToken: 18.75,
   },
   {
     prefix: "claude-sonnet-4",
@@ -27,10 +28,10 @@ export const MODEL_PRICING: ModelPricing[] = [
   },
   {
     prefix: "claude-haiku-4",
-    inputPerMToken: 1,
-    outputPerMToken: 5,
-    cacheReadPerMToken: 0.1,
-    cacheWritePerMToken: 1.25,
+    inputPerMToken: 0.8,
+    outputPerMToken: 4,
+    cacheReadPerMToken: 0.08,
+    cacheWritePerMToken: 1,
   },
 ];
 

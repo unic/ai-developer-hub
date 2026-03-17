@@ -54,17 +54,39 @@ export async function getUserCostData(
     };
   }
 
-  // Determine month boundaries
+  // Determine month boundaries (UTC-consistent)
   const now = new Date();
   const targetMonth =
-    month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const [yearStr, monthStr] = targetMonth.split("-");
-  const year = parseInt(yearStr, 10);
-  const mon = parseInt(monthStr, 10);
+    month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+
+  // Validate month format: YYYY-MM with month 01–12
+  const monthMatch = targetMonth.match(/^(\d{4})-(\d{2})$/);
+  if (!monthMatch) {
+    return {
+      available: false,
+      error: "Invalid month format. Expected YYYY-MM.",
+      monthlyTotalCents: 0,
+      dailyBreakdown: [],
+      latestDataDate: null,
+      hasUnresolvedPricing: false,
+    };
+  }
+  const year = parseInt(monthMatch[1], 10);
+  const mon = parseInt(monthMatch[2], 10);
+  if (mon < 1 || mon > 12) {
+    return {
+      available: false,
+      error: "Invalid month. Must be between 01 and 12.",
+      monthlyTotalCents: 0,
+      dailyBreakdown: [],
+      latestDataDate: null,
+      hasUnresolvedPricing: false,
+    };
+  }
 
   const startDate = `${targetMonth}-01`;
   // End date: last day of the month
-  const lastDay = new Date(year, mon, 0).getDate();
+  const lastDay = new Date(Date.UTC(year, mon, 0)).getUTCDate();
   const endDate = `${targetMonth}-${String(lastDay).padStart(2, "0")}`;
 
   // Check if the user has an active Anthropic assignment with API key configured
@@ -182,6 +204,16 @@ export async function getUserCostData(
 // ---------------------------------------------------------------------------
 
 export async function getProfileData(userId: number): Promise<ProfileData> {
+  // Auth check: caller must be the same user or an admin
+  const session = await auth();
+  if (!session?.user) {
+    throw new Error("Unauthorized — not signed in.");
+  }
+  const callerId = Number(session.user.id);
+  if (callerId !== userId && session.user.role !== "admin") {
+    throw new Error("Unauthorized — you can only view your own profile.");
+  }
+
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
   });
@@ -236,6 +268,12 @@ export async function getProfileData(userId: number): Promise<ProfileData> {
 // ---------------------------------------------------------------------------
 
 export async function getAvailableMonths(userId: number): Promise<string[]> {
+  // Auth check: caller must be the same user or an admin
+  const session = await auth();
+  if (!session?.user) return [];
+  const callerId = Number(session.user.id);
+  if (callerId !== userId && session.user.role !== "admin") return [];
+
   const monthRows = await db
     .selectDistinct({
       month: sql<string>`TO_CHAR(${anthropicUsageMetrics.date}, 'YYYY-MM')`,
