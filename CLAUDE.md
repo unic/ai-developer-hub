@@ -27,7 +27,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 2 new tables, 3 table modifications, 1 new enum (013-github-copilot-integration)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30 (014-decouple-copilot-billing)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React (016-claude-api-costs)
-- Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 1 new table, 1 table modification (016-claude-api-costs)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 2 new tables (`anthropic_usage_metrics`, `anthropic_sync_status`), no modifications to existing tables (016-claude-api-costs)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)

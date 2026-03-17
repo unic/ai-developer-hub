@@ -11,7 +11,7 @@
    ANTHROPIC_ADMIN_API_KEY=sk-ant-admin01-...
    ```
 3. **Database**: Neon PostgreSQL instance (existing project database).
-4. **User API Key IDs**: Each user whose costs you want to track needs their Anthropic `api_key_id` stored in their license assignment. This can be found in Claude Console under API Keys.
+4. **User API Keys**: Each user whose costs you want to track needs an Anthropic API key stored in their license assignment. The corresponding `api_key_id` is resolved automatically at first sync by decrypting the stored key and matching it against the Anthropic Admin API's key list — no manual ID entry is needed.
 
 ## Setup Steps
 

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a self-service profile page (`/profile`) where authenticated users can view their personal info, assigned AI tools/licenses, and Claude API cost tracking (monthly total + daily breakdown by model with visual chart). Admins can also view user cost data on the admin user detail page. Usage data is fetched from the Anthropic Admin API (`usage_report/messages` endpoint) via incremental sync and stored permanently in PostgreSQL (following the `copilot_usage_metrics` pattern) for long-term cost monitoring. Costs are computed at read time from token counts using a pricing lookup table.
+Add a self-service profile page (`/profile`) where authenticated users can view their personal info, assigned AI tools/licenses, and Claude API cost tracking (monthly total + daily breakdown by model with visual chart). Admins can also view user cost data on the admin user detail page. Usage data is fetched from the Anthropic Admin API (`usage_report/messages` endpoint) via incremental sync and stored permanently in PostgreSQL (following the `copilot_usage_metrics` pattern) for long-term cost monitoring. Costs are computed at sync time from token counts using a pricing lookup table and stored as `computedCostCents` for consistent historical reporting.
 
 ## Technical Context
 
