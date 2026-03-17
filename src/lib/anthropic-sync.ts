@@ -38,7 +38,7 @@ const usageBucketResultSchema = z.object({
       ephemeral_1h_input_tokens: z.number().default(0),
     })
     .optional()
-    .default({}),
+    .default({ ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 }),
   output_tokens: z.number().default(0),
 });
 
@@ -442,7 +442,7 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
   const { startingAt, endingAt } = computeSyncWindow(latestRow?.date ?? null);
 
   // Fetch filtered by this user's API key
-  const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId]);
+  const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId!]);
 
   let syncedDays = 0;
   let latestDate: string | null = null;
