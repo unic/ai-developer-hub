@@ -19,9 +19,9 @@
 
 **Purpose**: Install dependencies and configure environment for the new feature
 
-- [ ] T001 Install new dependencies: `pnpm add resend @react-email/components`
-- [ ] T002 [P] Add `RESEND_API_KEY` and `FROM_EMAIL` to `.env.local.example` with comments explaining each
-- [ ] T003 [P] Create `src/emails/` directory for React Email templates
+- [x] T001 Install new dependencies: `pnpm add resend @react-email/components`
+- [x] T002 [P] Add `RESEND_API_KEY` and `FROM_EMAIL` to `.env.local.example` with comments explaining each
+- [x] T003 [P] Create `src/emails/` directory for React Email templates
 
 ---
 
@@ -31,13 +31,13 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Add `inviteTokenStatus` enum (`active`, `consumed`, `invalidated`) and `inviteTokens` table to `src/lib/db/schema.ts` per data-model.md — columns: `id`, `userId` (FK → users, unique where active), `tokenHash` (varchar 64, indexed), `status`, `expiresAt`, `createdAt`, `consumedAt` (nullable)
-- [ ] T005 Add `mustChangePassword` boolean column (default `true`) to `users` table in `src/lib/db/schema.ts`
-- [ ] T006 Generate and apply database migration: `pnpm db:generate && pnpm db:migrate` — migration must set `mustChangePassword = false` for seed admin (`admin@company.com`)
-- [ ] T007 [P] Create `src/lib/invite.ts` — token utilities: `generateToken()` returns `{ raw, hash }` using `crypto.randomBytes(32)` + SHA-256, `hashToken(raw)` for lookup, `buildInviteUrl(raw)` constructs full URL `/setup-password/{token}`
-- [ ] T008 [P] Create `src/lib/rate-limit.ts` — in-memory Map-based rate limiter: `isRateLimited(key, config)` returns boolean, `resetLimit(key)` clears attempts, `getClientIp(request)` extracts IP from headers. Config type: `{ maxAttempts: number; windowMs: number }`
-- [ ] T009 [P] Create `src/lib/email.ts` — Resend service wrapper: initialize `new Resend(process.env.RESEND_API_KEY)`, export `sendEmail({ to, subject, react })` returning `{ success, data?, error? }`, validate env vars on import
-- [ ] T010 [P] Add `setupPasswordSchema` to `src/lib/validators.ts` — validates `{ token: string, password: string (min 8), confirmPassword: string }` with `refine` to ensure passwords match. Also add `inviteTokenSchema` for token param validation
+- [x] T004 Add `inviteTokenStatus` enum (`active`, `consumed`, `invalidated`) and `inviteTokens` table to `src/lib/db/schema.ts` per data-model.md — columns: `id`, `userId` (FK → users, unique where active), `tokenHash` (varchar 64, indexed), `status`, `expiresAt`, `createdAt`, `consumedAt` (nullable)
+- [x] T005 Add `mustChangePassword` boolean column (default `true`) to `users` table in `src/lib/db/schema.ts`
+- [x] T006 Generate and apply database migration: `pnpm db:generate && pnpm db:migrate` — migration must set `mustChangePassword = false` for seed admin (`admin@company.com`)
+- [x] T007 [P] Create `src/lib/invite.ts` — token utilities: `generateToken()` returns `{ raw, hash }` using `crypto.randomBytes(32)` + SHA-256, `hashToken(raw)` for lookup, `buildInviteUrl(raw)` constructs full URL `/setup-password/{token}`
+- [x] T008 [P] Create `src/lib/rate-limit.ts` — in-memory Map-based rate limiter: `isRateLimited(key, config)` returns boolean, `resetLimit(key)` clears attempts, `getClientIp(request)` extracts IP from headers. Config type: `{ maxAttempts: number; windowMs: number }`
+- [x] T009 [P] Create `src/lib/email.ts` — Resend service wrapper: initialize `new Resend(process.env.RESEND_API_KEY)`, export `sendEmail({ to, subject, react })` returning `{ success, data?, error? }`, validate env vars on import
+- [x] T010 [P] Add `setupPasswordSchema` to `src/lib/validators.ts` — validates `{ token: string, password: string (min 8), confirmPassword: string }` with `refine` to ensure passwords match. Also add `inviteTokenSchema` for token param validation
 
 **Checkpoint**: Foundation ready — schema deployed, utilities available, user story implementation can begin
 
@@ -51,15 +51,15 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Create `src/actions/invite.ts` — implement `generateInviteToken(userId)` server action: invalidate existing active token for user, generate new token via `src/lib/invite.ts`, insert into `inviteTokens` table with 72h expiry, return `{ success: true, data: { inviteUrl } }`. Requires admin auth via `requireAdmin()`
-- [ ] T012 [US1] Implement `validateInviteToken(token)` in `src/actions/invite.ts` — hash the raw token, look up in DB where `status = 'active'` and `expiresAt > now()`, return user name/email on success, return typed error (`expired`, `consumed`, `invalid`) on failure. No auth required (public)
-- [ ] T013 [US1] Implement `setupPassword(input)` in `src/actions/invite.ts` — validate via `setupPasswordSchema`, apply rate limiting per IP via `src/lib/rate-limit.ts` (10 attempts/minute), validate token, hash new password with bcrypt (salt 12), update `users.passwordHash` + set `mustChangePassword = false`, consume token (`status = 'consumed'`, `consumedAt = now()`), return redirect URL. No auth required
-- [ ] T014 [US1] Create `src/app/(auth)/setup-password/[token]/page.tsx` — server component that calls `validateInviteToken(params.token)`, renders password setup form on success, renders appropriate error message on failure (expired → "Link expired, contact admin", consumed → "Already used" + sign-in link, invalid → generic "Invalid link")
-- [ ] T015 [US1] Create `src/app/(auth)/setup-password/[token]/setup-password-form.tsx` — client component with React Hook Form + `setupPasswordSchema`, fields: new password + confirm password with real-time validation, submit calls `setupPassword` action, on success redirect to dashboard via `router.push`, show inline errors on failure
-- [ ] T016 [US1] Modify `src/lib/auth.ts` — in the credentials `authorize()` callback, after finding the user, check `mustChangePassword`: if `true`, throw/return error with message "Your account hasn't been set up yet. Please use the invite link sent to your email, or contact your administrator." User never gets a session
-- [ ] T017 [US1] Modify `src/actions/users.ts` `createUser()` — remove `password` field from input, set `passwordHash` to random bytes (un-signable), set `mustChangePassword = true` (default), after insert call `generateInviteToken(newUser.id)`, return `inviteUrl` in response data
-- [ ] T018 [US1] Modify `src/app/users/new/new-user-form.tsx` — remove password field from form, after successful creation show invite link in a dialog/card with a "Copy Link" button using `navigator.clipboard.writeText()`, update Zod schema reference to match new `createUser` input (no password)
-- [ ] T019 [US1] Modify `src/lib/validators.ts` — update `userSchema` to remove the `password` field (it's no longer set at creation time). Add a `createUserSchema` without password if needed to preserve the existing `userSchema` for other uses
+- [x] T011 [US1] Create `src/actions/invite.ts` — implement `generateInviteToken(userId)` server action: invalidate existing active token for user, generate new token via `src/lib/invite.ts`, insert into `inviteTokens` table with 72h expiry, return `{ success: true, data: { inviteUrl } }`. Requires admin auth via `requireAdmin()`
+- [x] T012 [US1] Implement `validateInviteToken(token)` in `src/actions/invite.ts` — hash the raw token, look up in DB where `status = 'active'` and `expiresAt > now()`, return user name/email on success, return typed error (`expired`, `consumed`, `invalid`) on failure. No auth required (public)
+- [x] T013 [US1] Implement `setupPassword(input)` in `src/actions/invite.ts` — validate via `setupPasswordSchema`, apply rate limiting per IP via `src/lib/rate-limit.ts` (10 attempts/minute), validate token, hash new password with bcrypt (salt 12), update `users.passwordHash` + set `mustChangePassword = false`, consume token (`status = 'consumed'`, `consumedAt = now()`), return redirect URL. No auth required
+- [x] T014 [US1] Create `src/app/(auth)/setup-password/[token]/page.tsx` — server component that calls `validateInviteToken(params.token)`, renders password setup form on success, renders appropriate error message on failure (expired → "Link expired, contact admin", consumed → "Already used" + sign-in link, invalid → generic "Invalid link")
+- [x] T015 [US1] Create `src/app/(auth)/setup-password/[token]/setup-password-form.tsx` — client component with React Hook Form + `setupPasswordSchema`, fields: new password + confirm password with real-time validation, submit calls `setupPassword` action, on success redirect to dashboard via `router.push`, show inline errors on failure
+- [x] T016 [US1] Modify `src/lib/auth.ts` — in the credentials `authorize()` callback, after finding the user, check `mustChangePassword`: if `true`, throw/return error with message "Your account hasn't been set up yet. Please use the invite link sent to your email, or contact your administrator." User never gets a session
+- [x] T017 [US1] Modify `src/actions/users.ts` `createUser()` — remove `password` field from input, set `passwordHash` to random bytes (un-signable), set `mustChangePassword = true` (default), after insert call `generateInviteToken(newUser.id)`, return `inviteUrl` in response data
+- [x] T018 [US1] Modify `src/app/users/new/new-user-form.tsx` — remove password field from form, after successful creation show invite link in a dialog/card with a "Copy Link" button using `navigator.clipboard.writeText()`, update Zod schema reference to match new `createUser` input (no password)
+- [x] T019 [US1] Modify `src/lib/validators.ts` — update `userSchema` to remove the `password` field (it's no longer set at creation time). Add a `createUserSchema` without password if needed to preserve the existing `userSchema` for other uses
 
 **Checkpoint**: User Story 1 complete — full invite link → password setup → dashboard flow works. Admin creates user, copies link, user sets password.
 
@@ -73,11 +73,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] Redesign `src/app/(auth)/layout.tsx` — create a modern, visually engaging auth layout: centered card on a themed background (subtle gradient or pattern), application branding/logo, responsive at all breakpoints, supports light/dark mode via existing theme system. Use shadcn/ui components and Tailwind design tokens only
-- [ ] T021 [US2] Redesign `src/app/(auth)/login/login-form.tsx` — modern single sign-in form: clean typography, one email field, one password field, one "Sign In" button (no multiple sign-in options), polished error display, loading state with spinner/disabled button. Must feel visually premium
-- [ ] T022 [US2] Redesign `src/app/(auth)/login/page.tsx` — update page content to work with new layout: application name as heading, welcoming subtext, pass through to redesigned login form
-- [ ] T023 [US2] Style `src/app/(auth)/setup-password/[token]/setup-password-form.tsx` to match the login page design language — same card style, typography, spacing, button style. Welcome message with user's name. Consistent error/success states
-- [ ] T024 [US2] Verify visual consistency: both `/login` and `/setup-password/[token]` pages must share identical card width, padding, font sizes, button styles, and theme behavior. Test at mobile (375px), tablet (768px), and desktop (1280px) breakpoints
+- [x] T020 [US2] Redesign `src/app/(auth)/layout.tsx` — create a modern, visually engaging auth layout: centered card on a themed background (subtle gradient or pattern), application branding/logo, responsive at all breakpoints, supports light/dark mode via existing theme system. Use shadcn/ui components and Tailwind design tokens only
+- [x] T021 [US2] Redesign `src/app/(auth)/login/login-form.tsx` — modern single sign-in form: clean typography, one email field, one password field, one "Sign In" button (no multiple sign-in options), polished error display, loading state with spinner/disabled button. Must feel visually premium
+- [x] T022 [US2] Redesign `src/app/(auth)/login/page.tsx` — update page content to work with new layout: application name as heading, welcoming subtext, pass through to redesigned login form
+- [x] T023 [US2] Style `src/app/(auth)/setup-password/[token]/setup-password-form.tsx` to match the login page design language — same card style, typography, spacing, button style. Welcome message with user's name. Consistent error/success states
+- [x] T024 [US2] Verify visual consistency: both `/login` and `/setup-password/[token]` pages must share identical card width, padding, font sizes, button styles, and theme behavior. Test at mobile (375px), tablet (768px), and desktop (1280px) breakpoints
 
 **Checkpoint**: User Story 2 complete — auth pages are modern, responsive, theme-aware, and visually consistent
 
@@ -91,11 +91,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T025 [P] [US3] Create `src/emails/invite-email.tsx` — React Email template: branded layout with app name/logo, greeting with user's name ("Welcome, {name}!"), explanation text, prominent "Set Up Your Account" CTA button linking to invite URL, expiration notice ("This link expires in 72 hours"), fallback URL text below button. Use `@react-email/components` (Html, Head, Body, Container, Button, Text, Section, Tailwind)
-- [ ] T026 [US3] Implement `sendInviteEmail(userId)` in `src/actions/invite.ts` — admin-only action: look up user and active token (generate new one if expired/missing), build invite URL, send email via `src/lib/email.ts` with invite-email template, return `{ success, data: { emailId } }` or error
-- [ ] T027 [US3] Create `src/components/invite-link-dialog.tsx` — reusable dialog component shown after user creation or password reset: displays the invite URL in a read-only input with "Copy Link" button, "Send Invite Email" button that calls `sendInviteEmail`, shows toast on copy success, shows toast on email sent/failed. Uses shadcn/ui Dialog, Button, Input, and Sonner toast
-- [ ] T028 [US3] Update `src/app/users/new/new-user-form.tsx` — replace the simple copy-link card (from T018) with the `InviteLinkDialog` component, passing the invite URL and user ID
-- [ ] T029 [US3] Add "Send Invite" action to `src/app/users/users-table.tsx` — for users where `mustChangePassword = true`, add a row action button "Send Invite" that calls `sendInviteEmail(userId)` and shows toast result
+- [x] T025 [P] [US3] Create `src/emails/invite-email.tsx` — React Email template: branded layout with app name/logo, greeting with user's name ("Welcome, {name}!"), explanation text, prominent "Set Up Your Account" CTA button linking to invite URL, expiration notice ("This link expires in 72 hours"), fallback URL text below button. Use `@react-email/components` (Html, Head, Body, Container, Button, Text, Section, Tailwind)
+- [x] T026 [US3] Implement `sendInviteEmail(userId)` in `src/actions/invite.ts` — admin-only action: look up user and active token (generate new one if expired/missing), build invite URL, send email via `src/lib/email.ts` with invite-email template, return `{ success, data: { emailId } }` or error
+- [x] T027 [US3] Create `src/components/invite-link-dialog.tsx` — reusable dialog component shown after user creation or password reset: displays the invite URL in a read-only input with "Copy Link" button, "Send Invite Email" button that calls `sendInviteEmail`, shows toast on copy success, shows toast on email sent/failed. Uses shadcn/ui Dialog, Button, Input, and Sonner toast
+- [x] T028 [US3] Update `src/app/users/new/new-user-form.tsx` — replace the simple copy-link card (from T018) with the `InviteLinkDialog` component, passing the invite URL and user ID
+- [x] T029 [US3] Add "Send Invite" action to `src/app/users/users-table.tsx` — for users where `mustChangePassword = true`, add a row action button "Send Invite" that calls `sendInviteEmail(userId)` and shows toast result
 
 **Checkpoint**: User Story 3 complete — admins have full control over invite email delivery, copy-link always available as fallback
 
@@ -109,9 +109,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T030 [US4] Implement `resetUserPassword({ userId, sendEmail })` in `src/actions/invite.ts` — admin-only action: set user's `passwordHash` to random bytes, set `mustChangePassword = true`, call `generateInviteToken(userId)`, if `sendEmail` is true call `sendInviteEmail(userId)`, record in change history table, return `{ inviteUrl, emailSent }`
-- [ ] T031 [US4] Add "Reset Password" action to `src/app/users/users-table.tsx` — row action button for each user, opens confirmation dialog (shadcn/ui AlertDialog): explains consequences ("This will invalidate {name}'s current password"), checkbox "Send invite email to {email}", confirm/cancel buttons. On confirm calls `resetUserPassword`, shows `InviteLinkDialog` with result
-- [ ] T032 [US4] Add "Reset Password" button to `src/app/users/[id]/user-detail-client.tsx` — same behavior as table action but from the user detail page. Reuse the same confirmation dialog and invite link dialog components
+- [x] T030 [US4] Implement `resetUserPassword({ userId, sendEmail })` in `src/actions/invite.ts` — admin-only action: set user's `passwordHash` to random bytes, set `mustChangePassword = true`, call `generateInviteToken(userId)`, if `sendEmail` is true call `sendInviteEmail(userId)`, record in change history table, return `{ inviteUrl, emailSent }`
+- [x] T031 [US4] Add "Reset Password" action to `src/app/users/users-table.tsx` — row action button for each user, opens confirmation dialog (shadcn/ui AlertDialog): explains consequences ("This will invalidate {name}'s current password"), checkbox "Send invite email to {email}", confirm/cancel buttons. On confirm calls `resetUserPassword`, shows `InviteLinkDialog` with result
+- [x] T032 [US4] Add "Reset Password" button to `src/app/users/[id]/user-detail-client.tsx` — same behavior as table action but from the user detail page. Reuse the same confirmation dialog and invite link dialog components
 
 **Checkpoint**: User Story 4 complete — admins can reset passwords and optionally email new invite links
 
@@ -125,9 +125,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T033 [US5] Integrate sign-in rate limiting in `src/lib/auth.ts` — in the `authorize()` callback, before DB lookup, call `isRateLimited(email.toLowerCase(), { maxAttempts: 5, windowMs: 10 * 60 * 1000 })`. If limited, return `null` (NextAuth will show generic error). On successful auth, call `resetLimit(email)`
-- [ ] T034 [US5] Verify rate limiting in `setupPassword` action in `src/actions/invite.ts` — ensure T013 already applies IP-based rate limiting (10 attempts/minute). If not integrated yet, add it now using `getClientIp(request)` from `src/lib/rate-limit.ts`
-- [ ] T035 [US5] Verify token error messages in `src/app/(auth)/setup-password/[token]/page.tsx` — ensure expired tokens show "This link has expired. Please contact your administrator for a new one.", consumed tokens show "This link has already been used." + sign-in link, invalid tokens show generic "This link is not valid." with no account details leaked
+- [x] T033 [US5] Integrate sign-in rate limiting in `src/lib/auth.ts` — in the `authorize()` callback, before DB lookup, call `isRateLimited(email.toLowerCase(), { maxAttempts: 5, windowMs: 10 * 60 * 1000 })`. If limited, return `null` (NextAuth will show generic error). On successful auth, call `resetLimit(email)`
+- [x] T034 [US5] Verify rate limiting in `setupPassword` action in `src/actions/invite.ts` — ensure T013 already applies IP-based rate limiting (10 attempts/minute). If not integrated yet, add it now using `getClientIp(request)` from `src/lib/rate-limit.ts`
+- [x] T035 [US5] Verify token error messages in `src/app/(auth)/setup-password/[token]/page.tsx` — ensure expired tokens show "This link has expired. Please contact your administrator for a new one.", consumed tokens show "This link has already been used." + sign-in link, invalid tokens show generic "This link is not valid." with no account details leaked
 
 **Checkpoint**: User Story 5 complete — abuse protection active on all auth endpoints
 
@@ -141,10 +141,10 @@
 
 ### Implementation for User Story 6
 
-- [ ] T036 [US6] Implement `sendBatchInviteEmails()` in `src/actions/invite.ts` — admin-only action: query all users where `mustChangePassword = true`, for each: generate token if missing/expired (reuse valid ones), send invite email, track sent/failed counts, return aggregate `{ sent, failed, total, errors }`. Process synchronously
-- [ ] T037 [US6] Add pending user count and filter to `src/app/users/users-table.tsx` — add a "Setup Status" column showing "Pending" (badge) or "Active" for each user based on `mustChangePassword`. Add a faceted filter for this column. Show total pending count near the table header
-- [ ] T038 [US6] Add "Send Invites to All Pending Users" button to `src/app/users/page.tsx` — visible when pending users exist, opens confirmation dialog showing count ("Send invite emails to {N} pending users?"), on confirm calls `sendBatchInviteEmails()`, shows progress indicator during send, shows delivery summary toast on completion (sent/failed counts)
-- [ ] T039 [US6] Add pending user count to the users page header in `src/app/users/page.tsx` — query pending count server-side, display as a badge or info text (e.g., "5 users pending setup")
+- [x] T036 [US6] Implement `sendBatchInviteEmails()` in `src/actions/invite.ts` — admin-only action: query all users where `mustChangePassword = true`, for each: generate token if missing/expired (reuse valid ones), send invite email, track sent/failed counts, return aggregate `{ sent, failed, total, errors }`. Process synchronously
+- [x] T037 [US6] Add pending user count and filter to `src/app/users/users-table.tsx` — add a "Setup Status" column showing "Pending" (badge) or "Active" for each user based on `mustChangePassword`. Add a faceted filter for this column. Show total pending count near the table header
+- [x] T038 [US6] Add "Send Invites to All Pending Users" button to `src/app/users/page.tsx` — visible when pending users exist, opens confirmation dialog showing count ("Send invite emails to {N} pending users?"), on confirm calls `sendBatchInviteEmails()`, shows progress indicator during send, shows delivery summary toast on completion (sent/failed counts)
+- [x] T039 [US6] Add pending user count to the users page header in `src/app/users/page.tsx` — query pending count server-side, display as a badge or info text (e.g., "5 users pending setup")
 
 **Checkpoint**: User Story 6 complete — admins can onboard all pending users in one action regardless of origin
 
@@ -158,8 +158,8 @@
 
 ### Implementation for User Story 7
 
-- [ ] T040 [US7] Modify `src/actions/users.ts` `bulkImportUsers()` — remove default password "changeme123" logic, set `passwordHash` to unique random bytes per user, set `mustChangePassword = true`, after inserting each new user call `generateInviteToken(userId)`, collect `{ name, email, inviteUrl }` for all new users, return in response data
-- [ ] T041 [US7] Modify `src/app/users/import/bulk-import-form.tsx` — after successful import, show a "Download Invite Links" button that generates and downloads a CSV file with columns: Name, Email, Invite Link. Only include newly created users (not updated/skipped ones). Use Blob + URL.createObjectURL for client-side download
+- [x] T040 [US7] Modify `src/actions/users.ts` `bulkImportUsers()` — remove default password "changeme123" logic, set `passwordHash` to unique random bytes per user, set `mustChangePassword = true`, after inserting each new user call `generateInviteToken(userId)`, collect `{ name, email, inviteUrl }` for all new users, return in response data
+- [x] T041 [US7] Modify `src/app/users/import/bulk-import-form.tsx` — after successful import, show a "Download Invite Links" button that generates and downloads a CSV file with columns: Name, Email, Invite Link. Only include newly created users (not updated/skipped ones). Use Blob + URL.createObjectURL for client-side download
 
 **Checkpoint**: User Story 7 complete — bulk import produces invite tokens and a downloadable link list
 
@@ -169,12 +169,12 @@
 
 **Purpose**: Final cleanup, consistency checks, and deployment preparation
 
-- [ ] T042 [P] Update `src/lib/db/seed.ts` — ensure seed admin has `mustChangePassword: false` so the seed script is consistent with the migration
-- [ ] T043 [P] Update `.env.local.example` — add `RESEND_API_KEY` and `FROM_EMAIL` with description comments
-- [ ] T044 Verify `pnpm build` succeeds with zero TypeScript errors and zero ESLint warnings
-- [ ] T045 Verify `pnpm lint` passes with zero warnings across all new and modified files
-- [ ] T046 Run `pnpm typecheck` to confirm strict mode compliance across all new code
-- [ ] T047 Manual smoke test: full flow — seed DB → login as admin → create user → copy invite link → open in incognito → set password → verify dashboard access → reset password from admin → verify old password fails → use new invite link
+- [x] T042 [P] Update `src/lib/db/seed.ts` — ensure seed admin has `mustChangePassword: false` so the seed script is consistent with the migration
+- [x] T043 [P] Update `.env.local.example` — add `RESEND_API_KEY` and `FROM_EMAIL` with description comments
+- [x] T044 Verify `pnpm build` succeeds with zero TypeScript errors and zero ESLint warnings
+- [x] T045 Verify `pnpm lint` passes with zero warnings across all new and modified files
+- [x] T046 Run `pnpm typecheck` to confirm strict mode compliance across all new code
+- [x] T047 Manual smoke test: full flow — seed DB → login as admin → create user → copy invite link → open in incognito → set password → verify dashboard access → reset password from admin → verify old password fails → use new invite link
 
 ---
 
