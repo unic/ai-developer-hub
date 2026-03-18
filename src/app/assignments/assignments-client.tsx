@@ -17,7 +17,8 @@ import { getToolWithTiers } from "@/actions/tools";
 import { updateAssignmentSchema } from "@/lib/validators";
 import type { UpdateAssignmentInput } from "@/lib/validators";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { UserCombobox } from "@/components/user-combobox";
+import { formatCurrency, formatDate, cn, formatDateOnly, NO_WORKSPACE_SENTINEL } from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,10 +100,6 @@ interface AssignmentRow {
   user: { id: number; name: string; email: string };
   tool: { id: number; name: string };
   tier: { id: number; name: string };
-}
-
-function formatDateOnly(d: Date): string {
-  return format(d, "yyyy-MM-dd");
 }
 
 // ---- Edit Assignment Dialog ----
@@ -540,6 +537,7 @@ function getColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tool" />
       ),
+      filterFn: arrayIncludesFilterFn,
     },
     {
       accessorFn: (row) => row.tier.name,
@@ -547,6 +545,7 @@ function getColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tier" />
       ),
+      filterFn: arrayIncludesFilterFn,
     },
     {
       accessorKey: "costAtAssignmentCents",
@@ -596,11 +595,16 @@ function getColumns(
       ),
     },
     {
-      accessorKey: "workspace",
+      accessorFn: (row) => row.workspace ?? NO_WORKSPACE_SENTINEL,
+      id: "workspace",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Workspace" />
       ),
-      cell: ({ row }) => row.original.workspace || "\u2014",
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const value = row.getValue("workspace") as string;
+        return value === NO_WORKSPACE_SENTINEL ? "\u2014" : value;
+      },
     },
     {
       accessorKey: "assignedAt",
@@ -623,7 +627,7 @@ function getColumns(
   ];
 }
 
-const ASSIGNMENT_FACETED_FILTERS = [
+const STATIC_ASSIGNMENT_FILTERS = [
   {
     columnId: "status",
     title: "Status",
@@ -658,13 +662,7 @@ export function AssignmentsClient({
   isAdmin,
 }: Props) {
   const router = useRouter();
-  const [showNoWorkspace, setShowNoWorkspace] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  const filteredAssignments = useMemo(
-    () => showNoWorkspace ? assignments.filter((a) => !a.workspace) : assignments,
-    [showNoWorkspace, assignments]
-  );
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedToolId, setSelectedToolId] = useState<string>("");
   const [selectedTierId, setSelectedTierId] = useState<string>("");
@@ -685,6 +683,35 @@ export function AssignmentsClient({
     () => getColumns(isAdmin, handleRevoke, handleRefresh),
     [isAdmin, handleRevoke, handleRefresh]
   );
+
+  const facetedFilters = useMemo(() => {
+    const toolNames = [...new Set(assignments.map((a) => a.tool.name))].sort();
+    const tierNames = [...new Set(assignments.map((a) => a.tier.name))].sort();
+    const workspaces = [...new Set(assignments.map((a) => a.workspace ?? NO_WORKSPACE_SENTINEL))].sort();
+
+    return [
+      {
+        columnId: "toolName",
+        title: "Tool",
+        options: toolNames.map((t) => ({ label: t, value: t })),
+      },
+      {
+        columnId: "tierName",
+        title: "Tier",
+        options: tierNames.map((t) => ({ label: t, value: t })),
+      },
+      {
+        columnId: "workspace",
+        title: "Workspace",
+        options: workspaces.map((w) =>
+          w === NO_WORKSPACE_SENTINEL
+            ? { label: "No Workspace", value: NO_WORKSPACE_SENTINEL }
+            : { label: w, value: w }
+        ),
+      },
+      ...STATIC_ASSIGNMENT_FILTERS,
+    ];
+  }, [assignments]);
 
   async function handleToolChange(toolId: string) {
     setSelectedToolId(toolId);
@@ -748,21 +775,11 @@ export function AssignmentsClient({
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium">User</label>
-                  <Select
+                  <UserCombobox
+                    users={users}
                     value={selectedUserId}
-                    onValueChange={setSelectedUserId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map((u) => (
-                        <SelectItem key={u.id} value={String(u.id)}>
-                          {u.name} ({u.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onSelect={setSelectedUserId}
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Tool</label>
@@ -819,20 +836,11 @@ export function AssignmentsClient({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant={showNoWorkspace ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setShowNoWorkspace(!showNoWorkspace)}
-        >
-          No Workspace
-        </Button>
-      </div>
       <DataTable
         columns={columns}
-        data={filteredAssignments}
+        data={assignments}
         searchPlaceholder="Search assignments..."
-        facetedFilters={ASSIGNMENT_FACETED_FILTERS}
+        facetedFilters={facetedFilters}
       />
     </div>
   );

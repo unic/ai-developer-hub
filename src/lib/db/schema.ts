@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   integer,
+  bigint,
   boolean,
   timestamp,
   date,
@@ -468,6 +469,63 @@ export const copilotBillingSnapshots = pgTable(
   ]
 );
 
+// Anthropic Usage Metrics (daily token usage per user per model)
+export const anthropicUsageMetrics = pgTable(
+  "anthropic_usage_metrics",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    uncachedInputTokens: bigint("uncached_input_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    cacheReadInputTokens: bigint("cache_read_input_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    cacheCreationInputTokens: bigint("cache_creation_input_tokens", {
+      mode: "number",
+    })
+      .notNull()
+      .default(0),
+    outputTokens: bigint("output_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    computedCostCents: integer("computed_cost_cents").notNull().default(0),
+    pricingResolved: boolean("pricing_resolved").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_usage_metrics_user_date_model_idx").on(
+      table.userId,
+      table.date,
+      table.model
+    ),
+    index("anthropic_usage_metrics_user_date_idx").on(table.userId, table.date),
+    index("anthropic_usage_metrics_date_idx").on(table.date),
+    index("anthropic_usage_metrics_pricing_resolved_idx").on(table.pricingResolved),
+  ]
+);
+
+// Anthropic Sync Status (per-user sync tracking + cached API key ID)
+export const anthropicSyncStatus = pgTable(
+  "anthropic_sync_status",
+  {
+    id: serial("id").primaryKey(),
+    // No FK constraint — userId=0 is used as a global lock sentinel row
+    userId: integer("user_id").notNull(),
+    lastSyncStartedAt: timestamp("last_sync_started_at"),
+    lastSyncCompletedAt: timestamp("last_sync_completed_at"),
+    lastSyncError: varchar("last_sync_error", { length: 500 }),
+    syncedDays: integer("synced_days").notNull().default(0),
+    resolvedApiKeyId: varchar("resolved_api_key_id", { length: 100 }),
+  },
+  (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
@@ -479,6 +537,11 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     references: [githubProfiles.userId],
   }),
   inviteTokens: many(inviteTokens),
+  anthropicUsageMetrics: many(anthropicUsageMetrics),
+  anthropicSyncStatus: one(anthropicSyncStatus, {
+    fields: [users.id],
+    references: [anthropicSyncStatus.userId],
+  }),
 }));
 
 export const inviteTokensRelations = relations(inviteTokens, ({ one }) => ({
@@ -622,6 +685,26 @@ export const copilotBillingSnapshotsRelations = relations(
     connection: one(githubConnections, {
       fields: [copilotBillingSnapshots.connectionId],
       references: [githubConnections.id],
+    }),
+  })
+);
+
+export const anthropicUsageMetricsRelations = relations(
+  anthropicUsageMetrics,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [anthropicUsageMetrics.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const anthropicSyncStatusRelations = relations(
+  anthropicSyncStatus,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [anthropicSyncStatus.userId],
+      references: [users.id],
     }),
   })
 );

@@ -1,22 +1,33 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { anthropicSyncStatus } from "@/lib/db/schema";
 import { getActiveGitHubConnection } from "@/actions/github";
 import { getSyncHistory } from "@/actions/github-sync";
 import { getCopilotSyncStatus } from "@/actions/copilot";
 import { GitHubIntegrationClient } from "./github-integration-client";
+import { ClaudeSyncSection } from "@/components/claude-sync-section";
 
 export default async function IntegrationsPage() {
   const admin = await requireAdmin();
   if (!admin) redirect("/settings/appearance");
 
-  const connectionResult = await getActiveGitHubConnection();
-  const historyResult = await getSyncHistory();
+  // Fetch independent data in parallel
+  const [connectionResult, historyResult, anthropicStatus] = await Promise.all([
+    getActiveGitHubConnection(),
+    getSyncHistory(),
+    db.query.anthropicSyncStatus.findFirst({
+      where: eq(anthropicSyncStatus.userId, 0),
+    }),
+  ]);
 
   const connection =
     connectionResult.success ? connectionResult.data.connection : null;
   const syncHistory =
     historyResult.success ? historyResult.data.events : [];
 
+  // Copilot status depends on connection existing
   let copilotStatus = {
     enabled: false,
     lastSyncAt: null as string | null,
@@ -33,6 +44,12 @@ export default async function IntegrationsPage() {
     }
   }
 
+  const claudeSyncStatus = {
+    lastSyncCompletedAt: anthropicStatus?.lastSyncCompletedAt?.toISOString() ?? null,
+    lastSyncError: anthropicStatus?.lastSyncError ?? null,
+    syncedDays: anthropicStatus?.syncedDays ?? 0,
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -47,6 +64,8 @@ export default async function IntegrationsPage() {
         initialSyncHistory={syncHistory}
         copilotStatus={copilotStatus}
       />
+
+      <ClaudeSyncSection initialStatus={claudeSyncStatus} />
     </div>
   );
 }

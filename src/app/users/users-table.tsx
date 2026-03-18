@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
+import { EditUserDialog } from "@/components/edit-user-dialog";
+import { NO_CIRCLE_SENTINEL, NO_PROFILE_SENTINEL } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +38,17 @@ import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
 import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import type { User } from "@/types";
 
-function UserRowActions({ row, isAdmin, onRefresh }: { row: User; isAdmin: boolean; onRefresh: () => void }) {
+function UserRowActions({
+  row,
+  isAdmin,
+  onDeactivated,
+  onEditUser,
+}: {
+  row: User;
+  isAdmin: boolean;
+  onDeactivated: () => void;
+  onEditUser: (user: User) => void;
+}) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
 
@@ -63,11 +75,16 @@ function UserRowActions({ row, isAdmin, onRefresh }: { row: User; isAdmin: boole
         </TooltipTrigger>
         <TooltipContent>View</TooltipContent>
       </Tooltip>
-      {isAdmin && (
+      {isAdmin && row.status === "active" && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
-              <Link href={`/users/${row.id}`}><Pencil className="size-4" /></Link>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Edit ${row.name}`}
+              onClick={() => onEditUser(row)}
+            >
+              <Pencil className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Edit</TooltipContent>
@@ -118,7 +135,7 @@ function UserRowActions({ row, isAdmin, onRefresh }: { row: User; isAdmin: boole
                     const result = await deactivateUser({ id: row.id });
                     if (result.success) {
                       toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
-                      onRefresh();
+                      onDeactivated();
                     } else {
                       toast.error(result.error);
                     }
@@ -135,7 +152,7 @@ function UserRowActions({ row, isAdmin, onRefresh }: { row: User; isAdmin: boole
             user={row}
             open={showResetDialog}
             onOpenChange={setShowResetDialog}
-            onSuccess={onRefresh}
+            onSuccess={onDeactivated}
           />
         </>
       )}
@@ -143,7 +160,11 @@ function UserRowActions({ row, isAdmin, onRefresh }: { row: User; isAdmin: boole
   );
 }
 
-function getColumns(isAdmin: boolean, onRefresh: () => void): ColumnDef<User>[] {
+function getColumns(
+  isAdmin: boolean,
+  onDeactivated: () => void,
+  onEditUser: (user: User) => void
+): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -162,9 +183,14 @@ function getColumns(isAdmin: boolean, onRefresh: () => void): ColumnDef<User>[] 
       header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
     },
     {
-      accessorKey: "circle",
+      accessorFn: (row) => row.circle ?? NO_CIRCLE_SENTINEL,
+      id: "circle",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Circle" />,
-      cell: ({ row }) => row.getValue("circle") || "\u2014",
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const value = row.getValue("circle") as string;
+        return value === NO_CIRCLE_SENTINEL ? "\u2014" : value;
+      },
     },
     {
       accessorKey: "role",
@@ -177,13 +203,15 @@ function getColumns(isAdmin: boolean, onRefresh: () => void): ColumnDef<User>[] 
       ),
     },
     {
-      accessorKey: "profile",
+      accessorFn: (row) => row.profile ?? NO_PROFILE_SENTINEL,
+      id: "profile",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => {
-        const profile = row.getValue("profile") as string | null;
-        return profile ? (
+        const value = row.getValue("profile") as string;
+        return value !== NO_PROFILE_SENTINEL ? (
           <Badge variant="outline" className="capitalize">
-            {profile}
+            {value}
           </Badge>
         ) : (
           "\u2014"
@@ -224,7 +252,8 @@ function getColumns(isAdmin: boolean, onRefresh: () => void): ColumnDef<User>[] 
         <UserRowActions
           row={row.original}
           isAdmin={isAdmin}
-          onRefresh={onRefresh}
+          onDeactivated={onDeactivated}
+          onEditUser={onEditUser}
         />
       ),
     },
@@ -233,7 +262,7 @@ function getColumns(isAdmin: boolean, onRefresh: () => void): ColumnDef<User>[] 
   return columns;
 }
 
-const USERS_FACETED_FILTERS = [
+const STATIC_FACETED_FILTERS = [
   {
     columnId: "role",
     title: "Role",
@@ -270,15 +299,17 @@ export function UsersTable({
   pendingCount: number;
 }) {
   const router = useRouter();
-  const [showNoCircle, setShowNoCircle] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [batchSending, setBatchSending] = useState(false);
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
-  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
-  const filteredData = useMemo(
-    () => showNoCircle ? data.filter((u) => !u.circle) : data,
-    [showNoCircle, data]
+  const handleEditUser = useCallback((user: User) => {
+    setEditingUser(user);
+  }, []);
+  const columns = useMemo(
+    () => getColumns(isAdmin, handleRefresh, handleEditUser),
+    [isAdmin, handleRefresh, handleEditUser]
   );
 
   async function handleBatchInvite() {
@@ -304,17 +335,32 @@ export function UsersTable({
     }
   }
 
+  const facetedFilters = useMemo(() => {
+    const circles = [...new Set(data.map((u) => u.circle ?? NO_CIRCLE_SENTINEL))].sort();
+    const circleOptions = circles.map((c) =>
+      c === NO_CIRCLE_SENTINEL
+        ? { label: "No Circle", value: NO_CIRCLE_SENTINEL }
+        : { label: c, value: c }
+    );
+
+    const profileOptions = [
+      { label: "Boost", value: "boost" },
+      { label: "Maxed", value: "maxed" },
+      { label: "Indie", value: "indie" },
+      { label: "No Profile", value: NO_PROFILE_SENTINEL },
+    ];
+
+    return [
+      { columnId: "circle", title: "Circle", options: circleOptions },
+      { columnId: "profile", title: "Profile", options: profileOptions },
+      ...STATIC_FACETED_FILTERS,
+    ];
+  }, [data]);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button
-          variant={showNoCircle ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setShowNoCircle(!showNoCircle)}
-        >
-          No Circle
-        </Button>
-        {isAdmin && pendingCount > 0 && (
+      {isAdmin && pendingCount > 0 && (
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -323,13 +369,13 @@ export function UsersTable({
             <Mail className="mr-2 size-4" />
             Send Invites to All Pending ({pendingCount})
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       <DataTable
         columns={columns}
-        data={filteredData}
+        data={data}
         searchPlaceholder="Search users..."
-        facetedFilters={USERS_FACETED_FILTERS}
+        facetedFilters={facetedFilters}
       />
       <AlertDialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
         <AlertDialogContent>
@@ -348,6 +394,14 @@ export function UsersTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          open={!!editingUser}
+          onOpenChange={(open) => { if (!open) setEditingUser(null); }}
+          onSaved={handleRefresh}
+        />
+      )}
     </div>
   );
 }
