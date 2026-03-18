@@ -494,15 +494,44 @@ export function UserDetailClient({
                       </Button>
                     )}
                     {isAdmin && a.status !== "active" && a.tool.status === "active" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReactivate(a)}
-                        disabled={reactivatingId === a.id}
-                      >
-                        <RotateCcw className="mr-1 size-3" />
-                        {reactivatingId === a.id ? "Reactivating..." : "Reactivate"}
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={reactivatingId === a.id}
+                          >
+                            <RotateCcw className="mr-1 size-3" />
+                            {reactivatingId === a.id ? "Reactivating..." : "Reactivate"}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Reactivate this license?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-2">
+                                <p>
+                                  This will create a new active license assignment
+                                  for <strong>{user.name}</strong>:
+                                </p>
+                                <ul className="list-disc pl-5 text-sm">
+                                  <li>Tool: <strong>{a.tool.name}</strong></li>
+                                  <li>Tier: <strong>{a.tier.name}</strong></li>
+                                  <li>Cost: <strong>{formatCurrency(a.costAtAssignmentCents)}/mo</strong></li>
+                                </ul>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleReactivate(a)}>
+                              Reactivate
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </div>
