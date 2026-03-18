@@ -39,10 +39,11 @@ export async function createUser(
   }
 
   const { name, email, circle, role, githubUsername, profile } = parsed.data;
+  const normalizedEmail = email.toLowerCase();
 
   // Check email uniqueness
   const existing = await db.query.users.findFirst({
-    where: eq(users.email, email),
+    where: eq(users.email, normalizedEmail),
   });
   if (existing) {
     return { success: false, error: "A user with this email already exists" };
@@ -55,7 +56,7 @@ export async function createUser(
     .insert(users)
     .values({
       name,
-      email,
+      email: normalizedEmail,
       passwordHash,
       circle: circle ?? null,
       role,
@@ -99,15 +100,18 @@ export async function updateUser(
     changes.name = { old: existing.name, new: updates.name };
     values.name = updates.name;
   }
-  if (updates.email !== undefined && updates.email !== existing.email) {
-    const emailExists = await db.query.users.findFirst({
-      where: eq(users.email, updates.email),
-    });
-    if (emailExists) {
-      return { success: false, error: "Email already in use" };
+  if (updates.email !== undefined) {
+    const normalizedEmail = updates.email.toLowerCase();
+    if (normalizedEmail !== existing.email) {
+      const emailExists = await db.query.users.findFirst({
+        where: eq(users.email, normalizedEmail),
+      });
+      if (emailExists) {
+        return { success: false, error: "Email already in use" };
+      }
+      changes.email = { old: existing.email, new: normalizedEmail };
+      values.email = normalizedEmail;
     }
-    changes.email = { old: existing.email, new: updates.email };
-    values.email = updates.email;
   }
   if (
     updates.circle !== undefined &&
@@ -352,7 +356,7 @@ export async function bulkImportUsers(input: {
           .insert(users)
           .values({
             name,
-            email,
+            email: lowerEmail,
             passwordHash,
             circle: circle ?? null,
             role: role ?? "viewer",
@@ -366,7 +370,7 @@ export async function bulkImportUsers(input: {
 
         // Generate invite token for the new user
         const { inviteUrl } = await createInviteTokenForUser(user.id);
-        inviteLinks.push({ name, email, inviteUrl });
+        inviteLinks.push({ name, email: lowerEmail, inviteUrl });
 
         created++;
       }
