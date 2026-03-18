@@ -28,27 +28,38 @@ export async function createInviteTokenForUser(
   const { raw, hash: tokenHash } = generateToken();
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
 
-  // Atomically invalidate old tokens and insert the new one
-  await db.transaction(async (tx) => {
-    await tx
-      .update(inviteTokens)
-      .set({ status: "invalidated" })
-      .where(
-        and(
-          eq(inviteTokens.userId, userId),
-          eq(inviteTokens.status, "active")
-        )
-      );
+  const maxRetries = 2;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(inviteTokens)
+          .set({ status: "invalidated" })
+          .where(
+            and(
+              eq(inviteTokens.userId, userId),
+              eq(inviteTokens.status, "active")
+            )
+          );
 
-    await tx.insert(inviteTokens).values({
-      userId,
-      tokenHash,
-      status: "active",
-      expiresAt,
-    });
-  });
+        await tx.insert(inviteTokens).values({
+          userId,
+          tokenHash,
+          status: "active",
+          expiresAt,
+        });
+      });
+      return { inviteUrl: buildInviteUrl(raw) };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (attempt < maxRetries - 1 && (msg.includes("unique") || msg.includes("duplicate"))) {
+        continue;
+      }
+      throw err;
+    }
+  }
 
-  return { inviteUrl: buildInviteUrl(raw) };
+  throw new Error("Failed to create invite token");
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +165,23 @@ export async function setupPassword(
   const now = new Date();
 
   // Update user and consume token in a transaction
-  await db.transaction(async (tx) => {
+  const consumed = await db.transaction(async (tx) => {
+    // Atomically consume token — only succeeds if still active
+    const updated = await tx
+      .update(inviteTokens)
+      .set({
+        status: "consumed",
+        consumedAt: now,
+      })
+      .where(
+        and(
+          eq(inviteTokens.id, record.id),
+          eq(inviteTokens.status, "active")
+        )
+      );
+
+    if (updated.rowCount === 0) return false;
+
     await tx
       .update(users)
       .set({
@@ -164,14 +191,12 @@ export async function setupPassword(
       })
       .where(eq(users.id, record.userId));
 
-    await tx
-      .update(inviteTokens)
-      .set({
-        status: "consumed",
-        consumedAt: now,
-      })
-      .where(eq(inviteTokens.id, record.id));
+    return true;
   });
+
+  if (!consumed) {
+    return { success: false, error: "Token has already been used" };
+  }
 
   return { success: true, data: { redirectUrl: "/login" } };
 }
@@ -246,8 +271,9 @@ export async function sendInviteEmail(
   });
   if (!user) return { success: false, error: "User not found" };
 
-  // Always generate a fresh token so we have the raw value for the URL.
-  // createInviteTokenForUser invalidates any previous active tokens.
+  // We must generate a fresh token because only the hash is stored (the raw
+  // token cannot be recovered). This invalidates any prior active token for
+  // the user, which is acceptable since the new link will be emailed.
   const { inviteUrl } = await createInviteTokenForUser(userId);
 
   const emailResult = await sendEmail({
@@ -293,7 +319,7 @@ export async function sendBatchInviteEmails(): Promise<
 
   for (const user of pendingUsers) {
     try {
-      // Generate a fresh token for each user
+      // Fresh token required — raw tokens aren't stored, only hashes
       const { inviteUrl } = await createInviteTokenForUser(user.id);
 
       const emailResult = await sendEmail({
