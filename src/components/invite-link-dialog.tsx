@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Copy, Mail, Check } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -30,6 +30,11 @@ export function InviteLinkDialog({
   const [currentUrl, setCurrentUrl] = useState(inviteUrl);
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Sync with parent when the prop changes (e.g. token generated after mount)
+  useEffect(() => {
+    if (inviteUrl) setCurrentUrl(inviteUrl);
+  }, [inviteUrl]);
 
   async function handleCopy() {
     try {
