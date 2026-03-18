@@ -31,6 +31,7 @@ const DEFAULT_BACKFILL_DAYS = 31;
 interface SyncSummary {
   syncedUsers: number;
   skippedUsers: number;
+  syncedDays: number;
   errors: Array<{ userId: number; error: string }>;
 }
 
@@ -318,7 +319,7 @@ async function batchUpsertUsageRows(
 // ---------------------------------------------------------------------------
 
 export async function runAnthropicSync(): Promise<SyncSummary> {
-  const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, errors: [] };
+  const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [] };
 
   // Ensure a dedicated global lock row exists (userId=0 sentinel)
   await db
@@ -360,14 +361,14 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     .returning();
 
   if (!lockAcquired) {
-    return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "Sync already in progress or completed recently" }] };
+    return { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [{ userId: 0, error: "Sync already in progress or completed recently" }] };
   }
 
   try {
     // Resolve all mappings
     const apiKeyToUser = await resolveAllMappings();
     if (apiKeyToUser.size === 0) {
-      return { syncedUsers: 0, skippedUsers: 0, errors: [{ userId: 0, error: "No users with resolved API keys" }] };
+      return { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [{ userId: 0, error: "No users with resolved API keys" }] };
     }
 
     // Incremental sync: start from the latest stored date (or 31 days back)
@@ -381,8 +382,9 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
     // Fetch all org usage in one call
     const response = await fetchAnthropicUsage(startingAt, endingAt);
 
-    // Track which users received data
+    // Track which users received data and unique synced days
     const usersWithData = new Set<number>();
+    const syncedDates = new Set<string>();
 
     // Collect all rows for batch upsert
     const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
@@ -399,6 +401,7 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         if (!userId) continue;
 
         usersWithData.add(userId);
+        syncedDates.add(bucketDate);
 
         const row = prepareUsageRow(userId, bucketDate, result);
         if (row) pendingRows.push(row);
@@ -417,13 +420,15 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         .where(inArray(anthropicSyncStatus.userId, userIds));
     }
 
-    // Mark completion on lock row
+    // Mark completion on lock row (including syncedDays)
+    const totalSyncedDays = syncedDates.size;
     await db
       .update(anthropicSyncStatus)
-      .set({ lastSyncCompletedAt: new Date(), lastSyncError: null })
+      .set({ lastSyncCompletedAt: new Date(), lastSyncError: null, syncedDays: totalSyncedDays })
       .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
 
     summary.syncedUsers = usersWithData.size;
+    summary.syncedDays = totalSyncedDays;
     summary.skippedUsers = new Set(apiKeyToUser.values()).size - usersWithData.size;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);

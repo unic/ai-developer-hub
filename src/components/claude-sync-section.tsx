@@ -31,7 +31,7 @@ export function ClaudeSyncSection({
     startTransition(async () => {
       const result = await syncAllAnthropicUsage();
       if (result.success) {
-        const { syncedUsers, skippedUsers, errorCount, firstError } =
+        const { syncedUsers, skippedUsers, syncedDays, errorCount, firstError } =
           result.data;
         if (errorCount > 0 && syncedUsers === 0) {
           toast.error(
@@ -49,6 +49,7 @@ export function ClaudeSyncSection({
             ...prev,
             lastSyncCompletedAt: new Date().toISOString(),
             lastSyncError: errorCount > 0 ? firstError : null,
+            syncedDays,
           }));
         }
       } else {
