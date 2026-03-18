@@ -2,6 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -47,8 +48,22 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
     });
 
     if (result.success) {
-      toast.success("Password set successfully. You can now sign in.");
-      router.push(result.data?.redirectUrl ?? "/login");
+      // Auto-sign in with the newly set password
+      const signInResult = await signIn("credentials", {
+        email: result.data?.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResult?.ok) {
+        toast.success("Password set successfully. Redirecting...");
+        router.push("/");
+        router.refresh();
+      } else {
+        // Fallback: send to login page if auto-sign-in fails
+        toast.success("Password set successfully. Please sign in.");
+        router.push("/login");
+      }
     } else {
       setError(result.error);
     }

@@ -121,7 +121,7 @@ export async function validateInviteToken(
 
 export async function setupPassword(
   input: unknown
-): Promise<ActionResult<{ redirectUrl: string }>> {
+): Promise<ActionResult<{ email: string }>> {
   // Rate limit by IP
   const headerStore = await headers();
   const forwarded = headerStore.get("x-forwarded-for");
@@ -198,7 +198,7 @@ export async function setupPassword(
     return { success: false, error: "Token has already been used" };
   }
 
-  return { success: true, data: { redirectUrl: "/login" } };
+  return { success: true, data: { email: record.user.email } };
 }
 
 // ---------------------------------------------------------------------------
