@@ -328,6 +328,7 @@ export async function syncAllAnthropicUsage(): Promise<
   ActionResult<{
     syncedUsers: number;
     skippedUsers: number;
+    syncedDays: number;
     errorCount: number;
     firstError: string | null;
   }>
@@ -345,6 +346,7 @@ export async function syncAllAnthropicUsage(): Promise<
       data: {
         syncedUsers: summary.syncedUsers,
         skippedUsers: summary.skippedUsers,
+        syncedDays: summary.syncedDays,
         errorCount: summary.errors.length,
         firstError: summary.errors[0]?.error ?? null,
       },

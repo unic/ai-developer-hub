@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
+import { EditUserDialog } from "@/components/edit-user-dialog";
+import { NO_CIRCLE_SENTINEL, NO_PROFILE_SENTINEL } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +36,17 @@ import { Eye, MoreHorizontal, Pencil, UserX } from "lucide-react";
 import { deactivateUser } from "@/actions/users";
 import type { User } from "@/types";
 
-function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: boolean; onDeactivated: () => void }) {
+function UserRowActions({
+  row,
+  isAdmin,
+  onDeactivated,
+  onEditUser,
+}: {
+  row: User;
+  isAdmin: boolean;
+  onDeactivated: () => void;
+  onEditUser: (user: User) => void;
+}) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   return (
     <div className="flex items-center gap-1">
@@ -46,11 +58,16 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
         </TooltipTrigger>
         <TooltipContent>View</TooltipContent>
       </Tooltip>
-      {isAdmin && (
+      {isAdmin && row.status === "active" && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
-              <Link href={`/users/${row.id}`}><Pencil className="size-4" /></Link>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Edit ${row.name}`}
+              onClick={() => onEditUser(row)}
+            >
+              <Pencil className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Edit</TooltipContent>
@@ -110,7 +127,11 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
   );
 }
 
-function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User>[] {
+function getColumns(
+  isAdmin: boolean,
+  onDeactivated: () => void,
+  onEditUser: (user: User) => void
+): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -129,9 +150,14 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
       header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
     },
     {
-      accessorKey: "circle",
+      accessorFn: (row) => row.circle ?? NO_CIRCLE_SENTINEL,
+      id: "circle",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Circle" />,
-      cell: ({ row }) => row.getValue("circle") || "\u2014",
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const value = row.getValue("circle") as string;
+        return value === NO_CIRCLE_SENTINEL ? "\u2014" : value;
+      },
     },
     {
       accessorKey: "role",
@@ -144,13 +170,15 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
       ),
     },
     {
-      accessorKey: "profile",
+      accessorFn: (row) => row.profile ?? NO_PROFILE_SENTINEL,
+      id: "profile",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => {
-        const profile = row.getValue("profile") as string | null;
-        return profile ? (
+        const value = row.getValue("profile") as string;
+        return value !== NO_PROFILE_SENTINEL ? (
           <Badge variant="outline" className="capitalize">
-            {profile}
+            {value}
           </Badge>
         ) : (
           "\u2014"
@@ -178,6 +206,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
           row={row.original}
           isAdmin={isAdmin}
           onDeactivated={onDeactivated}
+          onEditUser={onEditUser}
         />
       ),
     },
@@ -186,7 +215,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
   return columns;
 }
 
-const USERS_FACETED_FILTERS = [
+const STATIC_FACETED_FILTERS = [
   {
     columnId: "role",
     title: "Role",
@@ -213,32 +242,55 @@ export function UsersTable({
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const [showNoCircle, setShowNoCircle] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
-  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
-  const filteredData = useMemo(
-    () => showNoCircle ? data.filter((u) => !u.circle) : data,
-    [showNoCircle, data]
+  const handleEditUser = useCallback((user: User) => {
+    setEditingUser(user);
+  }, []);
+  const columns = useMemo(
+    () => getColumns(isAdmin, handleRefresh, handleEditUser),
+    [isAdmin, handleRefresh, handleEditUser]
   );
+
+  const facetedFilters = useMemo(() => {
+    const circles = [...new Set(data.map((u) => u.circle ?? NO_CIRCLE_SENTINEL))].sort();
+    const circleOptions = circles.map((c) =>
+      c === NO_CIRCLE_SENTINEL
+        ? { label: "No Circle", value: NO_CIRCLE_SENTINEL }
+        : { label: c, value: c }
+    );
+
+    const profileOptions = [
+      { label: "Boost", value: "boost" },
+      { label: "Maxed", value: "maxed" },
+      { label: "Indie", value: "indie" },
+      { label: "No Profile", value: NO_PROFILE_SENTINEL },
+    ];
+
+    return [
+      { columnId: "circle", title: "Circle", options: circleOptions },
+      { columnId: "profile", title: "Profile", options: profileOptions },
+      ...STATIC_FACETED_FILTERS,
+    ];
+  }, [data]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button
-          variant={showNoCircle ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setShowNoCircle(!showNoCircle)}
-        >
-          No Circle
-        </Button>
-      </div>
       <DataTable
         columns={columns}
-        data={filteredData}
+        data={data}
         searchPlaceholder="Search users..."
-        facetedFilters={USERS_FACETED_FILTERS}
+        facetedFilters={facetedFilters}
       />
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          open={!!editingUser}
+          onOpenChange={(open) => { if (!open) setEditingUser(null); }}
+          onSaved={handleRefresh}
+        />
+      )}
     </div>
   );
 }
