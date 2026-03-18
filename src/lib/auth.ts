@@ -11,7 +11,14 @@ import type { UserPreferences } from "@/types";
 
 const DEFAULT_PREFERENCES: UserPreferences = { theme: "system" };
 
+// On Vercel preview deployments, override NEXTAUTH_URL so Auth.js uses the
+// actual deployment URL instead of the production domain for cookies/redirects.
+if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+  process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: DrizzleAdapter(db),
   session: { strategy: "jwt" },
   pages: {
