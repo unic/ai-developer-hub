@@ -33,6 +33,7 @@ export function ResetPasswordDialog({
   const [sendEmail, setSendEmail] = useState(true);
   const [showInviteLink, setShowInviteLink] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
 
   async function handleResetPassword() {
     try {
@@ -40,6 +41,7 @@ export function ResetPasswordDialog({
       if (result.success) {
         onOpenChange(false);
         setInviteUrl(result.data.inviteUrl);
+        setEmailSent(result.data.emailSent);
         setShowInviteLink(true);
         if (result.data.emailSent) {
           toast.success("Password reset. Invite email sent.");
@@ -96,6 +98,7 @@ export function ResetPasswordDialog({
         onOpenChange={setShowInviteLink}
         inviteUrl={inviteUrl}
         userId={user.id}
+        emailAlreadySent={emailSent}
       />
     </>
   );

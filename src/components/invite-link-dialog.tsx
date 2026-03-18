@@ -19,6 +19,7 @@ interface InviteLinkDialogProps {
   onOpenChange: (open: boolean) => void;
   inviteUrl: string;
   userId: number;
+  emailAlreadySent?: boolean;
 }
 
 export function InviteLinkDialog({
@@ -26,6 +27,7 @@ export function InviteLinkDialog({
   onOpenChange,
   inviteUrl,
   userId,
+  emailAlreadySent = false,
 }: InviteLinkDialogProps) {
   const [currentUrl, setCurrentUrl] = useState(inviteUrl);
   const [copied, setCopied] = useState(false);
@@ -94,14 +96,24 @@ export function InviteLinkDialog({
 
         </div>
 
-        <Button
-          onClick={handleSendEmail}
-          disabled={sending}
-          className="w-full"
-        >
-          <Mail className="mr-2 size-4" />
-          {sending ? "Sending..." : "Send Invite Email"}
-        </Button>
+        {emailAlreadySent ? (
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full"
+          >
+            Close
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSendEmail}
+            disabled={sending}
+            className="w-full"
+          >
+            <Mail className="mr-2 size-4" />
+            {sending ? "Sending..." : "Send Invite Email"}
+          </Button>
+        )}
       </DialogContent>
     </Dialog>
   );
