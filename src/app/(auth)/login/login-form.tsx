@@ -20,6 +20,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
+/** Ensure callbackUrl is a safe same-origin relative path */
+function sanitizeCallbackUrl(url?: string): string {
+  if (!url) return "/";
+  // Must start with a single slash (not //) and have no scheme
+  if (url.startsWith("/") && !url.startsWith("//") && !url.includes("://")) {
+    return url;
+  }
+  return "/";
+}
+
 interface LoginFormProps {
   callbackUrl?: string;
 }
@@ -50,7 +60,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
         setError("Invalid email or password");
       }
     } else {
-      router.push(callbackUrl ?? "/");
+      router.push(sanitizeCallbackUrl(callbackUrl));
       router.refresh();
     }
   }
