@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,14 +25,14 @@ interface ClaudeSyncSectionProps {
 export function ClaudeSyncSection({
   initialStatus,
 }: ClaudeSyncSectionProps) {
-  const [status, setStatus] = useState(initialStatus);
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function handleSync() {
     startTransition(async () => {
       const result = await syncAllAnthropicUsage();
       if (result.success) {
-        const { syncedUsers, skippedUsers, syncedDays, errorCount, firstError } =
+        const { syncedUsers, skippedUsers, errorCount, firstError } =
           result.data;
         if (errorCount > 0 && syncedUsers === 0) {
           toast.error(
@@ -45,16 +46,13 @@ export function ClaudeSyncSection({
                 ? `, ${errorCount} error${errorCount !== 1 ? "s" : ""}`
                 : "")
           );
-          setStatus((prev) => ({
-            ...prev,
-            lastSyncCompletedAt: new Date().toISOString(),
-            lastSyncError: errorCount > 0 ? firstError : null,
-            syncedDays,
-          }));
         }
       } else {
         toast.error(result.error);
       }
+      // Refresh server data so all status fields (syncedDays, timestamps, errors)
+      // reflect the latest DB state
+      router.refresh();
     });
   }
 
@@ -64,24 +62,24 @@ export function ClaudeSyncSection({
         <CardTitle className="text-lg">Claude Console</CardTitle>
         <CardDescription>
           Sync Anthropic API usage costs for all users with configured API keys.
-          {status.lastSyncCompletedAt && (
+          {initialStatus.lastSyncCompletedAt && (
             <>
               {" "}
               Last sync:{" "}
-              {new Date(status.lastSyncCompletedAt).toLocaleString()}
+              {new Date(initialStatus.lastSyncCompletedAt).toLocaleString()}
             </>
           )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Status */}
-        {status.lastSyncError && (
+        {initialStatus.lastSyncError && (
           <div className="flex items-center gap-2 text-sm text-red-600">
             <XCircle className="size-4" />
-            Last sync error: {status.lastSyncError}
+            Last sync error: {initialStatus.lastSyncError}
           </div>
         )}
-        {status.lastSyncCompletedAt && !status.lastSyncError && (
+        {initialStatus.lastSyncCompletedAt && !initialStatus.lastSyncError && (
           <div className="flex items-center gap-2 text-sm text-green-600">
             <CheckCircle2 className="size-4" />
             Last sync completed successfully
@@ -91,7 +89,7 @@ export function ClaudeSyncSection({
         {/* Metrics */}
         <div className="grid grid-cols-1 gap-4">
           <div className="text-center p-3 bg-muted rounded-lg">
-            <div className="text-2xl font-bold">{status.syncedDays}</div>
+            <div className="text-2xl font-bold">{initialStatus.syncedDays}</div>
             <div className="text-xs text-muted-foreground">Synced Days</div>
           </div>
         </div>
