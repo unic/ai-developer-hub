@@ -143,7 +143,7 @@ export function AssignmentDetailClient({
       tierId: data.tierId,
       assignedAt: data.assignedAt,
       workspace: data.workspace,
-      ...(data.apiKey ? { apiKey: data.apiKey } : {}),
+      apiKey: data.apiKey,
     };
 
     const result = await updateAssignment(payload);
