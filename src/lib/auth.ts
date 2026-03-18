@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { loginSchema } from "@/lib/validators";
 import { isRateLimited, resetLimit } from "@/lib/rate-limit";
+import { MUST_CHANGE_PASSWORD_ERROR } from "@/lib/routes";
 import type { UserPreferences } from "@/types";
 
 const DEFAULT_PREFERENCES: UserPreferences = { theme: "system" };
@@ -48,7 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || user.status !== "active") return null;
 
         if (user.mustChangePassword) {
-          throw new Error("MUST_CHANGE_PASSWORD");
+          throw new Error(MUST_CHANGE_PASSWORD_ERROR);
         }
 
         const passwordMatch = await compare(password, user.passwordHash);

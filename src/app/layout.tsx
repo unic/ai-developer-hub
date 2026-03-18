@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { isPublicPath } from "@/lib/routes";
 import {
   SidebarProvider,
   SidebarInset,
@@ -19,19 +20,15 @@ export const metadata: Metadata = {
   description: "AI Tool Access & Budget Tracker",
 };
 
-const authPaths = ["/login", "/setup-password"];
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
   const headerStore = await headers();
   const pathname = (headerStore.get("x-pathname") ?? "/").split("?")[0];
-  const showSidebar = !authPaths.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  const showSidebar = !isPublicPath(pathname);
+  const session = showSidebar ? await auth() : null;
 
   return (
     <html lang="en" suppressHydrationWarning>

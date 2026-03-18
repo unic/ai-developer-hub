@@ -25,33 +25,28 @@ const INVITE_EXPIRY_HOURS = 72;
 export async function createInviteTokenForUser(
   userId: number
 ): Promise<{ inviteUrl: string }> {
-  // Invalidate existing active tokens for this user
-  await db
-    .update(inviteTokens)
-    .set({ status: "invalidated" })
-    .where(
-      and(
-        eq(inviteTokens.userId, userId),
-        eq(inviteTokens.status, "active")
-      )
-    );
-
-  // Generate new token
   const { raw, hash: tokenHash } = generateToken();
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
 
-  await db.insert(inviteTokens).values({
-    userId,
-    tokenHash,
-    status: "active",
-    expiresAt,
-  });
+  // Atomically invalidate old tokens and insert the new one
+  await db.transaction(async (tx) => {
+    await tx
+      .update(inviteTokens)
+      .set({ status: "invalidated" })
+      .where(
+        and(
+          eq(inviteTokens.userId, userId),
+          eq(inviteTokens.status, "active")
+        )
+      );
 
-  // Ensure mustChangePassword is set
-  await db
-    .update(users)
-    .set({ mustChangePassword: true, updatedAt: new Date() })
-    .where(eq(users.id, userId));
+    await tx.insert(inviteTokens).values({
+      userId,
+      tokenHash,
+      status: "active",
+      expiresAt,
+    });
+  });
 
   return { inviteUrl: buildInviteUrl(raw) };
 }

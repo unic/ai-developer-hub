@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { loginSchema, type LoginInput } from "@/lib/validators";
+import { MUST_CHANGE_PASSWORD_ERROR } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,7 +42,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
     });
 
     if (result?.error) {
-      if (result.error.includes("MUST_CHANGE_PASSWORD")) {
+      if (result.error.includes(MUST_CHANGE_PASSWORD_ERROR)) {
         setError(
           "Your account is not yet set up. Please check your email for an invite link or contact your administrator."
         );

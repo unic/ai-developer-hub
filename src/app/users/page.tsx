@@ -48,7 +48,7 @@ export default async function UsersPage() {
             </div>
           )}
         </div>
-        <UsersTable data={userList} isAdmin={isAdmin} />
+        <UsersTable data={userList} isAdmin={isAdmin} pendingCount={pendingCount} />
       </div>
     </AuthGuard>
   );

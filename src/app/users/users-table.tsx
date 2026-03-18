@@ -36,7 +36,7 @@ import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
 import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import type { User } from "@/types";
 
-function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: boolean; onDeactivated: () => void }) {
+function UserRowActions({ row, isAdmin, onRefresh }: { row: User; isAdmin: boolean; onRefresh: () => void }) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
 
@@ -118,7 +118,7 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
                     const result = await deactivateUser({ id: row.id });
                     if (result.success) {
                       toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
-                      onDeactivated();
+                      onRefresh();
                     } else {
                       toast.error(result.error);
                     }
@@ -135,7 +135,7 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
             user={row}
             open={showResetDialog}
             onOpenChange={setShowResetDialog}
-            onSuccess={onDeactivated}
+            onSuccess={onRefresh}
           />
         </>
       )}
@@ -143,7 +143,7 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
   );
 }
 
-function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User>[] {
+function getColumns(isAdmin: boolean, onRefresh: () => void): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -224,7 +224,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
         <UserRowActions
           row={row.original}
           isAdmin={isAdmin}
-          onDeactivated={onDeactivated}
+          onRefresh={onRefresh}
         />
       ),
     },
@@ -263,9 +263,11 @@ const USERS_FACETED_FILTERS = [
 export function UsersTable({
   data,
   isAdmin,
+  pendingCount,
 }: {
   data: User[];
   isAdmin: boolean;
+  pendingCount: number;
 }) {
   const router = useRouter();
   const [showNoCircle, setShowNoCircle] = useState(false);
@@ -277,11 +279,6 @@ export function UsersTable({
   const filteredData = useMemo(
     () => showNoCircle ? data.filter((u) => !u.circle) : data,
     [showNoCircle, data]
-  );
-
-  const pendingCount = useMemo(
-    () => data.filter((u) => u.mustChangePassword).length,
-    [data]
   );
 
   async function handleBatchInvite() {

@@ -1,11 +1,6 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-
-const publicPaths = ["/login", "/setup-password"];
-
-function isPublicPath(pathname: string) {
-  return publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
-}
+import { isPublicPath } from "@/lib/routes";
 
 export default auth((req) => {
   const { pathname, search } = req.nextUrl;
