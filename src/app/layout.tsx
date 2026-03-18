@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import {
   SidebarProvider,
@@ -18,12 +19,19 @@ export const metadata: Metadata = {
   description: "AI Tool Access & Budget Tracker",
 };
 
+const authPaths = ["/login", "/setup-password"];
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  const headerStore = await headers();
+  const pathname = (headerStore.get("x-pathname") ?? "/").split("?")[0];
+  const showSidebar = !authPaths.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -35,6 +43,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <SessionProvider session={session}>
+            {showSidebar ? (
               <SidebarProvider>
                 <AppSidebar
                   userName={session?.user?.name ?? null}
@@ -47,7 +56,10 @@ export default async function RootLayout({
                   <main className="flex-1 p-4 sm:p-6">{children}</main>
                 </SidebarInset>
               </SidebarProvider>
-              <Toaster />
+            ) : (
+              children
+            )}
+            <Toaster />
           </SessionProvider>
         </ThemeProvider>
       </body>
