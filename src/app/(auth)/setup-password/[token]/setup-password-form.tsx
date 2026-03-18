@@ -48,7 +48,7 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
 
     if (result.success) {
       toast.success("Password set successfully. You can now sign in.");
-      router.push("/login");
+      router.push(result.data?.redirectUrl ?? "/login");
     } else {
       setError(result.error);
     }

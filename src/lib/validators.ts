@@ -44,7 +44,7 @@ export const setupPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-// Bulk import user (no password — admin sets a temp one)
+// Bulk import user (no password — invite link flow)
 export const bulkImportUserSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
