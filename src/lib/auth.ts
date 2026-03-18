@@ -41,9 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || user.status !== "active") return null;
 
         if (user.mustChangePassword) {
-          throw new Error(
-            "Your account hasn't been set up yet. Please use the invite link sent to your email, or contact your administrator."
-          );
+          return null;
         }
 
         const passwordMatch = await compare(password, user.passwordHash);
