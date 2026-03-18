@@ -13,7 +13,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import type { UserPreferences } from "@/types";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "viewer"]);
@@ -103,6 +103,12 @@ export const inviteTokens = pgTable(
   (table) => [
     index("invite_tokens_token_hash_idx").on(table.tokenHash),
     index("invite_tokens_user_id_idx").on(table.userId),
+    // Enforce one active invite token per user at the DB level.
+    // The application also enforces this in createInviteTokenForUser (src/actions/invite.ts)
+    // by invalidating prior active tokens before inserting a new one.
+    uniqueIndex("invite_tokens_active_user_idx")
+      .on(table.userId)
+      .where(sql`${table.status} = 'active'`),
   ]
 );
 
