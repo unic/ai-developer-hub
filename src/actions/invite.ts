@@ -242,7 +242,7 @@ export async function resetUserPassword(input: {
 
 export async function sendInviteEmail(
   userId: number
-): Promise<ActionResult<{ emailId: string }>> {
+): Promise<ActionResult<{ emailId: string; inviteUrl: string }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -269,7 +269,7 @@ export async function sendInviteEmail(
     return { success: false, error: emailResult.error ?? "Failed to send email" };
   }
 
-  return { success: true, data: { emailId: emailResult.data?.id ?? "" } };
+  return { success: true, data: { emailId: emailResult.data?.id ?? "", inviteUrl } };
 }
 
 // ---------------------------------------------------------------------------

@@ -27,13 +27,13 @@ export function InviteLinkDialog({
   inviteUrl,
   userId,
 }: InviteLinkDialogProps) {
+  const [currentUrl, setCurrentUrl] = useState(inviteUrl);
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(inviteUrl);
+      await navigator.clipboard.writeText(currentUrl);
       setCopied(true);
       toast.success("Invite link copied to clipboard");
       setTimeout(() => setCopied(false), 2000);
@@ -48,7 +48,7 @@ export function InviteLinkDialog({
       const result = await sendInviteEmail(userId);
       if (result.success) {
         toast.success("Invite email sent successfully");
-        setEmailSent(true);
+        if (result.data?.inviteUrl) setCurrentUrl(result.data.inviteUrl);
       } else {
         toast.error(result.error ?? "Failed to send invite email");
       }
@@ -72,7 +72,7 @@ export function InviteLinkDialog({
 
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Input value={inviteUrl} readOnly className="flex-1" />
+            <Input value={currentUrl} readOnly className="flex-1" />
             <Button
               variant="outline"
               size="icon"
@@ -86,12 +86,7 @@ export function InviteLinkDialog({
               )}
             </Button>
           </div>
-          {emailSent && (
-            <p className="text-sm text-muted-foreground">
-              A fresh invite link was emailed. The link above may no longer be
-              valid.
-            </p>
-          )}
+
         </div>
 
         <Button
