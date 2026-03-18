@@ -11,6 +11,7 @@ import {
   Hr,
   Link,
 } from "@react-email/components";
+import type React from "react";
 
 interface InviteEmailProps {
   userName: string;
