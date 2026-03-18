@@ -14,7 +14,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import type { UserPreferences } from "@/types";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "viewer"]);
@@ -54,6 +54,11 @@ export const copilotSyncTypeEnum = pgEnum("copilot_sync_type", [
   "members",
   "copilot",
 ]);
+export const inviteTokenStatusEnum = pgEnum("invite_token_status", [
+  "active",
+  "consumed",
+  "invalidated",
+]);
 
 // Users
 export const users = pgTable(
@@ -72,12 +77,39 @@ export const users = pgTable(
       .$type<UserPreferences>()
       .default({ theme: "system" }),
     profile: userProfileEnum("profile"),
+    mustChangePassword: boolean("must_change_password").notNull().default(true),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("users_email_idx").on(table.email),
     index("users_circle_idx").on(table.circle),
     index("users_status_idx").on(table.status),
+  ]
+);
+
+// Invite Tokens
+export const inviteTokens = pgTable(
+  "invite_tokens",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    status: inviteTokenStatusEnum("status").notNull().default("active"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    consumedAt: timestamp("consumed_at"),
+  },
+  (table) => [
+    index("invite_tokens_token_hash_idx").on(table.tokenHash),
+    index("invite_tokens_user_id_idx").on(table.userId),
+    // Enforce one active invite token per user at the DB level.
+    // The application also enforces this in createInviteTokenForUser (src/actions/invite.ts)
+    // by invalidating prior active tokens before inserting a new one.
+    uniqueIndex("invite_tokens_active_user_idx")
+      .on(table.userId)
+      .where(sql`${table.status} = 'active'`),
   ]
 );
 
@@ -504,10 +536,18 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     fields: [users.id],
     references: [githubProfiles.userId],
   }),
+  inviteTokens: many(inviteTokens),
   anthropicUsageMetrics: many(anthropicUsageMetrics),
   anthropicSyncStatus: one(anthropicSyncStatus, {
     fields: [users.id],
     references: [anthropicSyncStatus.userId],
+  }),
+}));
+
+export const inviteTokensRelations = relations(inviteTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [inviteTokens.userId],
+    references: [users.id],
   }),
 }));
 

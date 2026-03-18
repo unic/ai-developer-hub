@@ -155,6 +155,7 @@ export interface BulkImportResult {
   skipped: number;
   failed: number;
   errors: Array<{ row: number; email: string; error: string }>;
+  inviteLinks?: Array<{ name: string; email: string; inviteUrl: string }>;
 }
 
 export interface ExistingUserFields {

@@ -6,13 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { updateUser, deactivateUser } from "@/actions/users";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { assignLicense, revokeLicense } from "@/actions/assignments";
 import { getTools, getToolWithTiers } from "@/actions/tools";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord, CostData, AiTool, AccessTier } from "@/types";
 import { AdminCostSection } from "@/components/profile/admin-cost-section";
-import { Github, ExternalLink, BookOpen, Plus, RotateCcw } from "lucide-react";
+import { Github, ExternalLink, BookOpen, KeyRound, Plus, RotateCcw } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +102,7 @@ export function UserDetailClient({
   costAvailableMonths,
 }: Props) {
   const router = useRouter();
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [tools, setTools] = useState<AiTool[]>([]);
   const [loadingTools, setLoadingTools] = useState(false);
@@ -407,6 +409,14 @@ export function UserDetailClient({
                   <Button type="submit" disabled={form.formState.isSubmitting}>
                     Save Changes
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowResetDialog(true)}
+                  >
+                    <KeyRound className="mr-2 size-4" />
+                    Reset Password
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive">Deactivate User</Button>
@@ -430,6 +440,12 @@ export function UserDetailClient({
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
+                <ResetPasswordDialog
+                  user={user}
+                  open={showResetDialog}
+                  onOpenChange={setShowResetDialog}
+                  onSuccess={() => router.refresh()}
+                />
               </form>
             </Form>
           </CardContent>

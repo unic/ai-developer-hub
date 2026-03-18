@@ -6,8 +6,9 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { loginSchema, type LoginInput } from "@/lib/validators";
-import { MUST_CHANGE_PASSWORD_ERROR } from "@/lib/routes";
+import { toast } from "sonner";
+import { setupPasswordSchema } from "@/lib/validators";
+import { setupPassword } from "@/actions/invite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,48 +21,51 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-/** Ensure callbackUrl is a safe same-origin relative path */
-function sanitizeCallbackUrl(url?: string): string {
-  if (!url) return "/";
-  // Must start with a single slash (not //) and have no scheme
-  if (url.startsWith("/") && !url.startsWith("//") && !url.includes("://")) {
-    return url;
-  }
-  return "/";
+interface SetupPasswordFormProps {
+  token: string;
+  userName: string;
 }
 
-interface LoginFormProps {
-  callbackUrl?: string;
-}
-
-export function LoginForm({ callbackUrl }: LoginFormProps) {
+export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  const form = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+  const form = useForm({
+    resolver: zodResolver(setupPasswordSchema),
+    defaultValues: { token, password: "", confirmPassword: "" },
   });
 
-  async function onSubmit(data: LoginInput) {
+  async function onSubmit(data: {
+    token: string;
+    password: string;
+    confirmPassword: string;
+  }) {
     setError(null);
-    const result = await signIn("credentials", {
-      email: data.email,
+    const result = await setupPassword({
+      token: data.token,
       password: data.password,
-      redirect: false,
+      confirmPassword: data.confirmPassword,
     });
 
-    if (result?.error) {
-      if (result.error.includes(MUST_CHANGE_PASSWORD_ERROR)) {
-        setError(
-          "Your account is not yet set up. Please check your email for an invite link or contact your administrator."
-        );
+    if (result.success) {
+      // Auto-sign in with the newly set password
+      const signInResult = await signIn("credentials", {
+        email: result.data?.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResult?.ok) {
+        toast.success("Password set successfully. Redirecting...");
+        router.push("/");
+        router.refresh();
       } else {
-        setError("Invalid email or password");
+        // Fallback: send to login page if auto-sign-in fails
+        toast.success("Password set successfully. Please sign in.");
+        router.push("/login");
       }
     } else {
-      router.push(sanitizeCallbackUrl(callbackUrl));
-      router.refresh();
+      setError(result.error);
     }
   }
 
@@ -70,6 +74,13 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+          <p className="text-sm text-muted-foreground">
+            Welcome,{" "}
+            <span className="font-semibold text-foreground">{userName}</span>
+          </p>
+        </div>
+
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
@@ -79,15 +90,15 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
 
         <FormField
           control={form.control}
-          name="email"
+          name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>New Password</FormLabel>
               <FormControl>
                 <Input
-                  type="email"
-                  placeholder="you@company.com"
-                  autoComplete="email"
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
                   disabled={isSubmitting}
                   {...field}
                 />
@@ -99,15 +110,15 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
 
         <FormField
           control={form.control}
-          name="password"
+          name="confirmPassword"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>Confirm Password</FormLabel>
               <FormControl>
                 <Input
                   type="password"
                   placeholder="••••••••"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   disabled={isSubmitting}
                   {...field}
                 />
@@ -121,10 +132,10 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />
-              Signing in...
+              Setting password...
             </>
           ) : (
-            "Sign In"
+            "Set Password"
           )}
         </Button>
       </form>

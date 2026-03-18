@@ -32,8 +32,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, MoreHorizontal, Pencil, UserX } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, UserX, Mail, KeyRound } from "lucide-react";
 import { deactivateUser } from "@/actions/users";
+import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import type { User } from "@/types";
 
 function UserRowActions({
@@ -48,6 +50,21 @@ function UserRowActions({
   onEditUser: (user: User) => void;
 }) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+
+  async function handleSendInvite() {
+    try {
+      const result = await sendInviteEmail(row.id);
+      if (result.success) {
+        toast.success("Invite email sent");
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("Failed to send invite email");
+    }
+  }
+
   return (
     <div className="flex items-center gap-1">
       <Tooltip>
@@ -87,6 +104,16 @@ function UserRowActions({
               <TooltipContent>More actions</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end">
+              {row.mustChangePassword && (
+                <DropdownMenuItem onSelect={handleSendInvite}>
+                  <Mail className="size-4" />
+                  Send Invite
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => setShowResetDialog(true)}>
+                <KeyRound className="size-4" />
+                Reset Password
+              </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => setShowDeactivateDialog(true)}>
                 <UserX className="size-4" />
                 Deactivate
@@ -121,6 +148,12 @@ function UserRowActions({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <ResetPasswordDialog
+            user={row}
+            open={showResetDialog}
+            onOpenChange={setShowResetDialog}
+            onSuccess={onDeactivated}
+          />
         </>
       )}
     </div>
@@ -186,6 +219,20 @@ function getColumns(
       },
     },
     {
+      id: "setupStatus",
+      accessorFn: (row) => row.mustChangePassword ? "pending" : "active",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Setup Status" />,
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const isPending = row.original.mustChangePassword;
+        return isPending ? (
+          <Badge variant="secondary">Pending</Badge>
+        ) : (
+          <span className="text-muted-foreground">Active</span>
+        );
+      },
+    },
+    {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
       filterFn: arrayIncludesFilterFn,
@@ -225,6 +272,14 @@ const STATIC_FACETED_FILTERS = [
     ],
   },
   {
+    columnId: "setupStatus",
+    title: "Setup Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Pending", value: "pending" },
+    ],
+  },
+  {
     columnId: "status",
     title: "Status",
     options: [
@@ -237,12 +292,16 @@ const STATIC_FACETED_FILTERS = [
 export function UsersTable({
   data,
   isAdmin,
+  pendingCount,
 }: {
   data: User[];
   isAdmin: boolean;
+  pendingCount: number;
 }) {
   const router = useRouter();
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
   const handleEditUser = useCallback((user: User) => {
@@ -252,6 +311,29 @@ export function UsersTable({
     () => getColumns(isAdmin, handleRefresh, handleEditUser),
     [isAdmin, handleRefresh, handleEditUser]
   );
+
+  async function handleBatchInvite() {
+    setBatchSending(true);
+    try {
+      const result = await sendBatchInviteEmails();
+      if (result.success) {
+        const { sent, failed, total } = result.data;
+        if (failed > 0) {
+          toast.warning(`Sent ${sent} of ${total} invite emails. ${failed} failed.`);
+        } else {
+          toast.success(`Sent ${sent} invite email(s) to all pending users.`);
+        }
+        handleRefresh();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setBatchSending(false);
+      setShowBatchDialog(false);
+    }
+  }
 
   const facetedFilters = useMemo(() => {
     const circles = [...new Set(data.map((u) => u.circle ?? NO_CIRCLE_SENTINEL))].sort();
@@ -277,12 +359,41 @@ export function UsersTable({
 
   return (
     <div className="space-y-4">
+      {isAdmin && pendingCount > 0 && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowBatchDialog(true)}
+          >
+            <Mail className="mr-2 size-4" />
+            Send Invites to All Pending ({pendingCount})
+          </Button>
+        </div>
+      )}
       <DataTable
         columns={columns}
         data={data}
         searchPlaceholder="Search users..."
         facetedFilters={facetedFilters}
       />
+      <AlertDialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send invites to all pending users?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send invite emails to {pendingCount} user(s) who have not yet set up their password.
+              Each user will receive a unique invite link valid for 72 hours.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchSending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchInvite} disabled={batchSending}>
+              {batchSending ? "Sending..." : "Send Invites"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {editingUser && (
         <EditUserDialog
           user={editingUser}

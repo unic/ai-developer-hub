@@ -6,11 +6,20 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { loginSchema } from "@/lib/validators";
+import { isRateLimited, resetLimit } from "@/lib/rate-limit";
+import { MUST_CHANGE_PASSWORD_ERROR } from "@/lib/routes";
 import type { UserPreferences } from "@/types";
 
 const DEFAULT_PREFERENCES: UserPreferences = { theme: "system" };
 
+// On Vercel preview deployments, override NEXTAUTH_URL so Auth.js uses the
+// actual deployment URL instead of the production domain for cookies/redirects.
+if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+  process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: DrizzleAdapter(db),
   session: { strategy: "jwt" },
   pages: {
@@ -28,14 +37,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password } = parsed.data;
 
+        const emailKey = email.toLowerCase();
+        if (isRateLimited(emailKey, { maxAttempts: 5, windowMs: 10 * 60 * 1000 })) {
+          return null;
+        }
+
         const user = await db.query.users.findFirst({
-          where: eq(users.email, email),
+          where: eq(users.email, emailKey),
         });
 
         if (!user || user.status !== "active") return null;
 
+        if (user.mustChangePassword) {
+          throw new Error(MUST_CHANGE_PASSWORD_ERROR);
+        }
+
         const passwordMatch = await compare(password, user.passwordHash);
         if (!passwordMatch) return null;
+
+        resetLimit(emailKey);
 
         return {
           id: String(user.id),
