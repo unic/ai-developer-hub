@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Download } from "lucide-react";
+import { toCsv } from "@/lib/csv";
 
 interface ParsedUser {
   name: string;
@@ -228,12 +229,11 @@ export function BulkImportForm() {
             <div className="flex gap-3">
               <Button
                 onClick={() => {
-                  const header = "Name,Email,Invite Link";
-                  const rows = inviteLinks.map(
-                    (l) => `"${l.name}","${l.email}","${l.inviteUrl}"`
+                  const csv = toCsv(
+                    ["Name", "Email", "Invite Link"],
+                    inviteLinks.map((l) => [l.name, l.email, l.inviteUrl])
                   );
-                  const csv = [header, ...rows].join("\n");
-                  const blob = new Blob([csv], { type: "text/csv" });
+                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
