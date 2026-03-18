@@ -35,13 +35,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const user = await db.query.users.findFirst({
-          where: eq(users.email, email),
+          where: eq(users.email, emailKey),
         });
 
         if (!user || user.status !== "active") return null;
 
         if (user.mustChangePassword) {
-          return null;
+          throw new Error("MUST_CHANGE_PASSWORD");
         }
 
         const passwordMatch = await compare(password, user.passwordHash);

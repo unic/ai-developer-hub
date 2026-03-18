@@ -41,7 +41,13 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
     });
 
     if (result?.error) {
-      setError("Invalid email or password");
+      if (result.error.includes("MUST_CHANGE_PASSWORD")) {
+        setError(
+          "Your account is not yet set up. Please check your email for an invite link or contact your administrator."
+        );
+      } else {
+        setError("Invalid email or password");
+      }
     } else {
       router.push(callbackUrl ?? "/");
       router.refresh();
