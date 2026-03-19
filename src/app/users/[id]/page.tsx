@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getUserById, getUserAssignments } from "@/actions/users";
 import { getEntityHistory } from "@/actions/history";
 import { getGitHubProfile } from "@/actions/github";
+import { getUserCostData, getAvailableMonths } from "@/actions/anthropic-usage";
 import { UserDetailClient } from "./user-detail-client";
 import { AuthGuard } from "@/components/auth-guard";
 
@@ -21,10 +22,12 @@ export default async function UserDetailPage({
   const user = await getUserById(userId);
   if (!user) notFound();
 
-  const [assignments, historyResult, ghResult] = await Promise.all([
+  const [assignments, historyResult, ghResult, costData, costAvailableMonths] = await Promise.all([
     getUserAssignments(userId),
     getEntityHistory("user", userId),
     getGitHubProfile(userId),
+    getUserCostData(userId),
+    getAvailableMonths(userId),
   ]);
   const history = historyResult.success ? historyResult.data.records : [];
   const githubProfile = ghResult.success ? ghResult.data.profile : null;
@@ -37,6 +40,8 @@ export default async function UserDetailPage({
         history={history}
         isAdmin={isAdmin}
         githubProfile={githubProfile}
+        costData={costData}
+        costAvailableMonths={costAvailableMonths}
       />
     </AuthGuard>
   );

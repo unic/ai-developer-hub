@@ -241,6 +241,7 @@ export function matchMembersToUsers(
     name: string;
     email: string;
     githubUsername: string | null;
+    status: "active" | "inactive";
   }>
 ): {
   matched: SyncMatchedMember[];
@@ -250,6 +251,7 @@ export function matchMembersToUsers(
     userName: string;
     userEmail: string;
     githubUsername: string | null;
+    userStatus: "active" | "inactive";
   }>;
   conflicts: SyncConflict[];
 } {
@@ -355,6 +357,7 @@ export function matchMembersToUsers(
       userName: u.name,
       userEmail: u.email,
       githubUsername: u.githubUsername,
+      userStatus: u.status,
     }));
 
   return { matched, unmatched, unmatchedSystemUsers, conflicts };

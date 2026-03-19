@@ -1,5 +1,5 @@
 {
-  "id": "5ed8fb4f-1b26-4a08-b8ef-7830c0cd17f5",
+  "id": "ad7927d8-c5e2-41ba-b2df-9f9e8520532f",
   "prevId": "020eafc4-3f1c-4613-9650-d2e7743d05cc",
   "version": "7",
   "dialect": "postgresql",
@@ -846,12 +846,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "linked_billed_cost_id": {
-          "name": "linked_billed_cost_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -888,21 +882,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "copilot_billing_snapshots_linked_cost_idx": {
-          "name": "copilot_billing_snapshots_linked_cost_idx",
-          "columns": [
-            {
-              "expression": "linked_billed_cost_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -917,19 +896,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_billing_snapshots_linked_billed_cost_id_billed_costs_id_fk": {
-          "name": "copilot_billing_snapshots_linked_billed_cost_id_billed_costs_id_fk",
-          "tableFrom": "copilot_billing_snapshots",
-          "tableTo": "billed_costs",
-          "columnsFrom": [
-            "linked_billed_cost_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1439,6 +1405,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "manually_matched_count": {
+          "name": "manually_matched_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_count": {
+          "name": "created_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "error_message": {
           "name": "error_message",
           "type": "text",
@@ -1467,18 +1445,6 @@
         },
         "billing_processed": {
           "name": "billing_processed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "billing_linked": {
-          "name": "billing_linked",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "billing_skipped": {
-          "name": "billing_skipped",
           "type": "integer",
           "primaryKey": false,
           "notNull": false

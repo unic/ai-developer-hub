@@ -1,9 +1,19 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { isPublicPath } from "@/lib/routes";
 
 export default auth((req) => {
+  const { pathname, search } = req.nextUrl;
+
+  if (!req.auth && !isPublicPath(pathname)) {
+    const callbackUrl = encodeURIComponent(pathname + search);
+    return NextResponse.redirect(
+      new URL(`/login?callbackUrl=${callbackUrl}`, req.url)
+    );
+  }
+
   const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-pathname", req.nextUrl.pathname + req.nextUrl.search);
+  requestHeaders.set("x-pathname", pathname + search);
   return NextResponse.next({ request: { headers: requestHeaders } });
 });
 

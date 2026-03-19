@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   integer,
+  bigint,
   boolean,
   timestamp,
   date,
@@ -13,7 +14,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import type { UserPreferences } from "@/types";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "viewer"]);
@@ -53,6 +54,11 @@ export const copilotSyncTypeEnum = pgEnum("copilot_sync_type", [
   "members",
   "copilot",
 ]);
+export const inviteTokenStatusEnum = pgEnum("invite_token_status", [
+  "active",
+  "consumed",
+  "invalidated",
+]);
 
 // Users
 export const users = pgTable(
@@ -71,12 +77,39 @@ export const users = pgTable(
       .$type<UserPreferences>()
       .default({ theme: "system" }),
     profile: userProfileEnum("profile"),
+    mustChangePassword: boolean("must_change_password").notNull().default(true),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("users_email_idx").on(table.email),
     index("users_circle_idx").on(table.circle),
     index("users_status_idx").on(table.status),
+  ]
+);
+
+// Invite Tokens
+export const inviteTokens = pgTable(
+  "invite_tokens",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    status: inviteTokenStatusEnum("status").notNull().default("active"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    consumedAt: timestamp("consumed_at"),
+  },
+  (table) => [
+    index("invite_tokens_token_hash_idx").on(table.tokenHash),
+    index("invite_tokens_user_id_idx").on(table.userId),
+    // Enforce one active invite token per user at the DB level.
+    // The application also enforces this in createInviteTokenForUser (src/actions/invite.ts)
+    // by invalidating prior active tokens before inserting a new one.
+    uniqueIndex("invite_tokens_active_user_idx")
+      .on(table.userId)
+      .where(sql`${table.status} = 'active'`),
   ]
 );
 
@@ -363,6 +396,8 @@ export const githubSyncEvents = pgTable(
     importedCount: integer("imported_count"),
     unmatchedCount: integer("unmatched_count"),
     conflictCount: integer("conflict_count"),
+    manuallyMatchedCount: integer("manually_matched_count"),
+    createdCount: integer("created_count"),
     errorMessage: text("error_message"),
     syncType: copilotSyncTypeEnum("sync_type").notNull().default("members"),
     seatsProcessed: integer("seats_processed"),
@@ -443,6 +478,63 @@ export const copilotBillingSnapshots = pgTable(
   ]
 );
 
+// Anthropic Usage Metrics (daily token usage per user per model)
+export const anthropicUsageMetrics = pgTable(
+  "anthropic_usage_metrics",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    uncachedInputTokens: bigint("uncached_input_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    cacheReadInputTokens: bigint("cache_read_input_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    cacheCreationInputTokens: bigint("cache_creation_input_tokens", {
+      mode: "number",
+    })
+      .notNull()
+      .default(0),
+    outputTokens: bigint("output_tokens", { mode: "number" })
+      .notNull()
+      .default(0),
+    computedCostCents: integer("computed_cost_cents").notNull().default(0),
+    pricingResolved: boolean("pricing_resolved").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_usage_metrics_user_date_model_idx").on(
+      table.userId,
+      table.date,
+      table.model
+    ),
+    index("anthropic_usage_metrics_user_date_idx").on(table.userId, table.date),
+    index("anthropic_usage_metrics_date_idx").on(table.date),
+    index("anthropic_usage_metrics_pricing_resolved_idx").on(table.pricingResolved),
+  ]
+);
+
+// Anthropic Sync Status (per-user sync tracking + cached API key ID)
+export const anthropicSyncStatus = pgTable(
+  "anthropic_sync_status",
+  {
+    id: serial("id").primaryKey(),
+    // No FK constraint — userId=0 is used as a global lock sentinel row
+    userId: integer("user_id").notNull(),
+    lastSyncStartedAt: timestamp("last_sync_started_at"),
+    lastSyncCompletedAt: timestamp("last_sync_completed_at"),
+    lastSyncError: varchar("last_sync_error", { length: 500 }),
+    syncedDays: integer("synced_days").notNull().default(0),
+    resolvedApiKeyId: varchar("resolved_api_key_id", { length: 100 }),
+  },
+  (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
@@ -452,6 +544,19 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   githubProfile: one(githubProfiles, {
     fields: [users.id],
     references: [githubProfiles.userId],
+  }),
+  inviteTokens: many(inviteTokens),
+  anthropicUsageMetrics: many(anthropicUsageMetrics),
+  anthropicSyncStatus: one(anthropicSyncStatus, {
+    fields: [users.id],
+    references: [anthropicSyncStatus.userId],
+  }),
+}));
+
+export const inviteTokensRelations = relations(inviteTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [inviteTokens.userId],
+    references: [users.id],
   }),
 }));
 
@@ -593,6 +698,26 @@ export const copilotBillingSnapshotsRelations = relations(
     linkedBilledCost: one(billedCosts, {
       fields: [copilotBillingSnapshots.linkedBilledCostId],
       references: [billedCosts.id],
+    }),
+  })
+);
+
+export const anthropicUsageMetricsRelations = relations(
+  anthropicUsageMetrics,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [anthropicUsageMetrics.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const anthropicSyncStatusRelations = relations(
+  anthropicSyncStatus,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [anthropicSyncStatus.userId],
+      references: [users.id],
     }),
   })
 );

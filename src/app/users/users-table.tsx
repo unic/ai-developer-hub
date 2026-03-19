@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
+import { EditUserDialog } from "@/components/edit-user-dialog";
+import { NO_CIRCLE_SENTINEL, NO_PROFILE_SENTINEL } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,12 +32,39 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, MoreHorizontal, Pencil, UserX } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, UserX, Mail, KeyRound } from "lucide-react";
 import { deactivateUser } from "@/actions/users";
+import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import type { User } from "@/types";
 
-function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: boolean; onDeactivated: () => void }) {
+function UserRowActions({
+  row,
+  isAdmin,
+  onDeactivated,
+  onEditUser,
+}: {
+  row: User;
+  isAdmin: boolean;
+  onDeactivated: () => void;
+  onEditUser: (user: User) => void;
+}) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+
+  async function handleSendInvite() {
+    try {
+      const result = await sendInviteEmail(row.id);
+      if (result.success) {
+        toast.success("Invite email sent");
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("Failed to send invite email");
+    }
+  }
+
   return (
     <div className="flex items-center gap-1">
       <Tooltip>
@@ -46,11 +75,16 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
         </TooltipTrigger>
         <TooltipContent>View</TooltipContent>
       </Tooltip>
-      {isAdmin && (
+      {isAdmin && row.status === "active" && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
-              <Link href={`/users/${row.id}`}><Pencil className="size-4" /></Link>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Edit ${row.name}`}
+              onClick={() => onEditUser(row)}
+            >
+              <Pencil className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Edit</TooltipContent>
@@ -70,6 +104,16 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
               <TooltipContent>More actions</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end">
+              {row.mustChangePassword && (
+                <DropdownMenuItem onSelect={handleSendInvite}>
+                  <Mail className="size-4" />
+                  Send Invite
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => setShowResetDialog(true)}>
+                <KeyRound className="size-4" />
+                Reset Password
+              </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => setShowDeactivateDialog(true)}>
                 <UserX className="size-4" />
                 Deactivate
@@ -104,13 +148,23 @@ function UserRowActions({ row, isAdmin, onDeactivated }: { row: User; isAdmin: b
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <ResetPasswordDialog
+            user={row}
+            open={showResetDialog}
+            onOpenChange={setShowResetDialog}
+            onSuccess={onDeactivated}
+          />
         </>
       )}
     </div>
   );
 }
 
-function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User>[] {
+function getColumns(
+  isAdmin: boolean,
+  onDeactivated: () => void,
+  onEditUser: (user: User) => void
+): ColumnDef<User>[] {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -129,9 +183,14 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
       header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
     },
     {
-      accessorKey: "circle",
+      accessorFn: (row) => row.circle ?? NO_CIRCLE_SENTINEL,
+      id: "circle",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Circle" />,
-      cell: ({ row }) => row.getValue("circle") || "\u2014",
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const value = row.getValue("circle") as string;
+        return value === NO_CIRCLE_SENTINEL ? "\u2014" : value;
+      },
     },
     {
       accessorKey: "role",
@@ -144,16 +203,32 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
       ),
     },
     {
-      accessorKey: "profile",
+      accessorFn: (row) => row.profile ?? NO_PROFILE_SENTINEL,
+      id: "profile",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
+      filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => {
-        const profile = row.getValue("profile") as string | null;
-        return profile ? (
+        const value = row.getValue("profile") as string;
+        return value !== NO_PROFILE_SENTINEL ? (
           <Badge variant="outline" className="capitalize">
-            {profile}
+            {value}
           </Badge>
         ) : (
           "\u2014"
+        );
+      },
+    },
+    {
+      id: "setupStatus",
+      accessorFn: (row) => row.mustChangePassword ? "pending" : "active",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Setup Status" />,
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const isPending = row.original.mustChangePassword;
+        return isPending ? (
+          <Badge variant="secondary">Pending</Badge>
+        ) : (
+          <span className="text-muted-foreground">Active</span>
         );
       },
     },
@@ -178,6 +253,7 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
           row={row.original}
           isAdmin={isAdmin}
           onDeactivated={onDeactivated}
+          onEditUser={onEditUser}
         />
       ),
     },
@@ -186,13 +262,21 @@ function getColumns(isAdmin: boolean, onDeactivated: () => void): ColumnDef<User
   return columns;
 }
 
-const USERS_FACETED_FILTERS = [
+const STATIC_FACETED_FILTERS = [
   {
     columnId: "role",
     title: "Role",
     options: [
       { label: "Admin", value: "admin" },
       { label: "Viewer", value: "viewer" },
+    ],
+  },
+  {
+    columnId: "setupStatus",
+    title: "Setup Status",
+    options: [
+      { label: "Active", value: "active" },
+      { label: "Pending", value: "pending" },
     ],
   },
   {
@@ -208,37 +292,116 @@ const USERS_FACETED_FILTERS = [
 export function UsersTable({
   data,
   isAdmin,
+  pendingCount,
 }: {
   data: User[];
   isAdmin: boolean;
+  pendingCount: number;
 }) {
   const router = useRouter();
-  const [showNoCircle, setShowNoCircle] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
-  const columns = useMemo(() => getColumns(isAdmin, handleRefresh), [isAdmin, handleRefresh]);
-  const filteredData = useMemo(
-    () => showNoCircle ? data.filter((u) => !u.circle) : data,
-    [showNoCircle, data]
+  const handleEditUser = useCallback((user: User) => {
+    setEditingUser(user);
+  }, []);
+  const columns = useMemo(
+    () => getColumns(isAdmin, handleRefresh, handleEditUser),
+    [isAdmin, handleRefresh, handleEditUser]
   );
+
+  async function handleBatchInvite() {
+    setBatchSending(true);
+    try {
+      const result = await sendBatchInviteEmails();
+      if (result.success) {
+        const { sent, failed, total } = result.data;
+        if (failed > 0) {
+          toast.warning(`Sent ${sent} of ${total} invite emails. ${failed} failed.`);
+        } else {
+          toast.success(`Sent ${sent} invite email(s) to all pending users.`);
+        }
+        handleRefresh();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setBatchSending(false);
+      setShowBatchDialog(false);
+    }
+  }
+
+  const facetedFilters = useMemo(() => {
+    const circles = [...new Set(data.map((u) => u.circle ?? NO_CIRCLE_SENTINEL))].sort();
+    const circleOptions = circles.map((c) =>
+      c === NO_CIRCLE_SENTINEL
+        ? { label: "No Circle", value: NO_CIRCLE_SENTINEL }
+        : { label: c, value: c }
+    );
+
+    const profileOptions = [
+      { label: "Boost", value: "boost" },
+      { label: "Maxed", value: "maxed" },
+      { label: "Indie", value: "indie" },
+      { label: "No Profile", value: NO_PROFILE_SENTINEL },
+    ];
+
+    return [
+      { columnId: "circle", title: "Circle", options: circleOptions },
+      { columnId: "profile", title: "Profile", options: profileOptions },
+      ...STATIC_FACETED_FILTERS,
+    ];
+  }, [data]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button
-          variant={showNoCircle ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setShowNoCircle(!showNoCircle)}
-        >
-          No Circle
-        </Button>
-      </div>
+      {isAdmin && pendingCount > 0 && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowBatchDialog(true)}
+          >
+            <Mail className="mr-2 size-4" />
+            Send Invites to All Pending ({pendingCount})
+          </Button>
+        </div>
+      )}
       <DataTable
         columns={columns}
-        data={filteredData}
+        data={data}
         searchPlaceholder="Search users..."
-        facetedFilters={USERS_FACETED_FILTERS}
+        facetedFilters={facetedFilters}
       />
+      <AlertDialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send invites to all pending users?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send invite emails to {pendingCount} user(s) who have not yet set up their password.
+              Each user will receive a unique invite link valid for 72 hours.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchSending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchInvite} disabled={batchSending}>
+              {batchSending ? "Sending..." : "Send Invites"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          open={!!editingUser}
+          onOpenChange={(open) => { if (!open) setEditingUser(null); }}
+          onSaved={handleRefresh}
+        />
+      )}
     </div>
   );
 }

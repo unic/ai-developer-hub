@@ -155,6 +155,7 @@ export interface BulkImportResult {
   skipped: number;
   failed: number;
   errors: Array<{ row: number; email: string; error: string }>;
+  inviteLinks?: Array<{ name: string; email: string; inviteUrl: string }>;
 }
 
 export interface ExistingUserFields {
@@ -259,6 +260,7 @@ export interface SyncUnmatchedSystemUser {
   userName: string;
   userEmail: string;
   githubUsername: string | null;
+  userStatus: "active" | "inactive";
 }
 
 export interface SyncConflict {
@@ -294,6 +296,30 @@ export interface BillingSyncConflict {
   manualEntryAmountCents: number;
   manualEntryDescription: string;
   periodLabel: string;
+}
+
+// GitHub member sync — manual matching types
+export type PendingResolution =
+  | { type: "match"; githubLogin: string; userId: number; userName: string }
+  | { type: "create"; githubLogin: string; name: string; email: string }
+  | { type: "skip"; githubLogin: string };
+
+export interface MatchSuggestion {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  userStatus: "active" | "inactive";
+  githubUsername: string | null;
+  score: number;
+  reason: string;
+}
+
+export interface ResolutionSummary {
+  total: number;
+  matched: number;
+  created: number;
+  skipped: number;
+  unresolved: number;
 }
 
 // Copilot integration types
@@ -408,3 +434,45 @@ export interface CopilotAnalyticsData {
     utilizationRate: number;
   }>;
 }
+
+// Anthropic Usage Types (016-claude-api-costs)
+export type DailyModelCost = {
+  model: string;
+  costCents: number;
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export type DailyBreakdown = {
+  date: string;
+  models: DailyModelCost[];
+  totalCents: number;
+};
+
+export type CostData = {
+  available: boolean;
+  error?: string;
+  monthlyTotalCents: number;
+  dailyBreakdown: DailyBreakdown[];
+  latestDataDate: string | null;
+  hasUnresolvedPricing: boolean;
+};
+
+export type ProfileData = {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    role: "admin" | "viewer";
+    circle: string | null;
+    profile: "boost" | "maxed" | "indie" | null;
+  };
+  assignments: {
+    id: number;
+    toolName: string;
+    tierName: string;
+    assignedAt: Date;
+    status: "active" | "inactive";
+  }[];
+  costData: CostData;
+};

@@ -22,18 +22,29 @@ export const tierSchema = z.object({
   monthlyCostCents: z.number().int().min(0, "Cost must be non-negative"),
 });
 
-// User
+// User (create — no password, invite flow)
 export const userSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
   circle: z.string().max(100).optional(),
   role: z.enum(["admin", "viewer"]),
   githubUsername: z.string().max(255).optional(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
   profile: z.enum(["boost", "maxed", "indie"]).optional(),
 });
 
-// Bulk import user (no password — admin sets a temp one)
+// Setup password (invite flow)
+export const setupPasswordSchema = z
+  .object({
+    token: z.string().min(1, "Token is required"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+// Bulk import user (no password — invite link flow)
 export const bulkImportUserSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
@@ -178,6 +189,7 @@ export type ToolInput = z.infer<typeof toolSchema>;
 export type TierInput = z.infer<typeof tierSchema>;
 export type UserInput = z.infer<typeof userSchema>;
 export type BulkImportUserInput = z.infer<typeof bulkImportUserSchema>;
+export type SetupPasswordInput = z.infer<typeof setupPasswordSchema>;
 export type AssignmentInput = z.infer<typeof assignmentSchema>;
 export type BudgetInput = z.infer<typeof budgetSchema>;
 export type BudgetAllocationInput = z.infer<typeof budgetAllocationSchema>;
@@ -242,13 +254,28 @@ export const connectOrgSchema = z.object({
   orgId: z.number().int().positive(),
 });
 
+export const manualMatchSchema = z.object({
+  githubLogin: z.string().min(1),
+  userId: z.number().int().positive(),
+});
+
+export const inlineUserCreationSchema = z.object({
+  githubLogin: z.string().min(1),
+  name: z.string().min(1, "Name is required").max(255),
+  email: z.string().email("Invalid email address"),
+});
+
 export const confirmSyncSchema = z.object({
   importGitHubLogins: z.array(z.string()),
+  manualMatches: z.array(manualMatchSchema).optional().default([]),
+  newUsers: z.array(inlineUserCreationSchema).optional().default([]),
 });
 
 export type GitHubTokenInput = z.infer<typeof githubTokenSchema>;
 export type ConnectOrgInput = z.infer<typeof connectOrgSchema>;
 export type ConfirmSyncInput = z.infer<typeof confirmSyncSchema>;
+export type ManualMatchInput = z.infer<typeof manualMatchSchema>;
+export type InlineUserCreationInput = z.infer<typeof inlineUserCreationSchema>;
 
 // Copilot integration validators
 const calendarDateSchema = z

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useMemo, useCallback, useTransition } from "react";
 import { Github, RefreshCw, Unplug, KeyRound, Users, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -42,7 +42,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   validateGitHubToken,
   connectGitHubOrg,
@@ -54,11 +53,17 @@ import {
   confirmGitHubSync,
 } from "@/actions/github-sync";
 import { CopilotSyncSection } from "@/components/copilot/copilot-sync-section";
+import { UnmatchedMemberCard } from "@/components/unmatched-member-card";
+import { UserSearchCombobox } from "@/components/user-search-combobox";
+import { InlineUserForm } from "@/components/inline-user-form";
+import { computeMatchSuggestions } from "@/lib/match-suggestions";
 import type {
   SyncPreview,
   SyncMatchedMember,
   SyncUnmatchedMember,
   SyncUnmatchedSystemUser,
+  PendingResolution,
+  ResolutionSummary,
   GitHubConnectionStatus,
   GitHubSyncStatus,
 } from "@/types";
@@ -79,6 +84,8 @@ interface SyncHistoryEvent {
   matchedCount: number | null;
   importedCount: number | null;
   unmatchedCount: number | null;
+  manuallyMatchedCount: number | null;
+  createdCount: number | null;
   startedAt: Date;
   completedAt: Date | null;
   triggeredByName: string;
@@ -127,6 +134,41 @@ export function GitHubIntegrationClient({
   const [activeTab, setActiveTab] = useState<ActiveTab>("matched");
   const [selectedImports, setSelectedImports] = useState<Set<string>>(new Set());
   const [syncHistory, setSyncHistory] = useState(initialSyncHistory);
+
+  // Manual matching state
+  const [pendingResolutions, setPendingResolutions] = useState<Map<string, PendingResolution>>(new Map());
+  const [expandedCard, setExpandedCard] = useState<{ login: string; action: "match" | "create" } | null>(null);
+
+  const resolutionSummary = useMemo<ResolutionSummary | null>(() => {
+    if (!syncPreview) return null;
+    const total = syncPreview.unmatched.length;
+    let matched = 0;
+    let created = 0;
+    let skipped = 0;
+    for (const r of pendingResolutions.values()) {
+      if (r.type === "match") matched++;
+      else if (r.type === "create") created++;
+      else if (r.type === "skip") skipped++;
+    }
+    return { total, matched, created, skipped, unresolved: total - matched - created - skipped };
+  }, [syncPreview, pendingResolutions]);
+
+  const handleResolve = useCallback((resolution: PendingResolution) => {
+    setPendingResolutions((prev) => {
+      const next = new Map(prev);
+      next.set(resolution.githubLogin, resolution);
+      return next;
+    });
+    setExpandedCard(null);
+  }, []);
+
+  const handleUndoResolution = useCallback((githubLogin: string) => {
+    setPendingResolutions((prev) => {
+      const next = new Map(prev);
+      next.delete(githubLogin);
+      return next;
+    });
+  }, []);
 
   function handleValidateToken() {
     startTransition(async () => {
@@ -210,6 +252,8 @@ export function GitHubIntegrationClient({
         setSyncPreview(result.data);
         setActiveTab("matched");
         setSelectedImports(new Set());
+        setPendingResolutions(new Map());
+        setExpandedCard(null);
         toast.success(
           `Fetched ${result.data.totalMembers} members. ${result.data.matched.length} matched.`
         );
@@ -222,17 +266,33 @@ export function GitHubIntegrationClient({
   function handleConfirmSync() {
     if (!syncPreview) return;
 
+    // Extract manual matches and new users from pending resolutions
+    const manualMatches: Array<{ githubLogin: string; userId: number }> = [];
+    const newUsers: Array<{ githubLogin: string; name: string; email: string }> = [];
+
+    for (const r of pendingResolutions.values()) {
+      if (r.type === "match") {
+        manualMatches.push({ githubLogin: r.githubLogin, userId: r.userId });
+      } else if (r.type === "create") {
+        newUsers.push({ githubLogin: r.githubLogin, name: r.name, email: r.email });
+      }
+    }
+
     startTransition(async () => {
       const result = await confirmGitHubSync({
         importGitHubLogins: Array.from(selectedImports),
+        manualMatches,
+        newUsers,
       });
       if (result.success) {
         const d = result.data;
-        toast.success(
-          `Sync complete: ${d.enrichedCount} enriched, ${d.importedCount} imported, ${d.skippedCount} skipped`
-        );
+        const parts = [`${d.enrichedCount} enriched`];
+        if (d.manuallyMatchedCount > 0) parts.push(`${d.manuallyMatchedCount} manually matched`);
+        if (d.createdCount > 0) parts.push(`${d.createdCount} created`);
+        if (d.importedCount > 0) parts.push(`${d.importedCount} imported`);
+        toast.success(`Sync complete: ${parts.join(", ")}`);
         setSyncPreview(null);
-        // Refresh connection to get updated lastSyncAt
+        setPendingResolutions(new Map());
         setConnection((prev) =>
           prev ? { ...prev, lastSyncAt: new Date() } : prev
         );
@@ -242,17 +302,6 @@ export function GitHubIntegrationClient({
     });
   }
 
-  function toggleImport(login: string) {
-    setSelectedImports((prev) => {
-      const next = new Set(prev);
-      if (next.has(login)) {
-        next.delete(login);
-      } else {
-        next.add(login);
-      }
-      return next;
-    });
-  }
 
   // --- Render ---
 
@@ -462,6 +511,32 @@ export function GitHubIntegrationClient({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Resolution Progress (T017) */}
+            {resolutionSummary && resolutionSummary.total > 0 && (
+              <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg text-sm" role="status" aria-live="polite">
+                <span className="font-medium">
+                  {resolutionSummary.total - resolutionSummary.unresolved} of{" "}
+                  {resolutionSummary.total} resolved
+                </span>
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  {resolutionSummary.matched > 0 && (
+                    <span>Matched: {resolutionSummary.matched}</span>
+                  )}
+                  {resolutionSummary.created > 0 && (
+                    <span>Created: {resolutionSummary.created}</span>
+                  )}
+                  {resolutionSummary.skipped > 0 && (
+                    <span>Skipped: {resolutionSummary.skipped}</span>
+                  )}
+                  {resolutionSummary.unresolved > 0 && (
+                    <span className="text-amber-600">
+                      Unresolved: {resolutionSummary.unresolved}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Tabs */}
             <div className="flex gap-1 border-b" role="tablist" aria-label="Sync preview tabs">
               {[
@@ -492,10 +567,15 @@ export function GitHubIntegrationClient({
                 <MatchedTable members={syncPreview.matched} />
               )}
               {activeTab === "unmatched" && (
-                <UnmatchedTable
+                <UnmatchedMembersList
                   members={syncPreview.unmatched}
-                  selectedImports={selectedImports}
-                  onToggle={toggleImport}
+                  unmatchedSystemUsers={syncPreview.unmatchedSystemUsers}
+                  pendingResolutions={pendingResolutions}
+                  expandedCard={expandedCard}
+                  onResolve={handleResolve}
+                  onUndo={handleUndoResolution}
+                  onExpandCard={setExpandedCard}
+                  onCollapseCard={() => setExpandedCard(null)}
                 />
               )}
               {activeTab === "system" && (
@@ -520,14 +600,40 @@ export function GitHubIntegrationClient({
 
             {/* Actions */}
             <div className="flex gap-2 pt-2 border-t">
-              <Button onClick={handleConfirmSync} disabled={isPending}>
-                {isPending
-                  ? "Syncing..."
-                  : `Confirm Sync (${syncPreview.matched.length} enriched${selectedImports.size > 0 ? `, ${selectedImports.size} imported` : ""})`}
-              </Button>
+              {resolutionSummary && resolutionSummary.unresolved > 0 ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button disabled={isPending}>
+                      {isPending ? "Syncing..." : "Confirm Sync"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Unresolved Members</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {resolutionSummary.unresolved} member(s) remain unresolved. They will stay
+                        unmatched. Continue?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleConfirmSync}>
+                        Continue
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <Button onClick={handleConfirmSync} disabled={isPending}>
+                  {isPending ? "Syncing..." : "Confirm Sync"}
+                </Button>
+              )}
               <Button
                 variant="ghost"
-                onClick={() => setSyncPreview(null)}
+                onClick={() => {
+                  setSyncPreview(null);
+                  setPendingResolutions(new Map());
+                }}
               >
                 Cancel
               </Button>
@@ -549,9 +655,12 @@ export function GitHubIntegrationClient({
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Members</TableHead>
-                  <TableHead>Matched</TableHead>
+                  <TableHead>Auto</TableHead>
                   <TableHead>Imported</TableHead>
-                  <TableHead>Triggered By</TableHead>
+                  <TableHead>Manual</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Unmatched</TableHead>
+                  <TableHead>By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -566,6 +675,9 @@ export function GitHubIntegrationClient({
                     <TableCell>{event.totalMembers ?? "—"}</TableCell>
                     <TableCell>{event.matchedCount ?? "—"}</TableCell>
                     <TableCell>{event.importedCount ?? "—"}</TableCell>
+                    <TableCell>{event.manuallyMatchedCount ?? "—"}</TableCell>
+                    <TableCell>{event.createdCount ?? "—"}</TableCell>
+                    <TableCell>{event.unmatchedCount ?? "—"}</TableCell>
                     <TableCell className="text-sm">
                       {event.triggeredByName}
                     </TableCell>
@@ -650,15 +762,39 @@ function MatchedTable({ members }: { members: SyncMatchedMember[] }) {
   );
 }
 
-function UnmatchedTable({
+function UnmatchedMembersList({
   members,
-  selectedImports,
-  onToggle,
+  unmatchedSystemUsers,
+  pendingResolutions,
+  expandedCard,
+  onResolve,
+  onUndo,
+  onExpandCard,
+  onCollapseCard,
 }: {
   members: SyncUnmatchedMember[];
-  selectedImports: Set<string>;
-  onToggle: (login: string) => void;
+  unmatchedSystemUsers: SyncUnmatchedSystemUser[];
+  pendingResolutions: Map<string, PendingResolution>;
+  expandedCard: { login: string; action: "match" | "create" } | null;
+  onResolve: (resolution: PendingResolution) => void;
+  onUndo: (githubLogin: string) => void;
+  onExpandCard: (card: { login: string; action: "match" | "create" }) => void;
+  onCollapseCard: () => void;
 }) {
+  const [overwriteConfirm, setOverwriteConfirm] = useState<{
+    githubLogin: string;
+    user: { id: number; name: string; githubUsername: string };
+  } | null>(null);
+
+  // Memoize suggestions for all unmatched members to avoid O(unmatched × systemUsers) per render (#8)
+  const suggestionsMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeMatchSuggestions>>();
+    for (const member of members) {
+      map.set(member.githubLogin, computeMatchSuggestions(member, unmatchedSystemUsers));
+    }
+    return map;
+  }, [members, unmatchedSystemUsers]);
+
   if (members.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
@@ -667,53 +803,120 @@ function UnmatchedTable({
     );
   }
 
+  // Collect already-matched user IDs to exclude from search
+  const excludeUserIds = Array.from(pendingResolutions.values())
+    .filter((r): r is PendingResolution & { type: "match" } => r.type === "match")
+    .map((r) => r.userId);
+
+  function handleMatchSelect(
+    githubLogin: string,
+    user: { id: number; name: string; email: string; status: "active" | "inactive"; githubUsername: string | null }
+  ) {
+    // FR-009: Warn if user already has a different GitHub username
+    if (user.githubUsername && user.githubUsername.toLowerCase() !== githubLogin.toLowerCase()) {
+      setOverwriteConfirm({
+        githubLogin,
+        user: { id: user.id, name: user.name, githubUsername: user.githubUsername },
+      });
+      return;
+    }
+    onResolve({
+      type: "match",
+      githubLogin,
+      userId: user.id,
+      userName: user.name,
+    });
+  }
+
   return (
-    <div className="max-h-80 overflow-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">Import</TableHead>
-            <TableHead>GitHub User</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Repos</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {members.map((m) => (
-            <TableRow key={m.githubLogin}>
-              <TableCell>
-                <Checkbox
-                  checked={selectedImports.has(m.githubLogin)}
-                  onCheckedChange={() => onToggle(m.githubLogin)}
-                  aria-label={`Import ${m.githubLogin}`}
+    <>
+      <div className="max-h-[32rem] overflow-auto space-y-3 pr-1">
+        {members.map((member) => {
+          const suggestions = suggestionsMap.get(member.githubLogin) ?? [];
+          const resolution = pendingResolutions.get(member.githubLogin);
+          const isMatchExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "match";
+          const isCreateExpanded = expandedCard?.login === member.githubLogin && expandedCard.action === "create";
+
+          return (
+            <UnmatchedMemberCard
+              key={member.githubLogin}
+              member={member}
+              suggestions={suggestions}
+              resolution={resolution}
+              onResolve={onResolve}
+              onUndo={onUndo}
+              isMatchExpanded={isMatchExpanded}
+              isCreateExpanded={isCreateExpanded}
+              onExpandMatch={() => onExpandCard({ login: member.githubLogin, action: "match" })}
+              onExpandCreate={() => onExpandCard({ login: member.githubLogin, action: "create" })}
+              onCollapse={onCollapseCard}
+              matchActionSlot={
+                <UserSearchCombobox
+                  onSelect={(user) => handleMatchSelect(member.githubLogin, user)}
+                  excludeUserIds={excludeUserIds}
+                  onCancel={onCollapseCard}
                 />
-              </TableCell>
-              <TableCell className="font-medium">
-                <div className="flex items-center gap-2">
-                  {m.githubAvatarUrl && (
-                    <Image
-                      src={m.githubAvatarUrl}
-                      alt=""
-                      width={24}
-                      height={24}
-                      className="size-6 rounded-full"
-                      unoptimized
-                    />
-                  )}
-                  {m.githubLogin}
-                </div>
-              </TableCell>
-              <TableCell>{m.githubName || "—"}</TableCell>
-              <TableCell className="text-sm">
-                {m.githubEmail || "—"}
-              </TableCell>
-              <TableCell>{m.githubPublicRepos ?? "—"}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+              }
+              createActionSlot={
+                <InlineUserForm
+                  defaultName={member.githubName || member.githubLogin}
+                  defaultEmail={member.githubEmail || ""}
+                  githubLogin={member.githubLogin}
+                  onSubmit={(data) =>
+                    onResolve({
+                      type: "create",
+                      githubLogin: data.githubLogin,
+                      name: data.name,
+                      email: data.email,
+                    })
+                  }
+                  onCancel={onCollapseCard}
+                />
+              }
+            />
+          );
+        })}
+      </div>
+
+      {/* FR-009: Overwrite confirmation dialog */}
+      <AlertDialog
+        open={!!overwriteConfirm}
+        onOpenChange={(open) => !open && setOverwriteConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace GitHub Link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {overwriteConfirm && (
+                <>
+                  {overwriteConfirm.user.name} is already linked to GitHub user{" "}
+                  <strong>{overwriteConfirm.user.githubUsername}</strong>. Replace with{" "}
+                  <strong>{overwriteConfirm.githubLogin}</strong>?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (overwriteConfirm) {
+                  onResolve({
+                    type: "match",
+                    githubLogin: overwriteConfirm.githubLogin,
+                    userId: overwriteConfirm.user.id,
+                    userName: overwriteConfirm.user.name,
+                  });
+                  setOverwriteConfirm(null);
+                }
+              }}
+            >
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

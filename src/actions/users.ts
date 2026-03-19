@@ -5,12 +5,13 @@ import { users, licenseAssignments } from "@/lib/db/schema";
 import { eq, and, count, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { hash } from "bcryptjs";
+import { randomBytes } from "crypto";
 import {
   userSchema,
   updateUserSchema,
   bulkImportUserSchema,
 } from "@/lib/validators";
+import { createInviteTokenForUser } from "@/actions/invite";
 import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
 import { normalizeField } from "@/lib/utils";
 import {
@@ -21,7 +22,7 @@ import {
 
 export async function createUser(
   input: unknown
-): Promise<ActionResult<{ id: number }>> {
+): Promise<ActionResult<{ id: number; inviteUrl: string }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -37,36 +38,41 @@ export async function createUser(
     };
   }
 
-  const { name, email, password, circle, role, githubUsername, profile } =
-    parsed.data;
+  const { name, email, circle, role, githubUsername, profile } = parsed.data;
+  const normalizedEmail = email.toLowerCase();
 
   // Check email uniqueness
   const existing = await db.query.users.findFirst({
-    where: eq(users.email, email),
+    where: eq(users.email, normalizedEmail),
   });
   if (existing) {
     return { success: false, error: "A user with this email already exists" };
   }
 
-  const passwordHash = await hash(password, 12);
+  // Set passwordHash to random bytes — user cannot sign in with this
+  const passwordHash = randomBytes(32).toString("hex");
 
   const [user] = await db
     .insert(users)
     .values({
       name,
-      email,
+      email: normalizedEmail,
       passwordHash,
       circle: circle ?? null,
       role,
       githubUsername: githubUsername ?? null,
       profile: profile ?? null,
+      mustChangePassword: true,
     })
     .returning({ id: users.id });
 
   await recordCreation("user", user.id, Number(admin.id));
 
+  // Generate invite token
+  const { inviteUrl } = await createInviteTokenForUser(user.id);
+
   revalidatePath("/users");
-  return { success: true, data: { id: user.id } };
+  return { success: true, data: { id: user.id, inviteUrl } };
 }
 
 export async function updateUser(
@@ -94,15 +100,18 @@ export async function updateUser(
     changes.name = { old: existing.name, new: updates.name };
     values.name = updates.name;
   }
-  if (updates.email !== undefined && updates.email !== existing.email) {
-    const emailExists = await db.query.users.findFirst({
-      where: eq(users.email, updates.email),
-    });
-    if (emailExists) {
-      return { success: false, error: "Email already in use" };
+  if (updates.email !== undefined) {
+    const normalizedEmail = updates.email.toLowerCase();
+    if (normalizedEmail !== existing.email) {
+      const emailExists = await db.query.users.findFirst({
+        where: eq(users.email, normalizedEmail),
+      });
+      if (emailExists) {
+        return { success: false, error: "Email already in use" };
+      }
+      changes.email = { old: existing.email, new: normalizedEmail };
+      values.email = normalizedEmail;
     }
-    changes.email = { old: existing.email, new: updates.email };
-    values.email = updates.email;
   }
   if (
     updates.circle !== undefined &&
@@ -279,12 +288,10 @@ export async function bulkImportUsers(input: {
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const errors: Array<{ row: number; email: string; error: string }> = [];
+  const inviteLinks: Array<{ name: string; email: string; inviteUrl: string }> = [];
   let created = 0;
   let updated = 0;
   let skipped = 0;
-
-  // Hash the default password once instead of per-row (~250ms per hash)
-  const defaultPasswordHash = await hash("changeme123", 12);
 
   // Batch-query all existing users upfront to avoid N+1 (case-insensitive)
   const allEmails = input.users
@@ -343,21 +350,28 @@ export async function bulkImportUsers(input: {
         await recordUpdate("user", existing.id, Number(admin.id), diff);
         updated++;
       } else {
-        // Create new user with default password
+        // Create new user with random password (unusable — user must use invite link)
+        const passwordHash = randomBytes(32).toString("hex");
         const [user] = await db
           .insert(users)
           .values({
             name,
-            email,
-            passwordHash: defaultPasswordHash,
+            email: lowerEmail,
+            passwordHash,
             circle: circle ?? null,
             role: role ?? "viewer",
             githubUsername: githubUsername ?? null,
             profile: profile ?? null,
+            mustChangePassword: true,
           })
           .returning({ id: users.id });
 
         await recordCreation("user", user.id, Number(admin.id));
+
+        // Generate invite token for the new user
+        const { inviteUrl } = await createInviteTokenForUser(user.id);
+        inviteLinks.push({ name, email: lowerEmail, inviteUrl });
+
         created++;
       }
     } catch (err) {
@@ -373,7 +387,14 @@ export async function bulkImportUsers(input: {
   revalidatePath("/users");
   return {
     success: true,
-    data: { created, updated, skipped, failed: errors.length, errors },
+    data: {
+      created,
+      updated,
+      skipped,
+      failed: errors.length,
+      errors,
+      inviteLinks: inviteLinks.length > 0 ? inviteLinks : undefined,
+    },
   };
 }
 
