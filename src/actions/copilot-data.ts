@@ -10,8 +10,11 @@ import {
   accessTiers,
   githubSyncEvents,
   githubConnections,
+  billedCosts,
+  budgetPeriods,
+  annualBudgets,
 } from "@/lib/db/schema";
-import { and, sql, desc, asc, gte, lte, eq, or, ilike } from "drizzle-orm";
+import { and, sql, desc, asc, gte, lte, eq, or, ilike, isNull, sum, gt, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import {
   copilotDateRangeSchema,
@@ -23,6 +26,7 @@ import type {
   CopilotOverviewData,
   CopilotBillingData,
   CopilotAnalyticsData,
+  BillingSyncConflict,
 } from "@/types";
 
 async function getActiveConnection() {
@@ -356,6 +360,115 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
   };
 }
 
+export async function getCopilotBillingSyncHistory(): Promise<
+  ActionResult<Array<{
+    id: number;
+    startedAt: string;
+    completedAt: string | null;
+    status: string;
+    billingProcessed: number | null;
+    billingLinked: number | null;
+    billingSkipped: number | null;
+    errorMessage: string | null;
+  }>>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const connection = await getActiveConnection();
+
+  const conditions = [eq(githubSyncEvents.syncType, "copilot")];
+  if (connection) {
+    conditions.push(eq(githubSyncEvents.connectionId, connection.id));
+  }
+
+  const rows = await db
+    .select({
+      id: githubSyncEvents.id,
+      startedAt: githubSyncEvents.startedAt,
+      completedAt: githubSyncEvents.completedAt,
+      status: githubSyncEvents.status,
+      billingProcessed: githubSyncEvents.billingProcessed,
+      billingLinked: githubSyncEvents.billingLinked,
+      billingSkipped: githubSyncEvents.billingSkipped,
+      errorMessage: githubSyncEvents.errorMessage,
+    })
+    .from(githubSyncEvents)
+    .where(and(...conditions))
+    .orderBy(desc(githubSyncEvents.startedAt))
+    .limit(10);
+
+  return {
+    success: true,
+    data: rows.map((row) => ({
+      id: row.id,
+      startedAt: row.startedAt.toISOString(),
+      completedAt: row.completedAt?.toISOString() ?? null,
+      status: row.status,
+      billingProcessed: row.billingProcessed,
+      billingLinked: row.billingLinked,
+      billingSkipped: row.billingSkipped,
+      errorMessage: row.errorMessage,
+    })),
+  };
+}
+
+async function findBillingSyncConflicts(
+  connectionId: number
+): Promise<BillingSyncConflict[]> {
+  // Single query: JOIN unlinked snapshots → budget periods → manual billed costs
+  const rows = await db
+    .select({
+      billingMonth: copilotBillingSnapshots.billingMonth,
+      snapshotAmountCents: copilotBillingSnapshots.totalCostCents,
+      manualEntryAmountCents: billedCosts.amountCents,
+      manualEntryDescription: billedCosts.description,
+      periodLabel: budgetPeriods.periodLabel,
+    })
+    .from(copilotBillingSnapshots)
+    .innerJoin(
+      budgetPeriods,
+      and(
+        lte(budgetPeriods.startDate, copilotBillingSnapshots.billingMonth),
+        gt(budgetPeriods.endDate, copilotBillingSnapshots.billingMonth)
+      )
+    )
+    .innerJoin(annualBudgets, and(
+      eq(budgetPeriods.budgetId, annualBudgets.id),
+      eq(annualBudgets.status, "active")
+    ))
+    .innerJoin(
+      billedCosts,
+      and(
+        eq(billedCosts.periodId, budgetPeriods.id),
+        sql`${billedCosts.invoiceDate}::text LIKE substring(${copilotBillingSnapshots.billingMonth}::text from 1 for 7) || '%'`,
+        sql`(${billedCosts.vendorReference} IS NULL OR ${billedCosts.vendorReference} NOT LIKE 'github-billing-%')`,
+        sql`${billedCosts.description} ILIKE '%copilot%'`
+      )
+    )
+    .where(
+      and(
+        eq(copilotBillingSnapshots.connectionId, connectionId),
+        isNull(copilotBillingSnapshots.linkedBilledCostId)
+      )
+    );
+
+  return rows;
+}
+
+export async function getBillingSyncConflicts(): Promise<ActionResult<BillingSyncConflict[]>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const connection = await getActiveConnection();
+  if (!connection) {
+    return { success: true, data: [] };
+  }
+
+  const conflicts = await findBillingSyncConflicts(connection.id);
+  return { success: true, data: conflicts };
+}
+
 export async function getCopilotBilling(
   input?: unknown
 ): Promise<ActionResult<CopilotBillingData>> {
@@ -384,12 +497,62 @@ export async function getCopilotBilling(
   if (since) conditions.push(gte(copilotBillingSnapshots.billingMonth, since));
   if (until) conditions.push(lte(copilotBillingSnapshots.billingMonth, until));
 
-  // Query billing snapshots ordered by month
+  // Query billing snapshots with LEFT JOIN to billedCosts and budgetPeriods
   const snapshots = await db
-    .select()
+    .select({
+      id: copilotBillingSnapshots.id,
+      billingMonth: copilotBillingSnapshots.billingMonth,
+      planType: copilotBillingSnapshots.planType,
+      totalSeats: copilotBillingSnapshots.totalSeats,
+      activeSeats: copilotBillingSnapshots.activeSeats,
+      seatCostCents: copilotBillingSnapshots.seatCostCents,
+      totalCostCents: copilotBillingSnapshots.totalCostCents,
+      linkedBilledCostId: copilotBillingSnapshots.linkedBilledCostId,
+      periodLabel: budgetPeriods.periodLabel,
+      periodId: billedCosts.periodId,
+      periodPlannedAmountCents: budgetPeriods.plannedAmountCents,
+    })
     .from(copilotBillingSnapshots)
+    .leftJoin(
+      billedCosts,
+      eq(copilotBillingSnapshots.linkedBilledCostId, billedCosts.id)
+    )
+    .leftJoin(budgetPeriods, eq(billedCosts.periodId, budgetPeriods.id))
     .where(and(...conditions))
     .orderBy(asc(copilotBillingSnapshots.billingMonth));
+
+  // For linked snapshots, compute period utilization (sum of period billedCosts / plannedAmountCents)
+  const periodIds = new Set<number>();
+  for (const s of snapshots) {
+    if (s.periodId !== null) {
+      periodIds.add(s.periodId);
+    }
+  }
+
+  const periodUtilizationMap = new Map<number, number>();
+  if (periodIds.size > 0) {
+    const periodIdArray = Array.from(periodIds);
+    const periodSums = await db
+      .select({
+        periodId: billedCosts.periodId,
+        totalBilledCents: sum(billedCosts.amountCents),
+      })
+      .from(billedCosts)
+      .where(inArray(billedCosts.periodId, periodIdArray))
+      .groupBy(billedCosts.periodId);
+
+    for (const ps of periodSums) {
+      const totalBilled = Number(ps.totalBilledCents ?? 0);
+      periodUtilizationMap.set(ps.periodId, totalBilled);
+    }
+  }
+
+  // Get conflicts for unlinked snapshots (to determine "conflict" vs "unlinked" status)
+  const conflicts = await findBillingSyncConflicts(connection.id);
+  const conflictMonths = new Set<string>();
+  for (const c of conflicts) {
+    conflictMonths.add(c.billingMonth);
+  }
 
   // Current month = latest snapshot
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
@@ -406,15 +569,36 @@ export async function getCopilotBilling(
       ? Math.round(latestSnapshot.totalCostCents / latestSnapshot.activeSeats)
       : 0;
 
-  // Build trends
-  const trends = snapshots.map((s) => ({
-    month: s.billingMonth,
-    totalCostCents: s.totalCostCents,
-    totalSeats: s.totalSeats,
-    activeSeats: s.activeSeats,
-    costPerActiveUserCents:
-      s.activeSeats > 0 ? Math.round(s.totalCostCents / s.activeSeats) : 0,
-  }));
+  // Build trends with budget context
+  const trends = snapshots.map((s) => {
+    let linkStatus: "linked" | "unlinked" | "conflict" = "unlinked";
+    if (s.linkedBilledCostId !== null) {
+      linkStatus = "linked";
+    } else if (conflictMonths.has(s.billingMonth)) {
+      linkStatus = "conflict";
+    }
+
+    let linkedPeriodUtilization: number | null = null;
+    if (s.periodId !== null && s.periodPlannedAmountCents !== null && s.periodPlannedAmountCents > 0) {
+      const totalBilled = periodUtilizationMap.get(s.periodId) ?? 0;
+      linkedPeriodUtilization = Math.round(
+        (totalBilled / s.periodPlannedAmountCents) * 100
+      );
+    }
+
+    return {
+      month: s.billingMonth,
+      totalCostCents: s.totalCostCents,
+      totalSeats: s.totalSeats,
+      activeSeats: s.activeSeats,
+      costPerActiveUserCents:
+        s.activeSeats > 0 ? Math.round(s.totalCostCents / s.activeSeats) : 0,
+      linkedBilledCostId: s.linkedBilledCostId,
+      linkedPeriodLabel: s.periodLabel ?? null,
+      linkedPeriodUtilization,
+      linkStatus,
+    };
+  });
 
   return {
     success: true,
