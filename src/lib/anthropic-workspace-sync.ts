@@ -49,6 +49,7 @@ const costBucketSchema = z.object({
 const costReportResponseSchema = z.object({
   data: z.array(costBucketSchema),
   has_more: z.boolean(),
+  next_page: z.string().nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -171,8 +172,8 @@ export async function fetchAndUpsertWorkspaceCosts(
   const startDate = format(startOfMonth(refDate), "yyyy-MM-dd");
   const endDate = format(endOfMonth(refDate), "yyyy-MM-dd");
 
-  // Build query string (array params must use [] syntax)
-  const parts = [
+  // Build base query string (array params must use [] syntax)
+  const baseParts = [
     "group_by[]=workspace_id",
     `starting_at=${encodeURIComponent(startDate)}`,
     `ending_at=${encodeURIComponent(endDate)}`,
@@ -180,20 +181,35 @@ export async function fetchAndUpsertWorkspaceCosts(
   ];
 
   const baseUrl = "https://api.anthropic.com/v1/organizations/cost_report";
-  const res = await fetch(`${baseUrl}?${parts.join("&")}`, {
-    headers: {
-      "x-api-key": adminKey,
-      "anthropic-version": ANTHROPIC_API_VERSION,
-      "Content-Type": "application/json",
-    },
-  });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Anthropic cost_report API error ${res.status}: ${body}`);
-  }
+  // Paginate through all result pages (cost_report uses next_page cursor)
+  const allBuckets: z.infer<typeof costBucketSchema>[] = [];
+  let nextPage: string | null = null;
+  let pageCount = 0;
 
-  const response = costReportResponseSchema.parse(await res.json());
+  do {
+    const parts = nextPage
+      ? [...baseParts, `page=${encodeURIComponent(nextPage)}`]
+      : baseParts;
+
+    const res = await fetch(`${baseUrl}?${parts.join("&")}`, {
+      headers: {
+        "x-api-key": adminKey,
+        "anthropic-version": ANTHROPIC_API_VERSION,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Anthropic cost_report API error ${res.status}: ${body}`);
+    }
+
+    const page = costReportResponseSchema.parse(await res.json());
+    allBuckets.push(...page.data);
+    pageCount++;
+    nextPage = page.has_more && page.next_page ? page.next_page : null;
+  } while (nextPage);
 
   // Collect rows into two buckets for batch upserts
   const now = new Date();
@@ -202,7 +218,7 @@ export async function fetchAndUpsertWorkspaceCosts(
   const namedRows: { workspaceId: string; date: string; costCents: number; updatedAt: Date }[] = [];
   const defaultRows: { workspaceId: null; date: string; costCents: number; updatedAt: Date }[] = [];
 
-  for (const bucket of response.data) {
+  for (const bucket of allBuckets) {
     const date = bucket.starting_at.split("T")[0];
     for (const result of bucket.results) {
       const costCents = Math.round(parseFloat(result.amount) * 100);
@@ -215,23 +231,19 @@ export async function fetchAndUpsertWorkspaceCosts(
     }
   }
 
-  // Diagnostic: log API response summary to server logs for debugging
+  // Diagnostic: log API response summary — check Vercel/server logs after sync
   const apiTotalCents = [...namedRows, ...defaultRows].reduce((s, r) => s + r.costCents, 0);
   console.log(
-    `[workspace-costs] API returned ${response.data.length} buckets, ${rowsUpserted} results. ` +
-    `has_more=${response.has_more}. ` +
+    `[workspace-costs] ${pageCount} page(s), ${allBuckets.length} buckets, ${rowsUpserted} results. ` +
     `API total: $${(apiTotalCents / 100).toFixed(2)} ` +
-    `(named=${namedRows.length} rows $${(namedRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)}, ` +
-    `default=${defaultRows.length} rows $${(defaultRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)})`
+    `(named=${namedRows.length} $${(namedRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)}, ` +
+    `default=${defaultRows.length} $${(defaultRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)})`
   );
-  if (response.data.length > 0) {
-    console.log(`[workspace-costs] Sample buckets:`,
-      response.data.slice(0, 3).map(b => ({
-        date: b.starting_at.split("T")[0],
-        results: b.results.map(r => ({ ws: r.workspace_id, amount: r.amount })),
-      }))
-    );
-  }
+  // Log raw amount values from first few results for unit diagnosis
+  const sampleResults = allBuckets.slice(0, 3).flatMap(b =>
+    b.results.map(r => ({ date: b.starting_at.split("T")[0], ws: r.workspace_id, amount: r.amount }))
+  );
+  console.log("[workspace-costs] Sample results (raw amounts):", JSON.stringify(sampleResults, null, 2));
 
   // Use raw SQL upserts to correctly target partial indexes.
   // Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT,
