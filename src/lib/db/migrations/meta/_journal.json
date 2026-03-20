@@ -71,6 +71,13 @@
       "when": 1773135718632,
       "tag": "0009_quick_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774024602162,
+      "tag": "0010_naive_joshua_kane",
+      "breakpoints": true
     }
   ]
 }

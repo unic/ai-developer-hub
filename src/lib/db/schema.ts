@@ -60,6 +60,28 @@ export const inviteTokenStatusEnum = pgEnum("invite_token_status", [
   "invalidated",
 ]);
 
+// Sync framework enums (019-invoice-automations)
+export const syncSourceTypeEnum = pgEnum("sync_source_type", [
+  "github_copilot_billing",
+  "anthropic_api_usage",
+  "anthropic_team_invoices",
+  "github_members",
+  "invoice_period_matching",
+  "anthropic_workspace_sync",
+]);
+
+export const syncOutcomeEnum = pgEnum("sync_outcome", [
+  "in_progress",
+  "success",
+  "partial",
+  "failed",
+]);
+
+export const syncOperationTypeEnum = pgEnum("sync_operation_type", [
+  "regular",
+  "backfill",
+]);
+
 // Users
 export const users = pgTable(
   "users",
@@ -289,7 +311,9 @@ export const billedCosts = pgTable(
     amountCents: integer("amount_cents").notNull(),
     invoiceDate: date("invoice_date").notNull(),
     description: varchar("description", { length: 500 }).notNull(),
-    vendorReference: varchar("vendor_reference", { length: 255 }),
+    vendorReference: varchar("vendor_reference", { length: 255 })
+      .notNull()
+      .default(""),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -535,6 +559,92 @@ export const anthropicSyncStatus = pgTable(
   (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
 );
 
+// Sync Sources (019-invoice-automations)
+export const syncSources = pgTable(
+  "sync_sources",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: syncSourceTypeEnum("source_type").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    cronSchedule: varchar("cron_schedule", { length: 100 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("sync_sources_source_type_idx").on(table.sourceType)]
+);
+
+// Sync Events (019-invoice-automations)
+export const syncEvents = pgTable(
+  "sync_events",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: syncSourceTypeEnum("source_type").notNull(),
+    operationType: syncOperationTypeEnum("operation_type")
+      .notNull()
+      .default("regular"),
+    backfillStartDate: date("backfill_start_date"),
+    outcome: syncOutcomeEnum("outcome").notNull().default("in_progress"),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+    triggeredBy: integer("triggered_by").references(() => users.id),
+    createdCount: integer("created_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("sync_events_source_type_idx").on(table.sourceType),
+    index("sync_events_outcome_idx").on(table.outcome),
+    index("sync_events_started_at_idx").on(table.startedAt),
+    index("sync_events_source_started_idx").on(
+      table.sourceType,
+      table.startedAt
+    ),
+  ]
+);
+
+// Anthropic Workspaces (workspace metadata cache)
+export const anthropicWorkspaces = pgTable(
+  "anthropic_workspaces",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    name: varchar("name", { length: 255 }).notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    isArchived: boolean("is_archived").notNull().default(false),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_workspaces_workspace_id_idx").on(table.workspaceId),
+  ]
+);
+
+// Anthropic Workspace Costs (daily cost per workspace from cost_report API)
+export const anthropicWorkspaceCosts = pgTable(
+  "anthropic_workspace_costs",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    date: date("date").notNull(),
+    costCents: integer("cost_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_workspace_costs_ws_date_idx")
+      .on(table.workspaceId, table.date)
+      .where(sql`${table.workspaceId} IS NOT NULL`),
+    uniqueIndex("anthropic_workspace_costs_null_ws_date_idx")
+      .on(table.date)
+      .where(sql`${table.workspaceId} IS NULL`),
+    index("anthropic_workspace_costs_date_idx").on(table.date),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
@@ -721,3 +831,10 @@ export const anthropicSyncStatusRelations = relations(
     }),
   })
 );
+
+export const syncEventsRelations = relations(syncEvents, ({ one }) => ({
+  triggeredByUser: one(users, {
+    fields: [syncEvents.triggeredBy],
+    references: [users.id],
+  }),
+}));
