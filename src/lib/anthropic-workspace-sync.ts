@@ -139,9 +139,8 @@ export async function fetchAndUpsertWorkspaces(): Promise<number> {
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      targetWhere: sql`${anthropicWorkspaces.workspaceId} IS NULL`,
-      // Use a column that always exists on the table as a no-op conflict target for the partial index
       target: anthropicWorkspaces.isDefault,
+      targetWhere: sql`${anthropicWorkspaces.isDefault} = true`,
       set: {
         lastSeenAt: sql`excluded.last_seen_at`,
         updatedAt: sql`excluded.updated_at`,
