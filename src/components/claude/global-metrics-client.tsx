@@ -26,6 +26,7 @@ import { MonthPicker } from "@/components/profile/month-picker";
 import { getGlobalCostDashboard } from "@/actions/anthropic-global";
 import { formatDistanceToNow } from "date-fns";
 import type { GlobalCostDashboardData } from "@/types";
+import { formatCurrency } from "@/lib/utils";
 
 type GlobalMetricsClientProps = {
   initialData: GlobalCostDashboardData;
@@ -40,15 +41,6 @@ const chartConfig = {
   cost: { label: "Cost (USD)", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
 export function GlobalMetricsClient({
   initialData,
   availableMonths,
@@ -62,21 +54,26 @@ export function GlobalMetricsClient({
 
   function handleMonthChange(newMonth: string) {
     setSelectedMonth(newMonth);
-    setSelectedWorkspace(ALL_WORKSPACES);
     startTransition(async () => {
       const data = await getGlobalCostDashboard(newMonth);
       setDashboardData(data);
     });
   }
 
-  const displayDailyTotals = useMemo(() => {
+  const { displayDailyTotals, displayTotal } = useMemo(() => {
     if (selectedWorkspace === ALL_WORKSPACES) {
-      return dashboardData.dailyTotals;
+      return {
+        displayDailyTotals: dashboardData.dailyTotals,
+        displayTotal: dashboardData.grandTotalCents,
+      };
     }
     const ws = dashboardData.workspaceBreakdown.find(
       (w) => (w.workspaceId ?? "__null__") === selectedWorkspace
     );
-    return ws?.dailyTotals ?? [];
+    return {
+      displayDailyTotals: ws?.dailyTotals ?? [],
+      displayTotal: ws?.totalCents ?? 0,
+    };
   }, [dashboardData, selectedWorkspace]);
 
   const chartData = useMemo(
@@ -87,16 +84,6 @@ export function GlobalMetricsClient({
       })),
     [displayDailyTotals]
   );
-
-  const displayTotal = useMemo(() => {
-    if (selectedWorkspace === ALL_WORKSPACES) {
-      return dashboardData.grandTotalCents;
-    }
-    const ws = dashboardData.workspaceBreakdown.find(
-      (w) => (w.workspaceId ?? "__null__") === selectedWorkspace
-    );
-    return ws?.totalCents ?? 0;
-  }, [dashboardData, selectedWorkspace]);
 
   return (
     <div className="space-y-4">
@@ -141,7 +128,7 @@ export function GlobalMetricsClient({
             {isPending ? (
               <span className="animate-pulse text-muted-foreground">Loading…</span>
             ) : (
-              formatCents(displayTotal)
+              formatCurrency(displayTotal)
             )}
           </CardTitle>
         </CardHeader>

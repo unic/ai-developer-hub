@@ -190,8 +190,8 @@ describe("fetchAndUpsertWorkspaceCosts — null workspaceId handling", () => {
     // Track all onConflictDoUpdate calls to inspect the targets used
     const onConflictDoUpdateCalls: unknown[] = [];
     mockInsertValues.mockImplementation(() => ({
-      onConflictDoUpdate: vi.fn((opts: unknown) => {
-        onConflictDoUpdateCalls.push(opts);
+      onConflictDoUpdate: vi.fn((...args: unknown[]) => {
+        onConflictDoUpdateCalls.push(args[0]);
         return Promise.resolve();
       }),
       onConflictDoNothing: vi.fn(() => Promise.resolve()),
@@ -237,8 +237,8 @@ describe("fetchAndUpsertWorkspaceCosts — null workspaceId handling", () => {
 
     const onConflictDoUpdateCalls: unknown[] = [];
     mockInsertValues.mockImplementation(() => ({
-      onConflictDoUpdate: vi.fn((opts: unknown) => {
-        onConflictDoUpdateCalls.push(opts);
+      onConflictDoUpdate: vi.fn((...args: unknown[]) => {
+        onConflictDoUpdateCalls.push(args[0]);
         return Promise.resolve();
       }),
       onConflictDoNothing: vi.fn(() => Promise.resolve()),

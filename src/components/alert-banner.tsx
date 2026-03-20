@@ -39,7 +39,7 @@ export function AlertBanner({ alerts }: { alerts: ActiveAlertsData | null }) {
   return (
     <div role="region" aria-label="Budget alerts" className="border-b bg-background px-4 py-2">
       <div aria-live="polite" className="sr-only">
-        {!announced && `${alerts.workspaceAlerts.length} budget alert${alerts.workspaceAlerts.length > 1 ? "s" : ""}`}
+        {announced && `${alerts.workspaceAlerts.length} budget alert${alerts.workspaceAlerts.length > 1 ? "s" : ""}`}
       </div>
       <Alert variant="destructive" className="relative border-0 bg-transparent py-2">
         <AlertTriangle className="size-4" />

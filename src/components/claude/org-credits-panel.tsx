@@ -13,15 +13,9 @@ import { Input } from "@/components/ui/input";
 import { setOrgBillingBudget } from "@/actions/anthropic-global";
 import { toast } from "sonner";
 import type { OrgCreditsStatus } from "@/types";
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatCurrency } from "@/lib/utils";
+import { Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type OrgCreditsPanelProps = {
   orgConfig: { billingBudgetLimitCents: number | null } | null;
@@ -32,7 +26,7 @@ type OrgCreditsPanelProps = {
 export function OrgCreditsPanel({
   orgConfig,
   currentMonthTotalCents,
-  creditsStatus: _creditsStatus,
+  creditsStatus,
 }: OrgCreditsPanelProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(
@@ -66,68 +60,93 @@ export function OrgCreditsPanel({
       : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Monthly Billing Budget</CardTitle>
-        <CardDescription>
-          Org-wide monthly spend limit for Claude API usage.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Current month spend</p>
-            <p className="text-xl font-semibold tabular-nums">
-              {formatCents(currentMonthTotalCents)}
-            </p>
-            {limitCents != null && (
-              <p className="text-sm text-muted-foreground">
-                {utilizationPct ?? 0}% of {formatCents(limitCents)} budget
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Monthly Billing Budget</CardTitle>
+          <CardDescription>
+            Org-wide monthly spend limit for Claude API usage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Current month spend</p>
+              <p className="text-xl font-semibold tabular-nums">
+                {formatCurrency(currentMonthTotalCents)}
               </p>
-            )}
-          </div>
+              {limitCents != null && (
+                <p className="text-sm text-muted-foreground">
+                  {utilizationPct ?? 0}% of {formatCurrency(limitCents)} budget
+                </p>
+              )}
+            </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            {editing ? (
-              <>
-                <div className="flex items-center gap-1">
-                  <span className="text-sm text-muted-foreground">$</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    className="w-32"
-                    placeholder="No limit"
-                    autoFocus
-                  />
-                </div>
-                <Button size="sm" onClick={handleSave} disabled={isPending}>
-                  {isPending ? "Saving…" : "Save"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditing(false)}
-                  disabled={isPending}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="text-sm text-muted-foreground">
-                  {limitCents != null ? formatCents(limitCents) : "No budget set"}
-                </span>
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                  {limitCents != null ? "Edit budget" : "Set budget"}
-                </Button>
-              </>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {editing ? (
+                <>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      className="w-32"
+                      placeholder="No limit"
+                      autoFocus
+                    />
+                  </div>
+                  <Button size="sm" onClick={handleSave} disabled={isPending}>
+                    {isPending ? "Saving…" : "Save"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditing(false)}
+                    disabled={isPending}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm text-muted-foreground">
+                    {limitCents != null ? formatCurrency(limitCents) : "No budget set"}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                    {limitCents != null ? "Edit budget" : "Set budget"}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Credit Balance</CardTitle>
+          <CardDescription>Remaining Anthropic credits for this org.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <Info className="size-4" />
+            <AlertDescription>
+              Credit balance is not available via the Anthropic API.{" "}
+              <a
+                href="https://console.anthropic.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-4"
+              >
+                View in Anthropic Console
+              </a>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import {
   anthropicWorkspaceCosts,
@@ -21,15 +21,6 @@ import type {
 import { syncAnthropicWorkspaces } from "@/lib/anthropic-workspace-sync";
 
 // ---------------------------------------------------------------------------
-// Auth helper
-// ---------------------------------------------------------------------------
-
-async function assertAdmin(): Promise<boolean> {
-  const session = await auth();
-  return !!(session?.user && session.user.role === "admin");
-}
-
-// ---------------------------------------------------------------------------
 // getGlobalCostDashboard (T014)
 // ---------------------------------------------------------------------------
 
@@ -47,8 +38,10 @@ async function _getGlobalCostDashboard(month: string): Promise<GlobalCostDashboa
       sql`${anthropicWorkspaceCosts.date} >= ${startDate}::date AND ${anthropicWorkspaceCosts.date} <= ${endDate}::date`
     );
 
-  // Fetch all workspaces
-  const workspaceRows = await db.select().from(anthropicWorkspaces);
+  // Fetch only the fields needed to build the workspace name map
+  const workspaceRows = await db
+    .select({ workspaceId: anthropicWorkspaces.workspaceId, name: anthropicWorkspaces.name })
+    .from(anthropicWorkspaces);
 
   // Build workspace map (workspaceId -> name)
   const workspaceMap = new Map<string | null, string>();
@@ -102,8 +95,8 @@ async function _getGlobalCostDashboard(month: string): Promise<GlobalCostDashboa
 export async function getGlobalCostDashboard(
   month?: string
 ): Promise<GlobalCostDashboardData> {
-  const isAdmin = await assertAdmin();
-  if (!isAdmin) {
+  const admin = await requireAdmin();
+  if (!admin) {
     return { grandTotalCents: 0, dailyTotals: [], workspaceBreakdown: [] };
   }
 
@@ -189,8 +182,8 @@ async function _getWorkspaceList(): Promise<WorkspaceListItem[]> {
 }
 
 export async function getWorkspaceList(): Promise<WorkspaceListItem[]> {
-  const isAdmin = await assertAdmin();
-  if (!isAdmin) return [];
+  const admin = await requireAdmin();
+  if (!admin) return [];
 
   return unstable_cache(
     _getWorkspaceList,
@@ -213,8 +206,8 @@ export async function setWorkspaceLimit(
   workspaceId: string | null,
   limitCents: number | null
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const isAdmin = await assertAdmin();
-  if (!isAdmin) return { success: false, error: "Unauthorized" };
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = limitSchema.safeParse(limitCents);
   if (!parsed.success) {
@@ -267,8 +260,8 @@ async function _getOrgConfig(): Promise<{ billingBudgetLimitCents: number | null
 }
 
 export async function getOrgConfig(): Promise<{ billingBudgetLimitCents: number | null } | null> {
-  const isAdmin = await assertAdmin();
-  if (!isAdmin) return null;
+  const admin = await requireAdmin();
+  if (!admin) return null;
 
   return unstable_cache(
     _getOrgConfig,
@@ -286,8 +279,8 @@ const billingBudgetSchema = z.number().int().positive().nullable();
 export async function setOrgBillingBudget(
   limitCents: number | null
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const isAdmin = await assertAdmin();
-  if (!isAdmin) return { success: false, error: "Unauthorized" };
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = billingBudgetSchema.safeParse(limitCents);
   if (!parsed.success) {
@@ -327,8 +320,8 @@ export async function getOrgCreditsStatus(): Promise<OrgCreditsStatus> {
 export async function syncWorkspacesManual(): Promise<
   { success: true } | { success: false; error: string }
 > {
-  const isAdmin = await assertAdmin();
-  if (!isAdmin) return { success: false, error: "Unauthorized" };
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
     await syncAnthropicWorkspaces();

@@ -7,7 +7,6 @@ import {
   getAvailableWorkspaceCostMonths,
   getWorkspaceList,
   getOrgConfig,
-  getOrgCreditsStatus,
 } from "@/actions/anthropic-global";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
@@ -41,11 +40,11 @@ export default async function ClaudePage() {
     return <EmptyState />;
   }
 
-  const [dashboardData, workspaceList, orgConfig, creditsStatus] = await Promise.all([
+  const creditsStatus = { available: false as const, reason: "not_exposed_by_api" as const };
+  const [dashboardData, workspaceList, orgConfig] = await Promise.all([
     getGlobalCostDashboard(currentMonth),
     getWorkspaceList(),
     getOrgConfig(),
-    getOrgCreditsStatus(),
   ]);
 
   return (

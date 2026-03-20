@@ -13,15 +13,7 @@ import { Input } from "@/components/ui/input";
 import { setWorkspaceLimit } from "@/actions/anthropic-global";
 import { toast } from "sonner";
 import type { WorkspaceListItem } from "@/types";
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatCurrency } from "@/lib/utils";
 
 type WorkspaceBudgetRowProps = {
   workspace: WorkspaceListItem;
@@ -51,9 +43,9 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
   const utilizationColor =
     workspace.utilizationPct == null
       ? ""
-      : workspace.utilizationPct >= 90
+      : workspace.utilizationPct >= 100
       ? "bg-destructive"
-      : workspace.utilizationPct >= 75
+      : workspace.utilizationPct >= 80
       ? "bg-yellow-500"
       : "";
 
@@ -69,7 +61,7 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
           )}
         </div>
         <p className="text-sm text-muted-foreground">
-          {formatCents(workspace.currentMonthCents)} this month
+          {formatCurrency(workspace.currentMonthCents)} this month
         </p>
         {workspace.limitCents != null && (
           <div className="mt-1 space-y-1">
@@ -80,7 +72,7 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              {workspace.utilizationPct ?? 0}% of {formatCents(workspace.limitCents)} limit
+              {workspace.utilizationPct ?? 0}% of {formatCurrency(workspace.limitCents)} limit
             </p>
           </div>
         )}
@@ -117,7 +109,7 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
         ) : (
           <>
             <span className="text-sm text-muted-foreground">
-              {workspace.limitCents != null ? formatCents(workspace.limitCents) : "No limit"}
+              {workspace.limitCents != null ? formatCurrency(workspace.limitCents) : "No limit"}
             </span>
             <Button
               size="sm"

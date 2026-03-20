@@ -95,22 +95,24 @@ export async function fetchAndUpsertWorkspaces(): Promise<number> {
     }
   } while (lastId !== null);
 
-  // Upsert each workspace
+  // Batch upsert all workspaces in a single statement
   const now = new Date();
-  for (const ws of allWorkspaces) {
+  if (allWorkspaces.length > 0) {
     await db
       .insert(anthropicWorkspaces)
-      .values({
-        workspaceId: ws.id,
-        name: ws.name,
-        displayColor: ws.display_color,
-        isDefault: false,
-        isArchived: ws.archived_at !== null,
-        archivedAt: ws.archived_at ? new Date(ws.archived_at) : null,
-        anthropicCreatedAt: new Date(ws.created_at),
-        lastSeenAt: now,
-        updatedAt: now,
-      })
+      .values(
+        allWorkspaces.map((ws) => ({
+          workspaceId: ws.id,
+          name: ws.name,
+          displayColor: ws.display_color,
+          isDefault: false,
+          isArchived: ws.archived_at !== null,
+          archivedAt: ws.archived_at ? new Date(ws.archived_at) : null,
+          anthropicCreatedAt: new Date(ws.created_at),
+          lastSeenAt: now,
+          updatedAt: now,
+        }))
+      )
       .onConflictDoUpdate({
         target: anthropicWorkspaces.workspaceId,
         targetWhere: sql`${anthropicWorkspaces.workspaceId} IS NOT NULL`,
@@ -195,57 +197,52 @@ export async function fetchAndUpsertWorkspaceCosts(
 
   const response = costReportResponseSchema.parse(await res.json());
 
-  // Upsert each (workspaceId, date) pair
+  // Collect rows into two buckets for batch upserts
   const now = new Date();
   let rowsUpserted = 0;
 
+  const namedRows: { workspaceId: string; date: string; costCents: number; updatedAt: Date }[] = [];
+  const defaultRows: { workspaceId: null; date: string; costCents: number; updatedAt: Date }[] = [];
+
   for (const bucket of response.data) {
     const date = bucket.start_time.split("T")[0];
-
     for (const result of bucket.results) {
       const costCents = Math.round(result.amount.value * 100);
-      const workspaceId = result.workspace_id;
-
-      if (workspaceId !== null) {
-        // Non-null workspace: upsert on (workspaceId, date) partial index
-        await db
-          .insert(anthropicWorkspaceCosts)
-          .values({
-            workspaceId,
-            date,
-            costCents,
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: [anthropicWorkspaceCosts.workspaceId, anthropicWorkspaceCosts.date],
-            targetWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NOT NULL`,
-            set: {
-              costCents: sql`excluded.cost_cents`,
-              updatedAt: sql`excluded.updated_at`,
-            },
-          });
+      if (result.workspace_id !== null) {
+        namedRows.push({ workspaceId: result.workspace_id, date, costCents, updatedAt: now });
       } else {
-        // Null workspaceId: upsert on date-only partial index
-        await db
-          .insert(anthropicWorkspaceCosts)
-          .values({
-            workspaceId: null,
-            date,
-            costCents,
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: anthropicWorkspaceCosts.date,
-            targetWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NULL`,
-            set: {
-              costCents: sql`excluded.cost_cents`,
-              updatedAt: sql`excluded.updated_at`,
-            },
-          });
+        defaultRows.push({ workspaceId: null, date, costCents, updatedAt: now });
       }
-
       rowsUpserted++;
     }
+  }
+
+  if (namedRows.length > 0) {
+    await db
+      .insert(anthropicWorkspaceCosts)
+      .values(namedRows)
+      .onConflictDoUpdate({
+        target: [anthropicWorkspaceCosts.workspaceId, anthropicWorkspaceCosts.date],
+        targetWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NOT NULL`,
+        set: {
+          costCents: sql`excluded.cost_cents`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
+  }
+
+  if (defaultRows.length > 0) {
+    await db
+      .insert(anthropicWorkspaceCosts)
+      .values(defaultRows)
+      .onConflictDoUpdate({
+        target: anthropicWorkspaceCosts.date,
+        targetWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NULL`,
+        set: {
+          costCents: sql`excluded.cost_cents`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
   }
 
   return rowsUpserted;
