@@ -226,13 +226,26 @@ export async function setWorkspaceLimit(
           .delete(anthropicWorkspaceLimits)
           .where(eq(anthropicWorkspaceLimits.workspaceId, workspaceId));
       }
+    } else if (workspaceId === null) {
+      // Default workspace: no ON CONFLICT on nullable column — use explicit update-or-insert
+      // Wrapped in a transaction to prevent a race between the update and the fallback insert.
+      await db.transaction(async (tx) => {
+        const updated = await tx
+          .update(anthropicWorkspaceLimits)
+          .set({ limitCents, updatedAt: new Date() })
+          .where(sql`${anthropicWorkspaceLimits.workspaceId} IS NULL`);
+        if (updated.rowCount === 0) {
+          await tx.insert(anthropicWorkspaceLimits).values({ workspaceId: null, limitCents });
+        }
+      });
     } else {
-      // Upsert
+      // Named workspace: target the partial unique index (workspaceId IS NOT NULL)
       await db
         .insert(anthropicWorkspaceLimits)
         .values({ workspaceId, limitCents })
         .onConflictDoUpdate({
           target: [anthropicWorkspaceLimits.workspaceId],
+          targetWhere: sql`${anthropicWorkspaceLimits.workspaceId} IS NOT NULL`,
           set: { limitCents, updatedAt: new Date() },
         });
     }
