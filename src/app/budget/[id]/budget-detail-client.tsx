@@ -11,6 +11,7 @@ import {
 } from "@/actions/budget";
 import { formatCurrency, formatDate, formatVariance, varianceClassName } from "@/lib/utils";
 import type { BudgetWithCosts, PeriodWithCosts, BilledCost } from "@/types";
+import type { RunningCostData } from "./page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +67,7 @@ interface Props {
   budget: BudgetWithCosts;
   toolBreakdown: ToolSpend[];
   isAdmin: boolean;
+  runningCosts?: Record<number, RunningCostData>;
 }
 
 // Billed cost form state
@@ -87,6 +89,7 @@ export function BudgetDetailClient({
   budget,
   toolBreakdown,
   isAdmin,
+  runningCosts = {},
 }: Props) {
   const router = useRouter();
   const periods = budget.periods;
@@ -121,6 +124,11 @@ export function BudgetDetailClient({
   const totalExpected = periods.reduce((s, p) => s + p.expectedSpendCents, 0);
   const totalBilled = periods.reduce((s, p) => s + p.billedTotalCents, 0);
   const totalBilledVariance = totalBilled - totalExpected;
+  const totalRunning = Object.values(runningCosts).reduce(
+    (s, rc) => s + rc.runningCostCents,
+    0
+  );
+  const hasRunningCosts = totalRunning > 0;
 
   function togglePeriod(periodId: number) {
     setExpandedPeriods((prev) => {
@@ -304,6 +312,37 @@ export function BudgetDetailClient({
         </Card>
       </div>
 
+      {hasRunningCosts && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Running Costs (API)</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {formatCurrency(totalRunning)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Combined Total</p>
+              <p className="text-2xl font-bold">
+                {formatCurrency(totalBilled + totalRunning)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Combined vs Expected</p>
+              <p
+                className={`text-2xl font-bold ${varianceClassName(totalBilled + totalRunning - totalExpected)}`}
+              >
+                {formatVariance(totalBilled + totalRunning - totalExpected)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Period Allocations &amp; Billed Costs</CardTitle>
@@ -318,6 +357,7 @@ export function BudgetDetailClient({
                   <TableHead>Planned</TableHead>
                   <TableHead>Expected</TableHead>
                   <TableHead>Billed</TableHead>
+                  {hasRunningCosts && <TableHead>Running</TableHead>}
                   <TableHead>Variance (Billed - Expected)</TableHead>
                   <TableHead>% Diff</TableHead>
                   {isAdmin && !isArchived && <TableHead className="w-10" />}
@@ -335,8 +375,10 @@ export function BudgetDetailClient({
                       : 0;
                   const isOverBilled = billed > expected * 1.1;
                   const isExpanded = expandedPeriods.has(period.id);
+                  const periodRunning = runningCosts[period.id];
                   const hasEntries =
-                    period.billedEntries && period.billedEntries.length > 0;
+                    (period.billedEntries && period.billedEntries.length > 0) ||
+                    !!periodRunning;
 
                   return (
                     <Fragment key={period.id}>
@@ -387,6 +429,13 @@ export function BudgetDetailClient({
                         </TableCell>
                         <TableCell>{formatCurrency(expected)}</TableCell>
                         <TableCell>{formatCurrency(billed)}</TableCell>
+                        {hasRunningCosts && (
+                          <TableCell className="text-blue-600 dark:text-blue-400">
+                            {periodRunning
+                              ? formatCurrency(periodRunning.runningCostCents)
+                              : "-"}
+                          </TableCell>
+                        )}
                         <TableCell className={varianceClassName(variance)}>
                           {formatVariance(variance)}
                         </TableCell>
@@ -411,60 +460,117 @@ export function BudgetDetailClient({
                           </TableCell>
                         )}
                       </TableRow>
-                      {isExpanded &&
-                        period.billedEntries?.map((entry) => (
-                          <TableRow
-                            key={`billed-${entry.id}`}
-                            className="bg-muted/30"
-                          >
-                            <TableCell />
-                            <TableCell
-                              colSpan={2}
-                              className="text-sm text-muted-foreground pl-8"
+                      {isExpanded && (
+                        <>
+                          {period.billedEntries?.map((entry) => (
+                            <TableRow
+                              key={`billed-${entry.id}`}
+                              className="bg-muted/30"
                             >
-                              <span className="font-medium">
-                                {entry.description}
-                              </span>
-                              {entry.vendorReference && (
-                                <span className="ml-2 text-xs">
-                                  (Ref: {entry.vendorReference})
+                              <TableCell />
+                              <TableCell
+                                colSpan={2}
+                                className="text-sm text-muted-foreground pl-8"
+                              >
+                                <span className="font-medium">
+                                  {entry.description}
                                 </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(entry.invoiceDate)}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {formatCurrency(entry.amountCents)}
-                            </TableCell>
-                            <TableCell />
-                            <TableCell />
-                            {isAdmin && !isArchived && (
-                              <TableCell className="px-2">
-                                <div className="flex gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-6"
-                                    onClick={() => openEditDialog(entry)}
-                                    title="Edit"
-                                  >
-                                    <Pencil className="size-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-6 text-destructive"
-                                    onClick={() => openDeleteDialog(entry)}
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="size-3" />
-                                  </Button>
-                                </div>
+                                {entry.vendorReference && (
+                                  <span className="ml-2 text-xs">
+                                    (Ref: {entry.vendorReference})
+                                  </span>
+                                )}
                               </TableCell>
-                            )}
-                          </TableRow>
-                        ))}
+                              <TableCell className="text-sm text-muted-foreground">
+                                {formatDate(entry.invoiceDate)}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {formatCurrency(entry.amountCents)}
+                              </TableCell>
+                              {hasRunningCosts && <TableCell />}
+                              <TableCell />
+                              <TableCell />
+                              {isAdmin && !isArchived && (
+                                <TableCell className="px-2">
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-6"
+                                      onClick={() => openEditDialog(entry)}
+                                      title="Edit"
+                                    >
+                                      <Pencil className="size-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-6 text-destructive"
+                                      onClick={() => openDeleteDialog(entry)}
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="size-3" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                          {periodRunning && (
+                            <TableRow
+                              key={`running-${period.id}`}
+                              className="bg-blue-50/50 dark:bg-blue-950/20"
+                            >
+                              <TableCell />
+                              <TableCell
+                                colSpan={2}
+                                className="text-sm pl-8"
+                              >
+                                <span className="font-medium text-blue-600 dark:text-blue-400">
+                                  Anthropic API (running)
+                                </span>
+                                {periodRunning.lastUpdatedAt && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    Updated{" "}
+                                    {formatDate(periodRunning.lastUpdatedAt)}
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell />
+                              <TableCell className="text-sm text-blue-600 dark:text-blue-400">
+                                {formatCurrency(periodRunning.runningCostCents)}
+                              </TableCell>
+                              {hasRunningCosts && <TableCell />}
+                              <TableCell />
+                              <TableCell />
+                              {isAdmin && !isArchived && <TableCell />}
+                            </TableRow>
+                          )}
+                          {periodRunning &&
+                            periodRunning.workspaceBreakdown?.map((ws) => (
+                              <TableRow
+                                key={`ws-${period.id}-${ws.workspaceName}`}
+                                className="bg-blue-50/30 dark:bg-blue-950/10"
+                              >
+                                <TableCell />
+                                <TableCell
+                                  colSpan={2}
+                                  className="text-xs text-muted-foreground pl-12"
+                                >
+                                  {ws.workspaceName}
+                                </TableCell>
+                                <TableCell />
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {formatCurrency(ws.costCents)}
+                                </TableCell>
+                                {hasRunningCosts && <TableCell />}
+                                <TableCell />
+                                <TableCell />
+                                {isAdmin && !isArchived && <TableCell />}
+                              </TableRow>
+                            ))}
+                        </>
+                      )}
                     </Fragment>
                   );
                 })}
@@ -474,12 +580,39 @@ export function BudgetDetailClient({
                   <TableCell>{formatCurrency(totalAllocated)}</TableCell>
                   <TableCell>{formatCurrency(totalExpected)}</TableCell>
                   <TableCell>{formatCurrency(totalBilled)}</TableCell>
+                  {hasRunningCosts && (
+                    <TableCell className="text-blue-600 dark:text-blue-400">
+                      {formatCurrency(totalRunning)}
+                    </TableCell>
+                  )}
                   <TableCell className={varianceClassName(totalBilledVariance)}>
                     {formatVariance(totalBilledVariance)}
                   </TableCell>
                   <TableCell />
                   {isAdmin && !isArchived && <TableCell />}
                 </TableRow>
+                {hasRunningCosts && (
+                  <TableRow className="font-bold border-t-2">
+                    <TableCell />
+                    <TableCell>Combined Total</TableCell>
+                    <TableCell />
+                    <TableCell />
+                    <TableCell colSpan={2}>
+                      {formatCurrency(totalBilled + totalRunning)}
+                    </TableCell>
+                    <TableCell
+                      className={varianceClassName(
+                        totalBilled + totalRunning - totalExpected
+                      )}
+                    >
+                      {formatVariance(
+                        totalBilled + totalRunning - totalExpected
+                      )}
+                    </TableCell>
+                    <TableCell />
+                    {isAdmin && !isArchived && <TableCell />}
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

@@ -3,6 +3,9 @@
 import { db } from "@/lib/db";
 import {
   anthropicUsageMetrics,
+  anthropicWorkspaceCosts,
+  anthropicWorkspaces,
+  budgetPeriods,
   licenseAssignments,
   aiTools,
   accessTiers,
@@ -423,4 +426,67 @@ export async function recalculateUnresolvedCosts(): Promise<
           : "Failed to recalculate unresolved costs",
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// getRunningCostsForPeriod — aggregate Anthropic workspace costs for a budget period
+// ---------------------------------------------------------------------------
+
+export async function getRunningCostsForPeriod(
+  periodId: number
+): Promise<{
+  runningCostCents: number;
+  lastUpdatedAt: string | null;
+  source: "anthropic_workspace_costs";
+  workspaceBreakdown?: Array<{ workspaceName: string; costCents: number }>;
+} | null> {
+  // Get the period's date range
+  const period = await db.query.budgetPeriods.findFirst({
+    where: eq(budgetPeriods.id, periodId),
+  });
+  if (!period) return null;
+
+  // Aggregate costs from anthropic_workspace_costs for this date range
+  const [totals] = await db
+    .select({
+      runningCostCents: sql<number>`COALESCE(SUM(${anthropicWorkspaceCosts.costCents}), 0)`,
+      lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
+    })
+    .from(anthropicWorkspaceCosts)
+    .where(
+      and(
+        sql`${anthropicWorkspaceCosts.date} >= ${period.startDate}`,
+        sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`
+      )
+    );
+
+  if (!totals || totals.runningCostCents === 0) return null;
+
+  // Check if multiple workspaces exist for breakdown
+  const breakdown = await db
+    .select({
+      workspaceName: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
+      costCents: sql<number>`SUM(${anthropicWorkspaceCosts.costCents})`,
+    })
+    .from(anthropicWorkspaceCosts)
+    .leftJoin(
+      anthropicWorkspaces,
+      sql`${anthropicWorkspaceCosts.workspaceId} IS NOT DISTINCT FROM ${anthropicWorkspaces.workspaceId}`
+    )
+    .where(
+      and(
+        sql`${anthropicWorkspaceCosts.date} >= ${period.startDate}`,
+        sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`
+      )
+    )
+    .groupBy(anthropicWorkspaces.name);
+
+  return {
+    runningCostCents: totals.runningCostCents,
+    lastUpdatedAt: totals.lastUpdatedAt
+      ? new Date(totals.lastUpdatedAt).toISOString()
+      : null,
+    source: "anthropic_workspace_costs",
+    ...(breakdown.length > 1 ? { workspaceBreakdown: breakdown } : {}),
+  };
 }
