@@ -324,7 +324,8 @@ export async function syncWorkspacesManual(): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
-    await syncAnthropicWorkspaces();
+    // force=true bypasses the 50-minute cooldown for manual syncs
+    await syncAnthropicWorkspaces(undefined, true);
     return { success: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";

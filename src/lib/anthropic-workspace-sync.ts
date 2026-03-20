@@ -244,7 +244,8 @@ export async function fetchAndUpsertWorkspaceCosts(
 // ---------------------------------------------------------------------------
 
 export async function syncAnthropicWorkspaces(
-  month?: string
+  month?: string,
+  force = false
 ): Promise<{ skipped: true } | { success: true; workspacesUpserted: number; costRowsUpserted: number }> {
   // Ensure sentinel row exists (userId=-1)
   await db
@@ -257,8 +258,8 @@ export async function syncAnthropicWorkspaces(
     where: eq(anthropicSyncStatus.userId, WORKSPACE_SENTINEL_USER_ID),
   });
 
-  // Check staleness: if workspaceSyncCompletedAt is within last 50 minutes, skip
-  if (sentinel?.workspaceSyncCompletedAt) {
+  // Check staleness: if workspaceSyncCompletedAt is within last 50 minutes, skip (unless forced)
+  if (!force && sentinel?.workspaceSyncCompletedAt) {
     const completedAt = sentinel.workspaceSyncCompletedAt.getTime();
     const now = Date.now();
     if (now - completedAt < WORKSPACE_COOLDOWN_MS) {
