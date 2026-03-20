@@ -1,11 +1,36 @@
 # Implementation Plan: Global Claude Console Metrics & Budget Monitoring
 
-**Branch**: `018-claude-global-metrics` | **Date**: 2026-03-20 | **Spec**: [spec.md](./spec.md)
+**Branch**: `018-claude-global-metrics` | **Merged**: 2026-03-20 | **Spec**: [spec.md](./spec.md) | **Status**: ✅ Merged to main
 **Input**: Feature specification from `/specs/018-claude-global-metrics/spec.md`
 
 ## Summary
 
 Extend the existing per-user Claude API cost tracking to add an admin-only global dashboard showing org-wide costs filterable by workspace and API key, workspace-level budget limits with proactive in-app alerts, and org-level billing budget monitoring. Four new DB tables store workspace metadata, daily workspace costs, admin-configured workspace spending limits, and a singleton org config holding the manually entered billing budget limit (Anthropic API does not expose this programmatically). Org credit balance remains unavailable via API and shows a graceful "unavailable" state. The hourly sync is added to the existing cron infrastructure via a staleness-gated extension.
+
+## Implementation Notes (As Built)
+
+Key deviations and decisions made during implementation:
+
+### API Data Format
+The Anthropic `cost_report` API returns `amount` already in **fractional cents** (not USD dollars). e.g., `"522.584295"` = ~$5.23. Conversion is `Math.round(parseFloat(amount))` — **no `* 100` multiplication**. This was discovered during debugging and is contrary to the original T009 assumption ("Convert USD float to cents via `Math.round(usd * 100)`").
+
+### Workspace Filter Resets on Month Change
+T019/T033 originally specified that the workspace filter should persist across month changes (showing $0.00 for workspaces with no data in the new month). The implemented decision **resets the workspace filter to "All workspaces"** on month change to prevent stale/invalid Select state. The workspaceBreakdown only includes workspaces that have cost data for the selected month.
+
+### Raw SQL Upserts (Drizzle Partial Index Bug)
+T009/T021 originally used Drizzle's `onConflictDoUpdate` for partial-index upserts. In production this caused a 30× overcount bug (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT). Switched to **raw SQL upserts** via `db.execute(sql\`INSERT ... ON CONFLICT ... WHERE ... DO UPDATE ...\`)`. Batched to a single INSERT per workspace type (named vs. default) using `sql.join()`.
+
+### New Cron Endpoint (not extension of existing)
+T012 planned to extend `src/app/api/anthropic/sync/route.ts` with a fire-and-forget workspace sync call. Instead, a **dedicated cron endpoint** was created at `src/app/api/anthropic/workspace-sync/route.ts` (T011), and the vercel.json cron entry points to it directly. The existing per-user sync route was not modified.
+
+### Custom Progress Bars (not shadcn `<Progress>`)
+T022/T030/T042 specified shadcn `<Progress>` components with `aria-valuenow`/`aria-valuemin`/`aria-valuemax`. The implementation uses **custom div-based progress bars** (consistent with workspace-budget-list.tsx style). ARIA attributes are on the wrapping elements.
+
+### API Key Filtering Not Implemented
+T017 mentioned workspace and API key filtering in the chart. Only **workspace filtering** was implemented. API key filtering was omitted as out of scope.
+
+### Sync Button Added to Page Header
+A `<SyncButton>` component (`src/components/claude/sync-button.tsx`) was added to the main `/claude` page header, allowing admins to trigger a manual sync from the UI (in addition to the cron). Not in the original task list.
 
 ## Technical Context
 
