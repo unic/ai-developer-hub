@@ -75,7 +75,7 @@ export const anthropicToolFilter = sql`(${aiTools.vendor} ILIKE '%anthropic%' OR
 // Helper: fetch usage from Anthropic Admin API
 // ---------------------------------------------------------------------------
 
-async function fetchAnthropicUsage(
+export async function fetchAnthropicUsage(
   startingAt: string,
   endingAt: string,
   apiKeyIds?: string[]
@@ -136,7 +136,7 @@ async function fetchAnthropicUsage(
 // Helper: resolve all api_key_id → userId mappings
 // ---------------------------------------------------------------------------
 
-async function resolveAllMappings(): Promise<Map<string, number>> {
+export async function resolveAllMappings(): Promise<Map<string, number>> {
   const mapping = new Map<string, number>();
 
   // Get existing cached mappings
@@ -245,7 +245,7 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
 // Helper: prepare a usage row for batch upsert
 // ---------------------------------------------------------------------------
 
-function prepareUsageRow(
+export function prepareUsageRow(
   userId: number,
   bucketDate: string,
   result: z.infer<typeof usageBucketResultSchema>
@@ -287,7 +287,7 @@ function prepareUsageRow(
 
 const BATCH_SIZE = 50;
 
-async function batchUpsertUsageRows(
+export async function batchUpsertUsageRows(
   rows: NonNullable<ReturnType<typeof prepareUsageRow>>[]
 ) {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {

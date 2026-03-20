@@ -549,7 +549,7 @@ export function BudgetDetailClient({
                           {periodRunning &&
                             periodRunning.workspaceBreakdown?.map((ws) => (
                               <TableRow
-                                key={`ws-${period.id}-${ws.workspaceName}`}
+                                key={`ws-${period.id}-${ws.name}`}
                                 className="bg-blue-50/30 dark:bg-blue-950/10"
                               >
                                 <TableCell />
@@ -557,7 +557,7 @@ export function BudgetDetailClient({
                                   colSpan={2}
                                   className="text-xs text-muted-foreground pl-12"
                                 >
-                                  {ws.workspaceName}
+                                  {ws.name}
                                 </TableCell>
                                 <TableCell />
                                 <TableCell className="text-xs text-muted-foreground">

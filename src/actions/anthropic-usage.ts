@@ -439,7 +439,11 @@ export async function getRunningCostsForPeriod(
   runningCostCents: number;
   lastUpdatedAt: string | null;
   source: "anthropic_workspace_costs";
-  workspaceBreakdown?: Array<{ workspaceName: string; costCents: number }>;
+  workspaceBreakdown?: Array<{
+    workspaceId: string | null;
+    name: string;
+    costCents: number;
+  }>;
 } | null> {
   const period = await db.query.budgetPeriods.findFirst({
     where: eq(budgetPeriods.id, periodId),
@@ -449,7 +453,8 @@ export async function getRunningCostsForPeriod(
   // Single query: grouped by workspace with JOIN, derive total in JS
   const breakdown = await db
     .select({
-      workspaceName: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
+      workspaceId: anthropicWorkspaceCosts.workspaceId,
+      name: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
       costCents: sql<number>`SUM(${anthropicWorkspaceCosts.costCents})`,
       lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
     })
@@ -464,7 +469,7 @@ export async function getRunningCostsForPeriod(
         sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`
       )
     )
-    .groupBy(anthropicWorkspaces.name);
+    .groupBy(anthropicWorkspaceCosts.workspaceId, anthropicWorkspaces.name);
 
   if (breakdown.length === 0) return null;
 
@@ -481,7 +486,13 @@ export async function getRunningCostsForPeriod(
     lastUpdatedAt: lastUpdatedAt ? new Date(lastUpdatedAt).toISOString() : null,
     source: "anthropic_workspace_costs",
     ...(breakdown.length > 1
-      ? { workspaceBreakdown: breakdown.map((r) => ({ workspaceName: r.workspaceName, costCents: r.costCents })) }
+      ? {
+          workspaceBreakdown: breakdown.map((r) => ({
+            workspaceId: r.workspaceId,
+            name: r.name,
+            costCents: r.costCents,
+          })),
+        }
       : {}),
   };
 }

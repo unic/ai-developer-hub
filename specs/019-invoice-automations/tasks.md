@@ -164,21 +164,21 @@
 
 - [x] T036 [P] Unit tests in `tests/unit/sync/framework.test.ts` — test `retryWithBackoff`: verify it retries exactly `maxRetries` times on failure, that delays are between `baseDelay` and `maxDelay + jitter`, that it resolves immediately on first success; test `hashSourceType`: verify determinism (same input → same bigint), verify all 6 source type strings produce distinct bigint values (no hash collisions)
 
-- [ ] T037 [P] Unit tests in `tests/unit/sync/registry.test.ts` — mock DB calls; test `getSyncSources()` returns a result per source type; test `getSyncSource()` returns null for unknown type; test the `SyncSourceWithLastEvent` shape has `lastEvent: null` when no events exist
+- [x] T037 [P] Unit tests in `tests/unit/sync/registry.test.ts` — mock DB calls; test `getSyncSources()` returns a result per source type; test `getSyncSource()` returns null for unknown type; test the `SyncSourceWithLastEvent` shape has `lastEvent: null` when no events exist
 
-- [ ] T038 [P] Unit test in `tests/unit/actions/running-costs.test.ts` — mock `anthropic_workspace_costs` rows; test `getRunningCostsForPeriod()` returns correct `runningCostCents` sum for the period date range; test it returns `null` when no rows exist; test `lastUpdatedAt` is the MAX of `updated_at` in the range; test per-workspace breakdown is included only when >1 workspace
+- [x] T038 [P] Unit test in `tests/unit/actions/running-costs.test.ts` — mock `anthropic_workspace_costs` rows; test `getRunningCostsForPeriod()` returns correct `runningCostCents` sum for the period date range; test it returns `null` when no rows exist; test `lastUpdatedAt` is the MAX of `updated_at` in the range; test per-workspace breakdown is included only when >1 workspace
 
-- [ ] T039 Integration test in `tests/integration/sync/lock.test.ts` — test `withSyncLock` mutual exclusion: start one sync on `invoice_period_matching`, immediately start a second on the same source; verify the second call throws "Sync already in progress"; verify only one `sync_events` row with `in_progress` exists per source at a time
+- [x] T039 Integration test in `tests/integration/sync/lock.test.ts` — test `withSyncLock` mutual exclusion: start one sync on `invoice_period_matching`, immediately start a second on the same source; verify the second call throws "Sync already in progress"; verify only one `sync_events` row with `in_progress` exists per source at a time
 
-- [ ] T040 [P] Integration test in `tests/integration/invoices/ingest.test.ts` — POST to `/api/invoices/ingest` with a valid PDF and correct Bearer token; assert 200 and invoice row exists in DB; POST same PDF again; assert 409 with `existingInvoiceId`; POST with no auth header; assert 401
+- [x] T040 [P] Integration test in `tests/integration/invoices/ingest.test.ts` — POST to `/api/invoices/ingest` with a valid PDF and correct Bearer token; assert 200 and invoice row exists in DB; POST same PDF again; assert 409 with `existingInvoiceId`; POST with no auth header; assert 401
 
-- [ ] T041 [P] Integration test in `tests/integration/sync/copilot-idempotent.test.ts` — seed a `copilot_billing_snapshots` row with `linked_billed_cost_id`; run the copilot source twice; assert `billed_costs` count has not increased; change `total_cost_cents` on the snapshot; run again; assert `billed_costs.amount_cents` is updated, still no new row
+- [x] T041 [P] Integration test in `tests/integration/sync/copilot-idempotent.test.ts` — seed a `copilot_billing_snapshots` row with `linked_billed_cost_id`; run the copilot source twice; assert `billed_costs` count has not increased; change `total_cost_cents` on the snapshot; run again; assert `billed_costs.amount_cents` is updated, still no new row
 
-- [ ] T042 [P] Integration test in `tests/integration/sync/workspace-costs.test.ts` — seed one `anthropic_workspace_costs` row for a given date; run workspace sync with a mocked `fetchAndUpsertWorkspaceCosts()` returning an updated amount for the same date; assert the row is updated in place, `cost_cents` changed, no duplicate row
+- [x] T042 [P] Integration test in `tests/integration/sync/workspace-costs.test.ts` — seed one `anthropic_workspace_costs` row for a given date; run workspace sync with a mocked `fetchAndUpsertWorkspaceCosts()` returning an updated amount for the same date; assert the row is updated in place, `cost_cents` changed, no duplicate row
 
 - [x] T043 [P] E2E test in `tests/e2e/sync-dashboard.spec.ts` — navigate to `/settings/sync` as admin; assert a table with 6 rows is visible; assert each row has a source name, a schedule column, and a status cell; assert no row is blank/empty (sources with no events show "Never synced")
 
-- [ ] T044 [P] E2E test in `tests/e2e/budget-period-running-costs.spec.ts` — seed `anthropic_workspace_costs` for the current month; navigate to the budget period detail page for that month; assert a "Running Costs" section is visible and shows a non-zero value; assert it is visually separate from the billed costs section; assert period totals show three values (Billed, Running, Combined)
+- [x] T044 [P] E2E test in `tests/e2e/budget-period-running-costs.spec.ts` — seed `anthropic_workspace_costs` for the current month; navigate to the budget period detail page for that month; assert a "Running Costs" section is visible and shows a non-zero value; assert it is visually separate from the billed costs section; assert period totals show three values (Billed, Running, Combined)
 
 - [x] T045 Run full validation — `pnpm lint` (zero warnings), `pnpm typecheck` (zero errors), `pnpm test` (unit tests pass), `pnpm test:integration` (integration tests pass); resolve any failures before marking complete
 
