@@ -124,11 +124,15 @@ async function _getAvailableWorkspaceCostMonths(): Promise<string[]> {
   return rows.rows.map((r) => r.month as string);
 }
 
-export const getAvailableWorkspaceCostMonths = unstable_cache(
-  _getAvailableWorkspaceCostMonths,
-  ["anthropic-available-months"],
-  { tags: ["anthropic-workspace-costs"] }
-);
+export async function getAvailableWorkspaceCostMonths(): Promise<string[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  return unstable_cache(
+    _getAvailableWorkspaceCostMonths,
+    ["anthropic-available-months"],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
 
 export const getAvailableMonths = getAvailableWorkspaceCostMonths;
 
@@ -303,10 +307,10 @@ export async function setOrgBillingBudget(
   try {
     await db
       .insert(anthropicOrgConfig)
-      .values({ id: 1, billingBudgetLimitCents: limitCents, updatedAt: new Date() })
+      .values({ id: 1, billingBudgetLimitCents: limitCents, updatedAt: new Date(), updatedBy: Number(admin.id) })
       .onConflictDoUpdate({
         target: [anthropicOrgConfig.id],
-        set: { billingBudgetLimitCents: limitCents, updatedAt: new Date() },
+        set: { billingBudgetLimitCents: limitCents, updatedAt: new Date(), updatedBy: Number(admin.id) },
       });
 
     revalidateTag("alerts");

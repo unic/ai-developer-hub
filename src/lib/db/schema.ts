@@ -609,7 +609,7 @@ export const anthropicWorkspaceLimits = pgTable(
       .on(table.workspaceId)
       .where(sql`${table.workspaceId} IS NOT NULL`),
     uniqueIndex("anthropic_workspace_limits_default_idx")
-      .on(table.id)
+      .on(sql`(1)`)
       .where(sql`${table.workspaceId} IS NULL`),
   ]
 );

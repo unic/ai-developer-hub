@@ -32,8 +32,8 @@ async function computeActiveAlerts(): Promise<ActiveAlertsData> {
   const workspaceAlerts: WorkspaceAlert[] = [];
 
   for (const row of rows.rows) {
-    const limitCents = row.limit_cents as number | null;
-    const currentMonthCents = row.current_month_cents as number;
+    const limitCents = row.limit_cents != null ? Number(row.limit_cents) : null;
+    const currentMonthCents = Number(row.current_month_cents);
 
     if (limitCents === null || limitCents <= 0) continue;
 
