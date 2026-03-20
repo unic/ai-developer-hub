@@ -128,15 +128,26 @@ export async function fetchAndUpsertWorkspaces(): Promise<number> {
   }
 
   // Ensure default workspace row exists (workspaceId=null, name="Default Workspace", isDefault=true).
-  // Use raw SQL to reliably target the partial unique index (is_default) WHERE is_default = true.
-  await db.execute(sql`
-    INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, updated_at)
-    VALUES (NULL, 'Default Workspace', true, false, ${now}, ${now})
-    ON CONFLICT (is_default) WHERE is_default = true
-    DO UPDATE SET
-      last_seen_at = excluded.last_seen_at,
-      updated_at = excluded.updated_at
-  `);
+  // Avoid ON CONFLICT partial-index targeting (Drizzle generates wrong WHERE clause).
+  // Simple read-then-write: no partial index required.
+  const existingDefault = await db.query.anthropicWorkspaces.findFirst({
+    where: isNull(anthropicWorkspaces.workspaceId),
+  });
+  if (existingDefault) {
+    await db
+      .update(anthropicWorkspaces)
+      .set({ lastSeenAt: now, updatedAt: now })
+      .where(isNull(anthropicWorkspaces.workspaceId));
+  } else {
+    await db.insert(anthropicWorkspaces).values({
+      workspaceId: null,
+      name: "Default Workspace",
+      isDefault: true,
+      isArchived: false,
+      lastSeenAt: now,
+      updatedAt: now,
+    });
+  }
 
   return allWorkspaces.length;
 }
