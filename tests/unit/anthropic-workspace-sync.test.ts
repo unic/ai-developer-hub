@@ -6,15 +6,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * Tests:
  * 1. USD-to-cents conversion rounds correctly (Math.round)
  * 2. Concurrency guard returns { skipped: true } when workspaceSyncCompletedAt is recent
- * 3. Null workspaceId cost data uses date-only conflict target (separate upsert path)
+ * 3. fetchAndUpsertWorkspaceCosts uses db.execute for batch upserts
  */
 
 // ── Hoisted shared state ─────────────────────────────────────────────────────
 
-const { mockFindFirst, mockInsertValues, mockUpdate } = vi.hoisted(() => {
+const { mockFindFirst, mockInsertValues, mockUpdate, mockExecute } = vi.hoisted(() => {
   const mockFindFirst = vi.fn();
 
-  // Track insert calls so we can assert on conflict targets
   const mockInsertValues = vi.fn(() => ({
     onConflictDoUpdate: vi.fn(() => Promise.resolve()),
     onConflictDoNothing: vi.fn(() => Promise.resolve()),
@@ -26,7 +25,9 @@ const { mockFindFirst, mockInsertValues, mockUpdate } = vi.hoisted(() => {
     })),
   }));
 
-  return { mockFindFirst, mockInsertValues, mockUpdate };
+  const mockExecute = vi.fn(() => Promise.resolve({ rows: [] }));
+
+  return { mockFindFirst, mockInsertValues, mockUpdate, mockExecute };
 });
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ vi.mock("@/lib/db", () => ({
       values: mockInsertValues,
     })),
     update: mockUpdate,
+    execute: mockExecute,
     query: {
       anthropicSyncStatus: {
         findFirst: mockFindFirst,
@@ -56,7 +58,7 @@ vi.stubGlobal("fetch", mockFetch);
 
 // ── Import after mocks ────────────────────────────────────────────────────────
 
-import { syncAnthropicWorkspaces } from "@/lib/anthropic-workspace-sync";
+import { syncAnthropicWorkspaces, fetchAndUpsertWorkspaceCosts } from "@/lib/anthropic-workspace-sync";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -68,18 +70,18 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("USD-to-cents conversion", () => {
-  it("rounds fractional cents correctly: $1.506 → 151 cents", () => {
-    // The implementation uses Math.round(value * 100)
-    // $1.506 * 100 = 150.6 → rounds to 151
-    expect(Math.round(1.506 * 100)).toBe(151);
+  it("rounds fractional cents correctly: 150.6 → 151", () => {
+    // The Anthropic API returns amounts already in fractional cents (not USD).
+    // e.g. "150.6" means 150.6 fractional cents → Math.round → 151 cents
+    expect(Math.round(150.6)).toBe(151);
   });
 
-  it("rounds down for values below .5: $1.004 → 100 cents", () => {
-    expect(Math.round(1.004 * 100)).toBe(100);
+  it("rounds down for values below .5: 100.4 → 100", () => {
+    expect(Math.round(100.4)).toBe(100);
   });
 
-  it("handles whole dollar amounts exactly: $2.00 → 200 cents", () => {
-    expect(Math.round(2.0 * 100)).toBe(200);
+  it("handles whole cent amounts exactly: 200.0 → 200", () => {
+    expect(Math.round(200.0)).toBe(200);
   });
 });
 
@@ -161,25 +163,24 @@ describe("syncAnthropicWorkspaces — concurrency guard", () => {
   });
 });
 
-describe("fetchAndUpsertWorkspaceCosts — null workspaceId handling", () => {
-  it("uses date-only conflict target for null workspaceId rows", async () => {
+describe("fetchAndUpsertWorkspaceCosts — db.execute batch upserts", () => {
+  it("calls db.execute once for named workspace rows (batched insert)", async () => {
     process.env.ANTHROPIC_ADMIN_API_KEY = "test-admin-key";
 
-    // Mock a cost report response with a null workspace_id entry
+    // API response with correct schema: starting_at, ending_at, results[].amount as string (cents)
     const mockCostResponse = {
       data: [
         {
-          start_time: "2026-03-01T00:00:00Z",
-          end_time: "2026-03-02T00:00:00Z",
+          starting_at: "2026-03-01T00:00:00Z",
+          ending_at: "2026-03-02T00:00:00Z",
           results: [
-            {
-              workspace_id: null, // null workspace — default workspace
-              amount: { value: 5.0, currency: "USD" },
-            },
+            { workspace_id: "ws_abc123", amount: "500.0" },
+            { workspace_id: "ws_def456", amount: "250.5" },
           ],
         },
       ],
       has_more: false,
+      next_page: null,
     };
 
     mockFetch.mockResolvedValueOnce({
@@ -187,47 +188,28 @@ describe("fetchAndUpsertWorkspaceCosts — null workspaceId handling", () => {
       json: async () => mockCostResponse,
     } as Response);
 
-    // Track all onConflictDoUpdate calls to inspect the targets used
-    const onConflictDoUpdateCalls: unknown[] = [];
-    mockInsertValues.mockImplementation(() => ({
-      onConflictDoUpdate: vi.fn((...args: unknown[]) => {
-        onConflictDoUpdateCalls.push(args[0]);
-        return Promise.resolve();
-      }),
-      onConflictDoNothing: vi.fn(() => Promise.resolve()),
-    }));
-
-    const { fetchAndUpsertWorkspaceCosts } = await import(
-      "@/lib/anthropic-workspace-sync"
-    );
-
     const rowsUpserted = await fetchAndUpsertWorkspaceCosts("2026-03");
 
-    expect(rowsUpserted).toBe(1);
-
-    // The null workspaceId path uses `target: anthropicWorkspaceCosts.date`
-    // (a single column target), not the composite [workspaceId, date] target.
-    // We verify by checking that onConflictDoUpdate was called exactly once.
-    expect(onConflictDoUpdateCalls).toHaveLength(1);
+    expect(rowsUpserted).toBe(2);
+    // Should call db.execute once for the batched named rows insert
+    expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 
-  it("uses composite [workspaceId, date] conflict target for non-null workspaceId rows", async () => {
+  it("calls db.execute once for null workspaceId rows (default workspace batched insert)", async () => {
     process.env.ANTHROPIC_ADMIN_API_KEY = "test-admin-key";
 
     const mockCostResponse = {
       data: [
         {
-          start_time: "2026-03-01T00:00:00Z",
-          end_time: "2026-03-02T00:00:00Z",
+          starting_at: "2026-03-01T00:00:00Z",
+          ending_at: "2026-03-02T00:00:00Z",
           results: [
-            {
-              workspace_id: "ws_abc123", // non-null workspace
-              amount: { value: 10.0, currency: "USD" },
-            },
+            { workspace_id: null, amount: "522.584295" },
           ],
         },
       ],
       has_more: false,
+      next_page: null,
     };
 
     mockFetch.mockResolvedValueOnce({
@@ -235,22 +217,40 @@ describe("fetchAndUpsertWorkspaceCosts — null workspaceId handling", () => {
       json: async () => mockCostResponse,
     } as Response);
 
-    const onConflictDoUpdateCalls: unknown[] = [];
-    mockInsertValues.mockImplementation(() => ({
-      onConflictDoUpdate: vi.fn((...args: unknown[]) => {
-        onConflictDoUpdateCalls.push(args[0]);
-        return Promise.resolve();
-      }),
-      onConflictDoNothing: vi.fn(() => Promise.resolve()),
-    }));
-
-    const { fetchAndUpsertWorkspaceCosts } = await import(
-      "@/lib/anthropic-workspace-sync"
-    );
-
     const rowsUpserted = await fetchAndUpsertWorkspaceCosts("2026-03");
 
     expect(rowsUpserted).toBe(1);
-    expect(onConflictDoUpdateCalls).toHaveLength(1);
+    // Should call db.execute once for the batched default (null workspace) rows insert
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls db.execute twice when both named and null workspace rows exist", async () => {
+    process.env.ANTHROPIC_ADMIN_API_KEY = "test-admin-key";
+
+    const mockCostResponse = {
+      data: [
+        {
+          starting_at: "2026-03-01T00:00:00Z",
+          ending_at: "2026-03-02T00:00:00Z",
+          results: [
+            { workspace_id: "ws_abc123", amount: "300.0" },
+            { workspace_id: null, amount: "100.0" },
+          ],
+        },
+      ],
+      has_more: false,
+      next_page: null,
+    };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockCostResponse,
+    } as Response);
+
+    const rowsUpserted = await fetchAndUpsertWorkspaceCosts("2026-03");
+
+    expect(rowsUpserted).toBe(2);
+    // Two separate batched upserts: one for named rows, one for null rows
+    expect(mockExecute).toHaveBeenCalledTimes(2);
   });
 });
