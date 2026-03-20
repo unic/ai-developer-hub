@@ -215,6 +215,24 @@ export async function fetchAndUpsertWorkspaceCosts(
     }
   }
 
+  // Diagnostic: log API response summary to server logs for debugging
+  const apiTotalCents = [...namedRows, ...defaultRows].reduce((s, r) => s + r.costCents, 0);
+  console.log(
+    `[workspace-costs] API returned ${response.data.length} buckets, ${rowsUpserted} results. ` +
+    `has_more=${response.has_more}. ` +
+    `API total: $${(apiTotalCents / 100).toFixed(2)} ` +
+    `(named=${namedRows.length} rows $${(namedRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)}, ` +
+    `default=${defaultRows.length} rows $${(defaultRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)})`
+  );
+  if (response.data.length > 0) {
+    console.log(`[workspace-costs] Sample buckets:`,
+      response.data.slice(0, 3).map(b => ({
+        date: b.starting_at.split("T")[0],
+        results: b.results.map(r => ({ ws: r.workspace_id, amount: r.amount })),
+      }))
+    );
+  }
+
   // Use raw SQL upserts to correctly target partial indexes.
   // Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT,
   // causing inserts instead of updates (30× overcount bug).
