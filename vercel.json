@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/copilot/sync",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/anthropic/sync",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

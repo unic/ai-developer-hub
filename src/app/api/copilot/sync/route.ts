@@ -2,20 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { githubConnections, githubSyncEvents } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { requireCronSecret } from "@/lib/auth-helpers";
 import { runCopilotSync } from "@/lib/copilot-sync";
 
-export async function POST(request: NextRequest) {
-  // Authenticate with CRON_SECRET
-  const authHeader = request.headers.get("authorization");
-  const expectedToken = process.env.CRON_SECRET;
+export const dynamic = "force-dynamic";
 
-  if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
+async function handleSync(): Promise<NextResponse> {
   // Find active connection with Copilot sync enabled
   const connection = await db.query.githubConnections.findFirst({
     where: and(
@@ -90,4 +82,16 @@ export async function POST(request: NextRequest) {
     billingLinked: syncEvent?.billingLinked ?? null,
     billingSkipped: syncEvent?.billingSkipped ?? null,
   });
+}
+
+export async function GET(request: NextRequest) {
+  const authError = requireCronSecret(request);
+  if (authError) return authError;
+  return handleSync();
+}
+
+export async function POST(request: NextRequest) {
+  const authError = requireCronSecret(request);
+  if (authError) return authError;
+  return handleSync();
 }

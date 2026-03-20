@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireCronSecret } from "@/lib/auth-helpers";
 import { runAnthropicSync } from "@/lib/anthropic-sync";
 
-export async function POST(request: NextRequest) {
-  // Authenticate with CRON_SECRET
-  const authHeader = request.headers.get("authorization");
-  const expectedToken = process.env.CRON_SECRET;
+export const dynamic = "force-dynamic";
 
-  if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
+async function handleSync(): Promise<NextResponse> {
   try {
     const summary = await runAnthropicSync();
 
@@ -30,4 +22,16 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  const authError = requireCronSecret(request);
+  if (authError) return authError;
+  return handleSync();
+}
+
+export async function POST(request: NextRequest) {
+  const authError = requireCronSecret(request);
+  if (authError) return authError;
+  return handleSync();
 }
