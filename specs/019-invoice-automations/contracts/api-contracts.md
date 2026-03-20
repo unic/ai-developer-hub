@@ -116,7 +116,8 @@ type SyncSourceType =
   | 'anthropic_api_usage'
   | 'anthropic_team_invoices'
   | 'github_members'
-  | 'invoice_period_matching';
+  | 'invoice_period_matching'
+  | 'anthropic_workspace_sync';
 
 type SyncActionResult =
   | { success: true; eventId: number }
@@ -130,7 +131,7 @@ type SyncActionResult =
 
 ### `triggerBackfill(sourceType: SyncSourceType, startDate: string): Promise<SyncActionResult>`
 
-Initiates a backfill for an API-driven source. `startDate` is an ISO 8601 date string (YYYY-MM-DD). Only valid for `github_copilot_billing` and `anthropic_api_usage`.
+Initiates a backfill for an API-driven source. `startDate` is an ISO 8601 date string (YYYY-MM-DD). Only valid for `github_copilot_billing`, `anthropic_api_usage`, and `anthropic_workspace_sync` (supports date-range queries via `cost_report` API's `starting_at`/`ending_at` parameters).
 
 ```typescript
 // startDate: ISO date string, e.g., "2026-01-01"
@@ -197,6 +198,19 @@ Runs the Anthropic API usage sync.
 
 **Response**: Same shape.
 
+### `GET /api/sync/anthropic-workspace`
+
+Runs the workspace metadata + daily cost sync.
+
+**Auth**: `Authorization: Bearer {CRON_SECRET}`
+
+**Response**:
+```json
+{ "ok": true, "workspacesUpserted": 3, "costRowsUpserted": 45 }
+// or
+{ "ok": false, "reason": "sync_in_progress" }
+```
+
 ---
 
 ## 4. Running Costs in Budget Period View
@@ -209,16 +223,21 @@ Displayed when `runningCostCents > 0` for the period's date range.
 
 ```typescript
 type PeriodRunningCosts = {
-  runningCostCents: number;     // SUM(computed_cost_cents) for period date range
-  lastUpdatedAt: string | null; // ISO datetime of MAX(updated_at) in anthropic_usage_metrics
-  source: 'anthropic_api';
+  runningCostCents: number;      // SUM(cost_cents) from anthropic_workspace_costs for period date range
+  lastUpdatedAt: string | null;  // ISO datetime of MAX(updated_at) in anthropic_workspace_costs
+  source: 'anthropic_workspace_costs';  // authoritative cost_report API data (from 018)
+  workspaceBreakdown?: Array<{   // optional — only when multiple workspaces exist
+    workspaceId: string | null;
+    name: string;
+    costCents: number;
+  }>;
 };
 ```
 
 **Visual contract**:
 - Running costs appear in a dedicated "Running Costs" section, visually distinct from the "Billed Costs" section.
 - A badge or label must read "Running Costs" (not "Invoiced" or "Billed").
-- A "last updated" timestamp appears inline: e.g., "as of Mar 20, 2026 14:30".
+- A "last updated" timestamp appears inline: e.g., "as of Mar 20, 2026 14:30"; running cost total reflects the official cost_report data (as of the last workspace cost sync).
 - Period totals show three values: Billed Total, Running Total, Combined Total.
 - Zero-value running costs are omitted entirely (no row shown).
 

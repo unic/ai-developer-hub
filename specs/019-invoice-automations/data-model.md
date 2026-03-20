@@ -11,11 +11,12 @@
 
 ```sql
 CREATE TYPE sync_source_type AS ENUM (
-  'github_copilot_billing',   -- GitHub Copilot invoices via billing API
-  'anthropic_api_usage',      -- Claude API token consumption via Admin API
-  'anthropic_team_invoices',  -- Claude Team Plan — manual upload or ingest endpoint
-  'github_members',           -- GitHub org member data
-  'invoice_period_matching'   -- Invoice-to-budget-period auto-linking
+  'github_copilot_billing',    -- GitHub Copilot invoices via billing API
+  'anthropic_api_usage',       -- Claude API token consumption via Admin API
+  'anthropic_team_invoices',   -- Claude Team Plan — manual upload or ingest endpoint
+  'github_members',            -- GitHub org member data
+  'invoice_period_matching',   -- Invoice-to-budget-period auto-linking
+  'anthropic_workspace_sync'   -- Workspace metadata + daily cost totals via cost_report API
 );
 ```
 
@@ -166,14 +167,41 @@ anthropic_usage_metrics
 -- UNIQUE INDEX on (user_id, date, model)
 ```
 
-**Running cost query** (used in budget period view):
+**Running cost query** (updated to use authoritative source from 018):
 ```sql
+-- Primary: use official cost_report data (authoritative billing amounts)
 SELECT
-  SUM(computed_cost_cents) AS running_cost_cents,
-  MAX(updated_at)          AS last_updated_at
-FROM anthropic_usage_metrics
+  SUM(cost_cents)  AS running_cost_cents,
+  MAX(updated_at)  AS last_updated_at
+FROM anthropic_workspace_costs
 WHERE date >= :period_start_date
   AND date <= :period_end_date;
+
+-- Optional per-workspace breakdown (group by workspace_id for detail view):
+SELECT
+  w.name               AS workspace_name,
+  SUM(c.cost_cents)    AS cost_cents
+FROM anthropic_workspace_costs c
+LEFT JOIN anthropic_workspaces w
+  ON c.workspace_id IS NOT DISTINCT FROM w.workspace_id
+WHERE c.date >= :period_start_date
+  AND c.date <= :period_end_date
+GROUP BY w.name;
+```
+
+Note: `anthropic_usage_metrics.computed_cost_cents` (token × pricing table approximation) remains useful for per-user cost attribution views but is no longer the source for budget period running cost totals.
+
+### Tables from 018 (referenced for running costs)
+
+```
+anthropic_workspaces — workspace metadata cache (from 018)
+  id, workspace_id (nullable), name, is_default, is_archived, last_seen_at, ...
+
+anthropic_workspace_costs — authoritative daily cost per workspace (from 018)
+  id, workspace_id (nullable), date, cost_cents, created_at, updated_at
+  UNIQUE: (workspace_id, date) WHERE workspace_id IS NOT NULL
+  UNIQUE: (date) WHERE workspace_id IS NULL
+  [This is the primary source for running cost aggregation in budget period view]
 ```
 
 ---
@@ -267,14 +295,42 @@ WHERE user_id != 0   -- exclude the global lock sentinel row
   AND last_sync_started_at IS NOT NULL;
 ```
 
+### Step 4b: Migrate workspace sync status (userId = -1 sentinel)
+```sql
+-- Migrate the workspace sync sentinel row (userId = -1) into sync_events
+INSERT INTO sync_events (
+  source_type, operation_type, outcome,
+  started_at, completed_at,
+  created_at
+)
+SELECT
+  'anthropic_workspace_sync'::sync_source_type,
+  'regular'::sync_operation_type,
+  CASE
+    WHEN last_sync_error IS NOT NULL THEN 'failed'::sync_outcome
+    WHEN workspace_sync_completed_at IS NOT NULL THEN 'success'::sync_outcome
+    ELSE 'in_progress'::sync_outcome
+  END,
+  last_sync_started_at,
+  workspace_sync_completed_at,
+  last_sync_started_at
+FROM anthropic_sync_status
+WHERE user_id = -1
+  AND last_sync_started_at IS NOT NULL;
+```
+
+### Step 4c: Seed anthropic_workspace_sync in sync_sources
+_(Included in Step 5 INSERT VALUES below.)_
+
 ### Step 5: Seed sync_sources registry
 ```sql
 INSERT INTO sync_sources (source_type, enabled, cron_schedule) VALUES
-  ('github_copilot_billing',  true,  '0 6 * * *'),
-  ('anthropic_api_usage',     true,  '0 * * * *'),
-  ('anthropic_team_invoices', true,  NULL),
-  ('github_members',          true,  NULL),
-  ('invoice_period_matching', true,  NULL);
+  ('github_copilot_billing',   true,  '0 6 * * *'),
+  ('anthropic_api_usage',      true,  '0 * * * *'),
+  ('anthropic_team_invoices',  true,  NULL),
+  ('github_members',           true,  NULL),
+  ('invoice_period_matching',  true,  NULL),
+  ('anthropic_workspace_sync', true,  '0 * * * *');
 ```
 
 ### Step 6: Drop old tables (within same migration transaction)

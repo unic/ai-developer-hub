@@ -143,14 +143,27 @@
 
 ## 7. Budget Period View — Running Costs Display
 
-### Decision: Server Component aggregation query; no client-side state needed
+### Decision: Use `anthropic_workspace_costs.cost_cents` as the authoritative cost source
 
-**Decision**: The budget period detail page runs a server-side `SELECT SUM(computed_cost_cents)` against `anthropicUsageMetrics` for the period's date range. The result is passed as a prop to the existing period detail component, which renders a new "Running Costs" row visually distinct from `billedCosts` rows.
+**Decision**: The budget period detail page runs a server-side aggregation query against `anthropic_workspace_costs` for the period's date range:
+
+```sql
+SELECT SUM(cost_cents), MAX(updated_at)
+FROM anthropic_workspace_costs
+WHERE date >= period.startDate AND date <= period.endDate
+```
+
+The result is passed as a prop to the existing period detail component, which renders a new "Running Costs" row visually distinct from `billedCosts` rows. An optional per-workspace breakdown can be shown by adding `GROUP BY workspace_id`.
 
 **Rationale**:
-- No new API endpoint needed — the period detail page is a Server Component.
-- The "last updated" timestamp (FR-014) is derived from `MAX(updatedAt)` on the same query.
-- Zero-value periods are filtered out (FR-011 Acceptance Scenario 3: "zero-value entries are omitted").
+- `anthropic_workspace_costs.cost_cents` comes from Anthropic's official `cost_report` API — this is the authoritative billing cost (what Anthropic actually charges), not an approximation.
+- `anthropicUsageMetrics.computedCostCents` is a derived value (tokens × pricing table) and will diverge from actual charges due to pricing changes, discounts, and rounding.
+- Using the authoritative source for budget period running costs avoids misleading cost figures in financial views.
+- `anthropicUsageMetrics` remains the correct source for per-user token breakdowns in the user profile view — that use case requires per-user granularity which `anthropic_workspace_costs` does not provide.
+
+**"Last updated" timestamp**: Derived from `MAX(updated_at)` on `anthropic_workspace_costs` — reflects when the workspace cost sync last wrote data for the period's date range (FR-014).
+
+**Zero-value periods**: Filtered out (FR-011 Acceptance Scenario 3: "zero-value entries are omitted").
 
 ---
 
@@ -186,13 +199,68 @@
 
 ## 10. Vercel Cron Schedule Updates
 
-**Decision**: Update `vercel.json` to replace the two existing cron paths with the new unified sync routes:
+**Decision**: Update `vercel.json` to replace the existing cron paths with the new unified sync routes:
 
 | Source | New Path | Schedule |
 |--------|----------|----------|
 | GitHub Copilot billing | `/api/sync/github-copilot` | `0 6 * * *` (daily 6 AM UTC) |
 | Anthropic API usage | `/api/sync/anthropic-usage` | `0 * * * *` (hourly) |
+| Anthropic workspace costs | `/api/sync/anthropic-workspace` | `0 * * * *` (hourly) |
 | GitHub members | Manual only (no cron) | — |
 | Invoice-period matching | Manual only (no cron) | — |
 
-**Rationale**: Anthropic usage sync moved from `*/10 * * * *` (every 10 min) to `0 * * * *` (hourly). The spec states "hourly for API usage" in its Assumptions section. This aligns with Anthropic Admin API's data freshness guarantee (~5 minutes) while reducing Vercel function invocations.
+**Rationale**: Anthropic usage sync moved from `*/10 * * * *` (every 10 min) to `0 * * * *` (hourly). The spec states "hourly for API usage" in its Assumptions section. This aligns with Anthropic Admin API's data freshness guarantee (~5 minutes) while reducing Vercel function invocations. The workspace sync path (`/api/sync/anthropic-workspace`) replaces the previous `/api/anthropic/workspace-sync` introduced in 018, bringing it under the unified sync route namespace.
+
+---
+
+## 11. 018 Integration: Workspace Cost Sync
+
+### Context
+
+Feature 018 (claude-global-metrics) introduced a third independent Anthropic sync mechanism alongside the two already planned for unification in 019:
+
+- **Existing sync 1**: Per-user Anthropic API usage (sentinel row `userId = 0` in `anthropicSyncStatus`)
+- **New sync (018)**: Workspace-level cost aggregates (sentinel row `userId = -1` in `anthropicSyncStatus`)
+
+018 also added:
+- `anthropic_workspaces` — workspace metadata from `GET /v1/organizations/workspaces`
+- `anthropic_workspace_costs` — daily cost aggregates per workspace from `GET /v1/organizations/cost_report`, stored as integer cents. UNIQUE on `(workspace_id, date)` for named workspaces; UNIQUE on `(date)` for default workspace (`workspace_id IS NULL`).
+- `anthropic_workspace_limits` — admin-configured monthly spending limits per workspace
+- `anthropic_org_config` — singleton org config (billing budget limit)
+- `anthropicSyncStatus.workspace_sync_completed_at` — new column tracking last successful workspace sync
+
+The sync logic lives in `src/lib/anthropic-workspace-sync.ts` (`syncAnthropicWorkspaces()`) and ran on its own cron at `/api/anthropic/workspace-sync` every hour with a 50-minute cooldown.
+
+### Decision: Add `anthropic_workspace_sync` as a sixth source type in the unified sync framework
+
+**Decision**: The workspace cost sync is added to the `sync_sources` registry and `sync_events` source type enum as `anthropic_workspace_sync`, alongside the five source types already planned:
+1. `github_copilot`
+2. `anthropic_usage`
+3. `anthropic_workspace_sync` ← new (from 018)
+4. `github_members`
+5. `invoice_period_match`
+6. (fifth originally planned source)
+
+The `syncAnthropicWorkspaces()` function is wrapped in the unified `SyncRunner` following the same pattern as the other sources.
+
+**Rationale**:
+- Omitting the workspace sync from the unified framework would leave a dangling independent system after migration, defeating the purpose of unification.
+- The workspace sync has its own cooldown logic (50-minute guard) that maps cleanly onto the unified concurrency lock (`pg_try_advisory_lock` with a `anthropic_workspace_sync`-specific hash).
+- Surfacing workspace sync status in the `/settings/sync` dashboard (FR-015) requires a `sync_events` row — without adding it as a source type, workspace sync runs would be invisible to admins.
+
+### Decision: Migrate `userId = -1` sentinel row state into `sync_events`
+
+**Decision**: The `anthropicSyncStatus` row with `userId = -1` (workspace sync lock) is handled identically to the `userId = 0` row (per-user usage sync lock) during the data migration:
+- If `workspace_sync_completed_at IS NOT NULL`, a synthetic `sync_events` record is inserted with `sourceType = 'anthropic_workspace_sync'`, `status = 'completed'`, and `completedAt = workspace_sync_completed_at`.
+- The `userId = -1` row is then dropped along with the rest of `anthropicSyncStatus`.
+
+**Rationale**: Consistent with the Section 9 migration strategy — both sentinel rows represent the same concept (last known sync state) and both translate to a synthetic event record. Treating `userId = -1` differently would require special-case code in the migration and the post-migration lock manager.
+
+### Decision: `anthropicSyncStatus.workspace_sync_completed_at` must not be lost in migration
+
+**Decision**: The migration script (Section 9, step 3) is extended to explicitly handle the `workspace_sync_completed_at` column before `anthropicSyncStatus` is dropped:
+- Extract `workspace_sync_completed_at` from the `userId = -1` row.
+- Insert a synthetic `sync_events` record for `anthropic_workspace_sync` using this timestamp (if non-null).
+- Only then proceed with `DROP TABLE anthropicSyncStatus`.
+
+**Rationale**: SC-008 (no historical data loss) applies to all sync state, including the workspace sync timestamp. Dropping the column without capturing it would erase the last-known-good timestamp for the workspace sync, causing the first post-migration run to appear as if no previous sync ever occurred.

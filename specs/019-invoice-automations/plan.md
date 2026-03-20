@@ -4,19 +4,19 @@
 
 ## Summary
 
-Replace four independent sync mechanisms (GitHub Copilot billing, GitHub member sync, Anthropic API usage sync, invoice-to-period matching) with a single unified sync framework backed by a PostgreSQL advisory lock, a shared `sync_events` event log, and a `sync_sources` registry. Build GitHub Copilot invoice auto-sync and Claude Team Plan invoice ingestion on top of that framework. Surface Claude API token costs as "running costs" alongside billed costs in the budget period view. Add a unified sync status dashboard. Include backfill support for the two API-driven sources.
+Replace five independent sync mechanisms (GitHub Copilot billing, GitHub member sync, Anthropic API usage sync, Anthropic workspace cost sync, invoice-to-period matching) with a single unified sync framework backed by a PostgreSQL advisory lock, a shared `sync_events` event log, and a `sync_sources` registry. Build GitHub Copilot invoice auto-sync and Claude Team Plan invoice ingestion on top of that framework. Surface Claude API running costs (from the authoritative `cost_report` data introduced in 018) alongside billed costs in the budget period view. Add a unified sync status dashboard. Include backfill support for the three API-driven sources.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.9.3 (strict mode), Node.js LTS
 **Primary Dependencies**: Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Sonner (toasts), Lucide React. No new packages required.
-**Storage**: Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (existing, PDF blobs only — no changes)
+**Storage**: Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (existing, PDF blobs only — no changes); 018 added `anthropic_workspaces`, `anthropic_workspace_costs`, `anthropic_workspace_limits`, `anthropic_org_config` tables (already in DB)
 **Testing**: Vitest (unit/integration), Playwright (E2E)
 **Target Platform**: Vercel (Next.js App Router, Vercel Cron Jobs)
 **Project Type**: Web application (Next.js full-stack)
 **Performance Goals**: Sync operations complete within 60 seconds per source per SC-006; budget period view adds ≤50ms for running cost aggregation query
 **Constraints**: No new npm packages; all external credentials remain in environment variables only; no stack traces in UI or logs
-**Scale/Scope**: ~5 sync sources, ~12 months of historical data per source, ~50 users
+**Scale/Scope**: ~6 sync sources, ~12 months of historical data per source, ~50 users
 
 ## Constitution Check
 
@@ -60,7 +60,8 @@ src/
 │   ├── api/
 │   │   ├── sync/
 │   │   │   ├── github-copilot/route.ts    # NEW: cron handler (replaces /api/copilot/sync)
-│   │   │   └── anthropic-usage/route.ts   # NEW: cron handler (replaces /api/anthropic/sync)
+│   │   │   ├── anthropic-usage/route.ts   # NEW: cron handler (replaces /api/anthropic/sync)
+│   │   │   └── anthropic-workspace/route.ts  # NEW: cron handler (replaces /api/anthropic/workspace-sync)
 │   │   └── invoices/
 │   │       └── ingest/route.ts            # NEW: external automation ingestion endpoint
 │   └── (dashboard)/
@@ -94,6 +95,8 @@ src/lib/db/migrations/
 - `src/actions/invoice-sync.ts` → extracted to `src/lib/sync/sources/invoice-matching.ts`
 - `src/app/api/copilot/sync/route.ts` → replaced by `src/app/api/sync/github-copilot/route.ts`
 - `src/app/api/anthropic/sync/route.ts` → replaced by `src/app/api/sync/anthropic-usage/route.ts`
+- `src/lib/anthropic-workspace-sync.ts` → extracted to `src/lib/sync/sources/anthropic-workspace.ts`
+- `src/app/api/anthropic/workspace-sync/route.ts` → replaced by `src/app/api/sync/anthropic-workspace/route.ts`
 
 **Structure Decision**: Single-project Next.js App Router layout (existing pattern). The new `src/lib/sync/` directory follows the same structure as other domain libraries in `src/lib/`.
 
@@ -111,11 +114,12 @@ Delivers the unified sync framework. All subsequent phases depend on this.
 
 **Tasks**:
 1. Update `src/lib/db/schema.ts`:
-   - Add `syncSourceTypeEnum`, `syncOutcomeEnum`, `syncOperationTypeEnum`
+   - Add `syncSourceTypeEnum` with values: `github_copilot_billing`, `anthropic_api_usage`, `anthropic_team_invoices`, `github_members`, `invoice_period_matching`, `anthropic_workspace_sync`
+   - Add `syncOutcomeEnum`, `syncOperationTypeEnum`
    - Add `syncSources` table
    - Add `syncEvents` table
    - Make `billedCosts.vendorReference` NOT NULL (migration default `''`)
-2. Generate and write Drizzle migration including data migration SQL for `githubSyncEvents` → `sync_events` and `anthropicSyncStatus` → `sync_events`, plus `sync_sources` seed rows, plus drop old tables
+2. Generate and write Drizzle migration including data migration SQL for `githubSyncEvents` → `sync_events` and `anthropicSyncStatus` → `sync_events` (note: `anthropicSyncStatus` contains `userId = -1` sentinel rows used by workspace sync locking — these must be migrated/dropped alongside regular rows), plus `sync_sources` seed rows, plus drop old tables
 3. Implement `src/lib/sync/framework.ts`:
    - `hashSourceType(sourceType): bigint` — FNV-32 hash to advisory lock ID
    - `retryWithBackoff<T>(fn, options): Promise<T>`
@@ -138,7 +142,8 @@ Extract each existing sync source into the unified framework. The old API routes
 2. `src/lib/sync/sources/anthropic-usage.ts` — extract core logic from `anthropic-sync.ts`; replace sentinel row locking with advisory lock; add backfill mode (31-day window iteration)
 3. `src/lib/sync/sources/github-members.ts` — extract from `github-sync.ts`; adapt to unified framework; no cron (manual only)
 4. `src/lib/sync/sources/invoice-matching.ts` — extract from `invoice-sync.ts`; replace `pg_try_advisory_lock(839271456)` with `hashSourceType('invoice_period_matching')` from registry; no cron (manual only)
-5. Add `src/actions/sync.ts` with `triggerSync`, `triggerBackfill`, `getSyncStatus` server actions
+5. `src/lib/sync/sources/anthropic-workspace.ts` — extract from `anthropic-workspace-sync.ts`; replace `userId = -1` sentinel-row locking with advisory lock via `withSyncLock`; preserve `fetchAndUpsertWorkspaces()` and `fetchAndUpsertWorkspaceCosts()` logic; add backfill mode for `fetchAndUpsertWorkspaceCosts` (iterate month by month from start date using `cost_report` API `starting_at`/`ending_at` parameters)
+6. Add `src/actions/sync.ts` with `triggerSync`, `triggerBackfill`, `getSyncStatus` server actions
 
 **Commit**: `feat(sync): migrate all sync sources to unified framework`
 
@@ -151,11 +156,13 @@ Replace old cron API routes with the new unified paths.
 **Tasks**:
 1. Create `src/app/api/sync/github-copilot/route.ts` (GET + POST, requires cron secret)
 2. Create `src/app/api/sync/anthropic-usage/route.ts` (GET + POST, requires cron secret)
-3. Update `vercel.json`:
+3. Create `src/app/api/sync/anthropic-workspace/route.ts` (GET + POST, requires cron secret)
+4. Update `vercel.json`:
    - Replace `/api/copilot/sync` → `/api/sync/github-copilot`
    - Replace `/api/anthropic/sync` → `/api/sync/anthropic-usage`
-   - Change Anthropic schedule from `*/10 * * * *` to `0 * * * *`
-4. Retire old route files (delete `src/app/api/copilot/sync/route.ts` and `src/app/api/anthropic/sync/route.ts` after confirming new routes work)
+   - Replace `/api/anthropic/workspace-sync` → `/api/sync/anthropic-workspace` (keep schedule `0 * * * *`)
+   - Change Anthropic usage schedule from `*/10 * * * *` to `0 * * * *`
+5. Retire old route files (delete `src/app/api/copilot/sync/route.ts`, `src/app/api/anthropic/sync/route.ts`, and `src/app/api/anthropic/workspace-sync/route.ts` after confirming new routes work)
 
 **Commit**: `feat(sync): replace cron routes with unified sync handlers, update vercel.json`
 
@@ -183,12 +190,12 @@ External automation endpoint for Claude Team Plan invoice submission.
 Surface Claude API running costs alongside billed costs.
 
 **Tasks**:
-1. Add `getRunningCostsForPeriod(periodId): Promise<RunningCostSummary | null>` query to `src/actions/anthropic-usage.ts` — aggregates `computedCostCents` and `MAX(updated_at)` from `anthropicUsageMetrics` for the period's date range
+1. Add `getRunningCostsForPeriod(periodId): Promise<RunningCostSummary | null>` query — aggregates `cost_cents` and `MAX(updated_at)` from `anthropic_workspace_costs` for the period's date range. This uses the authoritative `cost_report` data (018) rather than approximate token × pricing computations. If multiple workspaces exist, an optional per-workspace breakdown is included.
 2. Update the budget period detail Server Component to call `getRunningCostsForPeriod` and pass the result to the period detail UI
 3. Update the period detail UI component:
    - Add "Running Costs" section (shown only when `runningCostCents > 0`)
    - Visually distinct from "Billed Costs" section (different badge/label)
-   - Show "last updated" timestamp inline
+   - Show "last updated" timestamp inline; running cost total reflects the official cost_report data (as of the last workspace cost sync)
    - Update period totals to show: Billed Total / Running Total / Combined Total separately
 
 **Commit**: `feat(budget): display Claude API running costs alongside billed costs in period view`
@@ -202,7 +209,7 @@ New settings page showing all sync sources and their status.
 **Tasks**:
 1. Create `src/app/(dashboard)/settings/sync/page.tsx`:
    - Server Component — calls `getSyncStatus()` on load
-   - Table showing all 5 sources with: source name, schedule, last run time, outcome badge, counts, error message
+   - Table showing all 6 sources (including `anthropic_workspace_sync`) with: source name, schedule, last run time, outcome badge, counts, error message; each source's status is read from `sync_events`
    - "Never synced" state for sources with no event
    - "Sync Now" button → calls `triggerSync()` server action
    - "Backfill..." button (API-driven sources only) → dialog with date picker → calls `triggerBackfill()` server action
@@ -216,17 +223,19 @@ New settings page showing all sync sources and their status.
 ### Phase G — Cleanup & Tests (P1–P6)
 
 **Tasks**:
-1. Delete retired source files: `src/lib/copilot-sync.ts`, `src/lib/anthropic-sync.ts`, `src/actions/github-sync.ts`, `src/actions/invoice-sync.ts`
+1. Delete retired source files: `src/lib/copilot-sync.ts`, `src/lib/anthropic-sync.ts`, `src/lib/anthropic-workspace-sync.ts`, `src/actions/github-sync.ts`, `src/actions/invoice-sync.ts`
 2. Unit tests (Vitest):
    - `framework.ts`: `retryWithBackoff` (retry count, backoff timing, jitter bounds)
-   - `registry.ts`: `hashSourceType` (determinism, no collisions across 5 sources)
+   - `registry.ts`: `hashSourceType` (determinism, no collisions across 6 sources)
    - Running cost query: correct date-range aggregation
 3. Integration tests (Vitest, real DB):
    - `withSyncLock`: mutual exclusion (two concurrent calls to same source)
    - Invoice ingestion: dedup detection, period linking
    - Copilot sync: idempotent upsert on repeated run
+   - `anthropic-workspace.ts`: idempotent upsert on `anthropic_workspace_costs` (repeated sync same date)
+   - Running cost query: uses `anthropic_workspace_costs` not `anthropicUsageMetrics`
 4. E2E tests (Playwright):
-   - Sync dashboard loads all 5 sources
+   - Sync dashboard loads all 6 sources
    - Budget period view shows running costs section when data present
 5. Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`
 
@@ -239,7 +248,17 @@ New settings page showing all sync sources and their status.
 | Risk | Mitigation |
 |------|-----------|
 | Data migration loses `githubSyncEvents` records | Migration runs in a transaction; verified with SELECT COUNT before DROP |
-| Advisory lock hash collision between sources | Unit test asserts all 5 source hashes are distinct |
+| Advisory lock hash collision between sources | Unit test asserts all 6 source hashes are distinct |
 | Old cron routes called after new routes deployed | Old routes deleted in Phase C; Vercel cron updated atomically with the deploy |
 | `INVOICE_INGEST_SECRET` not set in production | Route returns 500 with clear error if env var is missing, not a silent bypass |
 | Anthropic sync schedule change (10min → 1hr) causes data gap | Backfill can recover any missed hours; acknowledged in spec Assumptions |
+
+---
+
+## vercel.json Changes
+
+| Source | New Path | Schedule |
+|--------|----------|----------|
+| GitHub Copilot billing | `/api/sync/github-copilot` | `0 6 * * *` (daily) |
+| Anthropic API usage | `/api/sync/anthropic-usage` | `0 * * * *` (hourly) |
+| Anthropic workspace sync | `/api/sync/anthropic-workspace` | `0 * * * *` (hourly) |
