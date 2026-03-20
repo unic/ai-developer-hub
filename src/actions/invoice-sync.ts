@@ -15,8 +15,11 @@ import { recordCreation } from "@/actions/history";
 import { hashSourceType } from "@/lib/sync/framework";
 import type { ActionResult, SyncInvoiceOutcome, SyncResult } from "@/types";
 
-// Re-export for backward compatibility — canonical location is budget-utils.ts
-export { findPeriodForDate } from "@/lib/budget-utils";
+// Wrapper for backward compatibility — canonical location is budget-utils.ts
+import { findPeriodForDate as _findPeriodForDate } from "@/lib/budget-utils";
+export async function findPeriodForDate(invoiceDate: string) {
+  return _findPeriodForDate(invoiceDate);
+}
 
 // Advisory lock ID derived from unified framework hash
 const SYNC_LOCK_ID = Number(hashSourceType("invoice_period_matching"));
