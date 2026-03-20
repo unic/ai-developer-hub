@@ -1,21 +1,20 @@
 import { db } from "@/lib/db";
-import { syncEvents } from "@/lib/db/schema";
+import { syncEvents, syncSourceTypeEnum, syncOperationTypeEnum } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import type { InferInsertModel } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — derived from schema enums
 // ---------------------------------------------------------------------------
 
-export type SyncSourceType =
-  | "github_copilot_billing"
-  | "anthropic_api_usage"
-  | "anthropic_team_invoices"
-  | "github_members"
-  | "invoice_period_matching"
-  | "anthropic_workspace_sync";
+export type SyncSourceType = (typeof syncSourceTypeEnum.enumValues)[number];
+export type SyncOperationType = (typeof syncOperationTypeEnum.enumValues)[number];
 
-export type SyncOperationType = "regular" | "backfill";
+/** Source types that support historical backfill */
+export const BACKFILL_SOURCES: SyncSourceType[] = [
+  "github_copilot_billing",
+  "anthropic_api_usage",
+  "anthropic_workspace_sync",
+];
 
 export interface SyncCounts {
   createdCount: number;

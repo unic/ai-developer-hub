@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import type { SyncSourceType } from "@/lib/sync/framework";
 
 interface SyncNowButtonProps {
-  sourceType: string;
+  sourceType: SyncSourceType;
   disabled?: boolean;
 }
 
@@ -20,7 +20,7 @@ export function SyncNowButton({ sourceType, disabled }: SyncNowButtonProps) {
   async function handleClick() {
     setLoading(true);
     try {
-      const result = await triggerSync(sourceType as SyncSourceType);
+      const result = await triggerSync(sourceType);
       if (result.success) {
         toast.success("Sync started");
         router.refresh();

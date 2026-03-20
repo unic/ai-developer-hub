@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import type { SyncSourceType } from "@/lib/sync/framework";
 
 interface BackfillDialogProps {
-  sourceType: string;
+  sourceType: SyncSourceType;
   disabled?: boolean;
 }
 
@@ -36,10 +36,7 @@ export function BackfillDialog({ sourceType, disabled }: BackfillDialogProps) {
 
     setLoading(true);
     try {
-      const result = await triggerBackfill(
-        sourceType as SyncSourceType,
-        startDate
-      );
+      const result = await triggerBackfill(sourceType, startDate);
       if (result.success) {
         toast.success("Backfill started");
         setOpen(false);

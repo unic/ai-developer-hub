@@ -8,6 +8,9 @@ import { extractInvoiceFields } from "@/lib/invoice-extraction";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/actions/invoice-sync";
 
+/** System user ID for automated/API-initiated operations */
+const SYSTEM_ADMIN_USER_ID = 1;
+
 export const dynamic = "force-dynamic";
 
 // Max file size: 10 MB
@@ -162,7 +165,7 @@ export async function POST(request: NextRequest) {
         vendor: vendor ?? "Anthropic",
         blobUrl,
         blobPathname: objectKey,
-        uploadedBy: 1, // System admin user
+        uploadedBy: SYSTEM_ADMIN_USER_ID,
         linkedBilledCostId,
       })
       .returning({ id: invoices.id });

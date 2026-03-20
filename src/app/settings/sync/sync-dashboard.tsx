@@ -12,8 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { SyncNowButton } from "@/components/sync/sync-now-button";
 import { BackfillDialog } from "@/components/sync/backfill-dialog";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
+import { BACKFILL_SOURCES, type SyncSourceType } from "@/lib/sync/framework";
 
-const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Record<SyncSourceType, string> = {
   github_copilot_billing: "GitHub Copilot Billing",
   anthropic_api_usage: "Anthropic API Usage",
   anthropic_team_invoices: "Claude Team Invoices",
@@ -21,12 +22,6 @@ const SOURCE_LABELS: Record<string, string> = {
   invoice_period_matching: "Invoice-Period Matching",
   anthropic_workspace_sync: "Anthropic Workspace Sync",
 };
-
-const BACKFILL_SOURCES = [
-  "github_copilot_billing",
-  "anthropic_api_usage",
-  "anthropic_workspace_sync",
-];
 
 function OutcomeBadge({ outcome }: { outcome: string | null }) {
   if (!outcome) return <Badge variant="secondary">Never synced</Badge>;

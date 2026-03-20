@@ -1,9 +1,8 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth-helpers";
-import { getSyncSources } from "@/lib/sync/registry";
-import type { SyncSourceType } from "@/lib/sync/framework";
-import { getSyncSource } from "@/lib/sync/registry";
+import { getSyncSources, getSyncSource } from "@/lib/sync/registry";
+import { BACKFILL_SOURCES, type SyncSourceType } from "@/lib/sync/framework";
 import { z } from "zod";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
 
@@ -18,16 +17,6 @@ type SyncActionResult =
 type SyncStatusResult =
   | { success: true; data: SyncSourceWithLastEvent[] }
   | { success: false; error: string };
-
-// ---------------------------------------------------------------------------
-// Source routing
-// ---------------------------------------------------------------------------
-
-const BACKFILL_SOURCES: SyncSourceType[] = [
-  "github_copilot_billing",
-  "anthropic_api_usage",
-  "anthropic_workspace_sync",
-];
 
 async function getSourceRunner(sourceType: SyncSourceType) {
   switch (sourceType) {

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { syncSources, syncEvents } from "@/lib/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { SyncSourceType } from "./framework";
 
 // ---------------------------------------------------------------------------

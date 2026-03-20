@@ -440,33 +440,17 @@ export async function getRunningCostsForPeriod(
   source: "anthropic_workspace_costs";
   workspaceBreakdown?: Array<{ workspaceName: string; costCents: number }>;
 } | null> {
-  // Get the period's date range
   const period = await db.query.budgetPeriods.findFirst({
     where: eq(budgetPeriods.id, periodId),
   });
   if (!period) return null;
 
-  // Aggregate costs from anthropic_workspace_costs for this date range
-  const [totals] = await db
-    .select({
-      runningCostCents: sql<number>`COALESCE(SUM(${anthropicWorkspaceCosts.costCents}), 0)`,
-      lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
-    })
-    .from(anthropicWorkspaceCosts)
-    .where(
-      and(
-        sql`${anthropicWorkspaceCosts.date} >= ${period.startDate}`,
-        sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`
-      )
-    );
-
-  if (!totals || totals.runningCostCents === 0) return null;
-
-  // Check if multiple workspaces exist for breakdown
+  // Single query: grouped by workspace with JOIN, derive total in JS
   const breakdown = await db
     .select({
       workspaceName: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
       costCents: sql<number>`SUM(${anthropicWorkspaceCosts.costCents})`,
+      lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
     })
     .from(anthropicWorkspaceCosts)
     .leftJoin(
@@ -481,12 +465,22 @@ export async function getRunningCostsForPeriod(
     )
     .groupBy(anthropicWorkspaces.name);
 
+  if (breakdown.length === 0) return null;
+
+  const runningCostCents = breakdown.reduce((sum, r) => sum + r.costCents, 0);
+  if (runningCostCents === 0) return null;
+
+  const lastUpdatedAt = breakdown.reduce<string | null>((max, r) => {
+    if (!r.lastUpdatedAt) return max;
+    return !max || r.lastUpdatedAt > max ? r.lastUpdatedAt : max;
+  }, null);
+
   return {
-    runningCostCents: totals.runningCostCents,
-    lastUpdatedAt: totals.lastUpdatedAt
-      ? new Date(totals.lastUpdatedAt).toISOString()
-      : null,
+    runningCostCents,
+    lastUpdatedAt: lastUpdatedAt ? new Date(lastUpdatedAt).toISOString() : null,
     source: "anthropic_workspace_costs",
-    ...(breakdown.length > 1 ? { workspaceBreakdown: breakdown } : {}),
+    ...(breakdown.length > 1
+      ? { workspaceBreakdown: breakdown.map((r) => ({ workspaceName: r.workspaceName, costCents: r.costCents })) }
+      : {}),
   };
 }
