@@ -37,10 +37,7 @@ const workspacesResponseSchema = z.object({
 
 const costResultSchema = z.object({
   workspace_id: z.string().nullable(),
-  amount: z.object({
-    value: z.number(),
-    currency: z.string(),
-  }),
+  amount: z.string(), // USD value as a decimal string e.g. "1.2345"
 });
 
 const costBucketSchema = z.object({
@@ -208,7 +205,7 @@ export async function fetchAndUpsertWorkspaceCosts(
   for (const bucket of response.data) {
     const date = bucket.starting_at.split("T")[0];
     for (const result of bucket.results) {
-      const costCents = Math.round(result.amount.value * 100);
+      const costCents = Math.round(parseFloat(result.amount) * 100);
       if (result.workspace_id !== null) {
         namedRows.push({ workspaceId: result.workspace_id, date, costCents, updatedAt: now });
       } else {
