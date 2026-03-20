@@ -76,9 +76,23 @@ export function OrgCreditsPanel({
                 {formatCurrency(currentMonthTotalCents)}
               </p>
               {limitCents != null && (
-                <p className="text-sm text-muted-foreground">
-                  {utilizationPct ?? 0}% of {formatCurrency(limitCents)} budget
-                </p>
+                <div className="mt-1 space-y-1">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        (utilizationPct ?? 0) >= 100
+                          ? "bg-destructive"
+                          : (utilizationPct ?? 0) >= 80
+                          ? "bg-yellow-500"
+                          : "bg-primary"
+                      }`}
+                      style={{ width: `${Math.min(utilizationPct ?? 0, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {utilizationPct ?? 0}% of {formatCurrency(limitCents)} budget
+                  </p>
+                </div>
               )}
             </div>
 
@@ -95,6 +109,7 @@ export function OrgCreditsPanel({
                       onChange={(e) => setInputValue(e.target.value)}
                       className="w-32"
                       placeholder="No limit"
+                      aria-label="Monthly billing budget limit in dollars"
                       autoFocus
                     />
                   </div>

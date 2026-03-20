@@ -54,6 +54,7 @@ export function GlobalMetricsClient({
 
   function handleMonthChange(newMonth: string) {
     setSelectedMonth(newMonth);
+    setSelectedWorkspace(ALL_WORKSPACES);
     startTransition(async () => {
       const data = await getGlobalCostDashboard(newMonth);
       setDashboardData(data);

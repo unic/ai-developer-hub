@@ -30,12 +30,16 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
     startTransition(async () => {
       const dollars = parseFloat(inputValue);
       const limitCents = isNaN(dollars) || inputValue.trim() === "" ? null : Math.round(dollars * 100);
-      const result = await setWorkspaceLimit(workspace.workspaceId, limitCents);
-      if (result.success) {
-        toast.success("Budget limit updated.");
-        setEditing(false);
-      } else {
-        toast.error(`Failed to update limit: ${result.error}`);
+      try {
+        const result = await setWorkspaceLimit(workspace.workspaceId, limitCents);
+        if (result.success) {
+          toast.success("Budget limit updated.");
+          setEditing(false);
+        } else {
+          toast.error(`Failed to update limit: ${result.error}`);
+        }
+      } catch {
+        toast.error("Failed to update limit: network error.");
       }
     });
   }
@@ -91,6 +95,7 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
                 onChange={(e) => setInputValue(e.target.value)}
                 className="w-28"
                 placeholder="No limit"
+                aria-label="Monthly limit in USD"
                 autoFocus
               />
             </div>
