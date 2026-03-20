@@ -44,8 +44,8 @@ const costResultSchema = z.object({
 });
 
 const costBucketSchema = z.object({
-  start_time: z.string(),
-  end_time: z.string(),
+  starting_at: z.string(),
+  ending_at: z.string(),
   results: z.array(costResultSchema),
 });
 
@@ -177,8 +177,8 @@ export async function fetchAndUpsertWorkspaceCosts(
   // Build query string (array params must use [] syntax)
   const parts = [
     "group_by[]=workspace_id",
-    `start_date=${startDate}`,
-    `end_date=${endDate}`,
+    `starting_at=${encodeURIComponent(startDate)}`,
+    `ending_at=${encodeURIComponent(endDate)}`,
     "bucket_width=1d",
   ];
 
@@ -206,7 +206,7 @@ export async function fetchAndUpsertWorkspaceCosts(
   const defaultRows: { workspaceId: null; date: string; costCents: number; updatedAt: Date }[] = [];
 
   for (const bucket of response.data) {
-    const date = bucket.start_time.split("T")[0];
+    const date = bucket.starting_at.split("T")[0];
     for (const result of bucket.results) {
       const costCents = Math.round(result.amount.value * 100);
       if (result.workspace_id !== null) {
