@@ -1,4 +1,4 @@
-# AI Developer Hub Development Guidelines
+﻿# AI Developer Hub Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-03-02
 
@@ -37,6 +37,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL via Drizzle ORM 0.45.1 (no schema changes) (017-polish-user-ui)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React (018-claude-global-metrics)
 - Neon PostgreSQL serverless via `@neondatabase/serverless` — 3 new tables, 1 modified table (018-claude-global-metrics)
+- TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1 (018-fix-cron-auth)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -100,6 +101,7 @@ pnpm lighthouse        # Lighthouse CI
 
 ## Recent Changes
 - 018-claude-global-metrics: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
+- 018-fix-cron-auth: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1
 - 015-github-billing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, Sonner (toasts), Lucide React
 - 017-first-login-experience: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1, bcryptjs 3.0.3, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React. **NEW**: resend, @react-email/components
 
