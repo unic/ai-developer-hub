@@ -35,6 +35,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL (serverless) via @neondatabase/serverless — 1 new table (`invite_tokens`), 1 modified table (`users` + `must_change_password` column), 1 new enum (`invite_token_status`) (017-first-login-experience)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, shadcn/ui (new-york), TanStack Table 8.21.3, React Hook Form 7.71.2, Zod 4.3.6, cmdk 1.1.1, Sonner (toasts), Lucide React (017-polish-user-ui)
 - Neon PostgreSQL via Drizzle ORM 0.45.1 (no schema changes) (017-polish-user-ui)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React (018-claude-global-metrics)
+- Neon PostgreSQL serverless via `@neondatabase/serverless` — 3 new tables, 1 modified table (018-claude-global-metrics)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -97,11 +99,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 018-claude-global-metrics: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
 - 015-github-billing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, Sonner (toasts), Lucide React
 - 017-first-login-experience: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1, bcryptjs 3.0.3, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React. **NEW**: resend, @react-email/components
-- 017-polish-user-ui: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, shadcn/ui (new-york), TanStack Table 8.21.3, React Hook Form 7.71.2, Zod 4.3.6, cmdk 1.1.1, Sonner (toasts), Lucide React
-- 016-claude-api-costs: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
-- 015-github-member-sync: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, shadcn/ui (new-york), cmdk 1.1.1, string-similarity (NEW)
 
 
 <!-- MANUAL ADDITIONS START -->

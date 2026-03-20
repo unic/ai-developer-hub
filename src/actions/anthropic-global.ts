@@ -1,0 +1,340 @@
+"use server";
+
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import {
+  anthropicWorkspaceCosts,
+  anthropicWorkspaces,
+  anthropicWorkspaceLimits,
+  anthropicOrgConfig,
+  anthropicSyncStatus,
+} from "@/lib/db/schema";
+import { unstable_cache, revalidateTag, revalidatePath } from "next/cache";
+import { eq, sql } from "drizzle-orm";
+import { z } from "zod";
+import { format, endOfMonth, parseISO } from "date-fns";
+import type {
+  GlobalCostDashboardData,
+  WorkspaceListItem,
+  OrgCreditsStatus,
+} from "@/types";
+import { syncAnthropicWorkspaces } from "@/lib/anthropic-workspace-sync";
+
+// ---------------------------------------------------------------------------
+// Auth helper
+// ---------------------------------------------------------------------------
+
+async function assertAdmin(): Promise<boolean> {
+  const session = await auth();
+  return !!(session?.user && session.user.role === "admin");
+}
+
+// ---------------------------------------------------------------------------
+// getGlobalCostDashboard (T014)
+// ---------------------------------------------------------------------------
+
+const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+
+async function _getGlobalCostDashboard(month: string): Promise<GlobalCostDashboardData> {
+  const startDate = `${month}-01`;
+  const endDate = format(endOfMonth(parseISO(`${month}-01`)), "yyyy-MM-dd");
+
+  // Fetch all workspace cost rows for the month
+  const costRows = await db
+    .select()
+    .from(anthropicWorkspaceCosts)
+    .where(
+      sql`${anthropicWorkspaceCosts.date} >= ${startDate}::date AND ${anthropicWorkspaceCosts.date} <= ${endDate}::date`
+    );
+
+  // Fetch all workspaces
+  const workspaceRows = await db.select().from(anthropicWorkspaces);
+
+  // Build workspace map (workspaceId -> name)
+  const workspaceMap = new Map<string | null, string>();
+  for (const ws of workspaceRows) {
+    workspaceMap.set(ws.workspaceId, ws.name);
+  }
+
+  // Group cost rows by workspaceId
+  const byWorkspace = new Map<
+    string | null,
+    { date: string; costCents: number }[]
+  >();
+
+  for (const row of costRows) {
+    const key = row.workspaceId;
+    if (!byWorkspace.has(key)) {
+      byWorkspace.set(key, []);
+    }
+    byWorkspace.get(key)!.push({ date: row.date, costCents: row.costCents });
+  }
+
+  // Build daily totals across all workspaces
+  const dailyMap = new Map<string, number>();
+  for (const row of costRows) {
+    dailyMap.set(row.date, (dailyMap.get(row.date) ?? 0) + row.costCents);
+  }
+  const dailyTotals = Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, costCents]) => ({ date, costCents }));
+
+  const grandTotalCents = dailyTotals.reduce((sum, d) => sum + d.costCents, 0);
+
+  // Build workspace breakdown
+  const workspaceBreakdown: GlobalCostDashboardData["workspaceBreakdown"] = [];
+  for (const [workspaceId, days] of byWorkspace.entries()) {
+    const name = workspaceMap.get(workspaceId) ?? (workspaceId === null ? "Default Workspace" : workspaceId);
+    const sortedDays = [...days].sort((a, b) => a.date.localeCompare(b.date));
+    const totalCents = sortedDays.reduce((sum, d) => sum + d.costCents, 0);
+    workspaceBreakdown.push({
+      workspaceId,
+      name,
+      totalCents,
+      dailyTotals: sortedDays,
+    });
+  }
+  workspaceBreakdown.sort((a, b) => b.totalCents - a.totalCents);
+
+  return { grandTotalCents, dailyTotals, workspaceBreakdown };
+}
+
+export async function getGlobalCostDashboard(
+  month?: string
+): Promise<GlobalCostDashboardData> {
+  const isAdmin = await assertAdmin();
+  if (!isAdmin) {
+    return { grandTotalCents: 0, dailyTotals: [], workspaceBreakdown: [] };
+  }
+
+  const targetMonth = month && monthSchema.safeParse(month).success
+    ? month
+    : format(new Date(), "yyyy-MM");
+
+  return unstable_cache(
+    () => _getGlobalCostDashboard(targetMonth),
+    ["anthropic-global-cost-dashboard", targetMonth],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// getAvailableWorkspaceCostMonths / getAvailableMonths (T015 + T032)
+// ---------------------------------------------------------------------------
+
+async function _getAvailableWorkspaceCostMonths(): Promise<string[]> {
+  const rows = await db.execute(sql`
+    SELECT DISTINCT TO_CHAR(DATE_TRUNC('month', date::date), 'YYYY-MM') as month
+    FROM anthropic_workspace_costs
+    ORDER BY 1 DESC
+  `);
+  return rows.rows.map((r) => r.month as string);
+}
+
+export const getAvailableWorkspaceCostMonths = unstable_cache(
+  _getAvailableWorkspaceCostMonths,
+  ["anthropic-available-months"],
+  { tags: ["anthropic-workspace-costs"] }
+);
+
+export const getAvailableMonths = getAvailableWorkspaceCostMonths;
+
+// ---------------------------------------------------------------------------
+// getWorkspaceList (T020)
+// ---------------------------------------------------------------------------
+
+async function _getWorkspaceList(): Promise<WorkspaceListItem[]> {
+  const currentMonth = format(new Date(), "yyyy-MM");
+  const startDate = `${currentMonth}-01`;
+  const endDate = format(endOfMonth(parseISO(`${currentMonth}-01`)), "yyyy-MM-dd");
+
+  const rows = await db.execute(sql`
+    SELECT
+      w.workspace_id,
+      w.name,
+      w.is_default,
+      w.is_archived,
+      COALESCE(c.total_cents, 0) as current_month_cents,
+      l.limit_cents
+    FROM anthropic_workspaces w
+    LEFT JOIN (
+      SELECT workspace_id, SUM(cost_cents) as total_cents
+      FROM anthropic_workspace_costs
+      WHERE date >= ${startDate}::date AND date <= ${endDate}::date
+      GROUP BY workspace_id
+    ) c ON c.workspace_id IS NOT DISTINCT FROM w.workspace_id
+    LEFT JOIN anthropic_workspace_limits l
+      ON l.workspace_id IS NOT DISTINCT FROM w.workspace_id
+    WHERE w.is_archived = false
+    ORDER BY w.is_default DESC, w.name
+  `);
+
+  return rows.rows.map((r) => {
+    const currentMonthCents = Number(r.current_month_cents ?? 0);
+    const limitCents = r.limit_cents != null ? Number(r.limit_cents) : null;
+    const utilizationPct =
+      limitCents != null && limitCents > 0
+        ? Math.round((currentMonthCents / limitCents) * 100)
+        : null;
+    return {
+      workspaceId: r.workspace_id as string | null,
+      name: r.name as string,
+      isDefault: r.is_default as boolean,
+      isArchived: r.is_archived as boolean,
+      currentMonthCents,
+      limitCents,
+      utilizationPct,
+    };
+  });
+}
+
+export async function getWorkspaceList(): Promise<WorkspaceListItem[]> {
+  const isAdmin = await assertAdmin();
+  if (!isAdmin) return [];
+
+  return unstable_cache(
+    _getWorkspaceList,
+    ["anthropic-workspace-list"],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// setWorkspaceLimit (T021)
+// ---------------------------------------------------------------------------
+
+const limitSchema = z
+  .number()
+  .int()
+  .positive()
+  .nullable();
+
+export async function setWorkspaceLimit(
+  workspaceId: string | null,
+  limitCents: number | null
+): Promise<{ success: true } | { success: false; error: string }> {
+  const isAdmin = await assertAdmin();
+  if (!isAdmin) return { success: false, error: "Unauthorized" };
+
+  const parsed = limitSchema.safeParse(limitCents);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid limit value" };
+  }
+
+  try {
+    if (limitCents === null) {
+      // Delete the row
+      if (workspaceId === null) {
+        await db
+          .delete(anthropicWorkspaceLimits)
+          .where(sql`${anthropicWorkspaceLimits.workspaceId} IS NULL`);
+      } else {
+        await db
+          .delete(anthropicWorkspaceLimits)
+          .where(eq(anthropicWorkspaceLimits.workspaceId, workspaceId));
+      }
+    } else {
+      // Upsert
+      await db
+        .insert(anthropicWorkspaceLimits)
+        .values({ workspaceId, limitCents })
+        .onConflictDoUpdate({
+          target: [anthropicWorkspaceLimits.workspaceId],
+          set: { limitCents, updatedAt: new Date() },
+        });
+    }
+
+    revalidateTag("anthropic-workspace-costs");
+    revalidateTag("alerts");
+    revalidatePath("/claude");
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { success: false, error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// getOrgConfig (T027)
+// ---------------------------------------------------------------------------
+
+async function _getOrgConfig(): Promise<{ billingBudgetLimitCents: number | null } | null> {
+  const row = await db.query.anthropicOrgConfig.findFirst({
+    where: eq(anthropicOrgConfig.id, 1),
+  });
+  if (!row) return null;
+  return { billingBudgetLimitCents: row.billingBudgetLimitCents ?? null };
+}
+
+export async function getOrgConfig(): Promise<{ billingBudgetLimitCents: number | null } | null> {
+  const isAdmin = await assertAdmin();
+  if (!isAdmin) return null;
+
+  return unstable_cache(
+    _getOrgConfig,
+    ["anthropic-org-config"],
+    { tags: ["alerts"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// setOrgBillingBudget (T028)
+// ---------------------------------------------------------------------------
+
+const billingBudgetSchema = z.number().int().positive().nullable();
+
+export async function setOrgBillingBudget(
+  limitCents: number | null
+): Promise<{ success: true } | { success: false; error: string }> {
+  const isAdmin = await assertAdmin();
+  if (!isAdmin) return { success: false, error: "Unauthorized" };
+
+  const parsed = billingBudgetSchema.safeParse(limitCents);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid limit value" };
+  }
+
+  try {
+    await db
+      .insert(anthropicOrgConfig)
+      .values({ id: 1, billingBudgetLimitCents: limitCents, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [anthropicOrgConfig.id],
+        set: { billingBudgetLimitCents: limitCents, updatedAt: new Date() },
+      });
+
+    revalidateTag("alerts");
+    revalidatePath("/claude");
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { success: false, error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// getOrgCreditsStatus (T029)
+// ---------------------------------------------------------------------------
+
+export async function getOrgCreditsStatus(): Promise<OrgCreditsStatus> {
+  return { available: false, reason: "not_exposed_by_api" };
+}
+
+// ---------------------------------------------------------------------------
+// syncWorkspacesManual (T035 empty state)
+// ---------------------------------------------------------------------------
+
+export async function syncWorkspacesManual(): Promise<
+  { success: true } | { success: false; error: string }
+> {
+  const isAdmin = await assertAdmin();
+  if (!isAdmin) return { success: false, error: "Unauthorized" };
+
+  try {
+    await syncAnthropicWorkspaces();
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { success: false, error: msg };
+  }
+}
