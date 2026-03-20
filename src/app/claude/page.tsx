@@ -49,9 +49,12 @@ export default async function ClaudePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Claude Console</h1>
-        <p className="text-muted-foreground">Org-wide Claude API usage and spending</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Claude Console</h1>
+          <p className="text-muted-foreground">Org-wide Claude API usage and spending</p>
+        </div>
+        <SyncButton />
       </div>
 
       <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
