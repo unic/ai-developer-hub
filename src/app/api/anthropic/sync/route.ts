@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCronSecret } from "@/lib/auth-helpers";
 import { runAnthropicSync } from "@/lib/anthropic-sync";
+import { syncAnthropicWorkspaces } from "@/lib/anthropic-workspace-sync";
 
 export const dynamic = "force-dynamic";
 
 async function handleSync(): Promise<NextResponse> {
   try {
     const summary = await runAnthropicSync();
+
+    // Fire-and-forget workspace sync (staleness check is inside syncAnthropicWorkspaces)
+    void (async () => {
+      try {
+        await syncAnthropicWorkspaces();
+      } catch (err) {
+        console.error("Background workspace sync failed:", err);
+      }
+    })();
 
     return NextResponse.json({
       success: true,
