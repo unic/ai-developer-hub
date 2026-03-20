@@ -37,7 +37,7 @@ const workspacesResponseSchema = z.object({
 
 const costResultSchema = z.object({
   workspace_id: z.string().nullable(),
-  amount: z.string(), // cost in cents as a decimal string e.g. "522.584295"
+  amount: z.string(), // cost already in fractional cents per Anthropic API convention (not USD) e.g. "522.584295" = ~$5.23
 });
 
 const costBucketSchema = z.object({
@@ -231,36 +231,47 @@ export async function fetchAndUpsertWorkspaceCosts(
     }
   }
 
-  // Diagnostic: log API response summary — check Vercel/server logs after sync
-  const apiTotalCents = [...namedRows, ...defaultRows].reduce((s, r) => s + r.costCents, 0);
-  console.log(
-    `[workspace-costs] ${pageCount} page(s), ${allBuckets.length} buckets, ${rowsUpserted} results. ` +
-    `API total: $${(apiTotalCents / 100).toFixed(2)} ` +
-    `(named=${namedRows.length} $${(namedRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)}, ` +
-    `default=${defaultRows.length} $${(defaultRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)})`
-  );
-  // Log raw amount values from first few results for unit diagnosis
-  const sampleResults = allBuckets.slice(0, 3).flatMap(b =>
-    b.results.map(r => ({ date: b.starting_at.split("T")[0], ws: r.workspace_id, amount: r.amount }))
-  );
-  console.log("[workspace-costs] Sample results (raw amounts):", JSON.stringify(sampleResults, null, 2));
+  if (process.env.DEBUG_WORKSPACE_SYNC) {
+    // Diagnostic: log API response summary — check Vercel/server logs after sync
+    const apiTotalCents = [...namedRows, ...defaultRows].reduce((s, r) => s + r.costCents, 0);
+    console.log(
+      `[workspace-costs] ${pageCount} page(s), ${allBuckets.length} buckets, ${rowsUpserted} results. ` +
+      `API total: $${(apiTotalCents / 100).toFixed(2)} ` +
+      `(named=${namedRows.length} $${(namedRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)}, ` +
+      `default=${defaultRows.length} $${(defaultRows.reduce((s,r)=>s+r.costCents,0)/100).toFixed(2)})`
+    );
+    // Log raw amount values from first few results for unit diagnosis
+    const sampleResults = allBuckets.slice(0, 3).flatMap(b =>
+      b.results.map(r => ({ date: b.starting_at.split("T")[0], ws: r.workspace_id, amount: r.amount }))
+    );
+    console.log("[workspace-costs] Sample results (raw amounts):", JSON.stringify(sampleResults, null, 2));
+  }
 
   // Use raw SQL upserts to correctly target partial indexes.
   // Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT,
   // causing inserts instead of updates (30× overcount bug).
-  for (const row of namedRows) {
+  // Batched to avoid N+1 queries.
+  if (namedRows.length > 0) {
+    const valuesSql = sql.join(
+      namedRows.map((r) => sql`(${r.workspaceId}, ${r.date}::date, ${r.costCents}, ${r.updatedAt})`),
+      sql`, `
+    );
     await db.execute(sql`
       INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents, updated_at)
-      VALUES (${row.workspaceId}, ${row.date}::date, ${row.costCents}, ${row.updatedAt})
+      VALUES ${valuesSql}
       ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
       DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = EXCLUDED.updated_at
     `);
   }
 
-  for (const row of defaultRows) {
+  if (defaultRows.length > 0) {
+    const valuesSql = sql.join(
+      defaultRows.map((r) => sql`(NULL, ${r.date}::date, ${r.costCents}, ${r.updatedAt})`),
+      sql`, `
+    );
     await db.execute(sql`
       INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents, updated_at)
-      VALUES (NULL, ${row.date}::date, ${row.costCents}, ${row.updatedAt})
+      VALUES ${valuesSql}
       ON CONFLICT (date) WHERE workspace_id IS NULL
       DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = EXCLUDED.updated_at
     `);
