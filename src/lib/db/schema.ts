@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   index,
   jsonb,
+  check,
 } from "drizzle-orm/pg-core";
 import type { UserPreferences } from "@/types";
 import { relations, sql } from "drizzle-orm";
@@ -531,8 +532,100 @@ export const anthropicSyncStatus = pgTable(
     lastSyncError: varchar("last_sync_error", { length: 500 }),
     syncedDays: integer("synced_days").notNull().default(0),
     resolvedApiKeyId: varchar("resolved_api_key_id", { length: 100 }),
+    workspaceSyncCompletedAt: timestamp("workspace_sync_completed_at"),
   },
   (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
+);
+
+// ============================================================
+// 018-claude-global-metrics: New tables
+// Run `pnpm db:push` after modifying these table definitions
+// to apply changes to the development database.
+// ============================================================
+
+// Anthropic Workspaces (workspace metadata from Anthropic Admin API)
+export const anthropicWorkspaces = pgTable(
+  "anthropic_workspaces",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    name: varchar("name", { length: 200 }).notNull(),
+    displayColor: varchar("display_color", { length: 20 }),
+    isDefault: boolean("is_default").notNull().default(false),
+    isArchived: boolean("is_archived").notNull().default(false),
+    archivedAt: timestamp("archived_at"),
+    anthropicCreatedAt: timestamp("anthropic_created_at"),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_workspaces_workspace_id_idx")
+      .on(table.workspaceId)
+      .where(sql`${table.workspaceId} IS NOT NULL`),
+    uniqueIndex("anthropic_workspaces_is_default_idx")
+      .on(table.isDefault)
+      .where(sql`${table.isDefault} = true`),
+    index("anthropic_workspaces_archived_idx").on(table.isArchived),
+  ]
+);
+
+// Anthropic Workspace Costs (daily cost per workspace from cost_report API)
+export const anthropicWorkspaceCosts = pgTable(
+  "anthropic_workspace_costs",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    date: date("date").notNull(),
+    costCents: integer("cost_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_workspace_costs_workspace_date_idx")
+      .on(table.workspaceId, table.date)
+      .where(sql`${table.workspaceId} IS NOT NULL`),
+    uniqueIndex("anthropic_workspace_costs_default_date_idx")
+      .on(table.date)
+      .where(sql`${table.workspaceId} IS NULL`),
+    index("anthropic_workspace_costs_date_idx").on(table.date),
+    index("anthropic_workspace_costs_workspace_id_idx").on(table.workspaceId),
+    check("anthropic_workspace_costs_cost_cents_check", sql`${table.costCents} >= 0`),
+  ]
+);
+
+// Anthropic Workspace Limits (admin-configured monthly spending limits)
+export const anthropicWorkspaceLimits = pgTable(
+  "anthropic_workspace_limits",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    limitCents: integer("limit_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_workspace_limits_workspace_id_idx")
+      .on(table.workspaceId)
+      .where(sql`${table.workspaceId} IS NOT NULL`),
+    uniqueIndex("anthropic_workspace_limits_default_idx")
+      .on(sql`(1)`)
+      .where(sql`${table.workspaceId} IS NULL`),
+  ]
+);
+
+// Anthropic Org Config (singleton row, id always = 1)
+export const anthropicOrgConfig = pgTable(
+  "anthropic_org_config",
+  {
+    id: integer("id").primaryKey().default(1),
+    billingBudgetLimitCents: integer("billing_budget_limit_cents"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedBy: integer("updated_by").references(() => users.id),
+  },
+  (table) => [
+    check("anthropic_org_config_id_check", sql`${table.id} = 1`),
+  ]
 );
 
 // Relations

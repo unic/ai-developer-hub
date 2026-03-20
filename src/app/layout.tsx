@@ -12,6 +12,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { getActiveAlerts } from "@/actions/alerts";
+import { AlertBanner } from "@/components/alert-banner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -29,6 +31,9 @@ export default async function RootLayout({
   const pathname = (headerStore.get("x-pathname") ?? "/").split("?")[0];
   const showSidebar = !isPublicPath(pathname);
   const session = showSidebar ? await auth() : null;
+  const alerts = showSidebar && session?.user?.role === "admin"
+    ? await getActiveAlerts().catch(() => null)
+    : null;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -50,6 +55,7 @@ export default async function RootLayout({
                   <header className="flex h-14 items-center gap-2 border-b px-4">
                     <SidebarTrigger />
                   </header>
+                  <AlertBanner alerts={alerts} />
                   <main className="flex-1 p-4 sm:p-6">{children}</main>
                 </SidebarInset>
               </SidebarProvider>

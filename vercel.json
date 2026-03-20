@@ -7,6 +7,10 @@
     {
       "path": "/api/anthropic/sync",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/anthropic/workspace-sync",
+      "schedule": "0 * * * *"
     }
   ]
 }
