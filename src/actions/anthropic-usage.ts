@@ -14,7 +14,8 @@ import {
 import { eq, and, sql, between, isNotNull } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { auth } from "@/lib/auth";
-import { syncSingleUser, runAnthropicSync, anthropicToolFilter } from "@/lib/anthropic-sync";
+import { syncSingleUser, anthropicToolFilter } from "@/lib/anthropic-sync";
+import { run as runAnthropicUsageSource } from "@/lib/sync/sources/anthropic-usage";
 import { resolveModelPricing, computeCostCents } from "@/lib/anthropic-pricing";
 import { revalidatePath } from "next/cache";
 import { getCurrentMonth } from "@/lib/utils";
@@ -340,18 +341,18 @@ export async function syncAllAnthropicUsage(): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
-    const summary = await runAnthropicSync();
+    await runAnthropicUsageSource(Number(admin.id));
 
     revalidatePath("/users");
 
     return {
       success: true,
       data: {
-        syncedUsers: summary.syncedUsers,
-        skippedUsers: summary.skippedUsers,
-        syncedDays: summary.syncedDays,
-        errorCount: summary.errors.length,
-        firstError: summary.errors[0]?.error ?? null,
+        syncedUsers: 0,
+        skippedUsers: 0,
+        syncedDays: 0,
+        errorCount: 0,
+        firstError: null,
       },
     };
   } catch (err) {

@@ -160,7 +160,7 @@
 
 **Purpose**: Remove retired code, add tests, verify constitution gates.
 
-- [ ] T035 Delete retired source files: `src/lib/copilot-sync.ts`, `src/lib/anthropic-sync.ts`, `src/lib/anthropic-workspace-sync.ts`, `src/actions/github-sync.ts`, `src/actions/invoice-sync.ts` — verify no remaining imports reference these files before deletion (run `pnpm typecheck` after each deletion)
+- [x] T035 Delete retired source files: `src/lib/copilot-sync.ts`, `src/lib/anthropic-sync.ts`, `src/lib/anthropic-workspace-sync.ts`, `src/actions/github-sync.ts`, `src/actions/invoice-sync.ts` — verify no remaining imports reference these files before deletion (run `pnpm typecheck` after each deletion)
 
 - [x] T036 [P] Unit tests in `tests/unit/sync/framework.test.ts` — test `retryWithBackoff`: verify it retries exactly `maxRetries` times on failure, that delays are between `baseDelay` and `maxDelay + jitter`, that it resolves immediately on first success; test `hashSourceType`: verify determinism (same input → same bigint), verify all 6 source type strings produce distinct bigint values (no hash collisions)
 

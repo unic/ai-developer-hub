@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { budgetPeriods, annualBudgets } from "@/lib/db/schema";
-import { eq, and, lte, gt, desc } from "drizzle-orm";
+import { eq, and, lte, gt, desc, sql } from "drizzle-orm";
 
 /**
  * Find the active budget period that covers a given date.
@@ -24,6 +24,32 @@ export async function findActivePeriodForDate(
       )
     )
     .orderBy(desc(annualBudgets.createdAt))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/**
+ * Find the best matching budget period for a given date.
+ * Searches all budgets (active + archived), preferring active budgets.
+ */
+export async function findPeriodForDate(
+  invoiceDate: string
+): Promise<{ id: number; periodLabel: string } | null> {
+  const rows = await db
+    .select({
+      id: budgetPeriods.id,
+      periodLabel: budgetPeriods.periodLabel,
+    })
+    .from(budgetPeriods)
+    .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
+    .where(
+      sql`${budgetPeriods.startDate} <= ${invoiceDate} AND ${budgetPeriods.endDate} > ${invoiceDate}`
+    )
+    .orderBy(
+      sql`CASE WHEN ${annualBudgets.status} = 'active' THEN 0 ELSE 1 END ASC`,
+      desc(annualBudgets.createdAt)
+    )
     .limit(1);
 
   return rows[0] ?? null;
