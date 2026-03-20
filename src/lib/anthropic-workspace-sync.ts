@@ -215,32 +215,25 @@ export async function fetchAndUpsertWorkspaceCosts(
     }
   }
 
-  if (namedRows.length > 0) {
-    await db
-      .insert(anthropicWorkspaceCosts)
-      .values(namedRows)
-      .onConflictDoUpdate({
-        target: [anthropicWorkspaceCosts.workspaceId, anthropicWorkspaceCosts.date],
-        targetWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NOT NULL`,
-        set: {
-          costCents: sql`excluded.cost_cents`,
-          updatedAt: sql`excluded.updated_at`,
-        },
-      });
+  // Use raw SQL upserts to correctly target partial indexes.
+  // Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT,
+  // causing inserts instead of updates (30× overcount bug).
+  for (const row of namedRows) {
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents, updated_at)
+      VALUES (${row.workspaceId}, ${row.date}::date, ${row.costCents}, ${row.updatedAt})
+      ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+      DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = EXCLUDED.updated_at
+    `);
   }
 
-  if (defaultRows.length > 0) {
-    await db
-      .insert(anthropicWorkspaceCosts)
-      .values(defaultRows)
-      .onConflictDoUpdate({
-        target: anthropicWorkspaceCosts.date,
-        targetWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NULL`,
-        set: {
-          costCents: sql`excluded.cost_cents`,
-          updatedAt: sql`excluded.updated_at`,
-        },
-      });
+  for (const row of defaultRows) {
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents, updated_at)
+      VALUES (NULL, ${row.date}::date, ${row.costCents}, ${row.updatedAt})
+      ON CONFLICT (date) WHERE workspace_id IS NULL
+      DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = EXCLUDED.updated_at
+    `);
   }
 
   return rowsUpserted;
