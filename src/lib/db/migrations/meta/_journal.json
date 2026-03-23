@@ -78,6 +78,13 @@
       "when": 1774024602162,
       "tag": "0010_naive_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774483200000,
+      "tag": "0011_fix_period_end_dates",
+      "breakpoints": true
     }
   ]
 }
