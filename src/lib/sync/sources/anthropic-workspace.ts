@@ -68,11 +68,10 @@ async function fetchCostReport(
   const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
-  const params = new URLSearchParams({
-    starting_at: startingAt,
-    ending_at: endingAt,
-    group_by: "workspace",
-  });
+  const params = new URLSearchParams();
+  params.append("starting_at", startingAt);
+  params.append("ending_at", endingAt);
+  params.append("group_by[]", "workspace");
 
   const res = await fetch(
     `https://api.anthropic.com/v1/organizations/cost_report?${params}`,
