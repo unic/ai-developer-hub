@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import type { ProfileData, CostData } from "@/types";
+import type { ProfileData } from "@/types";
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/actions/anthropic-usage", () => ({
+vi.mock("@/lib/profile-data", () => ({
   fetchProfileDataInternal: mockFetchProfile,
   fetchUserCostDataInternal: mockFetchCost,
 }));
@@ -94,6 +94,10 @@ describe("Profile API - GET /api/profile", () => {
     vi.stubEnv("PROFILE_API_SECRET", TEST_SECRET);
     mockFetchProfile.mockResolvedValue(mockProfileData);
     mockSyncFindFirst.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe("parameter validation", () => {
