@@ -97,17 +97,18 @@ function generatePeriods(
   ];
 
   if (type === "monthly") {
-    return Array.from({ length: 12 }, (_, i) => ({
-      budgetId,
-      periodLabel: `${months[i]} ${year}`,
-      periodIndex: i,
-      startDate: `${year}-${String(i + 1).padStart(2, "0")}-01`,
-      endDate:
-        i === 11
-          ? `${year}-12-31`
-          : `${year}-${String(i + 2).padStart(2, "0")}-01`,
-      plannedAmountCents: 0,
-    }));
+    return Array.from({ length: 12 }, (_, i) => {
+      // Last day of month i+1: create date for day 0 of the next month
+      const lastDay = new Date(year, i + 1, 0).getDate();
+      return {
+        budgetId,
+        periodLabel: `${months[i]} ${year}`,
+        periodIndex: i,
+        startDate: `${year}-${String(i + 1).padStart(2, "0")}-01`,
+        endDate: `${year}-${String(i + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+        plannedAmountCents: 0,
+      };
+    });
   }
 
   // Quarterly
@@ -117,7 +118,7 @@ function generatePeriods(
       periodLabel: `Q1 ${year}`,
       periodIndex: 0,
       startDate: `${year}-01-01`,
-      endDate: `${year}-04-01`,
+      endDate: `${year}-03-31`,
       plannedAmountCents: 0,
     },
     {
@@ -125,7 +126,7 @@ function generatePeriods(
       periodLabel: `Q2 ${year}`,
       periodIndex: 1,
       startDate: `${year}-04-01`,
-      endDate: `${year}-07-01`,
+      endDate: `${year}-06-30`,
       plannedAmountCents: 0,
     },
     {
@@ -133,7 +134,7 @@ function generatePeriods(
       periodLabel: `Q3 ${year}`,
       periodIndex: 2,
       startDate: `${year}-07-01`,
-      endDate: `${year}-10-01`,
+      endDate: `${year}-09-30`,
       plannedAmountCents: 0,
     },
     {
@@ -141,7 +142,7 @@ function generatePeriods(
       periodLabel: `Q4 ${year}`,
       periodIndex: 3,
       startDate: `${year}-10-01`,
-      endDate: `${year + 1}-01-01`,
+      endDate: `${year}-12-31`,
       plannedAmountCents: 0,
     },
   ];
