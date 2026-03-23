@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { requireBearerSecret } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { users, anthropicSyncStatus } from "@/lib/db/schema";
 import { fetchProfileDataInternal } from "@/actions/anthropic-usage";
 import { getCurrentMonth } from "@/lib/utils";
 
@@ -57,7 +57,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const profileData = await fetchProfileDataInternal(user.id, monthParam ?? undefined);
+    const [profileData, syncStatus] = await Promise.all([
+      fetchProfileDataInternal(user.id, monthParam ?? undefined),
+      db.query.anthropicSyncStatus.findFirst({
+        where: eq(anthropicSyncStatus.userId, user.id),
+      }),
+    ]);
     const month = monthParam ?? getCurrentMonth();
 
     return NextResponse.json({
@@ -81,6 +86,7 @@ export async function GET(request: NextRequest) {
         costData: {
           ...profileData.costData,
           month,
+          lastSyncAt: syncStatus?.lastSyncCompletedAt?.toISOString() ?? null,
         },
       },
     });

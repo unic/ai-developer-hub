@@ -4,8 +4,9 @@ import type { ProfileData, CostData } from "@/types";
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockFindFirst, mockFetchProfile, mockFetchCost } = vi.hoisted(() => ({
+const { mockFindFirst, mockSyncFindFirst, mockFetchProfile, mockFetchCost } = vi.hoisted(() => ({
   mockFindFirst: vi.fn(),
+  mockSyncFindFirst: vi.fn(),
   mockFetchProfile: vi.fn(),
   mockFetchCost: vi.fn(),
 }));
@@ -16,6 +17,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     query: {
       users: { findFirst: mockFindFirst },
+      anthropicSyncStatus: { findFirst: mockSyncFindFirst },
     },
   },
 }));
@@ -91,6 +93,7 @@ describe("Profile API - GET /api/profile", () => {
     vi.clearAllMocks();
     vi.stubEnv("PROFILE_API_SECRET", TEST_SECRET);
     mockFetchProfile.mockResolvedValue(mockProfileData);
+    mockSyncFindFirst.mockResolvedValue(null);
   });
 
   describe("parameter validation", () => {
@@ -218,6 +221,28 @@ describe("Profile API - GET /api/profile", () => {
       );
       const body = await response.json();
       expect(body.data.costData.month).toBe("2026-02");
+    });
+
+    it("includes lastSyncAt when sync status exists", async () => {
+      mockFindFirst.mockResolvedValue(mockUser);
+      mockSyncFindFirst.mockResolvedValue({
+        lastSyncCompletedAt: new Date("2026-03-22T14:30:00.000Z"),
+      });
+      const response = await GET(
+        makeRequest({ email: "jane@example.com" })
+      );
+      const body = await response.json();
+      expect(body.data.costData.lastSyncAt).toBe("2026-03-22T14:30:00.000Z");
+    });
+
+    it("returns lastSyncAt as null when no sync status exists", async () => {
+      mockFindFirst.mockResolvedValue(mockUser);
+      mockSyncFindFirst.mockResolvedValue(null);
+      const response = await GET(
+        makeRequest({ email: "jane@example.com" })
+      );
+      const body = await response.json();
+      expect(body.data.costData.lastSyncAt).toBeNull();
     });
   });
 
