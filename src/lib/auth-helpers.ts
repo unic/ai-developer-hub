@@ -12,12 +12,16 @@ export async function requireAdmin() {
 }
 
 /**
- * Validate CRON_SECRET Bearer token for Vercel Cron Job routes.
- * Returns an error response if unauthorized, or null if authenticated.
+ * Validate a Bearer token from the Authorization header against a named
+ * environment variable. Returns an error response if unauthorized, or null
+ * if authenticated. Fails closed when the env var is not set.
  */
-export function requireCronSecret(request: NextRequest): NextResponse | null {
+export function requireBearerSecret(
+  request: NextRequest,
+  envVarName: string
+): NextResponse | null {
   const authHeader = request.headers.get("authorization");
-  const expectedToken = process.env.CRON_SECRET;
+  const expectedToken = process.env[envVarName];
 
   if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
     return NextResponse.json(
@@ -26,4 +30,12 @@ export function requireCronSecret(request: NextRequest): NextResponse | null {
     );
   }
   return null;
+}
+
+/**
+ * Validate CRON_SECRET Bearer token for Vercel Cron Job routes.
+ * Returns an error response if unauthorized, or null if authenticated.
+ */
+export function requireCronSecret(request: NextRequest): NextResponse | null {
+  return requireBearerSecret(request, "CRON_SECRET");
 }
