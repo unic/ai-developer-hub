@@ -23,37 +23,13 @@ import type {
 } from "@/types";
 
 // ---------------------------------------------------------------------------
-// getUserCostData — fetch daily Anthropic API cost breakdown for a user
+// fetchUserCostDataInternal — pure data-fetching (no session auth check)
 // ---------------------------------------------------------------------------
 
-export async function getUserCostData(
+export async function fetchUserCostDataInternal(
   userId: number,
   month?: string
 ): Promise<CostData> {
-  // Auth check: caller must be the same user or an admin
-  const session = await auth();
-  if (!session?.user) {
-    return {
-      available: false,
-      error: "Unauthorized — not signed in.",
-      monthlyTotalCents: 0,
-      dailyBreakdown: [],
-      latestDataDate: null,
-      hasUnresolvedPricing: false,
-    };
-  }
-  const callerId = Number(session.user.id);
-  if (callerId !== userId && session.user.role !== "admin") {
-    return {
-      available: false,
-      error: "Unauthorized — you can only view your own cost data.",
-      monthlyTotalCents: 0,
-      dailyBreakdown: [],
-      latestDataDate: null,
-      hasUnresolvedPricing: false,
-    };
-  }
-
   // Determine month boundaries (UTC-consistent)
   const now = new Date();
   const targetMonth =
@@ -200,20 +176,48 @@ export async function getUserCostData(
 }
 
 // ---------------------------------------------------------------------------
-// getProfileData — fetch user profile with assignments and cost data
+// getUserCostData — session-authenticated wrapper around fetchUserCostDataInternal
 // ---------------------------------------------------------------------------
 
-export async function getProfileData(userId: number): Promise<ProfileData> {
+export async function getUserCostData(
+  userId: number,
+  month?: string
+): Promise<CostData> {
   // Auth check: caller must be the same user or an admin
   const session = await auth();
   if (!session?.user) {
-    throw new Error("Unauthorized — not signed in.");
+    return {
+      available: false,
+      error: "Unauthorized — not signed in.",
+      monthlyTotalCents: 0,
+      dailyBreakdown: [],
+      latestDataDate: null,
+      hasUnresolvedPricing: false,
+    };
   }
   const callerId = Number(session.user.id);
   if (callerId !== userId && session.user.role !== "admin") {
-    throw new Error("Unauthorized — you can only view your own profile.");
+    return {
+      available: false,
+      error: "Unauthorized — you can only view your own cost data.",
+      monthlyTotalCents: 0,
+      dailyBreakdown: [],
+      latestDataDate: null,
+      hasUnresolvedPricing: false,
+    };
   }
 
+  return fetchUserCostDataInternal(userId, month);
+}
+
+// ---------------------------------------------------------------------------
+// fetchProfileDataInternal — pure data-fetching (no session auth check)
+// ---------------------------------------------------------------------------
+
+export async function fetchProfileDataInternal(
+  userId: number,
+  month?: string
+): Promise<ProfileData> {
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
   });
@@ -241,7 +245,7 @@ export async function getProfileData(userId: number): Promise<ProfileData> {
       )
     );
 
-  const costData = await getUserCostData(userId);
+  const costData = await fetchUserCostDataInternal(userId, month);
 
   return {
     user: {
@@ -261,6 +265,24 @@ export async function getProfileData(userId: number): Promise<ProfileData> {
     })),
     costData,
   };
+}
+
+// ---------------------------------------------------------------------------
+// getProfileData — session-authenticated wrapper around fetchProfileDataInternal
+// ---------------------------------------------------------------------------
+
+export async function getProfileData(userId: number): Promise<ProfileData> {
+  // Auth check: caller must be the same user or an admin
+  const session = await auth();
+  if (!session?.user) {
+    throw new Error("Unauthorized — not signed in.");
+  }
+  const callerId = Number(session.user.id);
+  if (callerId !== userId && session.user.role !== "admin") {
+    throw new Error("Unauthorized — you can only view your own profile.");
+  }
+
+  return fetchProfileDataInternal(userId);
 }
 
 // ---------------------------------------------------------------------------
