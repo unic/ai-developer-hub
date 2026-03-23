@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { requireBearerSecret } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import { users, anthropicSyncStatus } from "@/lib/db/schema";
-import { fetchProfileDataInternal } from "@/actions/anthropic-usage";
+import { fetchProfileDataInternal } from "@/lib/profile-data";
 import { getCurrentMonth } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
