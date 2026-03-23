@@ -174,21 +174,12 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
 
   for (const [wsId, costCents] of costByWorkspace) {
     if (wsId) {
-      await db
-        .insert(anthropicWorkspaceCosts)
-        .values({
-          workspaceId: wsId,
-          date: dateStr,
-          costCents,
-        })
-        .onConflictDoUpdate({
-          target: [anthropicWorkspaceCosts.workspaceId, anthropicWorkspaceCosts.date],
-          set: {
-            costCents,
-            updatedAt: new Date(),
-          },
-          setWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NOT NULL`,
-        });
+      await db.execute(sql`
+        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+        VALUES (${wsId}, ${dateStr}, ${costCents})
+        ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+        DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
+      `);
     } else {
       // Default workspace (null workspace_id)
       await db.execute(sql`
