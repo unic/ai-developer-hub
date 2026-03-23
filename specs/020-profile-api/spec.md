@@ -112,5 +112,5 @@ The API is protected by a shared secret configured as an environment variable. E
 - Bulk profile lookup (multiple emails in one request)
 - Webhook/push notifications to external tools
 - Rate limiting (deferred — env var auth limits exposure to known integrators)
-- API versioning (v1 prefix will be used but formal versioning strategy is deferred)
+- API versioning strategy (deferred; this spec assumes an unversioned `/api/profile` endpoint)
 - External tool registration or OAuth2 flows

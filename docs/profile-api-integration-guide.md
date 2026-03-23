@@ -68,16 +68,18 @@ async function getProfile(email: string, month?: string) {
 ### Python
 
 ```python
+import os
 import requests
 
 def get_profile(email: str, month: str | None = None) -> dict:
+    token = os.environ["PROFILE_API_SECRET"]
     params = {"email": email}
     if month:
         params["month"] = month
 
     response = requests.get(
         "https://hub.example.com/api/profile",
-        headers={"Authorization": f"Bearer {PROFILE_API_SECRET}"},
+        headers={"Authorization": f"Bearer {token}"},
         params=params,
     )
 
