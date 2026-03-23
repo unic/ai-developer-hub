@@ -4,9 +4,9 @@ import type { ProfileData } from "@/types";
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockFindFirst, mockSyncFindFirst, mockFetchProfile, mockFetchCost } = vi.hoisted(() => ({
+const { mockFindFirst, mockSyncSelectResult, mockFetchProfile, mockFetchCost } = vi.hoisted(() => ({
   mockFindFirst: vi.fn(),
-  mockSyncFindFirst: vi.fn(),
+  mockSyncSelectResult: vi.fn(),
   mockFetchProfile: vi.fn(),
   mockFetchCost: vi.fn(),
 }));
@@ -17,8 +17,14 @@ vi.mock("@/lib/db", () => ({
   db: {
     query: {
       users: { findFirst: mockFindFirst },
-      anthropicSyncStatus: { findFirst: mockSyncFindFirst },
     },
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => mockSyncSelectResult(),
+        }),
+      }),
+    }),
   },
 }));
 
@@ -93,7 +99,7 @@ describe("Profile API - GET /api/profile", () => {
     vi.clearAllMocks();
     vi.stubEnv("PROFILE_API_SECRET", TEST_SECRET);
     mockFetchProfile.mockResolvedValue(mockProfileData);
-    mockSyncFindFirst.mockResolvedValue(null);
+    mockSyncSelectResult.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -229,9 +235,9 @@ describe("Profile API - GET /api/profile", () => {
 
     it("includes lastSyncAt when sync status exists", async () => {
       mockFindFirst.mockResolvedValue(mockUser);
-      mockSyncFindFirst.mockResolvedValue({
+      mockSyncSelectResult.mockResolvedValue([{
         lastSyncCompletedAt: new Date("2026-03-22T14:30:00.000Z"),
-      });
+      }]);
       const response = await GET(
         makeRequest({ email: "jane@example.com" })
       );
@@ -241,7 +247,7 @@ describe("Profile API - GET /api/profile", () => {
 
     it("returns lastSyncAt as null when no sync status exists", async () => {
       mockFindFirst.mockResolvedValue(mockUser);
-      mockSyncFindFirst.mockResolvedValue(null);
+      mockSyncSelectResult.mockResolvedValue([]);
       const response = await GET(
         makeRequest({ email: "jane@example.com" })
       );

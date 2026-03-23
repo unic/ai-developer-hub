@@ -57,12 +57,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [profileData, syncStatus] = await Promise.all([
+    const [profileData, syncRows] = await Promise.all([
       fetchProfileDataInternal(user.id, monthParam ?? undefined),
-      db.query.anthropicSyncStatus.findFirst({
-        where: eq(anthropicSyncStatus.userId, user.id),
-      }),
+      db
+        .select({ lastSyncCompletedAt: anthropicSyncStatus.lastSyncCompletedAt })
+        .from(anthropicSyncStatus)
+        .where(eq(anthropicSyncStatus.userId, user.id))
+        .limit(1),
     ]);
+    const syncStatus = syncRows[0] ?? null;
     const month = monthParam ?? getCurrentMonth();
 
     return NextResponse.json({
