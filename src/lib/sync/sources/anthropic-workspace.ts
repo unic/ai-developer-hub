@@ -71,7 +71,7 @@ async function fetchCostReport(
   const query = [
     `starting_at=${encodeURIComponent(startingAt)}`,
     `ending_at=${encodeURIComponent(endingAt)}`,
-    "group_by[]=workspace",
+    "group_by[]=workspace_id",
   ].join("&");
 
   const res = await fetch(
