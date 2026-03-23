@@ -461,7 +461,7 @@ export async function getRunningCostsForPeriod(
     .select({
       workspaceId: anthropicWorkspaceCosts.workspaceId,
       name: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
-      costCents: sql<number>`SUM(${anthropicWorkspaceCosts.costCents})`,
+      costCents: sql<number>`CAST(SUM(${anthropicWorkspaceCosts.costCents}) AS integer)`,
       lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
     })
     .from(anthropicWorkspaceCosts)

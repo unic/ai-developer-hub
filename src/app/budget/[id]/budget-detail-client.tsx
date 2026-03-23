@@ -123,11 +123,12 @@ export function BudgetDetailClient({
   const totalAllocated = Object.values(allocations).reduce((s, v) => s + v, 0);
   const totalExpected = periods.reduce((s, p) => s + p.expectedSpendCents, 0);
   const totalBilled = periods.reduce((s, p) => s + p.billedTotalCents, 0);
-  const totalBilledVariance = totalBilled - totalExpected;
   const totalRunning = Object.values(runningCosts).reduce(
     (s, rc) => s + rc.runningCostCents,
     0
   );
+  const totalActual = totalBilled + totalRunning;
+  const totalActualVariance = totalActual - totalExpected;
   const hasRunningCosts = totalRunning > 0;
 
   function togglePeriod(periodId: number) {
@@ -294,54 +295,25 @@ export function BudgetDetailClient({
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Billed</p>
+            <p className="text-sm text-muted-foreground">
+              Actual{hasRunningCosts && " (incl. API)"}
+            </p>
             <p className="text-2xl font-bold">
-              {formatCurrency(totalBilled)}
+              {formatCurrency(totalActual)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Billed vs Expected</p>
+            <p className="text-sm text-muted-foreground">Actual vs Expected</p>
             <p
-              className={`text-2xl font-bold ${varianceClassName(totalBilledVariance)}`}
+              className={`text-2xl font-bold ${varianceClassName(totalActualVariance)}`}
             >
-              {formatVariance(totalBilledVariance)}
+              {formatVariance(totalActualVariance)}
             </p>
           </CardContent>
         </Card>
       </div>
-
-      {hasRunningCosts && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Running Costs (API)</p>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {formatCurrency(totalRunning)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Combined Total</p>
-              <p className="text-2xl font-bold">
-                {formatCurrency(totalBilled + totalRunning)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Combined vs Expected</p>
-              <p
-                className={`text-2xl font-bold ${varianceClassName(totalBilled + totalRunning - totalExpected)}`}
-              >
-                {formatVariance(totalBilled + totalRunning - totalExpected)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <Card>
         <CardHeader>
@@ -356,9 +328,8 @@ export function BudgetDetailClient({
                   <TableHead>Period</TableHead>
                   <TableHead>Planned</TableHead>
                   <TableHead>Expected</TableHead>
-                  <TableHead>Billed</TableHead>
-                  {hasRunningCosts && <TableHead>Running</TableHead>}
-                  <TableHead>Variance (Billed - Expected)</TableHead>
+                  <TableHead>Actual</TableHead>
+                  <TableHead>Variance (Actual - Expected)</TableHead>
                   <TableHead>% Diff</TableHead>
                   {isAdmin && !isArchived && <TableHead className="w-10" />}
                 </TableRow>
@@ -368,14 +339,16 @@ export function BudgetDetailClient({
                   const planned = allocations[period.id] ?? 0;
                   const expected = period.expectedSpendCents;
                   const billed = period.billedTotalCents;
-                  const variance = billed - expected;
+                  const periodRunning = runningCosts[period.id];
+                  const runningCents = periodRunning?.runningCostCents ?? 0;
+                  const actualCents = billed + runningCents;
+                  const variance = actualCents - expected;
                   const pctDiff =
                     expected > 0
-                      ? Math.round(((billed - expected) / expected) * 100)
+                      ? Math.round(((actualCents - expected) / expected) * 100)
                       : 0;
-                  const isOverBilled = billed > expected * 1.1;
+                  const isOverBilled = actualCents > expected * 1.1;
                   const isExpanded = expandedPeriods.has(period.id);
-                  const periodRunning = runningCosts[period.id];
                   const hasEntries =
                     (period.billedEntries && period.billedEntries.length > 0) ||
                     !!periodRunning;
@@ -428,14 +401,12 @@ export function BudgetDetailClient({
                           )}
                         </TableCell>
                         <TableCell>{formatCurrency(expected)}</TableCell>
-                        <TableCell>{formatCurrency(billed)}</TableCell>
-                        {hasRunningCosts && (
-                          <TableCell className="text-blue-600 dark:text-blue-400">
-                            {periodRunning
-                              ? formatCurrency(periodRunning.runningCostCents)
-                              : "-"}
-                          </TableCell>
-                        )}
+                        <TableCell className={runningCents > 0 ? "text-blue-600 dark:text-blue-400" : ""}>
+                          {formatCurrency(actualCents)}
+                          {runningCents > 0 && (
+                            <span className="ml-1 text-xs text-muted-foreground">(API)</span>
+                          )}
+                        </TableCell>
                         <TableCell className={varianceClassName(variance)}>
                           {formatVariance(variance)}
                         </TableCell>
@@ -487,7 +458,6 @@ export function BudgetDetailClient({
                               <TableCell className="text-sm">
                                 {formatCurrency(entry.amountCents)}
                               </TableCell>
-                              {hasRunningCosts && <TableCell />}
                               <TableCell />
                               <TableCell />
                               {isAdmin && !isArchived && (
@@ -536,11 +506,9 @@ export function BudgetDetailClient({
                                   </span>
                                 )}
                               </TableCell>
-                              <TableCell />
                               <TableCell className="text-sm text-blue-600 dark:text-blue-400">
                                 {formatCurrency(periodRunning.runningCostCents)}
                               </TableCell>
-                              {hasRunningCosts && <TableCell />}
                               <TableCell />
                               <TableCell />
                               {isAdmin && !isArchived && <TableCell />}
@@ -559,11 +527,9 @@ export function BudgetDetailClient({
                                 >
                                   {ws.name}
                                 </TableCell>
-                                <TableCell />
                                 <TableCell className="text-xs text-muted-foreground">
                                   {formatCurrency(ws.costCents)}
                                 </TableCell>
-                                {hasRunningCosts && <TableCell />}
                                 <TableCell />
                                 <TableCell />
                                 {isAdmin && !isArchived && <TableCell />}
@@ -579,40 +545,13 @@ export function BudgetDetailClient({
                   <TableCell>YTD Total</TableCell>
                   <TableCell>{formatCurrency(totalAllocated)}</TableCell>
                   <TableCell>{formatCurrency(totalExpected)}</TableCell>
-                  <TableCell>{formatCurrency(totalBilled)}</TableCell>
-                  {hasRunningCosts && (
-                    <TableCell className="text-blue-600 dark:text-blue-400">
-                      {formatCurrency(totalRunning)}
-                    </TableCell>
-                  )}
-                  <TableCell className={varianceClassName(totalBilledVariance)}>
-                    {formatVariance(totalBilledVariance)}
+                  <TableCell>{formatCurrency(totalActual)}</TableCell>
+                  <TableCell className={varianceClassName(totalActualVariance)}>
+                    {formatVariance(totalActualVariance)}
                   </TableCell>
                   <TableCell />
                   {isAdmin && !isArchived && <TableCell />}
                 </TableRow>
-                {hasRunningCosts && (
-                  <TableRow className="font-bold border-t-2">
-                    <TableCell />
-                    <TableCell>Combined Total</TableCell>
-                    <TableCell />
-                    <TableCell />
-                    <TableCell colSpan={2}>
-                      {formatCurrency(totalBilled + totalRunning)}
-                    </TableCell>
-                    <TableCell
-                      className={varianceClassName(
-                        totalBilled + totalRunning - totalExpected
-                      )}
-                    >
-                      {formatVariance(
-                        totalBilled + totalRunning - totalExpected
-                      )}
-                    </TableCell>
-                    <TableCell />
-                    {isAdmin && !isArchived && <TableCell />}
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
           </div>
