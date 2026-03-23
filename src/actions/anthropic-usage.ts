@@ -10,6 +10,7 @@ import {
   aiTools,
   accessTiers,
   users,
+  syncEvents,
 } from "@/lib/db/schema";
 import { eq, and, sql, between, isNotNull } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -341,18 +342,23 @@ export async function syncAllAnthropicUsage(): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
-    await runAnthropicUsageSource(Number(admin.id));
+    const { eventId } = await runAnthropicUsageSource(Number(admin.id));
+
+    // Read actual counts from the completed sync event
+    const event = await db.query.syncEvents.findFirst({
+      where: eq(syncEvents.id, eventId),
+    });
 
     revalidatePath("/users");
 
     return {
       success: true,
       data: {
-        syncedUsers: 0,
-        skippedUsers: 0,
-        syncedDays: 0,
-        errorCount: 0,
-        firstError: null,
+        syncedUsers: event?.createdCount ?? 0,
+        skippedUsers: event?.skippedCount ?? 0,
+        syncedDays: event?.updatedCount ?? 0,
+        errorCount: event?.errorCount ?? 0,
+        firstError: event?.errorMessage ?? null,
       },
     };
   } catch (err) {

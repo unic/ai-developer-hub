@@ -1,6 +1,6 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
 import {
-  runAnthropicSync,
+  runAnthropicSyncCore,
   fetchAnthropicUsage,
   resolveAllMappings,
   prepareUsageRow,
@@ -33,10 +33,10 @@ export async function run(
         errorCount: 0,
       };
 
-      // Regular sync — delegate to existing runAnthropicSync
+      // Regular sync — delegate to core sync logic (no inner lock, framework handles locking)
       if (!opts?.backfillStartDate) {
         try {
-          const summary = await retryWithBackoff(() => runAnthropicSync());
+          const summary = await retryWithBackoff(() => runAnthropicSyncCore());
           counts.createdCount = summary.syncedUsers;
           counts.updatedCount = summary.syncedDays;
           counts.skippedCount = summary.skippedUsers;
