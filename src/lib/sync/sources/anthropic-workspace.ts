@@ -28,14 +28,29 @@ const workspacesResponseSchema = z.object({
   has_more: z.boolean(),
 });
 
-const costReportItemSchema = z.object({
+const costReportResultSchema = z.object({
   workspace_id: z.string().nullable().optional(),
-  workspace_name: z.string().nullable().optional(),
-  cost_cents: z.number(),
+  amount: z.string(), // decimal string in cents, e.g. "123.45"
+  currency: z.string().optional(),
+  cost_type: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  token_type: z.string().nullable().optional(),
+  context_window: z.string().nullable().optional(),
+  inference_geo: z.string().nullable().optional(),
+  service_tier: z.string().nullable().optional(),
+});
+
+const costReportBucketSchema = z.object({
+  starting_at: z.string(),
+  ending_at: z.string(),
+  results: z.array(costReportResultSchema),
 });
 
 const costReportResponseSchema = z.object({
-  data: z.array(costReportItemSchema),
+  data: z.array(costReportBucketSchema),
+  has_more: z.boolean(),
+  next_page: z.string().nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -64,32 +79,42 @@ async function fetchWorkspaces(): Promise<z.infer<typeof workspacesResponseSchem
 async function fetchCostReport(
   startingAt: string,
   endingAt: string
-): Promise<z.infer<typeof costReportResponseSchema>> {
+): Promise<z.infer<typeof costReportBucketSchema>[]> {
   const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
-  const query = [
-    `starting_at=${encodeURIComponent(startingAt)}`,
-    `ending_at=${encodeURIComponent(endingAt)}`,
-    "group_by[]=workspace_id",
-  ].join("&");
+  const allBuckets: z.infer<typeof costReportBucketSchema>[] = [];
+  let page: string | undefined;
 
-  const res = await fetch(
-    `https://api.anthropic.com/v1/organizations/cost_report?${query}`,
-    {
-      headers: {
-        "x-api-key": adminKey,
-        "anthropic-version": ANTHROPIC_API_VERSION,
-      },
+  do {
+    const query = [
+      `starting_at=${encodeURIComponent(startingAt)}`,
+      `ending_at=${encodeURIComponent(endingAt)}`,
+      "group_by[]=workspace_id",
+      ...(page ? [`page=${encodeURIComponent(page)}`] : []),
+    ].join("&");
+
+    const res = await fetch(
+      `https://api.anthropic.com/v1/organizations/cost_report?${query}`,
+      {
+        headers: {
+          "x-api-key": adminKey,
+          "anthropic-version": ANTHROPIC_API_VERSION,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Anthropic cost_report API error ${res.status}: ${body}`);
     }
-  );
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Anthropic cost_report API error ${res.status}: ${body}`);
-  }
+    const parsed = costReportResponseSchema.parse(await res.json());
+    allBuckets.push(...parsed.data);
+    page = parsed.has_more ? (parsed.next_page ?? undefined) : undefined;
+  } while (page);
 
-  return costReportResponseSchema.parse(await res.json());
+  return allBuckets;
 }
 
 async function fetchAndUpsertWorkspaces(): Promise<number> {
@@ -131,26 +156,35 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   const nextYear = endMonth === 12 ? endYear + 1 : endYear;
   const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00Z`;
 
-  const response = await retryWithBackoff(() =>
+  const buckets = await retryWithBackoff(() =>
     fetchCostReport(startDate, endDate)
   );
+
+  // Flatten all results across time buckets and aggregate per workspace
+  const allResults = buckets.flatMap(bucket => bucket.results);
+  const costByWorkspace = new Map<string | null, number>();
+  for (const r of allResults) {
+    const wsId = r.workspace_id ?? null;
+    const amountCents = Math.round(parseFloat(r.amount));
+    costByWorkspace.set(wsId, (costByWorkspace.get(wsId) ?? 0) + amountCents);
+  }
 
   let upserted = 0;
   const dateStr = `${month}-01`;
 
-  for (const item of response.data) {
-    if (item.workspace_id) {
+  for (const [wsId, costCents] of costByWorkspace) {
+    if (wsId) {
       await db
         .insert(anthropicWorkspaceCosts)
         .values({
-          workspaceId: item.workspace_id,
+          workspaceId: wsId,
           date: dateStr,
-          costCents: item.cost_cents,
+          costCents,
         })
         .onConflictDoUpdate({
           target: [anthropicWorkspaceCosts.workspaceId, anthropicWorkspaceCosts.date],
           set: {
-            costCents: item.cost_cents,
+            costCents,
             updatedAt: new Date(),
           },
           setWhere: sql`${anthropicWorkspaceCosts.workspaceId} IS NOT NULL`,
@@ -159,9 +193,9 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
       // Default workspace (null workspace_id)
       await db.execute(sql`
         INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (NULL, ${dateStr}, ${item.cost_cents})
+        VALUES (NULL, ${dateStr}, ${costCents})
         ON CONFLICT (date) WHERE workspace_id IS NULL
-        DO UPDATE SET cost_cents = ${item.cost_cents}, updated_at = now()
+        DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
       `);
     }
     upserted++;
