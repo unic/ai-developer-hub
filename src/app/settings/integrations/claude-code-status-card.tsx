@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, BrainCircuit } from "lucide-react";
+import { CircleAlert, BrainCircuit } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -28,12 +28,9 @@ export function ClaudeCodeStatusCard({
             Claude Code (Anthropic API)
           </CardTitle>
           {connected ? (
-            <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-              <CheckCircle2 className="size-3 mr-1" />
-              Connected
-            </Badge>
+            <Badge variant="default">Connected</Badge>
           ) : (
-            <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50">
+            <Badge variant="secondary">
               <CircleAlert className="size-3 mr-1" />
               Not Configured
             </Badge>
