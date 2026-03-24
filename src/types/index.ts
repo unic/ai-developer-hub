@@ -300,6 +300,7 @@ export interface BillingSyncConflict {
 
 // GitHub member sync — manual matching types
 export type PendingResolution =
+  | { type: "import"; githubLogin: string }
   | { type: "match"; githubLogin: string; userId: number; userName: string }
   | { type: "create"; githubLogin: string; name: string; email: string }
   | { type: "skip"; githubLogin: string };
@@ -316,6 +317,7 @@ export interface MatchSuggestion {
 
 export interface ResolutionSummary {
   total: number;
+  imported: number;
   matched: number;
   created: number;
   skipped: number;

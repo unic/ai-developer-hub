@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   Sheet,
@@ -25,14 +25,29 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, ExternalLink, AlertTriangle } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  Download,
+  UserCheck,
+  UserPlus,
+  SkipForward,
+} from "lucide-react";
 import { toast } from "sonner";
-import { fetchGitHubSyncPreview, confirmGitHubSync } from "@/actions/github-sync";
+import {
+  fetchGitHubSyncPreview,
+  confirmGitHubSync,
+} from "@/actions/github-sync";
+import { UnmatchedMemberCard } from "@/components/unmatched-member-card";
+import { UserSearchCombobox } from "@/components/user-search-combobox";
+import { InlineUserForm } from "@/components/inline-user-form";
 import type {
   SyncPreview,
   SyncMatchedMember,
   SyncUnmatchedMember,
   SyncUnmatchedSystemUser,
+  PendingResolution,
 } from "@/types";
 
 interface GitHubMemberSyncSheetProps {
@@ -49,10 +64,23 @@ export function GitHubMemberSyncSheet({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Resolution state: keyed by githubLogin
+  const [resolutions, setResolutions] = useState<
+    Map<string, PendingResolution>
+  >(new Map());
+
+  // Track which card has an expanded action panel
+  const [expandedCard, setExpandedCard] = useState<{
+    githubLogin: string;
+    action: "match" | "create";
+  } | null>(null);
+
   const loadPreview = useCallback(async () => {
     setLoading(true);
     setError(null);
     setPreview(null);
+    setResolutions(new Map());
+    setExpandedCard(null);
     try {
       const result = await fetchGitHubSyncPreview();
       if (result.success) {
@@ -71,25 +99,129 @@ export function GitHubMemberSyncSheet({
     if (open) {
       loadPreview();
     } else {
-      // Reset state when closed
       setPreview(null);
       setError(null);
+      setResolutions(new Map());
+      setExpandedCard(null);
     }
   }, [open, loadPreview]);
 
+  function handleResolve(resolution: PendingResolution) {
+    setResolutions((prev) => {
+      const next = new Map(prev);
+      next.set(resolution.githubLogin, resolution);
+      return next;
+    });
+    setExpandedCard(null);
+  }
+
+  function handleUndo(githubLogin: string) {
+    setResolutions((prev) => {
+      const next = new Map(prev);
+      next.delete(githubLogin);
+      return next;
+    });
+  }
+
+  // User IDs to exclude from manual match search
+  const excludeUserIds = useMemo(() => {
+    const ids: number[] = [];
+    if (preview) {
+      for (const m of preview.matched) {
+        ids.push(m.matchedUserId);
+      }
+    }
+    for (const r of resolutions.values()) {
+      if (r.type === "match") {
+        ids.push(r.userId);
+      }
+    }
+    return ids;
+  }, [preview, resolutions]);
+
+  // Resolution summary counts
+  const summary = useMemo(() => {
+    if (!preview) return null;
+    const total = preview.unmatched.length;
+    let imported = 0;
+    let matched = 0;
+    let created = 0;
+    let skipped = 0;
+
+    for (const r of resolutions.values()) {
+      switch (r.type) {
+        case "import":
+          imported++;
+          break;
+        case "match":
+          matched++;
+          break;
+        case "create":
+          created++;
+          break;
+        case "skip":
+          skipped++;
+          break;
+      }
+    }
+
+    return {
+      total,
+      imported,
+      matched,
+      created,
+      skipped,
+      unresolved: total - imported - matched - created - skipped,
+    };
+  }, [preview, resolutions]);
+
   async function handleConfirm() {
+    if (!preview) return;
+
+    const importGitHubLogins: string[] = [];
+    const manualMatches: Array<{ githubLogin: string; userId: number }> = [];
+    const newUsers: Array<{
+      githubLogin: string;
+      name: string;
+      email: string;
+    }> = [];
+
+    for (const r of resolutions.values()) {
+      switch (r.type) {
+        case "import":
+          importGitHubLogins.push(r.githubLogin);
+          break;
+        case "match":
+          manualMatches.push({ githubLogin: r.githubLogin, userId: r.userId });
+          break;
+        case "create":
+          newUsers.push({
+            githubLogin: r.githubLogin,
+            name: r.name,
+            email: r.email,
+          });
+          break;
+        // skip: nothing to send
+      }
+    }
+
     setConfirming(true);
     try {
       const result = await confirmGitHubSync({
-        importGitHubLogins: [],
-        manualMatches: [],
-        newUsers: [],
+        importGitHubLogins,
+        manualMatches,
+        newUsers,
       });
       if (result.success) {
-        const { enrichedCount, importedCount, skippedCount } = result.data;
-        toast.success(
-          `Sync complete: ${enrichedCount} enriched, ${importedCount} imported, ${skippedCount} skipped`
-        );
+        const d = result.data;
+        const parts: string[] = [];
+        if (d.enrichedCount > 0) parts.push(`${d.enrichedCount} enriched`);
+        if (d.importedCount > 0) parts.push(`${d.importedCount} imported`);
+        if (d.manuallyMatchedCount > 0)
+          parts.push(`${d.manuallyMatchedCount} matched`);
+        if (d.createdCount > 0) parts.push(`${d.createdCount} created`);
+        if (d.skippedCount > 0) parts.push(`${d.skippedCount} skipped`);
+        toast.success(`Sync complete: ${parts.join(", ")}`);
         onOpenChange(false);
       } else {
         toast.error(result.error);
@@ -194,7 +326,16 @@ export function GitHubMemberSyncSheet({
                 </TabsContent>
 
                 <TabsContent value="unmatched-github" className="mt-4">
-                  <UnmatchedGitHubList members={preview.unmatched} />
+                  <UnmatchedGitHubResolutionList
+                    members={preview.unmatched}
+                    resolutions={resolutions}
+                    expandedCard={expandedCard}
+                    excludeUserIds={excludeUserIds}
+                    onResolve={handleResolve}
+                    onUndo={handleUndo}
+                    onExpandCard={setExpandedCard}
+                    onCollapse={() => setExpandedCard(null)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="unmatched-system" className="mt-4">
@@ -202,7 +343,12 @@ export function GitHubMemberSyncSheet({
                 </TabsContent>
               </Tabs>
 
-              {/* Confirm button */}
+              {/* Resolution summary */}
+              {preview.unmatched.length > 0 && summary && (
+                <ResolutionSummaryPanel summary={summary} />
+              )}
+
+              {/* Confirm / Cancel */}
               <div className="flex justify-end gap-2 pt-2 border-t">
                 <Button
                   variant="outline"
@@ -233,6 +379,8 @@ export function GitHubMemberSyncSheet({
   );
 }
 
+/* ---------- Summary Card ---------- */
+
 function SummaryCard({
   label,
   count,
@@ -257,6 +405,65 @@ function SummaryCard({
     </div>
   );
 }
+
+/* ---------- Resolution Summary ---------- */
+
+function ResolutionSummaryPanel({
+  summary,
+}: {
+  summary: {
+    total: number;
+    imported: number;
+    matched: number;
+    created: number;
+    skipped: number;
+    unresolved: number;
+  };
+}) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+      <p className="text-sm font-medium">Resolution Summary</p>
+      <div className="grid grid-cols-5 gap-2 text-center">
+        <div>
+          <p className="text-lg font-bold tabular-nums">{summary.imported}</p>
+          <p className="text-[10px] text-muted-foreground">
+            <Download className="size-3 inline mr-0.5" />
+            Import
+          </p>
+        </div>
+        <div>
+          <p className="text-lg font-bold tabular-nums">{summary.matched}</p>
+          <p className="text-[10px] text-muted-foreground">
+            <UserCheck className="size-3 inline mr-0.5" />
+            Matched
+          </p>
+        </div>
+        <div>
+          <p className="text-lg font-bold tabular-nums">{summary.created}</p>
+          <p className="text-[10px] text-muted-foreground">
+            <UserPlus className="size-3 inline mr-0.5" />
+            New User
+          </p>
+        </div>
+        <div>
+          <p className="text-lg font-bold tabular-nums">{summary.skipped}</p>
+          <p className="text-[10px] text-muted-foreground">
+            <SkipForward className="size-3 inline mr-0.5" />
+            Skipped
+          </p>
+        </div>
+        <div>
+          <p className="text-lg font-bold tabular-nums">
+            {summary.unresolved}
+          </p>
+          <p className="text-[10px] text-muted-foreground">Unresolved</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Matched Table ---------- */
 
 function MatchedTable({ members }: { members: SyncMatchedMember[] }) {
   if (members.length === 0) {
@@ -321,7 +528,33 @@ function MatchedTable({ members }: { members: SyncMatchedMember[] }) {
   );
 }
 
-function UnmatchedGitHubList({ members }: { members: SyncUnmatchedMember[] }) {
+/* ---------- Unmatched GitHub Members with Resolution Controls ---------- */
+
+function UnmatchedGitHubResolutionList({
+  members,
+  resolutions,
+  expandedCard,
+  excludeUserIds,
+  onResolve,
+  onUndo,
+  onExpandCard,
+  onCollapse,
+}: {
+  members: SyncUnmatchedMember[];
+  resolutions: Map<string, PendingResolution>;
+  expandedCard: {
+    githubLogin: string;
+    action: "match" | "create";
+  } | null;
+  excludeUserIds: number[];
+  onResolve: (resolution: PendingResolution) => void;
+  onUndo: (githubLogin: string) => void;
+  onExpandCard: (card: {
+    githubLogin: string;
+    action: "match" | "create";
+  }) => void;
+  onCollapse: () => void;
+}) {
   if (members.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-6">
@@ -331,50 +564,77 @@ function UnmatchedGitHubList({ members }: { members: SyncUnmatchedMember[] }) {
   }
 
   return (
-    <div className="space-y-2 max-h-80 overflow-y-auto">
-      {members.map((m) => (
-        <div
-          key={m.githubLogin}
-          className="flex items-center gap-3 rounded-md border p-3"
-        >
-          {m.githubAvatarUrl && (
-            <Image
-              src={m.githubAvatarUrl}
-              alt=""
-              width={32}
-              height={32}
-              className="size-8 rounded-full shrink-0"
-              unoptimized
-            />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium truncate">{m.githubLogin}</p>
-              <a
-                href={m.githubProfileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground shrink-0"
-              >
-                <ExternalLink className="size-3.5" />
-              </a>
-            </div>
-            {m.githubName && (
-              <p className="text-xs text-muted-foreground truncate">
-                {m.githubName}
-              </p>
-            )}
-            {m.githubEmail && (
-              <p className="text-xs text-muted-foreground truncate">
-                {m.githubEmail}
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
+    <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+      {members.map((member) => {
+        const resolution = resolutions.get(member.githubLogin);
+        const isMatchExpanded =
+          expandedCard?.githubLogin === member.githubLogin &&
+          expandedCard.action === "match";
+        const isCreateExpanded =
+          expandedCard?.githubLogin === member.githubLogin &&
+          expandedCard.action === "create";
+
+        return (
+          <UnmatchedMemberCard
+            key={member.githubLogin}
+            member={member}
+            suggestions={[]}
+            resolution={resolution}
+            onResolve={onResolve}
+            onUndo={onUndo}
+            isMatchExpanded={isMatchExpanded}
+            isCreateExpanded={isCreateExpanded}
+            onExpandMatch={() =>
+              onExpandCard({
+                githubLogin: member.githubLogin,
+                action: "match",
+              })
+            }
+            onExpandCreate={() =>
+              onExpandCard({
+                githubLogin: member.githubLogin,
+                action: "create",
+              })
+            }
+            onCollapse={onCollapse}
+            matchActionSlot={
+              <UserSearchCombobox
+                excludeUserIds={excludeUserIds}
+                onSelect={(user) =>
+                  onResolve({
+                    type: "match",
+                    githubLogin: member.githubLogin,
+                    userId: user.id,
+                    userName: user.name,
+                  })
+                }
+                onCancel={onCollapse}
+              />
+            }
+            createActionSlot={
+              <InlineUserForm
+                githubLogin={member.githubLogin}
+                defaultName={member.githubName ?? ""}
+                defaultEmail={member.githubEmail ?? ""}
+                onSubmit={(data) =>
+                  onResolve({
+                    type: "create",
+                    githubLogin: data.githubLogin,
+                    name: data.name,
+                    email: data.email,
+                  })
+                }
+                onCancel={onCollapse}
+              />
+            }
+          />
+        );
+      })}
     </div>
   );
 }
+
+/* ---------- Unmatched System Users (informational) ---------- */
 
 function UnmatchedSystemList({ users }: { users: SyncUnmatchedSystemUser[] }) {
   if (users.length === 0) {

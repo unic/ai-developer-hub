@@ -92,7 +92,7 @@ export function SyncDashboard({
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold mb-3">Manual Jobs</h3>
+        <h3 className="text-lg font-semibold mb-3">Sync History</h3>
         <ManualJobsTable events={manualEvents} />
       </div>
     </div>
