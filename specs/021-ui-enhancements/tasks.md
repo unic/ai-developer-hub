@@ -39,9 +39,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] Wrap each assignment entry in the "Assigned Tools" card with a Next.js `Link` component pointing to `/assignments/${a.id}` in `src/app/users/[id]/user-detail-client.tsx` (lines ~479-553). Import `Link` from `next/link`. The entire tool row (name, tier, cost, dates) should be the clickable area. Add hover styling (`hover:bg-muted/50 transition-colors`) to indicate interactivity. Ensure the existing revoke/reactivate action buttons remain outside the link to avoid nested interactive elements.
+- [x] T001 [US1] Wrap each assignment entry in the "Assigned Tools" card with a Next.js `Link` component pointing to `/assignments/${a.id}` in `src/app/users/[id]/user-detail-client.tsx` (lines ~479-553). Import `Link` from `next/link`. The entire tool row (name, tier, cost, dates) should be the clickable area. Add hover styling (`hover:bg-muted/50 transition-colors`) to indicate interactivity. Ensure the existing revoke/reactivate action buttons remain outside the link to avoid nested interactive elements.
 
-- [ ] T002 [US1] Verify that the `Link` component is keyboard-accessible (focusable via Tab, activatable via Enter) and has appropriate visual focus indicators consistent with the design system. Test with both active and revoked assignments to confirm navigation works for all statuses.
+- [x] T002 [US1] Verify that the `Link` component is keyboard-accessible (focusable via Tab, activatable via Enter) and has appropriate visual focus indicators consistent with the design system. Test with both active and revoked assignments to confirm navigation works for all statuses.
 
 **Checkpoint**: User Story 1 is complete. Administrators can click any assigned tool to navigate directly to its assignment detail page.
 
@@ -55,11 +55,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T003 [US2] In `src/app/assignments/[id]/assignment-detail-client.tsx`, restructure the detail card (lines ~248-371) to integrate edit controls inline. For each editable field (tier, assigned date, workspace, API key), replace the read-only display with the corresponding form control from the current edit card (lines ~386-529) when the user is an admin and the assignment is active. Wrap the entire card content in the existing `<Form>` component. Keep non-editable fields (status badge, cost display, revoked date) as read-only. Each field row should show a label on the left and the value/control on the right, using the same grid/flex layout as the current detail card.
+- [x] T003 [US2] In `src/app/assignments/[id]/assignment-detail-client.tsx`, restructure the detail card (lines ~248-371) to integrate edit controls inline. For each editable field (tier, assigned date, workspace, API key), replace the read-only display with the corresponding form control from the current edit card (lines ~386-529) when the user is an admin and the assignment is active. Wrap the entire card content in the existing `<Form>` component. Keep non-editable fields (status badge, cost display, revoked date) as read-only. Each field row should show a label on the left and the value/control on the right, using the same grid/flex layout as the current detail card.
 
-- [ ] T004 [US2] Remove the separate "Edit Assignment" `<Card>` section (lines ~374-542) from `src/app/assignments/[id]/assignment-detail-client.tsx`. The "Save Changes" button should now appear at the bottom of the unified detail card, visible only for admins on active assignments. Move the tier-loading `useEffect` and `loadTiers` callback to remain at the component level (they already are — just verify they still work after the card merge).
+- [x] T004 [US2] Remove the separate "Edit Assignment" `<Card>` section (lines ~374-542) from `src/app/assignments/[id]/assignment-detail-client.tsx`. The "Save Changes" button should now appear at the bottom of the unified detail card, visible only for admins on active assignments. Move the tier-loading `useEffect` and `loadTiers` callback to remain at the component level (they already are — just verify they still work after the card merge).
 
-- [ ] T005 [US2] Ensure the unified card displays correctly for non-admin users and revoked assignments: all fields should render as plain text (the current detail card format) with no form controls, no "Save Changes" button. The API key display (masked with reveal/copy buttons) should still work for read-only view. Test that the `form.handleSubmit(onSubmit)` still triggers correctly from the unified card.
+- [x] T005 [US2] Ensure the unified card displays correctly for non-admin users and revoked assignments: all fields should render as plain text (the current detail card format) with no form controls, no "Save Changes" button. The API key display (masked with reveal/copy buttons) should still work for read-only view. Test that the `form.handleSubmit(onSubmit)` still triggers correctly from the unified card.
 
 **Checkpoint**: User Story 2 is complete. The assignment detail page shows each field exactly once. Active assignments have inline edit controls; revoked assignments are read-only.
 
@@ -73,9 +73,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T006 [US3] In `src/actions/assignments.ts`, remove the validation block (lines ~236-242) in the `updateAssignment` function that checks `if (newDate < assignment.user.createdAt)` and returns an error. Keep the future-date check (lines ~232-233), the tool-creation-date check (lines ~245-250), and the 12-month warning (lines ~252-257) unchanged.
+- [x] T006 [US3] In `src/actions/assignments.ts`, remove the validation block (lines ~236-242) in the `updateAssignment` function that checks `if (newDate < assignment.user.createdAt)` and returns an error. Keep the future-date check (lines ~232-233), the tool-creation-date check (lines ~245-250), and the 12-month warning (lines ~252-257) unchanged.
 
-- [ ] T007 [US3] Update any existing unit or integration tests in `tests/` that assert the "Assigned date cannot be before the user was created" error behavior. These tests should now expect success for dates before user creation while continuing to assert failure for future dates and dates before tool creation.
+- [x] T007 [US3] Update any existing unit or integration tests in `tests/` that assert the "Assigned date cannot be before the user was created" error behavior. These tests should now expect success for dates before user creation while continuing to assert failure for future dates and dates before tool creation.
 
 **Checkpoint**: User Story 3 is complete. Dates before user creation are accepted. All other date validations remain enforced.
 
@@ -89,11 +89,11 @@
 
 ### Implementation for User Story 4
 
-- [ ] T008 [P] [US4] Extend `assignmentSchema` in `src/lib/validators.ts` (lines ~58-62) to add `workspace: z.string().max(200).optional()` and `apiKey: z.string().max(500).refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" }).transform((val) => (val === "" ? val : val.trim())).optional()`. This matches the existing `updateAssignmentSchema` pattern for these fields.
+- [x] T008 [P] [US4] Extend `assignmentSchema` in `src/lib/validators.ts` (lines ~58-62) to add `workspace: z.string().max(200).optional()` and `apiKey: z.string().max(500).refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" }).transform((val) => (val === "" ? val : val.trim())).optional()`. This matches the existing `updateAssignmentSchema` pattern for these fields.
 
-- [ ] T009 [P] [US4] Update the `assignLicense` function in `src/actions/assignments.ts` (lines ~25-134) to destructure `workspace` and `apiKey` from the parsed input. If `apiKey` is provided and non-empty, encrypt it using `encryptApiKey()` from `src/lib/crypto.ts`. Include `workspace` and `apiKeyEncrypted` in the `db.insert(licenseAssignments).values({...})` call (lines ~111-118). Import `encryptApiKey` if not already imported.
+- [x] T009 [P] [US4] Update the `assignLicense` function in `src/actions/assignments.ts` (lines ~25-134) to destructure `workspace` and `apiKey` from the parsed input. If `apiKey` is provided and non-empty, encrypt it using `encryptApiKey()` from `src/lib/crypto.ts`. Include `workspace` and `apiKeyEncrypted` in the `db.insert(licenseAssignments).values({...})` call (lines ~111-118). Import `encryptApiKey` if not already imported.
 
-- [ ] T010 [US4] Add workspace and API key fields to the assignment dialog in `src/app/users/[id]/user-detail-client.tsx` (lines ~564-621). After the Tier select dropdown (~line 604), add: (1) a text `<Input>` for workspace with `placeholder="e.g. team-alpha"`, `maxLength={200}`, and a `<label className="text-sm font-medium">Workspace (optional)</label>`; (2) a password `<Input>` for API key with show/hide toggle button (using `Eye`/`EyeOff` icons from Lucide), `maxLength={500}`, and a `<label className="text-sm font-medium">API Key (optional)</label>`. Add corresponding React state variables (`assignWorkspace`, `assignApiKey`, `showAssignApiKey`). Pass `workspace` and `apiKey` to the `assignLicense` call in the submit handler. Reset these fields when the dialog closes or after successful submission.
+- [x] T010 [US4] Add workspace and API key fields to the assignment dialog in `src/app/users/[id]/user-detail-client.tsx` (lines ~564-621). After the Tier select dropdown (~line 604), add: (1) a text `<Input>` for workspace with `placeholder="e.g. team-alpha"`, `maxLength={200}`, and a `<label className="text-sm font-medium">Workspace (optional)</label>`; (2) a password `<Input>` for API key with show/hide toggle button (using `Eye`/`EyeOff` icons from Lucide), `maxLength={500}`, and a `<label className="text-sm font-medium">API Key (optional)</label>`. Add corresponding React state variables (`assignWorkspace`, `assignApiKey`, `showAssignApiKey`). Pass `workspace` and `apiKey` to the `assignLicense` call in the submit handler. Reset these fields when the dialog closes or after successful submission.
 
 **Checkpoint**: User Story 4 is complete. New assignments can be created with workspace and API key in a single step.
 
@@ -103,10 +103,10 @@
 
 **Purpose**: Final verification across all stories.
 
-- [ ] T011 Run `pnpm typecheck` to verify TypeScript compilation passes with zero errors across all modified files
-- [ ] T012 Run `pnpm lint` to verify ESLint passes with zero warnings across all modified files
-- [ ] T013 Run `pnpm build` to verify production build succeeds
-- [ ] T014 Run quickstart.md validation: manually verify all 4 verification steps described in `specs/021-ui-enhancements/quickstart.md`
+- [x] T011 Run `pnpm typecheck` to verify TypeScript compilation passes with zero errors across all modified files
+- [x] T012 Run `pnpm lint` to verify ESLint passes with zero warnings across all modified files
+- [x] T013 Run `pnpm build` to verify production build succeeds
+- [x] T014 Run quickstart.md validation: manually verify all 4 verification steps described in `specs/021-ui-enhancements/quickstart.md`
 
 ---
 
