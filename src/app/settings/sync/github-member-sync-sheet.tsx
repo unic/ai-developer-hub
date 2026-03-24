@@ -559,6 +559,15 @@ function UnmatchedGitHubResolutionList({
   }) => void;
   onCollapse: () => void;
 }) {
+  // Pre-compute suggestions once per member set (avoids O(n*m²) in render loop)
+  const suggestionsMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeMatchSuggestions>>();
+    for (const member of members) {
+      map.set(member.githubLogin, computeMatchSuggestions(member, unmatchedSystemUsers));
+    }
+    return map;
+  }, [members, unmatchedSystemUsers]);
+
   if (members.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-6">
@@ -578,13 +587,11 @@ function UnmatchedGitHubResolutionList({
           expandedCard?.githubLogin === member.githubLogin &&
           expandedCard.action === "create";
 
-        const suggestions = computeMatchSuggestions(member, unmatchedSystemUsers);
-
         return (
           <UnmatchedMemberCard
             key={member.githubLogin}
             member={member}
-            suggestions={suggestions}
+            suggestions={suggestionsMap.get(member.githubLogin) ?? []}
             resolution={resolution}
             onResolve={onResolve}
             onUndo={onUndo}
