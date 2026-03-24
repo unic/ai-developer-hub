@@ -36,9 +36,9 @@
 
 **Purpose**: New server actions and API routes needed by UI phases.
 
-- [ ] T009 [P] Add `getSyncHistory(options)` server action in `src/actions/sync.ts` — queries `sync_events` filtered by trigger type (`triggeredBy IS NULL` for scheduled, `IS NOT NULL` for manual), with limit and optional source filter per the contract in `contracts/api-contracts.md`
-- [ ] T010 [P] Create `checkAnthropicStatus()` server action in `src/actions/anthropic-status.ts` — checks `ANTHROPIC_ADMIN_API_KEY` env var, makes lightweight API call to verify connectivity, returns workspace name from `anthropic_workspaces` table per the contract
-- [ ] T011 [P] Create `GET /api/anthropic/status` route in `src/app/api/anthropic/status/route.ts` — admin-only, calls `checkAnthropicStatus()` and returns JSON response
+- [x] T009 [P] Add `getSyncHistory(options)` server action in `src/actions/sync.ts` — queries `sync_events` filtered by trigger type (`triggeredBy IS NULL` for scheduled, `IS NOT NULL` for manual), with limit and optional source filter per the contract in `contracts/api-contracts.md`
+- [x] T010 [P] Create `checkAnthropicStatus()` server action in `src/actions/anthropic-status.ts` — checks `ANTHROPIC_ADMIN_API_KEY` env var, makes lightweight API call to verify connectivity, returns workspace name from `anthropic_workspaces` table per the contract
+- [x] T011 [P] Create `GET /api/anthropic/status` route in `src/app/api/anthropic/status/route.ts` — admin-only, calls `checkAnthropicStatus()` and returns JSON response
 
 **Checkpoint**: Server actions and API routes ready for UI consumption.
 
@@ -52,9 +52,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T012 [US4] Add `getRunningCostsForPeriod(periodId)` helper in `src/lib/budget-utils.ts` — aggregates `SUM(cost_cents)` and `MAX(updated_at)` from `anthropic_workspace_costs` for the period's date range; returns `null` if sum is zero
-- [ ] T013 [US4] Update the budget period detail server component (find the period detail page in `src/app/budget/`) to call `getRunningCostsForPeriod()` and pass results as props
-- [ ] T014 [US4] Add "Running Costs" section to the budget period detail UI — visually distinct from billed costs (different badge/label reading "Running Costs"), "last updated" timestamp, and three totals: Billed Total, Running Total, Combined Total
+- [x] T012 [US4] Add `getRunningCostsForPeriod(periodId)` helper in `src/lib/budget-utils.ts` — aggregates `SUM(cost_cents)` and `MAX(updated_at)` from `anthropic_workspace_costs` for the period's date range; returns `null` if sum is zero
+- [x] T013 [US4] Update the budget period detail server component (find the period detail page in `src/app/budget/`) to call `getRunningCostsForPeriod()` and pass results as props
+- [x] T014 [US4] Add "Running Costs" section to the budget period detail UI — visually distinct from billed costs (different badge/label reading "Running Costs"), "last updated" timestamp, and three totals: Billed Total, Running Total, Combined Total
 
 **Checkpoint**: Budget period view shows running costs from `anthropic_workspace_costs`, clearly labeled and separated from billed costs.
 

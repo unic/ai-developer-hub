@@ -3,6 +3,9 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { getSyncSources, getSyncSource } from "@/lib/sync/registry";
 import { BACKFILL_SOURCES, type SyncSourceType } from "@/lib/sync/framework";
+import { db } from "@/lib/db";
+import { syncEvents, users } from "@/lib/db/schema";
+import { desc, eq, isNull, isNotNull, and } from "drizzle-orm";
 import { z } from "zod";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
 
@@ -16,6 +19,31 @@ type SyncActionResult =
 
 type SyncStatusResult =
   | { success: true; data: SyncSourceWithLastEvent[] }
+  | { success: false; error: string };
+
+export type SyncEventRow = {
+  id: number;
+  sourceType: string;
+  operationType: string;
+  outcome: string;
+  startedAt: Date;
+  completedAt: Date | null;
+  triggeredBy: { id: number; name: string } | null;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  errorMessage: string | null;
+};
+
+type SyncHistoryOptions = {
+  triggerType: "scheduled" | "manual";
+  limit?: number;
+  sourceType?: SyncSourceType;
+};
+
+type SyncHistoryResult =
+  | { success: true; data: SyncEventRow[] }
   | { success: false; error: string };
 
 async function getSourceRunner(sourceType: SyncSourceType) {
@@ -145,6 +173,76 @@ export async function getSyncStatus(): Promise<SyncStatusResult> {
   try {
     const sources = await getSyncSources();
     return { success: true, data: sources };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// getSyncHistory — paginated history of sync events
+// ---------------------------------------------------------------------------
+
+export async function getSyncHistory(
+  options: SyncHistoryOptions
+): Promise<SyncHistoryResult> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const { triggerType, limit = 50, sourceType } = options;
+
+  try {
+    const conditions = [
+      triggerType === "scheduled"
+        ? isNull(syncEvents.triggeredBy)
+        : isNotNull(syncEvents.triggeredBy),
+    ];
+
+    if (sourceType) {
+      conditions.push(eq(syncEvents.sourceType, sourceType));
+    }
+
+    const rows = await db
+      .select({
+        id: syncEvents.id,
+        sourceType: syncEvents.sourceType,
+        operationType: syncEvents.operationType,
+        outcome: syncEvents.outcome,
+        startedAt: syncEvents.startedAt,
+        completedAt: syncEvents.completedAt,
+        triggeredById: syncEvents.triggeredBy,
+        createdCount: syncEvents.createdCount,
+        updatedCount: syncEvents.updatedCount,
+        skippedCount: syncEvents.skippedCount,
+        errorCount: syncEvents.errorCount,
+        errorMessage: syncEvents.errorMessage,
+        userName: users.name,
+      })
+      .from(syncEvents)
+      .leftJoin(users, eq(syncEvents.triggeredBy, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(syncEvents.startedAt))
+      .limit(limit);
+
+    const data: SyncEventRow[] = rows.map((row) => ({
+      id: row.id,
+      sourceType: row.sourceType,
+      operationType: row.operationType,
+      outcome: row.outcome,
+      startedAt: row.startedAt,
+      completedAt: row.completedAt,
+      triggeredBy:
+        row.triggeredById != null
+          ? { id: row.triggeredById, name: row.userName ?? "Unknown" }
+          : null,
+      createdCount: row.createdCount,
+      updatedCount: row.updatedCount,
+      skippedCount: row.skippedCount,
+      errorCount: row.errorCount,
+      errorMessage: row.errorMessage,
+    }));
+
+    return { success: true, data };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, error: message };
