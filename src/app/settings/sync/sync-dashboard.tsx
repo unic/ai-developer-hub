@@ -1,119 +1,96 @@
 "use client";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { SyncNowButton } from "@/components/sync/sync-now-button";
-import { BackfillDialog } from "@/components/sync/backfill-dialog";
+import { useEffect, useRef, useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { getSyncStatus } from "@/actions/sync";
+import { ScheduledJobsTable } from "./scheduled-jobs-table";
+import { ManualJobsTable } from "./manual-jobs-table";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
-import { BACKFILL_SOURCES, type SyncSourceType } from "@/lib/sync/framework";
-
-const SOURCE_LABELS: Record<SyncSourceType, string> = {
-  github_copilot_billing: "GitHub Copilot Billing",
-  anthropic_api_usage: "Anthropic API Usage",
-  anthropic_team_invoices: "Claude Team Invoices",
-  github_members: "GitHub Members",
-  invoice_period_matching: "Invoice-Period Matching",
-  anthropic_api_costs: "Anthropic API Costs",
-};
-
-function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <Badge variant="secondary">Never synced</Badge>;
-  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    success: "default",
-    partial: "outline",
-    failed: "destructive",
-    in_progress: "secondary",
-  };
-  return <Badge variant={variants[outcome] ?? "secondary"}>{outcome}</Badge>;
-}
-
-function formatDate(date: Date | string | null): string {
-  if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import type { SyncEventRow } from "@/actions/sync";
 
 interface SyncDashboardProps {
-  sources: SyncSourceWithLastEvent[];
+  initialSources: SyncSourceWithLastEvent[];
+  initialManualEvents: SyncEventRow[];
 }
 
-export function SyncDashboard({ sources }: SyncDashboardProps) {
+export function SyncDashboard({
+  initialSources,
+  initialManualEvents,
+}: SyncDashboardProps) {
+  const router = useRouter();
+  const [sources, setSources] = useState(initialSources);
+  const [manualEvents] = useState(initialManualEvents);
+  const previousOutcomesRef = useRef<Map<string, string | null>>(new Map());
+
+  // Initialize previous outcomes on mount
+  useEffect(() => {
+    const map = new Map<string, string | null>();
+    for (const source of initialSources) {
+      map.set(source.sourceType, source.lastEvent?.outcome ?? null);
+    }
+    previousOutcomesRef.current = map;
+  }, [initialSources]);
+
+  const hasInProgress = useCallback(
+    (srcList: SyncSourceWithLastEvent[]) =>
+      srcList.some((s) => s.lastEvent?.outcome === "in_progress"),
+    []
+  );
+
+  // Polling when any source is in_progress
+  useEffect(() => {
+    if (!hasInProgress(sources)) return;
+
+    const intervalId = setInterval(async () => {
+      const result = await getSyncStatus();
+      if (!result.success) return;
+
+      const updated = result.data;
+      setSources(updated);
+
+      // Check for completion transitions and show toasts
+      for (const source of updated) {
+        const prevOutcome = previousOutcomesRef.current.get(source.sourceType);
+        const currentOutcome = source.lastEvent?.outcome ?? null;
+
+        if (prevOutcome === "in_progress" && currentOutcome !== "in_progress") {
+          const label = source.sourceType;
+          if (currentOutcome === "success" || currentOutcome === "partial") {
+            const ev = source.lastEvent;
+            toast.success(
+              `${label} complete: ${ev?.createdCount ?? 0} created, ${ev?.updatedCount ?? 0} updated`
+            );
+          } else if (currentOutcome === "failed") {
+            toast.error(
+              `${label} failed: ${source.lastEvent?.errorMessage ?? "Unknown error"}`
+            );
+          }
+        }
+
+        previousOutcomesRef.current.set(source.sourceType, currentOutcome);
+      }
+
+      // If nothing is in_progress anymore, refresh the page data
+      if (!hasInProgress(updated)) {
+        router.refresh();
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [sources, hasInProgress, router]);
+
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Source</TableHead>
-            <TableHead>Schedule</TableHead>
-            <TableHead>Last Run</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Created</TableHead>
-            <TableHead className="text-right">Updated</TableHead>
-            <TableHead className="text-right">Skipped</TableHead>
-            <TableHead>Error</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sources.map((source) => (
-            <TableRow key={source.sourceType}>
-              <TableCell className="font-medium">
-                {SOURCE_LABELS[source.sourceType] ?? source.sourceType}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-xs font-mono">
-                {source.cronSchedule ?? "Manual only"}
-              </TableCell>
-              <TableCell className="text-sm">
-                {source.lastEvent
-                  ? formatDate(source.lastEvent.startedAt)
-                  : "Never synced"}
-              </TableCell>
-              <TableCell>
-                <OutcomeBadge outcome={source.lastEvent?.outcome ?? null} />
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {source.lastEvent?.createdCount ?? "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {source.lastEvent?.updatedCount ?? "—"}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {source.lastEvent?.skippedCount ?? "—"}
-              </TableCell>
-              <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                {source.lastEvent?.errorMessage ?? "—"}
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-1">
-                  <SyncNowButton
-                    sourceType={source.sourceType}
-                    disabled={!source.enabled}
-                  />
-                  {BACKFILL_SOURCES.includes(source.sourceType) && (
-                    <BackfillDialog
-                      sourceType={source.sourceType}
-                      disabled={!source.enabled}
-                    />
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Scheduled Jobs</h3>
+        <ScheduledJobsTable sources={sources} />
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Manual Jobs</h3>
+        <ManualJobsTable events={manualEvents} />
+      </div>
     </div>
   );
 }

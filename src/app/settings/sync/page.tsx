@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getSyncStatus } from "@/actions/sync";
+import { getSyncStatus, getSyncHistory } from "@/actions/sync";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { SyncDashboard } from "./sync-dashboard";
@@ -8,9 +8,19 @@ export default async function SyncSettingsPage() {
   const admin = await requireAdmin();
   if (!admin) redirect("/settings");
 
-  const result = await getSyncStatus();
-  if (!result.success) {
-    return <div className="text-destructive">Error: {result.error}</div>;
+  const [statusResult, historyResult] = await Promise.all([
+    getSyncStatus(),
+    getSyncHistory({ triggerType: "manual", limit: 20 }),
+  ]);
+
+  if (!statusResult.success) {
+    return <div className="text-destructive">Error: {statusResult.error}</div>;
+  }
+
+  if (!historyResult.success) {
+    return (
+      <div className="text-destructive">Error: {historyResult.error}</div>
+    );
   }
 
   return (
@@ -21,8 +31,13 @@ export default async function SyncSettingsPage() {
           Monitor and manage all data synchronization sources.
         </p>
       </div>
-      <Suspense fallback={<div className="animate-pulse h-64 bg-muted rounded-md" />}>
-        <SyncDashboard sources={result.data} />
+      <Suspense
+        fallback={<div className="animate-pulse h-64 bg-muted rounded-md" />}
+      >
+        <SyncDashboard
+          initialSources={statusResult.data}
+          initialManualEvents={historyResult.data}
+        />
       </Suspense>
     </div>
   );
