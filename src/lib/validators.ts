@@ -59,6 +59,13 @@ export const assignmentSchema = z.object({
   userId: z.number().int().positive(),
   toolId: z.number().int().positive(),
   tierId: z.number().int().positive(),
+  workspace: z.string().max(200).optional(),
+  apiKey: z
+    .string()
+    .max(500)
+    .refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" })
+    .transform((val) => (val === "" ? val : val.trim()))
+    .optional(),
 });
 
 // Budget
