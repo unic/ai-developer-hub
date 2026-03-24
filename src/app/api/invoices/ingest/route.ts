@@ -9,7 +9,7 @@ import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
 
 /** System user ID for automated/API-initiated operations */
-const SYSTEM_ADMIN_USER_ID = 1;
+const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
 
 export const dynamic = "force-dynamic";
 
@@ -67,22 +67,10 @@ export async function POST(request: NextRequest) {
 
     // Read the PDF buffer
     const pdfBuffer = Buffer.from(await file.arrayBuffer());
-
-    // Upload to R2 first (matching existing upload-url and bulk-upload patterns)
     const objectKey = `invoices/${randomUUID()}.pdf`;
 
-    await getR2Client().send(
-      new PutObjectCommand({
-        Bucket: getR2Bucket(),
-        Key: objectKey,
-        Body: pdfBuffer,
-        ContentType: "application/pdf",
-      })
-    );
-
-    const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
-
-    // Extract invoice fields using existing pipeline
+    // Extract invoice fields from raw bytes BEFORE uploading to R2
+    // so failures or duplicates don't leave orphaned objects in storage
     const extraction = await extractInvoiceFields({
       objectKey,
       pdfBytes: new Uint8Array(pdfBuffer),
@@ -111,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for duplicates
+    // Check for duplicates before uploading
     const existing = await db.query.invoices.findFirst({
       where: eq(invoices.invoiceNumber, invoiceNumber),
     });
@@ -127,58 +115,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Upload to R2 only after extraction succeeds and duplicate check passes
+    await getR2Client().send(
+      new PutObjectCommand({
+        Bucket: getR2Bucket(),
+        Key: objectKey,
+        Body: pdfBuffer,
+        ContentType: "application/pdf",
+      })
+    );
+
+    const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
+
     // Find matching budget period
     const period = await findPeriodForDate(invoiceDate);
 
-    // Create invoice record
-    let linkedBilledCostId: number | null = null;
-    let action: "created" | "created_unlinked" = "created_unlinked";
+    // Wrap DB inserts in a transaction so a partial failure doesn't leave stray rows
+    const result = await db.transaction(async (tx) => {
+      let linkedBilledCostId: number | null = null;
+      let action: "created" | "created_unlinked" = "created_unlinked";
 
-    if (period) {
-      // Create billed cost entry and link
-      const description = vendor
-        ? `Invoice ${invoiceNumber} — ${vendor}`
-        : `Invoice ${invoiceNumber}`;
+      if (period) {
+        // Create billed cost entry and link
+        const description = vendor
+          ? `Invoice ${invoiceNumber} — ${vendor}`
+          : `Invoice ${invoiceNumber}`;
 
-      const [cost] = await db
-        .insert(billedCosts)
+        const [cost] = await tx
+          .insert(billedCosts)
+          .values({
+            periodId: period.id,
+            amountCents,
+            invoiceDate,
+            description,
+            vendorReference: invoiceNumber,
+          })
+          .returning({ id: billedCosts.id });
+
+        linkedBilledCostId = cost.id;
+        action = "created";
+      }
+
+      // Create the invoice record
+      const [newInvoice] = await tx
+        .insert(invoices)
         .values({
-          periodId: period.id,
-          amountCents,
+          invoiceNumber,
           invoiceDate,
-          description,
-          vendorReference: invoiceNumber,
+          amountCents,
+          vendor: vendor ?? "Anthropic",
+          blobUrl,
+          blobPathname: objectKey,
+          uploadedBy: SYSTEM_ADMIN_USER_ID,
+          linkedBilledCostId,
         })
-        .returning({ id: billedCosts.id });
+        .returning({ id: invoices.id });
 
-      linkedBilledCostId = cost.id;
-      action = "created";
-    }
-
-    // Create the invoice record (use system admin user ID 1 for API uploads)
-    const [newInvoice] = await db
-      .insert(invoices)
-      .values({
-        invoiceNumber,
-        invoiceDate,
-        amountCents,
-        vendor: vendor ?? "Anthropic",
-        blobUrl,
-        blobPathname: objectKey,
-        uploadedBy: SYSTEM_ADMIN_USER_ID,
-        linkedBilledCostId,
-      })
-      .returning({ id: invoices.id });
+      return { invoiceId: newInvoice.id, action, linkedBilledCostId };
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        invoiceId: newInvoice.id,
+        invoiceId: result.invoiceId,
         invoiceNumber,
         invoiceDate,
         amountCents,
         vendor: vendor ?? "Anthropic",
-        action,
+        action: result.action,
         linkedPeriodId: period?.id ?? null,
         linkedPeriodLabel: period?.periodLabel ?? null,
       },
