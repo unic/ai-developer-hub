@@ -3,9 +3,6 @@
 import { db } from "@/lib/db";
 import {
   anthropicUsageMetrics,
-  anthropicWorkspaceCosts,
-  anthropicWorkspaces,
-  budgetPeriods,
   licenseAssignments,
   aiTools,
   accessTiers,
@@ -436,69 +433,7 @@ export async function recalculateUnresolvedCosts(): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// getRunningCostsForPeriod — aggregate Anthropic workspace costs for a budget period
+// getRunningCostsForPeriod — re-exported from budget-utils for backwards compat
 // ---------------------------------------------------------------------------
 
-export async function getRunningCostsForPeriod(
-  periodId: number
-): Promise<{
-  runningCostCents: number;
-  lastUpdatedAt: string | null;
-  source: "anthropic_workspace_costs";
-  workspaceBreakdown?: Array<{
-    workspaceId: string | null;
-    name: string;
-    costCents: number;
-  }>;
-} | null> {
-  const period = await db.query.budgetPeriods.findFirst({
-    where: eq(budgetPeriods.id, periodId),
-  });
-  if (!period) return null;
-
-  // Single query: grouped by workspace with JOIN, derive total in JS
-  const breakdown = await db
-    .select({
-      workspaceId: anthropicWorkspaceCosts.workspaceId,
-      name: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
-      costCents: sql<number>`CAST(SUM(${anthropicWorkspaceCosts.costCents}) AS integer)`,
-      lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
-    })
-    .from(anthropicWorkspaceCosts)
-    .leftJoin(
-      anthropicWorkspaces,
-      sql`${anthropicWorkspaceCosts.workspaceId} IS NOT DISTINCT FROM ${anthropicWorkspaces.workspaceId}`
-    )
-    .where(
-      and(
-        sql`${anthropicWorkspaceCosts.date} >= ${period.startDate}`,
-        sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`
-      )
-    )
-    .groupBy(anthropicWorkspaceCosts.workspaceId, anthropicWorkspaces.name);
-
-  if (breakdown.length === 0) return null;
-
-  const runningCostCents = breakdown.reduce((sum, r) => sum + r.costCents, 0);
-  if (runningCostCents === 0) return null;
-
-  const lastUpdatedAt = breakdown.reduce<string | null>((max, r) => {
-    if (!r.lastUpdatedAt) return max;
-    return !max || r.lastUpdatedAt > max ? r.lastUpdatedAt : max;
-  }, null);
-
-  return {
-    runningCostCents,
-    lastUpdatedAt: lastUpdatedAt ? new Date(lastUpdatedAt).toISOString() : null,
-    source: "anthropic_workspace_costs",
-    ...(breakdown.length > 1
-      ? {
-          workspaceBreakdown: breakdown.map((r) => ({
-            workspaceId: r.workspaceId,
-            name: r.name,
-            costCents: r.costCents,
-          })),
-        }
-      : {}),
-  };
-}
+export { getRunningCostsForPeriod } from "@/lib/budget-utils";

@@ -4,7 +4,7 @@ import {
   getBudgetWithCosts,
   getPerToolSpend,
 } from "@/actions/budget";
-import { getRunningCostsForPeriod } from "@/actions/anthropic-usage";
+import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import { BudgetDetailClient } from "./budget-detail-client";
 import { AuthGuard } from "@/components/auth-guard";
 
