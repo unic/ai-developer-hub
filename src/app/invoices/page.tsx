@@ -5,7 +5,6 @@ import { invoices, users, billedCosts, budgetPeriods } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { SyncInvoicesButton } from "./sync-invoices-button";
 import { InvoicesTable } from "./invoices-table";
 
 export default async function InvoicesPage() {
@@ -33,7 +32,6 @@ export default async function InvoicesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
         <div className="flex items-center gap-2">
-          <SyncInvoicesButton />
           <Button variant="outline" asChild>
             <Link href="/invoices/bulk">Bulk Upload</Link>
           </Button>

@@ -68,12 +68,12 @@
 
 ### Implementation for User Story 6 — Part A
 
-- [ ] T015 [P] [US6] Delete `src/app/users/sync-all-button.tsx` and remove its import/usage from `src/app/users/page.tsx`
-- [ ] T016 [P] [US6] Remove sync button (if any) from `src/app/users/[id]/user-detail-client.tsx` — keep "Last synced" display
-- [ ] T017 [P] [US6] Remove `BillingSyncButton` import/usage and sync history table section from `src/app/copilot/billing/page.tsx`
-- [ ] T018 [P] [US6] Remove `SyncInvoicesButton` import/usage from `src/app/invoices/page.tsx` (keep other header buttons like "Bulk Upload" and "Upload Invoice")
-- [ ] T019 [P] [US6] Delete `src/components/copilot/billing-sync-button.tsx` if no longer imported anywhere
-- [ ] T020 [P] [US6] Delete `src/components/claude-sync-section.tsx` (replaced by Claude Code status card in Phase 5)
+- [x] T015 [P] [US6] Delete `src/app/users/sync-all-button.tsx` and remove its import/usage from `src/app/users/page.tsx`
+- [x] T016 [P] [US6] Remove sync button (if any) from `src/app/users/[id]/user-detail-client.tsx` — keep "Last synced" display
+- [x] T017 [P] [US6] Remove `BillingSyncButton` import/usage and sync history table section from `src/app/copilot/billing/page.tsx`
+- [x] T018 [P] [US6] Remove `SyncInvoicesButton` import/usage from `src/app/invoices/page.tsx` (keep other header buttons like "Bulk Upload" and "Upload Invoice")
+- [x] T019 [P] [US6] Delete `src/components/copilot/billing-sync-button.tsx` if no longer imported anywhere
+- [x] T020 [P] [US6] Delete `src/components/claude-sync-section.tsx` (replaced by Claude Code status card in Phase 5)
 
 **Checkpoint**: No sync trigger buttons remain on any page outside of `/settings/sync`.
 
@@ -87,9 +87,9 @@
 
 ### Implementation for User Story 6 — Part B
 
-- [ ] T021 [US6] Strip sync-related functionality from `src/app/settings/integrations/github-integration-client.tsx` — remove sync preview tabs (Matched/Unmatched GitHub/Unmatched System), `fetchGitHubSyncPreview()` calls, `confirmGitHubSync()` calls, `CopilotSyncSection` rendering, sync history table. Keep: token validation, org selection, connection management (connect/disconnect/update token)
-- [ ] T022 [US6] Update `src/app/settings/integrations/page.tsx` — remove `ClaudeSyncSection` import/rendering, remove sync history data fetching, remove `getCopilotSyncStatus()` call. Add `checkAnthropicStatus()` data fetching
-- [ ] T023 [US6] Create `src/app/settings/integrations/claude-code-status-card.tsx` — read-only card showing: title "Claude Code (Anthropic API)", status badge (Connected green / Not Configured amber), workspace name, last API connectivity check timestamp. No action buttons. Uses shadcn/ui Card, Badge components
+- [x] T021 [US6] Strip sync-related functionality from `src/app/settings/integrations/github-integration-client.tsx` — remove sync preview tabs (Matched/Unmatched GitHub/Unmatched System), `fetchGitHubSyncPreview()` calls, `confirmGitHubSync()` calls, `CopilotSyncSection` rendering, sync history table. Keep: token validation, org selection, connection management (connect/disconnect/update token)
+- [x] T022 [US6] Update `src/app/settings/integrations/page.tsx` — remove `ClaudeSyncSection` import/rendering, remove sync history data fetching, remove `getCopilotSyncStatus()` call. Add `checkAnthropicStatus()` data fetching
+- [x] T023 [US6] Create `src/app/settings/integrations/claude-code-status-card.tsx` — read-only card showing: title "Claude Code (Anthropic API)", status badge (Connected green / Not Configured amber), workspace name, last API connectivity check timestamp. No action buttons. Uses shadcn/ui Card, Badge components
 
 **Checkpoint**: Integrations page shows only GitHub connection management and Claude Code read-only status card.
 
