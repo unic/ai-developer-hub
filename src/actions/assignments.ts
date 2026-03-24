@@ -88,6 +88,9 @@ export async function assignLicense(
     }
   }
 
+  // Encrypt API key if provided (before transaction to avoid holding connection during crypto)
+  const apiKeyEncrypted = apiKey && apiKey !== "" ? await encryptApiKey(apiKey) : null;
+
   const now = new Date();
   let newAssignmentId: number;
 
@@ -104,9 +107,6 @@ export async function assignLicense(
           eq(licenseAssignments.status, "active")
         )
       );
-
-    // Encrypt API key if provided
-    const apiKeyEncrypted = apiKey && apiKey !== "" ? await encryptApiKey(apiKey) : null;
 
     // Create new assignment with cost snapshot (FR-020)
     const [newAssignment] = await tx

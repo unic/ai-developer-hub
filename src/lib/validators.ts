@@ -54,18 +54,21 @@ export const bulkImportUserSchema = z.object({
   profile: z.enum(["boost", "maxed", "indie"]).optional(),
 });
 
+// Shared API key field validation
+const apiKeyField = z
+  .string()
+  .max(500)
+  .refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" })
+  .transform((val) => (val === "" ? val : val.trim()))
+  .optional();
+
 // Assignment
 export const assignmentSchema = z.object({
   userId: z.number().int().positive(),
   toolId: z.number().int().positive(),
   tierId: z.number().int().positive(),
   workspace: z.string().max(200).optional(),
-  apiKey: z
-    .string()
-    .max(500)
-    .refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" })
-    .transform((val) => (val === "" ? val : val.trim()))
-    .optional(),
+  apiKey: apiKeyField,
 });
 
 // Budget
@@ -113,12 +116,7 @@ export const updateAssignmentSchema = z.object({
   tierId: z.number().int().positive().optional(),
   assignedAt: z.string().optional(),
   workspace: z.string().max(200).optional(),
-  apiKey: z
-    .string()
-    .max(500)
-    .refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" })
-    .transform((val) => (val === "" ? val : val.trim()))
-    .optional(),
+  apiKey: apiKeyField,
 });
 
 // Assignment comment
