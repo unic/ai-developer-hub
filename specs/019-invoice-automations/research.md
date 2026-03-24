@@ -1,8 +1,94 @@
 # Research: Invoice Automations & Running Cost Visibility
 
 **Feature**: 019-invoice-automations
-**Date**: 2026-03-20
+**Date**: 2026-03-20 (updated 2026-03-24)
 **Branch**: `019-invoice-automations`
+
+---
+
+## Session 2026-03-24: Sync UI Cleanup & Centralization
+
+### R-NEW-1: Sync Button Removal Inventory
+
+**Decision**: Remove all sync trigger buttons from individual pages; centralize all sync controls to Settings → Sync Status page only.
+
+**Current scattered buttons and disposition**:
+
+| Page | Component | Action | Disposition |
+|------|-----------|--------|-------------|
+| `/users` | `sync-all-button.tsx` | `syncAllAnthropicUsage()` | DELETE component + remove from page |
+| `/users/[id]` | `user-detail-client.tsx` | Shows "Last synced" timestamp | KEEP display only, no button to remove |
+| `/copilot/billing` | `billing-sync-button.tsx` | Triggers Copilot billing sync | DELETE component + remove from page |
+| `/copilot/billing` | Inline sync history table | Shows past sync events | REMOVE section |
+| `/invoices` | `sync-invoices-button.tsx` | `syncInvoices()` with dry-run | REMOVE from page, migrate dry-run to sync dashboard |
+| `/settings/integrations` | `copilot-sync-section.tsx` | Enable/disable/trigger Copilot sync | REMOVE from integrations |
+| `/settings/integrations` | `claude-sync-section.tsx` | `syncAllAnthropicUsage()` | REPLACE with read-only status card |
+| `/settings/integrations` | GitHub sync preview/confirm | Interactive member sync | MIGRATE to sync dashboard as Sheet dialog |
+
+**Rationale**: Centralizing eliminates admin confusion, reduces maintenance surface, and creates a single authoritative location for all sync operations.
+
+### R-NEW-2: Settings → Integrations Page Scope Reduction
+
+**Decision**: Integrations page shows connection management only. No sync history, triggers, or sync status.
+
+**Retained**: GitHub connection card (org name, avatar, token status, Update Token, Disconnect), organization info.
+**Removed**: CopilotSyncSection, ClaudeSyncSection, GitHub member sync preview workflow, sync history table.
+**Added**: Claude Code integration status card (read-only: connected/not configured, workspace name, last API connectivity check).
+
+**Rationale**: Separates "what am I connected to" (Integrations) from "how is my data flowing" (Sync Status).
+
+### R-NEW-3: Sync Status Dashboard Enhancements
+
+**Decision**: Split into scheduled/manual tables, add error popovers, toast progress, GitHub member sync Sheet.
+
+**Architecture changes**:
+- Two tables: "Scheduled Jobs" (cron-triggered, `triggeredBy IS NULL`) and "Manual Jobs" (admin-triggered, `triggeredBy IS NOT NULL`)
+- Error column: truncated text with Radix `Popover` on click → full error in scrollable container
+- Progress: Sonner toast on start, row polling (5s interval) with spinner, completion toast with counts
+- GitHub Members "Sync Now": opens Radix `Sheet` with full interactive preview workflow
+
+**Technical approach**:
+- Extend `getSyncStatus()` or add `getSyncHistory()` action with trigger type filter
+- `useEffect` + `setInterval` polling when any source shows `in_progress`
+- Invoice period matching "Sync Now" gets dropdown with dry-run option (migrated from invoices page)
+
+### R-NEW-4: GitHub Member Sync Sheet Migration
+
+**Decision**: Extract interactive workflow from `github-integration-client.tsx` (~1000 lines) into `github-member-sync-sheet.tsx`.
+
+**What moves**: Sync preview with 3 tabs (Matched/Unmatched GitHub/Unmatched System), resolution UI (UserSearchCombobox, InlineUserForm, UnmatchedMemberCard), conflict detection, progress tracking.
+**What stays on Integrations**: Token validation, org selection, connection management (connect/disconnect/update token).
+**Backend**: No changes — reuses existing `fetchGitHubSyncPreview()` and `confirmGitHubSync()` actions.
+
+### R-NEW-5: Anthropic Workspace Sync Rename
+
+**Decision**: Rename `anthropic_workspace_sync` → `anthropic_api_costs` everywhere.
+
+**Affected locations**:
+1. `syncSourceTypeEnum` in `schema.ts`
+2. `SyncSourceType` union in `framework.ts`
+3. `SOURCE_LABELS` in `sync-dashboard.tsx`
+4. `BACKFILL_SOURCES` in `backfill-dialog.tsx`
+5. `triggerSync` switch in `actions/sync.ts`
+6. API route: `/api/sync/anthropic-workspace/` → `/api/sync/anthropic-api-costs/`
+7. Seeded `sync_sources` rows
+8. Existing `sync_events` rows (DB migration)
+
+**Migration**: `ALTER TYPE sync_source_type RENAME VALUE 'anthropic_workspace_sync' TO 'anthropic_api_costs'`
+
+### R-NEW-6: Claude Code Integration Status Card
+
+**Decision**: New read-only card on Integrations page.
+
+**Data sources**: `ANTHROPIC_ADMIN_API_KEY` env var → connected/not configured; lightweight API call (list workspaces, limit 1) → connectivity check; `anthropic_workspaces` table → workspace name.
+
+**Implementation**: New server action `checkAnthropicStatus()` + API route `/api/anthropic/status`. Returns `{ connected, workspaceName?, lastCheckedAt }`. No action buttons.
+
+### R-NEW-7: Error Popover and Progress Patterns
+
+**Error popover**: Radix Popover on truncated error cell. Max ~50 chars with `truncate` class. PopoverContent shows full error in scrollable container (max-h-60). Keyboard accessible.
+
+**Progress**: Toast on start → row spinner (polling 5s) → completion toast with counts. Consistent with existing Sonner usage.
 
 ---
 

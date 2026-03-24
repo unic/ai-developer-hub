@@ -19,6 +19,14 @@ The application currently has multiple independent sync mechanisms built across 
 - Q: Which sources should support backfill? → A: API-driven sources only (GitHub Copilot billing, Anthropic API usage). Claude Team Plan has no API; historical invoices are handled via the normal upload flow, not a dedicated backfill mode.
 - Q: What is the lifecycle of an unlinked billing record? → A: Retained indefinitely — an administrator must explicitly resolve (link to a period) or delete the record. No automatic expiry.
 
+### Session 2026-03-24
+
+- Q: Should all scattered sync buttons (user detail, copilot billing, users list "Sync All", invoices "Sync Invoices") be removed and centralized to the Sync Status page? → A: Yes — remove all scattered sync buttons across the application. All sync triggers (manual and backfill) are only available on the Sync Status page in Settings.
+- Q: How should the GitHub member sync interactive workflow (preview → match → resolve → confirm) be surfaced on the Sync Status page? → A: Full-page dialog/sheet triggered by "Sync Now" for GitHub Members — contains the complete preview, matching, and resolution workflow before confirming.
+- Q: What should the Claude Code integration status display on the Integrations page? → A: Read-only status card showing connection status (connected/not configured), workspace name (if available), and last successful API connectivity check. No management actions — the API key is an environment variable.
+- Q: How should sync progress be communicated on the Sync Status page during active operations? → A: Toast notification on start, row status updates to "In Progress" with a spinner, and a completion toast with result summary (created/updated/skipped/errors).
+- Q: How should full error messages be revealed in the sync status table? → A: Click-to-expand popover/tooltip on the truncated error cell — shows the full message inline without leaving the table.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Unified Sync Framework Replacing All Existing Syncs (Priority: P1)
@@ -112,19 +120,22 @@ When setting up the application for the first time, an administrator wants to im
 
 ### User Story 6 - Unified Sync Status Dashboard (Priority: P6)
 
-An administrator wants a single place to see the status of all automated syncs — last run time, outcome, record counts, and any errors — so they can confirm automations are healthy without inspecting individual feature pages or log files.
+An administrator wants a single place to see the status of all automated syncs — last run time, outcome, record counts, and any errors — so they can confirm automations are healthy without inspecting individual feature pages or log files. The Sync Status page in Settings is the **sole location** for all sync triggers (manual runs and backfills); no other page in the application provides sync buttons or controls. Scheduled and manually-triggered jobs are displayed in separate tables. Error messages are fully readable, not truncated.
 
-**Why this priority**: As the number of registered sync sources grows, scattered status indicators become unmanageable. A unified dashboard is the natural complement to the unified sync framework.
+**Why this priority**: As the number of registered sync sources grows, scattered status indicators become unmanageable. A unified dashboard is the natural complement to the unified sync framework. Centralizing all sync controls here removes redundant buttons from individual pages (user detail, copilot billing, users list, invoices) and gives administrators a single, authoritative place for all sync operations.
 
-**Independent Test**: Can be tested by navigating to the sync status page and confirming all sources appear with consistent status fields, and that triggering a manual sync updates the status in the same view.
+**Independent Test**: Can be tested by navigating to the sync status page and confirming all sources appear with consistent status fields, that triggering a manual sync updates the status in the same view, and that no other page in the application offers sync trigger buttons.
 
 **Acceptance Scenarios**:
 
 1. **Given** one or more completed sync runs, **When** the administrator views the sync dashboard, **Then** all registered sources appear with last run time, outcome (success/partial/failure), and record counts (created/updated/skipped).
-2. **Given** a sync that encountered an error, **When** viewing that source's status, **Then** the error is surfaced with a human-readable description.
+2. **Given** a sync that encountered an error, **When** viewing that source's status, **Then** the error cell shows a truncated preview, and clicking it opens a popover/tooltip displaying the full human-readable error message.
 3. **Given** a source that has never been synced, **When** viewing sync status, **Then** it shows "Never synced" rather than an empty or broken state.
 4. **Given** any registered sync source, **When** the administrator manually triggers a sync from the dashboard, **Then** the sync runs and the status updates upon completion.
 5. **Given** an API-driven source (GitHub Copilot billing or Anthropic API usage), **When** the administrator initiates a backfill from the dashboard with a chosen start date, **Then** the backfill is queued and its progress is visible in the same status view as regular syncs.
+6. **Given** the sync dashboard, **When** viewing sync history, **Then** scheduled (cron) jobs and manually-triggered jobs are displayed in separate tables.
+7. **Given** the user detail page, copilot billing page, users list page, or invoices page, **When** an administrator visits any of these pages, **Then** no sync trigger button is present — all sync actions are centralized on the Sync Status page.
+8. **Given** the GitHub Members sync source, **When** the administrator clicks "Sync Now", **Then** a full-page dialog/sheet opens containing the interactive preview workflow (matched / unmatched GitHub / unmatched system tabs) with manual matching, inline user creation, and conflict detection — and the sync only executes after the administrator confirms.
 
 ---
 
@@ -148,7 +159,7 @@ An administrator wants a single place to see the status of all automated syncs �
 - **FR-001**: All existing sync mechanisms (GitHub Copilot billing, GitHub member sync, Anthropic API usage sync, invoice-to-period matching) MUST be refactored or replaced to operate through a single unified sync framework.
 - **FR-002**: The unified sync framework MUST provide a consistent sync event record structure for all source types: source identifier, start time, end time, outcome, counts (created/updated/skipped/errors), and optional error message.
 - **FR-003**: The unified sync framework MUST enforce mutual exclusion per source — only one active sync per source at any time — using a consistent locking mechanism across all source types.
-- **FR-004**: The unified sync framework MUST support both scheduled execution and manual trigger for any registered sync source, with each source configured independently on its own schedule (e.g., hourly for API usage, daily for billing invoices, weekly for member data).
+- **FR-004**: The unified sync framework MUST support both scheduled execution and manual trigger for any registered sync source, with each source configured independently on its own schedule (e.g., hourly for API usage, daily for billing invoices, weekly for member data). Manual sync triggers MUST only be available on the Sync Status page in Settings — no other page in the application may provide sync trigger buttons.
 - **FR-005**: Any dedicated sync status tables introduced by previous features (e.g., per-feature sync status tables) MUST be superseded by the unified event log; data from those tables MUST be migrated.
 
 **Invoice Automation**
@@ -176,11 +187,18 @@ An administrator wants a single place to see the status of all automated syncs �
 
 **Observability**
 
-- **FR-015**: A unified sync status view MUST display all registered sync sources with consistent status fields: last run time, outcome, and record counts.
-- **FR-016**: Sync errors MUST be surfaced with human-readable descriptions; raw error codes or stack traces MUST NOT be shown to administrators.
+- **FR-015**: A unified sync status view MUST display all registered sync sources with consistent status fields: last run time, outcome, and record counts. Scheduled (cron) jobs and manually-triggered jobs MUST be displayed in separate tables.
+- **FR-016**: Sync errors MUST be surfaced with human-readable descriptions; raw error codes or stack traces MUST NOT be shown to administrators. The error column MUST show a truncated preview; clicking it MUST open a popover/tooltip displaying the full error message.
 - **FR-022**: When an external API call fails during a sync, the system MUST retry with exponential backoff within the same sync run. If all retries are exhausted, the sync MUST be marked as failed and the error recorded in the sync event log.
 - **FR-023**: All external API credentials (GitHub token, Anthropic API key) MUST be supplied as environment variables or deployment secrets. The system MUST NOT store credentials in the database or expose them in any UI or sync event log output.
 - **FR-024**: The invoice ingestion endpoint MUST require authentication (e.g., a pre-shared secret token) to prevent unauthorized invoice submissions. Unauthenticated requests MUST be rejected.
+
+**Settings Page Separation of Concerns**
+
+- **FR-025**: The Settings → Integrations page MUST be scoped to connection management only: GitHub connection status, token update, disconnect, and organization info. It MUST NOT contain sync history, sync triggers, or any sync-related functionality.
+- **FR-026**: The Settings → Integrations page MUST display a read-only Claude Code (Anthropic API) integration status card showing: connection status (connected/not configured), workspace name (if available), and last successful API connectivity check. No management actions — the API key is an environment variable.
+- **FR-027**: The "Anthropic Workspace Sync" source MUST be renamed to "Anthropic API Costs" across all UI labels, sync source identifiers, and status displays.
+- **FR-028**: When a sync is triggered, the system MUST show a toast notification on start, update the source row to "In Progress" with a spinner (polling for status), and show a completion toast with the result summary (created/updated/skipped/errors counts).
 
 ### Key Entities
 
