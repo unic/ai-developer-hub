@@ -38,11 +38,10 @@ export interface SyncSourceWithLastEvent extends SyncSourceRecord {
 // ---------------------------------------------------------------------------
 
 export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
-  // Get all sync sources
-  const sources = await db.select().from(syncSources);
-
-  // Get latest event per source type using a subquery approach
-  const latestEvents = await db.execute<{
+  // Run both queries in parallel since they are independent
+  const [sources, latestEvents] = await Promise.all([
+    db.select().from(syncSources),
+    db.execute<{
     id: number;
     source_type: SyncSourceType;
     operation_type: "regular" | "backfill";
@@ -54,15 +53,16 @@ export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
     skipped_count: number;
     error_count: number;
     error_message: string | null;
-  }>(sql`
-    SELECT DISTINCT ON (source_type)
-      id, source_type, operation_type, outcome,
-      started_at, completed_at,
-      created_count, updated_count, skipped_count, error_count,
-      error_message
-    FROM sync_events
-    ORDER BY source_type, started_at DESC
-  `);
+    }>(sql`
+      SELECT DISTINCT ON (source_type)
+        id, source_type, operation_type, outcome,
+        started_at, completed_at,
+        created_count, updated_count, skipped_count, error_count,
+        error_message
+      FROM sync_events
+      ORDER BY source_type, started_at DESC
+    `),
+  ]);
 
   const eventMap = new Map<string, SyncEventRecord>();
   for (const row of latestEvents.rows) {

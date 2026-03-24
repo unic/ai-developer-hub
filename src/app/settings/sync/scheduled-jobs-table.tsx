@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,40 +19,18 @@ import {
 import { SyncNowButton } from "@/components/sync/sync-now-button";
 import { BackfillDialog } from "@/components/sync/backfill-dialog";
 import { ErrorPopover } from "./error-popover";
+import { OutcomeBadge } from "./outcome-badge";
 import { GitHubMemberSyncSheet } from "./github-member-sync-sheet";
 import { SyncResultsDialog } from "@/app/invoices/sync-results-dialog";
 import { syncInvoices } from "@/actions/invoice-sync";
 import { triggerSync } from "@/actions/sync";
-import { BACKFILL_SOURCES, type SyncSourceType } from "@/lib/sync/framework";
+import { BACKFILL_SOURCES, SOURCE_LABELS, type SyncSourceType } from "@/lib/sync/framework";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
 import type { SyncResult } from "@/types";
 import { ChevronDown, Eye, RefreshCw, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-
-const SOURCE_LABELS: Record<SyncSourceType, string> = {
-  github_copilot_billing: "GitHub Copilot Billing",
-  anthropic_api_usage: "Anthropic API Usage",
-  anthropic_team_invoices: "Claude Team Invoices",
-  github_members: "GitHub Members",
-  invoice_period_matching: "Invoice-Period Matching",
-  anthropic_api_costs: "Anthropic API Costs",
-};
-
-function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <Badge variant="secondary">Never synced</Badge>;
-  const variants: Record<
-    string,
-    "default" | "secondary" | "destructive" | "outline"
-  > = {
-    success: "default",
-    partial: "outline",
-    failed: "destructive",
-    in_progress: "secondary",
-  };
-  return <Badge variant={variants[outcome] ?? "secondary"}>{outcome}</Badge>;
-}
 
 function formatRelativeTime(date: Date | string | null): string {
   if (!date) return "Never synced";

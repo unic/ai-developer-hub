@@ -23,9 +23,9 @@ type SyncStatusResult =
 
 export type SyncEventRow = {
   id: number;
-  sourceType: string;
-  operationType: string;
-  outcome: string;
+  sourceType: SyncSourceType;
+  operationType: "regular" | "backfill";
+  outcome: "in_progress" | "success" | "partial" | "failed";
   startedAt: Date;
   completedAt: Date | null;
   triggeredBy: { id: number; name: string } | null;
@@ -226,9 +226,9 @@ export async function getSyncHistory(
 
     const data: SyncEventRow[] = rows.map((row) => ({
       id: row.id,
-      sourceType: row.sourceType,
-      operationType: row.operationType,
-      outcome: row.outcome,
+      sourceType: row.sourceType as SyncSourceType,
+      operationType: row.operationType as SyncEventRow["operationType"],
+      outcome: row.outcome as SyncEventRow["outcome"],
       startedAt: row.startedAt,
       completedAt: row.completedAt,
       triggeredBy:

@@ -33,7 +33,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { getRunningCostsForPeriod } from "@/actions/anthropic-usage";
+import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import { db } from "@/lib/db";
 
 describe("getRunningCostsForPeriod", () => {

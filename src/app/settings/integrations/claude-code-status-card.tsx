@@ -6,23 +6,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/lib/utils";
 
 interface ClaudeCodeStatusCardProps {
   connected: boolean;
   workspaceName: string | null;
   lastCheckedAt: string; // ISO datetime
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(d);
 }
 
 export function ClaudeCodeStatusCard({
@@ -61,7 +50,7 @@ export function ClaudeCodeStatusCard({
           )}
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Last checked</dt>
-            <dd className="font-medium">{formatTimestamp(lastCheckedAt)}</dd>
+            <dd className="font-medium">{formatDateTime(lastCheckedAt)}</dd>
           </div>
           {!connected && (
             <p className="text-xs text-muted-foreground pt-2">

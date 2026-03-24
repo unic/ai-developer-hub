@@ -9,6 +9,16 @@ import { eq, sql } from "drizzle-orm";
 export type SyncSourceType = (typeof syncSourceTypeEnum.enumValues)[number];
 export type SyncOperationType = (typeof syncOperationTypeEnum.enumValues)[number];
 
+/** Human-readable labels for each sync source */
+export const SOURCE_LABELS: Record<SyncSourceType, string> = {
+  github_copilot_billing: "GitHub Copilot Billing",
+  anthropic_api_usage: "Anthropic API Usage",
+  anthropic_team_invoices: "Claude Team Invoices",
+  github_members: "GitHub Members",
+  invoice_period_matching: "Invoice-Period Matching",
+  anthropic_api_costs: "Anthropic API Costs",
+};
+
 /** Source types that support historical backfill */
 export const BACKFILL_SOURCES: SyncSourceType[] = [
   "github_copilot_billing",

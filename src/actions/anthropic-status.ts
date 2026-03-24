@@ -63,7 +63,7 @@ export async function checkAnthropicStatus(): Promise<AnthropicStatusResult> {
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error("Anthropic status check failed:", err instanceof Error ? err.message : String(err));
     return {
       success: true,
       data: {

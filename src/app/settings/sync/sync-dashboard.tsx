@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getSyncStatus } from "@/actions/sync";
@@ -19,66 +19,70 @@ export function SyncDashboard({
   initialManualEvents,
 }: SyncDashboardProps) {
   const router = useRouter();
+  const manualEvents = initialManualEvents;
+  const sourcesRef = useRef(initialSources);
   const [sources, setSources] = useState(initialSources);
-  const [manualEvents] = useState(initialManualEvents);
-  const previousOutcomesRef = useRef<Map<string, string | null>>(new Map());
-
-  // Initialize previous outcomes on mount
-  useEffect(() => {
-    const map = new Map<string, string | null>();
-    for (const source of initialSources) {
-      map.set(source.sourceType, source.lastEvent?.outcome ?? null);
-    }
-    previousOutcomesRef.current = map;
-  }, [initialSources]);
-
-  const hasInProgress = useCallback(
-    (srcList: SyncSourceWithLastEvent[]) =>
-      srcList.some((s) => s.lastEvent?.outcome === "in_progress"),
-    []
+  const [isPolling, setIsPolling] = useState(() =>
+    initialSources.some((s) => s.lastEvent?.outcome === "in_progress")
   );
+
+  // Keep ref in sync
+  useEffect(() => {
+    sourcesRef.current = sources;
+  }, [sources]);
 
   // Polling when any source is in_progress
   useEffect(() => {
-    if (!hasInProgress(sources)) return;
+    if (!isPolling) return;
 
     const intervalId = setInterval(async () => {
       const result = await getSyncStatus();
       if (!result.success) return;
 
       const updated = result.data;
-      setSources(updated);
 
       // Check for completion transitions and show toasts
       for (const source of updated) {
-        const prevOutcome = previousOutcomesRef.current.get(source.sourceType);
-        const currentOutcome = source.lastEvent?.outcome ?? null;
+        const prev = sourcesRef.current.find(
+          (s) => s.sourceType === source.sourceType
+        );
+        const prevOutcome = prev?.lastEvent?.outcome ?? null;
+        const curOutcome = source.lastEvent?.outcome ?? null;
 
-        if (prevOutcome === "in_progress" && currentOutcome !== "in_progress") {
+        if (prevOutcome === "in_progress" && curOutcome !== "in_progress") {
           const label = source.sourceType;
-          if (currentOutcome === "success" || currentOutcome === "partial") {
+          if (curOutcome === "success" || curOutcome === "partial") {
             const ev = source.lastEvent;
             toast.success(
               `${label} complete: ${ev?.createdCount ?? 0} created, ${ev?.updatedCount ?? 0} updated`
             );
-          } else if (currentOutcome === "failed") {
+          } else if (curOutcome === "failed") {
             toast.error(
               `${label} failed: ${source.lastEvent?.errorMessage ?? "Unknown error"}`
             );
           }
         }
-
-        previousOutcomesRef.current.set(source.sourceType, currentOutcome);
       }
 
-      // If nothing is in_progress anymore, refresh the page data
-      if (!hasInProgress(updated)) {
+      // Change detection — only update state if something actually changed
+      const changed = updated.some(
+        (s, i) =>
+          s.lastEvent?.outcome !==
+            sourcesRef.current[i]?.lastEvent?.outcome ||
+          s.lastEvent?.createdCount !==
+            sourcesRef.current[i]?.lastEvent?.createdCount
+      );
+      if (changed) setSources(updated);
+
+      // If nothing is in_progress anymore, stop polling and refresh
+      if (!updated.some((s) => s.lastEvent?.outcome === "in_progress")) {
+        setIsPolling(false);
         router.refresh();
       }
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [sources, hasInProgress, router]);
+  }, [isPolling, router]);
 
   return (
     <div className="space-y-8">
