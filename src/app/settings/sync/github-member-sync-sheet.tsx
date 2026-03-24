@@ -39,6 +39,7 @@ import {
   fetchGitHubSyncPreview,
   confirmGitHubSync,
 } from "@/actions/github-sync";
+import { computeMatchSuggestions } from "@/lib/match-suggestions";
 import { UnmatchedMemberCard } from "@/components/unmatched-member-card";
 import { UserSearchCombobox } from "@/components/user-search-combobox";
 import { InlineUserForm } from "@/components/inline-user-form";
@@ -328,6 +329,7 @@ export function GitHubMemberSyncSheet({
                 <TabsContent value="unmatched-github" className="mt-4">
                   <UnmatchedGitHubResolutionList
                     members={preview.unmatched}
+                    unmatchedSystemUsers={preview.unmatchedSystemUsers}
                     resolutions={resolutions}
                     expandedCard={expandedCard}
                     excludeUserIds={excludeUserIds}
@@ -532,6 +534,7 @@ function MatchedTable({ members }: { members: SyncMatchedMember[] }) {
 
 function UnmatchedGitHubResolutionList({
   members,
+  unmatchedSystemUsers,
   resolutions,
   expandedCard,
   excludeUserIds,
@@ -541,6 +544,7 @@ function UnmatchedGitHubResolutionList({
   onCollapse,
 }: {
   members: SyncUnmatchedMember[];
+  unmatchedSystemUsers: SyncUnmatchedSystemUser[];
   resolutions: Map<string, PendingResolution>;
   expandedCard: {
     githubLogin: string;
@@ -574,11 +578,13 @@ function UnmatchedGitHubResolutionList({
           expandedCard?.githubLogin === member.githubLogin &&
           expandedCard.action === "create";
 
+        const suggestions = computeMatchSuggestions(member, unmatchedSystemUsers);
+
         return (
           <UnmatchedMemberCard
             key={member.githubLogin}
             member={member}
-            suggestions={[]}
+            suggestions={suggestions}
             resolution={resolution}
             onResolve={onResolve}
             onUndo={onUndo}
