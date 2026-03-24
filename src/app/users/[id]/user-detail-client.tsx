@@ -13,7 +13,8 @@ import { getTools, getToolWithTiers } from "@/actions/tools";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord, CostData, AiTool, AccessTier } from "@/types";
 import { AdminCostSection } from "@/components/profile/admin-cost-section";
-import { Github, ExternalLink, BookOpen, KeyRound, Plus, RotateCcw } from "lucide-react";
+import { Github, ExternalLink, BookOpen, KeyRound, Plus, RotateCcw, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +112,9 @@ export function UserDetailClient({
   const [availableTiers, setAvailableTiers] = useState<AccessTier[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
+  const [assignWorkspace, setAssignWorkspace] = useState("");
+  const [assignApiKey, setAssignApiKey] = useState("");
+  const [showAssignApiKey, setShowAssignApiKey] = useState(false);
 
   const form = useForm<EditUserInput>({
     resolver: zodResolver(editUserSchema),
@@ -174,6 +178,8 @@ export function UserDetailClient({
       userId: user.id,
       toolId: Number(selectedToolId),
       tierId: Number(selectedTierId),
+      workspace: assignWorkspace || undefined,
+      apiKey: assignApiKey || undefined,
     });
     setAssigning(false);
     if (result.success) {
@@ -181,6 +187,9 @@ export function UserDetailClient({
       setAssignDialogOpen(false);
       setSelectedToolId("");
       setSelectedTierId("");
+      setAssignWorkspace("");
+      setAssignApiKey("");
+      setShowAssignApiKey(false);
       router.refresh();
     } else {
       toast.error(result.error);
@@ -481,7 +490,10 @@ export function UserDetailClient({
                   key={a.id}
                   className="flex items-center justify-between rounded-lg border p-3"
                 >
-                  <div>
+                  <Link
+                    href={`/assignments/${a.id}`}
+                    className="flex-1 hover:bg-muted/50 -m-1 p-1 rounded transition-colors"
+                  >
                     <p className="font-medium">{a.tool.name}</p>
                     <p className="text-sm text-muted-foreground">
                       {a.tier.name} &bull;{" "}
@@ -491,7 +503,7 @@ export function UserDetailClient({
                       Assigned {formatDate(a.assignedAt)}
                       {a.revokedAt && ` — Revoked ${formatDate(a.revokedAt)}`}
                     </p>
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-2">
                     <Badge
                       variant={
@@ -601,6 +613,42 @@ export function UserDetailClient({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Workspace (optional)</label>
+              <Input
+                placeholder="e.g. team-alpha"
+                maxLength={200}
+                value={assignWorkspace}
+                onChange={(e) => setAssignWorkspace(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">API Key (optional)</label>
+              <div className="flex gap-2">
+                <Input
+                  type={showAssignApiKey ? "text" : "password"}
+                  placeholder="Enter API key"
+                  maxLength={500}
+                  value={assignApiKey}
+                  onChange={(e) => setAssignApiKey(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAssignApiKey(!showAssignApiKey)}
+                >
+                  {showAssignApiKey ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                  <span className="sr-only">
+                    {showAssignApiKey ? "Hide" : "Show"} API key
+                  </span>
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
