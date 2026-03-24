@@ -5,7 +5,7 @@ import {
   anthropicWorkspaceCosts,
   anthropicWorkspaces,
 } from "@/lib/db/schema";
-import { eq, and, lte, gt, desc, sql } from "drizzle-orm";
+import { eq, and, lte, gte, desc, sql } from "drizzle-orm";
 
 /**
  * Find the active budget period that covers a given date.
@@ -25,7 +25,7 @@ export async function findActivePeriodForDate(
       and(
         eq(annualBudgets.status, "active"),
         lte(budgetPeriods.startDate, invoiceDate),
-        gt(budgetPeriods.endDate, invoiceDate)
+        gte(budgetPeriods.endDate, invoiceDate)
       )
     )
     .orderBy(desc(annualBudgets.createdAt))
@@ -49,7 +49,7 @@ export async function findPeriodForDate(
     .from(budgetPeriods)
     .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
     .where(
-      sql`${budgetPeriods.startDate} <= ${invoiceDate} AND ${budgetPeriods.endDate} > ${invoiceDate}`
+      sql`${budgetPeriods.startDate} <= ${invoiceDate} AND ${budgetPeriods.endDate} >= ${invoiceDate}`
     )
     .orderBy(
       sql`CASE WHEN ${annualBudgets.status} = 'active' THEN 0 ELSE 1 END ASC`,
@@ -134,7 +134,11 @@ export async function getRunningCostsForPeriod(
 
   return {
     runningCostCents,
-    lastUpdatedAt: lastUpdatedAt ? new Date(lastUpdatedAt).toISOString() : null,
+    lastUpdatedAt: lastUpdatedAt
+      ? ((lastUpdatedAt as unknown) instanceof Date
+          ? (lastUpdatedAt as unknown as Date).toISOString()
+          : new Date(lastUpdatedAt).toISOString())
+      : null,
     source: "anthropic_workspace_costs",
     ...(breakdown.length > 1
       ? {

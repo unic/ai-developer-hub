@@ -71,7 +71,7 @@ export async function run(
 
       function findPeriodInMemory(invoiceDate: string) {
         return allPeriods.find(
-          (p) => p.startDate <= invoiceDate && p.endDate > invoiceDate
+          (p) => p.startDate <= invoiceDate && p.endDate >= invoiceDate
         ) ?? null;
       }
 
@@ -115,7 +115,7 @@ export async function run(
 
           if (inv.currentPeriodId === correctPeriod.id) {
             // Already correctly linked
-            counts.updatedCount++;
+            counts.skippedCount++;
             continue;
           }
 
