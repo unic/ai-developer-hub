@@ -20,7 +20,7 @@ const SOURCE_LABELS: Record<SyncSourceType, string> = {
   anthropic_team_invoices: "Claude Team Invoices",
   github_members: "GitHub Members",
   invoice_period_matching: "Invoice-Period Matching",
-  anthropic_workspace_sync: "Anthropic Workspace Sync",
+  anthropic_api_costs: "Anthropic API Costs",
 };
 
 function OutcomeBadge({ outcome }: { outcome: string | null }) {

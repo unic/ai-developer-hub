@@ -205,7 +205,7 @@ export async function run(
 ): Promise<{ eventId: number }> {
   return withSyncLock(
     {
-      sourceType: "anthropic_workspace_sync",
+      sourceType: "anthropic_api_costs",
       triggeredBy,
       operationType: opts?.backfillStartDate ? "backfill" : "regular",
       backfillStartDate: opts?.backfillStartDate,

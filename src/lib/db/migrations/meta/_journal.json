@@ -85,6 +85,13 @@
       "when": 1774483200000,
       "tag": "0011_fix_period_end_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1774362118117,
+      "tag": "0012_flashy_metal_master",
+      "breakpoints": true
     }
   ]
 }

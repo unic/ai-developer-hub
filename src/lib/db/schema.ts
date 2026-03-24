@@ -67,7 +67,7 @@ export const syncSourceTypeEnum = pgEnum("sync_source_type", [
   "anthropic_team_invoices",
   "github_members",
   "invoice_period_matching",
-  "anthropic_workspace_sync",
+  "anthropic_api_costs",
 ]);
 
 export const syncOutcomeEnum = pgEnum("sync_outcome", [

@@ -19,14 +19,14 @@
 
 **Purpose**: Database migration for the `anthropic_workspace_sync` → `anthropic_api_costs` rename and shared infrastructure changes.
 
-- [ ] T001 Rename `anthropic_workspace_sync` to `anthropic_api_costs` in the `syncSourceTypeEnum` in `src/lib/db/schema.ts` and update all TypeScript type references
-- [ ] T002 Generate and apply Drizzle migration for the enum rename (`ALTER TYPE sync_source_type RENAME VALUE`) in `src/lib/db/migrations/`; update seeded `sync_sources` row
-- [ ] T003 [P] Update `SyncSourceType` union and `SOURCE_LABELS` map in `src/lib/sync/framework.ts` to use `anthropic_api_costs`
-- [ ] T004 [P] Update `BACKFILL_SOURCES` array in `src/components/sync/backfill-dialog.tsx` to use `anthropic_api_costs`
-- [ ] T005 [P] Update `triggerSync` switch cases in `src/actions/sync.ts` to use `anthropic_api_costs`
-- [ ] T006 [P] Rename API route directory from `src/app/api/sync/anthropic-workspace/` to `src/app/api/sync/anthropic-api-costs/` and update the route handler imports
-- [ ] T007 [P] Update `vercel.json` cron path from `/api/sync/anthropic-workspace` to `/api/sync/anthropic-api-costs`
-- [ ] T008 Update any remaining references to `anthropic_workspace_sync` across the codebase (grep and fix all occurrences in `src/lib/sync/sources/anthropic-workspace.ts`, `src/lib/sync/registry.ts`, `src/app/settings/sync/sync-dashboard.tsx`)
+- [x] T001 Rename `anthropic_workspace_sync` to `anthropic_api_costs` in the `syncSourceTypeEnum` in `src/lib/db/schema.ts` and update all TypeScript type references
+- [x] T002 Generate and apply Drizzle migration for the enum rename (`ALTER TYPE sync_source_type RENAME VALUE`) in `src/lib/db/migrations/`; update seeded `sync_sources` row
+- [x] T003 [P] Update `SyncSourceType` union and `SOURCE_LABELS` map in `src/lib/sync/framework.ts` to use `anthropic_api_costs`
+- [x] T004 [P] Update `BACKFILL_SOURCES` array in `src/components/sync/backfill-dialog.tsx` to use `anthropic_api_costs`
+- [x] T005 [P] Update `triggerSync` switch cases in `src/actions/sync.ts` to use `anthropic_api_costs`
+- [x] T006 [P] Rename API route directory from `src/app/api/sync/anthropic-workspace/` to `src/app/api/sync/anthropic-api-costs/` and update the route handler imports
+- [x] T007 [P] Update `vercel.json` cron path from `/api/sync/anthropic-workspace` to `/api/sync/anthropic-api-costs`
+- [x] T008 Update any remaining references to `anthropic_workspace_sync` across the codebase (grep and fix all occurrences in `src/lib/sync/sources/anthropic-workspace.ts`, `src/lib/sync/registry.ts`, `src/app/settings/sync/sync-dashboard.tsx`)
 
 **Checkpoint**: Rename complete — `anthropic_workspace_sync` no longer appears anywhere in the codebase. App builds and runs successfully.
 

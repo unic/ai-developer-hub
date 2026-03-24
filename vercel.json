@@ -9,7 +9,7 @@
       "schedule": "0 * * * *"
     },
     {
-      "path": "/api/sync/anthropic-workspace",
+      "path": "/api/sync/anthropic-api-costs",
       "schedule": "0 * * * *"
     }
   ]

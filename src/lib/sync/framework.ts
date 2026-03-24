@@ -13,7 +13,7 @@ export type SyncOperationType = (typeof syncOperationTypeEnum.enumValues)[number
 export const BACKFILL_SOURCES: SyncSourceType[] = [
   "github_copilot_billing",
   "anthropic_api_usage",
-  "anthropic_workspace_sync",
+  "anthropic_api_costs",
 ];
 
 export interface SyncCounts {

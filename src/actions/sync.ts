@@ -28,7 +28,7 @@ async function getSourceRunner(sourceType: SyncSourceType) {
       return (await import("@/lib/sync/sources/github-members")).run;
     case "invoice_period_matching":
       return (await import("@/lib/sync/sources/invoice-matching")).run;
-    case "anthropic_workspace_sync":
+    case "anthropic_api_costs":
       return (await import("@/lib/sync/sources/anthropic-workspace")).run;
     case "anthropic_team_invoices":
       // Team invoices are ingested via POST /api/invoices/ingest, not via sync
