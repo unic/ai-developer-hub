@@ -20,13 +20,14 @@ import {
 import { SyncNowButton } from "@/components/sync/sync-now-button";
 import { BackfillDialog } from "@/components/sync/backfill-dialog";
 import { ErrorPopover } from "./error-popover";
+import { GitHubMemberSyncSheet } from "./github-member-sync-sheet";
 import { SyncResultsDialog } from "@/app/invoices/sync-results-dialog";
 import { syncInvoices } from "@/actions/invoice-sync";
 import { triggerSync } from "@/actions/sync";
 import { BACKFILL_SOURCES, type SyncSourceType } from "@/lib/sync/framework";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
 import type { SyncResult } from "@/types";
-import { ChevronDown, Eye, RefreshCw } from "lucide-react";
+import { ChevronDown, Eye, RefreshCw, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
@@ -69,6 +70,7 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
   const [dryRunDialogOpen, setDryRunDialogOpen] = useState(false);
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
+  const [memberSyncOpen, setMemberSyncOpen] = useState(false);
   const router = useRouter();
 
   async function handleDryRun() {
@@ -180,6 +182,16 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
                           onDryRun={handleDryRun}
                           dryRunLoading={dryRunLoading}
                         />
+                      ) : source.sourceType === "github_members" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!source.enabled}
+                          onClick={() => setMemberSyncOpen(true)}
+                        >
+                          <Users className="h-3 w-3 mr-1" />
+                          Sync Now
+                        </Button>
                       ) : (
                         <SyncNowButton
                           sourceType={source.sourceType}
@@ -207,6 +219,11 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
         result={dryRunResult}
         isDryRun={true}
         onConfirm={applyLoading ? undefined : handleApplyFromDryRun}
+      />
+
+      <GitHubMemberSyncSheet
+        open={memberSyncOpen}
+        onOpenChange={setMemberSyncOpen}
       />
     </>
   );

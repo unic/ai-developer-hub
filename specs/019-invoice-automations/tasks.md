@@ -122,9 +122,9 @@
 
 ### Implementation for User Story 6 — Part D
 
-- [ ] T030 [US6] Create `src/app/settings/sync/github-member-sync-sheet.tsx` — Radix Sheet (full side panel) containing the interactive preview workflow extracted from `github-integration-client.tsx`. Includes: 3 tabs (Matched / Unmatched GitHub / Unmatched System), manual matching via `UserSearchCombobox`, inline user creation via `InlineUserForm`, conflict detection, resolution progress counters. Calls existing `fetchGitHubSyncPreview()` and `confirmGitHubSync()` server actions. Sheet closes on cancel or successful confirm
-- [ ] T031 [US6] Update `src/app/settings/sync/sync-dashboard.tsx` (or `scheduled-jobs-table.tsx`) — when source is `github_members`, the "Sync Now" button opens the `GitHubMemberSyncSheet` instead of calling `triggerSync()` directly
-- [ ] T032 [US6] Verify that `src/components/unmatched-member-card.tsx`, `UserSearchCombobox`, and `InlineUserForm` components are properly importable from their current locations and work within the Sheet context (no circular dependencies)
+- [x] T030 [US6] Create `src/app/settings/sync/github-member-sync-sheet.tsx` — Radix Sheet (full side panel) containing the interactive preview workflow extracted from `github-integration-client.tsx`. Includes: 3 tabs (Matched / Unmatched GitHub / Unmatched System), manual matching via `UserSearchCombobox`, inline user creation via `InlineUserForm`, conflict detection, resolution progress counters. Calls existing `fetchGitHubSyncPreview()` and `confirmGitHubSync()` server actions. Sheet closes on cancel or successful confirm
+- [x] T031 [US6] Update `src/app/settings/sync/sync-dashboard.tsx` (or `scheduled-jobs-table.tsx`) — when source is `github_members`, the "Sync Now" button opens the `GitHubMemberSyncSheet` instead of calling `triggerSync()` directly
+- [x] T032 [US6] Verify that `src/components/unmatched-member-card.tsx`, `UserSearchCombobox`, and `InlineUserForm` components are properly importable from their current locations and work within the Sheet context (no circular dependencies)
 
 **Checkpoint**: GitHub member sync interactive workflow is fully functional from the Sync Status page Sheet dialog.
 
