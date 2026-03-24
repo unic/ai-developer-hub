@@ -41,11 +41,14 @@ export function SyncDashboard({
 
       const updated = result.data;
 
+      // Build a Map keyed by sourceType for stable lookups
+      const prevMap = new Map(
+        sourcesRef.current.map((s) => [s.sourceType, s])
+      );
+
       // Check for completion transitions and show toasts
       for (const source of updated) {
-        const prev = sourcesRef.current.find(
-          (s) => s.sourceType === source.sourceType
-        );
+        const prev = prevMap.get(source.sourceType);
         const prevOutcome = prev?.lastEvent?.outcome ?? null;
         const curOutcome = source.lastEvent?.outcome ?? null;
 
@@ -65,13 +68,13 @@ export function SyncDashboard({
       }
 
       // Change detection — only update state if something actually changed
-      const changed = updated.some(
-        (s, i) =>
-          s.lastEvent?.outcome !==
-            sourcesRef.current[i]?.lastEvent?.outcome ||
-          s.lastEvent?.createdCount !==
-            sourcesRef.current[i]?.lastEvent?.createdCount
-      );
+      const changed = updated.some((s) => {
+        const prev = prevMap.get(s.sourceType);
+        return (
+          s.lastEvent?.outcome !== prev?.lastEvent?.outcome ||
+          s.lastEvent?.createdCount !== prev?.lastEvent?.createdCount
+        );
+      });
       if (changed) setSources(updated);
 
       // If nothing is in_progress anymore, stop polling and refresh

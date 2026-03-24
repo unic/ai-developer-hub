@@ -34,9 +34,10 @@ export async function checkAnthropicStatus(): Promise<AnthropicStatusResult> {
       "https://api.anthropic.com/v1/organizations/workspaces?limit=1",
       {
         method: "GET",
+        cache: "no-store",
         headers: {
           "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "anthropic-version": process.env.ANTHROPIC_API_VERSION ?? "2023-06-01",
         },
       }
     );

@@ -212,6 +212,10 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
                           <Users className="h-3 w-3 mr-1" />
                           Sync Now
                         </Button>
+                      ) : source.sourceType === "anthropic_team_invoices" ? (
+                        <span className="text-xs text-muted-foreground">
+                          Via upload
+                        </span>
                       ) : (
                         <SyncNowButton
                           sourceType={source.sourceType}

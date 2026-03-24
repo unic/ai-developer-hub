@@ -9,7 +9,7 @@ import {
   updateBilledCost,
   deleteBilledCost,
 } from "@/actions/budget";
-import { formatCurrency, formatDate, formatVariance, varianceClassName } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime, formatVariance, varianceClassName } from "@/lib/utils";
 import type { BudgetWithCosts, PeriodWithCosts, BilledCost } from "@/types";
 import type { RunningCostData } from "./page";
 import { Button } from "@/components/ui/button";
@@ -502,7 +502,7 @@ export function BudgetDetailClient({
                                 {periodRunning.lastUpdatedAt && (
                                   <span className="ml-2 text-xs text-muted-foreground">
                                     Updated{" "}
-                                    {formatDate(periodRunning.lastUpdatedAt)}
+                                    {formatDateTime(periodRunning.lastUpdatedAt)}
                                   </span>
                                 )}
                               </TableCell>
@@ -515,9 +515,9 @@ export function BudgetDetailClient({
                             </TableRow>
                           )}
                           {periodRunning &&
-                            periodRunning.workspaceBreakdown?.map((ws) => (
+                            periodRunning.workspaceBreakdown?.map((ws, index) => (
                               <TableRow
-                                key={`ws-${period.id}-${ws.name}`}
+                                key={ws.workspaceId != null ? `ws-${period.id}-${ws.workspaceId}` : `ws-${period.id}-idx-${index}`}
                                 className="bg-blue-50/30 dark:bg-blue-950/10"
                               >
                                 <TableCell />
