@@ -138,12 +138,15 @@ export function AssignmentDetailClient({
   }, [isAdmin, assignment.status, loadTiers]);
 
   async function onSubmit(data: UpdateAssignmentInput) {
+    const dirtyFields = form.formState.dirtyFields;
     const payload: UpdateAssignmentInput = {
       id: data.id,
       tierId: data.tierId,
       assignedAt: data.assignedAt,
       workspace: data.workspace,
-      apiKey: data.apiKey,
+      // Only include apiKey when the field was explicitly touched to avoid
+      // unintended clearing of existing keys (empty string = clear)
+      apiKey: dirtyFields.apiKey ? data.apiKey : undefined,
     };
 
     const result = await updateAssignment(payload);

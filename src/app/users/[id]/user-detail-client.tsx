@@ -574,7 +574,16 @@ export function UserDetailClient({
       </Card>
 
       {/* Assign License Dialog */}
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+      <Dialog open={assignDialogOpen} onOpenChange={(open) => {
+        setAssignDialogOpen(open);
+        if (!open) {
+          setSelectedToolId("");
+          setSelectedTierId("");
+          setAssignWorkspace("");
+          setAssignApiKey("");
+          setShowAssignApiKey(false);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign License to {user.name}</DialogTitle>

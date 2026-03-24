@@ -98,7 +98,7 @@ export const bulkImportAssignmentRowSchema = z.object({
   tool: z.string().min(1).max(255),
   tier: z.string().min(1).max(100),
   workspace: z.string().max(200).optional(),
-  apiKey: z.string().max(500).optional(),
+  apiKey: apiKeyField,
   assignedAt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format")
