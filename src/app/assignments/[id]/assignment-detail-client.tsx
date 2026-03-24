@@ -244,7 +244,7 @@ export function AssignmentDetailClient({
         </p>
       </div>
 
-      {/* Detail Card */}
+      {/* Unified Assignment Details Card */}
       <Card>
         <CardHeader>
           <CardTitle>Assignment Details</CardTitle>
@@ -252,281 +252,242 @@ export function AssignmentDetailClient({
             License assignment information and configuration
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Status */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                Status
-              </p>
-              <Badge
-                variant={
-                  assignment.status === "active" ? "default" : "secondary"
-                }
-              >
-                {assignment.status === "active" ? "Active" : "Inactive"}
-              </Badge>
-            </div>
-
-            {/* Tier */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">Tier</p>
-              <p className="text-sm">{assignment.tier.name}</p>
-            </div>
-
-            {/* Cost */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                Cost per Month
-              </p>
-              <p className="text-sm">
-                {formatCurrency(assignment.costAtAssignmentCents)}
-              </p>
-            </div>
-
-            {/* Assigned date */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                Assigned Date
-              </p>
-              <p className="text-sm">
-                {assignment.assignedAt
-                  ? format(new Date(assignment.assignedAt), "PPP")
-                  : "\u2014"}
-              </p>
-            </div>
-
-            {/* Revoked date (only if inactive) */}
-            {assignment.revokedAt && (
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Revoked Date
-                </p>
-                <p className="text-sm">
-                  {format(new Date(assignment.revokedAt), "PPP")}
-                </p>
-              </div>
-            )}
-
-            {/* Workspace */}
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                Workspace
-              </p>
-              <p className="text-sm">
-                {assignment.workspace || "\u2014"}
-              </p>
-            </div>
-          </div>
-
-          {/* API Key display section */}
-          {assignment.hasApiKey && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  API Key
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono">
-                    {displayedKey}
-                  </code>
-                  {isAdmin && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleRevealApiKey}
-                        disabled={revealing}
-                        title={revealedKey ? "Hide API key" : "Reveal API key"}
-                      >
-                        {revealedKey ? (
-                          <EyeOff className="size-4" />
-                        ) : (
-                          <Eye className="size-4" />
-                        )}
-                        <span className="sr-only">
-                          {revealedKey ? "Hide" : "Reveal"} API key
-                        </span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCopyApiKey}
-                        disabled={!revealedKey}
-                        title="Copy API key"
-                      >
-                        <Copy className="size-4" />
-                        <span className="sr-only">Copy API key</span>
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Edit Assignment Card — admin only, active assignments */}
-      {isAdmin && assignment.status === "active" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit Assignment</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CardContent>
+          {isAdmin && assignment.status === "active" ? (
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-4"
               >
-                {/* Tier */}
-                <FormField
-                  control={form.control}
-                  name="tierId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tier</FormLabel>
-                      <Select
-                        value={String(field.value)}
-                        onValueChange={(val) => field.onChange(Number(val))}
-                        disabled={loadingTiers || tiers.length === 0}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={
-                                loadingTiers ? "Loading tiers..." : "Select tier"
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Status */}
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Status
+                    </p>
+                    <Badge variant="default">Active</Badge>
+                  </div>
+
+                  {/* Tier (editable) */}
+                  <FormField
+                    control={form.control}
+                    name="tierId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-muted-foreground">
+                          Tier
+                        </FormLabel>
+                        <Select
+                          value={String(field.value)}
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          disabled={loadingTiers || tiers.length === 0}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  loadingTiers
+                                    ? "Loading tiers..."
+                                    : "Select tier"
+                                }
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {tiers.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.name} &mdash;{" "}
+                                {formatCurrency(t.monthlyCostCents)}/mo
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Cost (read-only) */}
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Cost per Month
+                    </p>
+                    <p className="text-sm">
+                      {formatCurrency(assignment.costAtAssignmentCents)}
+                    </p>
+                  </div>
+
+                  {/* Assigned Date (editable) */}
+                  <FormField
+                    control={form.control}
+                    name="assignedAt"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="text-sm font-medium text-muted-foreground">
+                          Assigned Date
+                        </FormLabel>
+                        <Popover
+                          open={datePickerOpen}
+                          onOpenChange={setDatePickerOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 size-4" />
+                                {field.value
+                                  ? format(parseISO(field.value), "PPP")
+                                  : "Pick a date"}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto p-0"
+                            align="start"
+                          >
+                            <Calendar
+                              mode="single"
+                              captionLayout="dropdown"
+                              selected={
+                                field.value
+                                  ? parseISO(field.value)
+                                  : undefined
+                              }
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(formatDateOnly(date));
+                                }
+                                setDatePickerOpen(false);
+                              }}
+                              disabled={(date) => date > new Date()}
+                              defaultMonth={
+                                field.value
+                                  ? parseISO(field.value)
+                                  : undefined
                               }
                             />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {tiers.map((t) => (
-                            <SelectItem key={t.id} value={String(t.id)}>
-                              {t.name} &mdash;{" "}
-                              {formatCurrency(t.monthlyCostCents)}/mo
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                {/* Assigned Date */}
-                <FormField
-                  control={form.control}
-                  name="assignedAt"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Assigned Date</FormLabel>
-                      <Popover
-                        open={datePickerOpen}
-                        onOpenChange={setDatePickerOpen}
-                      >
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 size-4" />
-                              {field.value
-                                ? format(parseISO(field.value), "PPP")
-                                : "Pick a date"}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            captionLayout="dropdown"
-                            selected={
-                              field.value ? parseISO(field.value) : undefined
-                            }
-                            onSelect={(date) => {
-                              if (date) {
-                                field.onChange(formatDateOnly(date));
-                              }
-                              setDatePickerOpen(false);
-                            }}
-                            disabled={(date) => date > new Date()}
-                            defaultMonth={
-                              field.value ? parseISO(field.value) : undefined
-                            }
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Workspace */}
-                <FormField
-                  control={form.control}
-                  name="workspace"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Workspace</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g. team-alpha"
-                          maxLength={200}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* API Key */}
-                <FormField
-                  control={form.control}
-                  name="apiKey"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>API Key</FormLabel>
-                      <div className="flex gap-2">
+                  {/* Workspace (editable) */}
+                  <FormField
+                    control={form.control}
+                    name="workspace"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-muted-foreground">
+                          Workspace
+                        </FormLabel>
                         <FormControl>
                           <Input
-                            type={showApiKey ? "text" : "password"}
-                            placeholder={
-                              assignment.hasApiKey
-                                ? "Enter new key to replace existing"
-                                : "Enter API key"
-                            }
+                            placeholder="e.g. team-alpha"
+                            maxLength={200}
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* API Key (editable) */}
+                <Separator />
+                <div className="space-y-2">
+                  {assignment.hasApiKey && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Current API Key
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono">
+                          {displayedKey}
+                        </code>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => setShowApiKey(!showApiKey)}
+                          onClick={handleRevealApiKey}
+                          disabled={revealing}
+                          title={
+                            revealedKey ? "Hide API key" : "Reveal API key"
+                          }
                         >
-                          {showApiKey ? (
+                          {revealedKey ? (
                             <EyeOff className="size-4" />
                           ) : (
                             <Eye className="size-4" />
                           )}
                           <span className="sr-only">
-                            {showApiKey ? "Hide" : "Show"} API key input
+                            {revealedKey ? "Hide" : "Reveal"} API key
                           </span>
                         </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleCopyApiKey}
+                          disabled={!revealedKey}
+                          title="Copy API key"
+                        >
+                          <Copy className="size-4" />
+                          <span className="sr-only">Copy API key</span>
+                        </Button>
                       </div>
-                      <FormMessage />
-                    </FormItem>
+                    </div>
                   )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="apiKey"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {assignment.hasApiKey
+                            ? "Replace API Key"
+                            : "API Key"}
+                        </FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              type={showApiKey ? "text" : "password"}
+                              placeholder={
+                                assignment.hasApiKey
+                                  ? "Enter new key to replace existing"
+                                  : "Enter API key"
+                              }
+                              {...field}
+                            />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowApiKey(!showApiKey)}
+                          >
+                            {showApiKey ? (
+                              <EyeOff className="size-4" />
+                            ) : (
+                              <Eye className="size-4" />
+                            )}
+                            <span className="sr-only">
+                              {showApiKey ? "Hide" : "Show"} API key input
+                            </span>
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <Button
                   type="submit"
@@ -538,9 +499,132 @@ export function AssignmentDetailClient({
                 </Button>
               </form>
             </Form>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Status */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Status
+                  </p>
+                  <Badge
+                    variant={
+                      assignment.status === "active" ? "default" : "secondary"
+                    }
+                  >
+                    {assignment.status === "active" ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+
+                {/* Tier */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Tier
+                  </p>
+                  <p className="text-sm">{assignment.tier.name}</p>
+                </div>
+
+                {/* Cost */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Cost per Month
+                  </p>
+                  <p className="text-sm">
+                    {formatCurrency(assignment.costAtAssignmentCents)}
+                  </p>
+                </div>
+
+                {/* Assigned date */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Assigned Date
+                  </p>
+                  <p className="text-sm">
+                    {assignment.assignedAt
+                      ? format(new Date(assignment.assignedAt), "PPP")
+                      : "\u2014"}
+                  </p>
+                </div>
+
+                {/* Revoked date (only if inactive) */}
+                {assignment.revokedAt && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Revoked Date
+                    </p>
+                    <p className="text-sm">
+                      {format(new Date(assignment.revokedAt), "PPP")}
+                    </p>
+                  </div>
+                )}
+
+                {/* Workspace */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Workspace
+                  </p>
+                  <p className="text-sm">
+                    {assignment.workspace || "\u2014"}
+                  </p>
+                </div>
+              </div>
+
+              {/* API Key display section */}
+              {assignment.hasApiKey && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      API Key
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono">
+                        {displayedKey}
+                      </code>
+                      {isAdmin && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleRevealApiKey}
+                            disabled={revealing}
+                            title={
+                              revealedKey
+                                ? "Hide API key"
+                                : "Reveal API key"
+                            }
+                          >
+                            {revealedKey ? (
+                              <EyeOff className="size-4" />
+                            ) : (
+                              <Eye className="size-4" />
+                            )}
+                            <span className="sr-only">
+                              {revealedKey ? "Hide" : "Reveal"} API key
+                            </span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleCopyApiKey}
+                            disabled={!revealedKey}
+                            title="Copy API key"
+                          >
+                            <Copy className="size-4" />
+                            <span className="sr-only">Copy API key</span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Comments Section */}
       <Card>
