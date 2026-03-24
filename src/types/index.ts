@@ -15,6 +15,10 @@ import type {
   githubSyncEvents,
   copilotUsageMetrics,
   copilotBillingSnapshots,
+  anthropicWorkspaces,
+  anthropicWorkspaceCosts,
+  anthropicWorkspaceLimits,
+  anthropicOrgConfig,
 } from "@/lib/db/schema";
 
 // Action result type
@@ -478,3 +482,49 @@ export type ProfileData = {
   }[];
   costData: CostData;
 };
+
+// 018-claude-global-metrics types
+export type AnthropicWorkspace = InferSelectModel<typeof anthropicWorkspaces>;
+export type NewAnthropicWorkspace = InferInsertModel<typeof anthropicWorkspaces>;
+export type AnthropicWorkspaceCost = InferSelectModel<typeof anthropicWorkspaceCosts>;
+export type NewAnthropicWorkspaceCost = InferInsertModel<typeof anthropicWorkspaceCosts>;
+export type AnthropicWorkspaceLimit = InferSelectModel<typeof anthropicWorkspaceLimits>;
+export type NewAnthropicWorkspaceLimit = InferInsertModel<typeof anthropicWorkspaceLimits>;
+export type AnthropicOrgConfig = InferSelectModel<typeof anthropicOrgConfig>;
+export type NewAnthropicOrgConfig = InferInsertModel<typeof anthropicOrgConfig>;
+
+export interface GlobalCostDashboardData {
+  grandTotalCents: number;
+  dailyTotals: { date: string; costCents: number }[];
+  workspaceBreakdown: {
+    workspaceId: string | null;
+    name: string;
+    totalCents: number;
+    dailyTotals: { date: string; costCents: number }[];
+  }[];
+}
+
+export interface WorkspaceListItem {
+  workspaceId: string | null;
+  name: string;
+  isDefault: boolean;
+  isArchived: boolean;
+  currentMonthCents: number;
+  limitCents: number | null;
+  utilizationPct: number | null;
+}
+
+export interface WorkspaceAlert {
+  workspaceId: string | null;
+  name: string;
+  utilizationPct: number;
+  severity: "warning" | "critical";
+}
+
+export interface ActiveAlertsData {
+  workspaceAlerts: WorkspaceAlert[];
+  creditsLow: false;
+  creditsCritical: false;
+}
+
+export type OrgCreditsStatus = { available: false; reason: string };

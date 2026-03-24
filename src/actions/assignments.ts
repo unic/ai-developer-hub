@@ -33,7 +33,7 @@ export async function assignLicense(
     return { success: false, error: "Validation failed" };
   }
 
-  const { userId, toolId, tierId } = parsed.data;
+  const { userId, toolId, tierId, workspace, apiKey } = parsed.data;
 
   // Validate user exists and is active
   const user = await db.query.users.findFirst({
@@ -88,6 +88,9 @@ export async function assignLicense(
     }
   }
 
+  // Encrypt API key if provided (before transaction to avoid holding connection during crypto)
+  const apiKeyEncrypted = apiKey && apiKey !== "" ? await encryptApiKey(apiKey) : null;
+
   const now = new Date();
   let newAssignmentId: number;
 
@@ -115,6 +118,8 @@ export async function assignLicense(
         costAtAssignmentCents: tier.monthlyCostCents,
         status: "active",
         assignedAt: now,
+        workspace: workspace ?? null,
+        apiKeyEncrypted,
       })
       .returning({ id: licenseAssignments.id });
 
@@ -231,14 +236,6 @@ export async function updateAssignment(
       // Validate not in the future
       if (newDate > new Date()) {
         return { success: false, error: "Assigned date cannot be in the future" };
-      }
-
-      // Validate not before user.createdAt
-      if (newDate < assignment.user.createdAt) {
-        return {
-          success: false,
-          error: "Assigned date cannot be before the user was created",
-        };
       }
 
       // Validate not before tool.createdAt

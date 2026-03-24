@@ -1,4 +1,4 @@
-﻿# AI Developer Hub Development Guidelines
+# AI Developer Hub Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-03-02
 
@@ -35,11 +35,17 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL (serverless) via @neondatabase/serverless — 1 new table (`invite_tokens`), 1 modified table (`users` + `must_change_password` column), 1 new enum (`invite_token_status`) (017-first-login-experience)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, shadcn/ui (new-york), TanStack Table 8.21.3, React Hook Form 7.71.2, Zod 4.3.6, cmdk 1.1.1, Sonner (toasts), Lucide React (017-polish-user-ui)
 - Neon PostgreSQL via Drizzle ORM 0.45.1 (no schema changes) (017-polish-user-ui)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React (018-claude-global-metrics)
+- Neon PostgreSQL serverless via `@neondatabase/serverless` — 3 new tables, 1 modified table (018-claude-global-metrics)
 - TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1 (018-fix-cron-auth)
 - TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Sonner (toasts), Lucide React. No new packages required. (019-invoice-automations)
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (existing, PDF blobs only — no changes) (019-invoice-automations)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React, TanStack Table 8.21.3, Recharts 2.15.4 (019-invoice-automations)
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (PDF blobs — no changes) (019-invoice-automations)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6 (020-profile-api)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` — no schema changes (020-profile-api)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React (021-ui-enhancements)
+- Neon PostgreSQL (serverless) via Drizzle ORM — no schema changes, UI-only feature (021-ui-enhancements)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -103,8 +109,9 @@ pnpm lighthouse        # Lighthouse CI
 
 ## Recent Changes
 - 019-invoice-automations: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React, TanStack Table 8.21.3, Recharts 2.15.4
-- 019-invoice-automations: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Sonner (toasts), Lucide React. No new packages required.
-- 018-fix-cron-auth: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1
+- 021-ui-enhancements: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React
+- 020-profile-api: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6
+- 018-claude-global-metrics: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Recharts 2.15.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
 
 
 <!-- MANUAL ADDITIONS START -->
