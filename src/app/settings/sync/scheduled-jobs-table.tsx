@@ -38,6 +38,49 @@ function formatRelativeTime(date: Date | string | null): string {
   return formatDistanceToNow(d, { addSuffix: true });
 }
 
+/** Convert a cron expression to a human-readable schedule label */
+function formatCronSchedule(cron: string | null): string {
+  if (!cron) return "Manual only";
+
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+
+  // Every minute: * * * * *
+  if (minute === "*" && hour === "*") return "Every minute";
+
+  // Every N minutes: */N * * * *
+  if (minute.startsWith("*/") && hour === "*") {
+    const n = parseInt(minute.slice(2), 10);
+    return n === 1 ? "Every minute" : `Every ${n} minutes`;
+  }
+
+  // Every hour at :MM: M * * * *
+  if (hour === "*" && !minute.includes("/") && !minute.includes("*")) {
+    const m = parseInt(minute, 10);
+    return m === 0 ? "Every hour" : `Every hour at :${minute.padStart(2, "0")}`;
+  }
+
+  // Every N hours: 0 */N * * *
+  if (minute === "0" && hour.startsWith("*/")) {
+    const n = parseInt(hour.slice(2), 10);
+    return n === 1 ? "Every hour" : `Every ${n} hours`;
+  }
+
+  // Daily at HH:MM: M H * * *
+  if (dayOfMonth === "*" && month === "*" && dayOfWeek === "*" && !hour.includes("*") && !hour.includes("/")) {
+    const h = parseInt(hour, 10);
+    const m = parseInt(minute, 10);
+    const suffix = h >= 12 ? "PM" : "AM";
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `Daily at ${h12}:${String(m).padStart(2, "0")} ${suffix} UTC`;
+  }
+
+  // Fallback: return the raw expression
+  return cron;
+}
+
 interface ScheduledJobsTableProps {
   sources: SyncSourceWithLastEvent[];
 }
@@ -124,8 +167,8 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
                   <TableCell className="font-medium">
                     {SOURCE_LABELS[source.sourceType] ?? source.sourceType}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-xs font-mono">
-                    {source.cronSchedule ?? "Manual only"}
+                  <TableCell className="text-muted-foreground text-sm">
+                    {formatCronSchedule(source.cronSchedule)}
                   </TableCell>
                   <TableCell className="text-sm">
                     {source.lastEvent
