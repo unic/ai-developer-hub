@@ -38,6 +38,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1 (018-fix-cron-auth)
 - TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Sonner (toasts), Lucide React. No new packages required. (019-invoice-automations)
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (existing, PDF blobs only — no changes) (019-invoice-automations)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React, TanStack Table 8.21.3, Recharts 2.15.4 (019-invoice-automations)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` + Cloudflare R2 (PDF blobs — no changes) (019-invoice-automations)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -100,9 +102,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 019-invoice-automations: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React, TanStack Table 8.21.3, Recharts 2.15.4
 - 019-invoice-automations: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, Zod 4.3.6, shadcn/ui (new-york), Recharts 2.15.4, TanStack Table 8.21.3, Sonner (toasts), Lucide React. No new packages required.
 - 018-fix-cron-auth: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), NextAuth 5.0.0-beta.30, Drizzle ORM 0.45.1
-- 015-github-billing: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, next-auth 5.0.0-beta.30, Zod 4.3.6, Sonner (toasts), Lucide React
 
 
 <!-- MANUAL ADDITIONS START -->

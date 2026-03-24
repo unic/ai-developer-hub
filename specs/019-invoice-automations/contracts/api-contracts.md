@@ -1,7 +1,7 @@
 # API Contracts: Invoice Automations & Running Cost Visibility
 
 **Feature**: 019-invoice-automations
-**Date**: 2026-03-20
+**Date**: 2026-03-20 (updated 2026-03-24)
 
 ---
 
@@ -117,7 +117,7 @@ type SyncSourceType =
   | 'anthropic_team_invoices'
   | 'github_members'
   | 'invoice_period_matching'
-  | 'anthropic_workspace_sync';
+  | 'anthropic_api_costs';
 
 type SyncActionResult =
   | { success: true; eventId: number }
@@ -145,7 +145,7 @@ Initiates a backfill for an API-driven source. `startDate` is an ISO 8601 date s
 
 ### `getSyncStatus(): Promise<SyncStatusResult>`
 
-Fetches the current status of all registered sync sources for the dashboard.
+Fetches the current status of all registered sync sources for the dashboard. Used by both the scheduled and manual jobs tables.
 
 ```typescript
 type SyncSourceStatus = {
@@ -170,6 +170,52 @@ type SyncStatusResult =
   | { success: true; data: SyncSourceStatus[] }
   | { success: false; error: string };
 ```
+
+### `getSyncHistory(options): Promise<SyncHistoryResult>`
+
+Fetches sync event history filtered by trigger type. Used by the split tables on the sync dashboard.
+
+```typescript
+type SyncHistoryOptions = {
+  triggerType: 'scheduled' | 'manual';  // scheduled = triggeredBy IS NULL, manual = triggeredBy IS NOT NULL
+  limit?: number;                        // default 50
+  sourceType?: SyncSourceType;           // optional filter by source
+};
+
+type SyncHistoryResult =
+  | { success: true; data: SyncEventRow[] }
+  | { success: false; error: string };
+
+type SyncEventRow = {
+  id: number;
+  sourceType: SyncSourceType;
+  operationType: 'regular' | 'backfill';
+  outcome: 'in_progress' | 'success' | 'partial' | 'failed';
+  startedAt: string;
+  completedAt: string | null;
+  triggeredBy: { id: number; name: string } | null;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  errorMessage: string | null;
+};
+```
+
+### `checkAnthropicStatus(): Promise<AnthropicStatusResult>`
+
+Checks Anthropic API connectivity for the Integrations page status card.
+
+```typescript
+type AnthropicStatusResult =
+  | { success: true; data: { connected: boolean; workspaceName: string | null; lastCheckedAt: string } }
+  | { success: false; error: string };
+```
+
+**Behaviour**:
+- If `ANTHROPIC_ADMIN_API_KEY` is not set → `{ connected: false, workspaceName: null }`
+- If set, makes a lightweight API call (`GET /v1/organizations/workspaces?limit=1`) to verify connectivity
+- Returns default workspace name from `anthropic_workspaces` table (where `is_default = true`)
 
 ---
 
@@ -198,9 +244,9 @@ Runs the Anthropic API usage sync.
 
 **Response**: Same shape.
 
-### `GET /api/sync/anthropic-workspace`
+### `GET /api/sync/anthropic-api-costs`
 
-Runs the workspace metadata + daily cost sync.
+Runs the Anthropic API costs sync (workspace metadata + daily cost aggregates). Renamed from `/api/sync/anthropic-workspace`.
 
 **Auth**: `Authorization: Bearer {CRON_SECRET}`
 
@@ -213,7 +259,26 @@ Runs the workspace metadata + daily cost sync.
 
 ---
 
-## 4. Running Costs in Budget Period View
+## 4. Anthropic API Status Endpoint
+
+### `GET /api/anthropic/status`
+
+Lightweight connectivity check for the Claude Code integration status card on the Integrations page.
+
+**Auth**: Admin session (via `requireAdmin()`)
+
+**Response**:
+```json
+{
+  "connected": true,
+  "workspaceName": "My Workspace",
+  "lastCheckedAt": "2026-03-24T10:30:00Z"
+}
+```
+
+---
+
+## 5. Running Costs in Budget Period View
 
 Running costs are **not served via a separate API endpoint**. They are computed server-side within the existing budget period Server Component using a direct DB aggregation query. The UI contract is:
 
@@ -251,3 +316,46 @@ type PeriodRunningCosts = {
 | `INVOICE_INGEST_SECRET` | Yes (new) | Bearer token for external invoice ingestion endpoint |
 | `GITHUB_TOKEN` | Yes (existing) | GitHub PAT with `manage_billing:copilot` scope |
 | `ANTHROPIC_ADMIN_API_KEY` | Yes (existing) | Anthropic Admin API key for usage data |
+
+---
+
+## 7. UI Contracts (Session 2026-03-24)
+
+### Settings → Sync Status Page
+
+**Two tables**:
+1. **Scheduled Jobs** — Shows sync events where `triggeredBy IS NULL` (cron-triggered). Columns: Source, Schedule, Last Run, Status (badge), Created/Updated/Skipped, Error, Actions (Sync Now, Backfill).
+2. **Manual Jobs** — Shows sync events where `triggeredBy IS NOT NULL`. Columns: Source, Triggered By, Run Time, Status (badge), Created/Updated/Skipped, Error.
+
+**Error cell**: Truncated to ~50 chars with `truncate` class. Wrapped in Radix `Popover` — clicking reveals full error in scrollable container (`max-h-60`). Only rendered when `errorMessage` is non-null.
+
+**Progress pattern**:
+1. Click "Sync Now" → `toast.info('Starting {source} sync...')`
+2. Server action fires → row shows `in_progress` badge + `Loader2` spinner
+3. Client polls `getSyncStatus()` every 5s while any source is `in_progress`
+4. On completion → `toast.success('{source} complete: {created} created, {updated} updated')` or `toast.error('{source} failed: {message}')`
+
+**GitHub Members special case**: "Sync Now" opens Radix `Sheet` (side panel) containing the interactive preview workflow — 3 tabs (Matched / Unmatched GitHub / Unmatched System), manual matching via `UserSearchCombobox`, inline user creation via `InlineUserForm`, conflict detection. Sync only executes on explicit confirm.
+
+**Invoice Period Matching special case**: "Sync Now" shows dropdown with "Sync Now" and "Preview Changes (Dry Run)" options. Dry run opens `SyncResultsDialog` with preview.
+
+### Settings → Integrations Page
+
+**GitHub section**: Connection card only — org name, avatar, status badge, "Update Token" and "Disconnect" buttons. No sync history, no sync triggers, no member sync preview.
+
+**Claude Code section**: Read-only status card:
+- Title: "Claude Code (Anthropic API)"
+- Status badge: "Connected" (green) or "Not Configured" (amber)
+- Workspace name (if available, from `anthropic_workspaces` where `is_default = true`)
+- Last API connectivity check timestamp
+- No action buttons
+
+### Removed UI Elements
+
+| Page | Removed Element |
+|------|----------------|
+| `/users` | `SyncAllButton` component |
+| `/users/[id]` | Any sync trigger button (keep "Last synced" display) |
+| `/copilot/billing` | `BillingSyncButton` + sync history table |
+| `/invoices` | `SyncInvoicesButton` (dry-run migrated to sync dashboard) |
+| `/settings/integrations` | `CopilotSyncSection`, `ClaudeSyncSection`, GitHub member sync preview, sync history |

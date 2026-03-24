@@ -1,7 +1,7 @@
 # Data Model: Invoice Automations & Running Cost Visibility
 
 **Feature**: 019-invoice-automations
-**Date**: 2026-03-20
+**Date**: 2026-03-20 (updated 2026-03-24)
 
 ---
 
@@ -16,7 +16,7 @@ CREATE TYPE sync_source_type AS ENUM (
   'anthropic_team_invoices',   -- Claude Team Plan — manual upload or ingest endpoint
   'github_members',            -- GitHub org member data
   'invoice_period_matching',   -- Invoice-to-budget-period auto-linking
-  'anthropic_workspace_sync'   -- Workspace metadata + daily cost totals via cost_report API
+  'anthropic_api_costs'        -- Anthropic API costs via cost_report API (renamed from anthropic_workspace_sync)
 );
 ```
 
@@ -304,7 +304,7 @@ INSERT INTO sync_events (
   created_at
 )
 SELECT
-  'anthropic_workspace_sync'::sync_source_type,
+  'anthropic_api_costs'::sync_source_type,
   'regular'::sync_operation_type,
   CASE
     WHEN last_sync_error IS NOT NULL THEN 'failed'::sync_outcome
@@ -319,7 +319,7 @@ WHERE user_id = -1
   AND last_sync_started_at IS NOT NULL;
 ```
 
-### Step 4c: Seed anthropic_workspace_sync in sync_sources
+### Step 4c: Seed anthropic_api_costs in sync_sources
 _(Included in Step 5 INSERT VALUES below.)_
 
 ### Step 5: Seed sync_sources registry
@@ -330,7 +330,7 @@ INSERT INTO sync_sources (source_type, enabled, cron_schedule) VALUES
   ('anthropic_team_invoices',  true,  NULL),
   ('github_members',           true,  NULL),
   ('invoice_period_matching',  true,  NULL),
-  ('anthropic_workspace_sync', true,  '0 * * * *');
+  ('anthropic_api_costs',      true,  '0 * * * *');
 ```
 
 ### Step 6: Drop old tables (within same migration transaction)
