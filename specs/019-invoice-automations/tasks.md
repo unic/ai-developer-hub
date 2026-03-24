@@ -140,7 +140,7 @@
 - [x] T036 Run `pnpm typecheck` to ensure zero TypeScript errors across all modified files
 - [x] T037 Run `pnpm lint` to ensure zero ESLint warnings
 - [x] T038 Run `pnpm build` to verify production build succeeds
-- [ ] T039 Manual smoke test: navigate through all modified pages (`/settings/sync`, `/settings/integrations`, `/copilot/billing`, `/invoices`, `/users`, `/budget/[period]`) and verify expected behavior
+- [x] T039 Manual smoke test: navigate through all modified pages (`/settings/sync`, `/settings/integrations`, `/copilot/billing`, `/invoices`, `/users`, `/budget/[period]`) and verify expected behavior
 
 ---
 
