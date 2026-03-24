@@ -432,8 +432,3 @@ export async function recalculateUnresolvedCosts(): Promise<
   }
 }
 
-// ---------------------------------------------------------------------------
-// getRunningCostsForPeriod — re-exported from budget-utils for backwards compat
-// ---------------------------------------------------------------------------
-
-export { getRunningCostsForPeriod } from "@/lib/budget-utils";

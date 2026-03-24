@@ -134,12 +134,12 @@
 
 **Purpose**: Cleanup, dead code removal, and validation.
 
-- [ ] T033 [P] Remove any now-unused imports and dead code left after sync button removals — check `src/app/invoices/sync-invoices-button.tsx` (can be deleted if only used on invoices page), `src/app/invoices/sync-results-dialog.tsx` (keep — reused in T029)
-- [ ] T034 [P] Verify `SOURCE_LABELS` in the sync dashboard displays "Anthropic API Costs" (not "Anthropic Workspace Sync") for the renamed source
-- [ ] T035 [P] Verify the budget period view running costs section handles edge cases: zero-value periods (omitted), periods with no `anthropic_workspace_costs` data (no section shown), ended periods (final total)
-- [ ] T036 Run `pnpm typecheck` to ensure zero TypeScript errors across all modified files
-- [ ] T037 Run `pnpm lint` to ensure zero ESLint warnings
-- [ ] T038 Run `pnpm build` to verify production build succeeds
+- [x] T033 [P] Remove any now-unused imports and dead code left after sync button removals — check `src/app/invoices/sync-invoices-button.tsx` (can be deleted if only used on invoices page), `src/app/invoices/sync-results-dialog.tsx` (keep — reused in T029)
+- [x] T034 [P] Verify `SOURCE_LABELS` in the sync dashboard displays "Anthropic API Costs" (not "Anthropic Workspace Sync") for the renamed source
+- [x] T035 [P] Verify the budget period view running costs section handles edge cases: zero-value periods (omitted), periods with no `anthropic_workspace_costs` data (no section shown), ended periods (final total)
+- [x] T036 Run `pnpm typecheck` to ensure zero TypeScript errors across all modified files
+- [x] T037 Run `pnpm lint` to ensure zero ESLint warnings
+- [x] T038 Run `pnpm build` to verify production build succeeds
 - [ ] T039 Manual smoke test: navigate through all modified pages (`/settings/sync`, `/settings/integrations`, `/copilot/billing`, `/invoices`, `/users`, `/budget/[period]`) and verify expected behavior
 
 ---
