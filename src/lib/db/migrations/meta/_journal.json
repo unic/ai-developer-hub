@@ -71,6 +71,27 @@
       "when": 1773135718632,
       "tag": "0009_quick_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774024602162,
+      "tag": "0010_naive_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774483200000,
+      "tag": "0011_fix_period_end_dates",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1774362118117,
+      "tag": "0012_flashy_metal_master",
+      "breakpoints": true
     }
   ]
 }

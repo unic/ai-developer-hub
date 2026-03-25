@@ -60,6 +60,17 @@ export function formatDate(date: Date | string | null): string {
   }).format(d);
 }
 
+export function formatDateTime(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** Format a Date to ISO date-only string (yyyy-MM-dd) for form values. */
 export function formatDateOnly(d: Date): string {
   const year = d.getFullYear();

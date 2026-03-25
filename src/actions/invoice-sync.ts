@@ -12,37 +12,17 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { syncOptionsSchema } from "@/lib/validators";
 import { recordCreation } from "@/actions/history";
+import { hashSourceType } from "@/lib/sync/framework";
 import type { ActionResult, SyncInvoiceOutcome, SyncResult } from "@/types";
 
-// Stable advisory lock key for invoice sync (arbitrary constant)
-const SYNC_ADVISORY_LOCK_KEY = 839_271_456;
-
-/**
- * Find the best matching budget period for a given date.
- * Unlike findActivePeriodForDate, this searches all budgets (active + archived),
- * preferring active budgets, then most recently created.
- */
-export async function findPeriodForDate(
-  invoiceDate: string
-): Promise<{ id: number; periodLabel: string } | null> {
-  const rows = await db
-    .select({
-      id: budgetPeriods.id,
-      periodLabel: budgetPeriods.periodLabel,
-    })
-    .from(budgetPeriods)
-    .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
-    .where(
-      sql`${budgetPeriods.startDate} <= ${invoiceDate} AND ${budgetPeriods.endDate} > ${invoiceDate}`
-    )
-    .orderBy(
-      sql`CASE WHEN ${annualBudgets.status} = 'active' THEN 0 ELSE 1 END ASC`,
-      desc(annualBudgets.createdAt)
-    )
-    .limit(1);
-
-  return rows[0] ?? null;
+// Wrapper for backward compatibility — canonical location is budget-utils.ts
+import { findPeriodForDate as _findPeriodForDate } from "@/lib/budget-utils";
+export async function findPeriodForDate(invoiceDate: string) {
+  return _findPeriodForDate(invoiceDate);
 }
+
+// Advisory lock ID derived from unified framework hash
+const SYNC_LOCK_ID = Number(hashSourceType("invoice_period_matching"));
 
 /**
  * Sync all invoices to their correct budget periods.
@@ -65,7 +45,7 @@ export async function syncInvoices(
   // Acquire advisory lock (non-blocking) to prevent concurrent sync runs
   if (!dryRun) {
     const lockRows = await db.execute(
-      sql`SELECT pg_try_advisory_lock(${SYNC_ADVISORY_LOCK_KEY})`
+      sql`SELECT pg_try_advisory_lock(${SYNC_LOCK_ID})`
     );
     const acquired = (lockRows.rows?.[0] as Record<string, unknown>)
       ?.pg_try_advisory_lock;
@@ -82,7 +62,7 @@ export async function syncInvoices(
   } finally {
     if (!dryRun) {
       await db.execute(
-        sql`SELECT pg_advisory_unlock(${SYNC_ADVISORY_LOCK_KEY})`
+        sql`SELECT pg_advisory_unlock(${SYNC_LOCK_ID})`
       );
     }
   }

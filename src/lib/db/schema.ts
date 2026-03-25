@@ -61,6 +61,28 @@ export const inviteTokenStatusEnum = pgEnum("invite_token_status", [
   "invalidated",
 ]);
 
+// Sync framework enums (019-invoice-automations)
+export const syncSourceTypeEnum = pgEnum("sync_source_type", [
+  "github_copilot_billing",
+  "anthropic_api_usage",
+  "anthropic_team_invoices",
+  "github_members",
+  "invoice_period_matching",
+  "anthropic_api_costs",
+]);
+
+export const syncOutcomeEnum = pgEnum("sync_outcome", [
+  "in_progress",
+  "success",
+  "partial",
+  "failed",
+]);
+
+export const syncOperationTypeEnum = pgEnum("sync_operation_type", [
+  "regular",
+  "backfill",
+]);
+
 // Users
 export const users = pgTable(
   "users",
@@ -290,7 +312,9 @@ export const billedCosts = pgTable(
     amountCents: integer("amount_cents").notNull(),
     invoiceDate: date("invoice_date").notNull(),
     description: varchar("description", { length: 500 }).notNull(),
-    vendorReference: varchar("vendor_reference", { length: 255 }),
+    vendorReference: varchar("vendor_reference", { length: 255 })
+      .notNull()
+      .default(""),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -537,11 +561,51 @@ export const anthropicSyncStatus = pgTable(
   (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
 );
 
-// ============================================================
-// 018-claude-global-metrics: New tables
-// Run `pnpm db:push` after modifying these table definitions
-// to apply changes to the development database.
-// ============================================================
+// Sync Sources (019-invoice-automations)
+export const syncSources = pgTable(
+  "sync_sources",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: syncSourceTypeEnum("source_type").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    cronSchedule: varchar("cron_schedule", { length: 100 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("sync_sources_source_type_idx").on(table.sourceType)]
+);
+
+// Sync Events (019-invoice-automations)
+export const syncEvents = pgTable(
+  "sync_events",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: syncSourceTypeEnum("source_type").notNull(),
+    operationType: syncOperationTypeEnum("operation_type")
+      .notNull()
+      .default("regular"),
+    backfillStartDate: date("backfill_start_date"),
+    outcome: syncOutcomeEnum("outcome").notNull().default("in_progress"),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+    triggeredBy: integer("triggered_by").references(() => users.id),
+    createdCount: integer("created_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("sync_events_source_type_idx").on(table.sourceType),
+    index("sync_events_outcome_idx").on(table.outcome),
+    index("sync_events_started_at_idx").on(table.startedAt),
+    index("sync_events_source_started_idx").on(
+      table.sourceType,
+      table.startedAt
+    ),
+  ]
+);
 
 // Anthropic Workspaces (workspace metadata from Anthropic Admin API)
 export const anthropicWorkspaces = pgTable(
@@ -814,3 +878,10 @@ export const anthropicSyncStatusRelations = relations(
     }),
   })
 );
+
+export const syncEventsRelations = relations(syncEvents, ({ one }) => ({
+  triggeredByUser: one(users, {
+    fields: [syncEvents.triggeredBy],
+    references: [users.id],
+  }),
+}));

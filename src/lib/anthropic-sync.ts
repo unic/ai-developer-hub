@@ -28,7 +28,7 @@ const DEFAULT_BACKFILL_DAYS = 31;
 // Types
 // ---------------------------------------------------------------------------
 
-interface SyncSummary {
+export interface SyncSummary {
   syncedUsers: number;
   skippedUsers: number;
   syncedDays: number;
@@ -75,7 +75,7 @@ export const anthropicToolFilter = sql`(${aiTools.vendor} ILIKE '%anthropic%' OR
 // Helper: fetch usage from Anthropic Admin API
 // ---------------------------------------------------------------------------
 
-async function fetchAnthropicUsage(
+export async function fetchAnthropicUsage(
   startingAt: string,
   endingAt: string,
   apiKeyIds?: string[]
@@ -136,7 +136,7 @@ async function fetchAnthropicUsage(
 // Helper: resolve all api_key_id → userId mappings
 // ---------------------------------------------------------------------------
 
-async function resolveAllMappings(): Promise<Map<string, number>> {
+export async function resolveAllMappings(): Promise<Map<string, number>> {
   const mapping = new Map<string, number>();
 
   // Get existing cached mappings
@@ -245,7 +245,7 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
 // Helper: prepare a usage row for batch upsert
 // ---------------------------------------------------------------------------
 
-function prepareUsageRow(
+export function prepareUsageRow(
   userId: number,
   bucketDate: string,
   result: z.infer<typeof usageBucketResultSchema>
@@ -287,7 +287,7 @@ function prepareUsageRow(
 
 const BATCH_SIZE = 50;
 
-async function batchUpsertUsageRows(
+export async function batchUpsertUsageRows(
   rows: NonNullable<ReturnType<typeof prepareUsageRow>>[]
 ) {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
@@ -315,54 +315,23 @@ async function batchUpsertUsageRows(
 }
 
 // ---------------------------------------------------------------------------
-// Global sync: fetch all org usage and distribute to users
+// Global sync core: fetch all org usage and distribute to users (no locking)
 // ---------------------------------------------------------------------------
 
-export async function runAnthropicSync(): Promise<SyncSummary> {
+export async function runAnthropicSyncCore(): Promise<SyncSummary> {
   const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [] };
 
-  // Ensure a dedicated global lock row exists (userId=0 sentinel)
+  // Ensure sentinel row exists (userId=0) for status tracking
   await db
     .insert(anthropicSyncStatus)
     .values({ userId: LOCK_USER_ID })
     .onConflictDoNothing({ target: [anthropicSyncStatus.userId] });
 
-  // Atomic lock acquisition: only proceed if the row is not locked or lock is stale
-  const now = new Date();
-  const staleThreshold = new Date(now.getTime() - LOCK_TIMEOUT_MS);
-  const cooldownThreshold = new Date(now.getTime() - LOCK_COOLDOWN_MS);
-
-  const [lockAcquired] = await db
+  // Mark sync start on sentinel row
+  await db
     .update(anthropicSyncStatus)
-    .set({ lastSyncStartedAt: now, lastSyncError: null })
-    .where(
-      and(
-        eq(anthropicSyncStatus.userId, LOCK_USER_ID),
-        sql`(
-          ${anthropicSyncStatus.lastSyncStartedAt} IS NULL
-          OR (
-            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
-            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
-            AND ${anthropicSyncStatus.lastSyncCompletedAt} < ${cooldownThreshold}
-          )
-          OR (
-            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
-            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
-            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${cooldownThreshold}
-          )
-          OR (
-            (${anthropicSyncStatus.lastSyncCompletedAt} IS NULL
-             OR ${anthropicSyncStatus.lastSyncCompletedAt} < ${anthropicSyncStatus.lastSyncStartedAt})
-            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${staleThreshold}
-          )
-        )`
-      )
-    )
-    .returning();
-
-  if (!lockAcquired) {
-    return { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [{ userId: 0, error: "Sync already in progress or completed recently" }] };
-  }
+    .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
+    .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
 
   try {
     // Resolve all mappings
@@ -420,7 +389,7 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
         .where(inArray(anthropicSyncStatus.userId, userIds));
     }
 
-    // Mark completion on lock row (including syncedDays)
+    // Mark completion on sentinel row (including syncedDays)
     const totalSyncedDays = syncedDates.size;
     await db
       .update(anthropicSyncStatus)
@@ -433,7 +402,7 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error("Anthropic sync failed:", errorMsg);
-    // Set error on lock row only
+    // Set error on sentinel row only
     await db
       .update(anthropicSyncStatus)
       .set({ lastSyncError: errorMsg.slice(0, 500) })
@@ -442,6 +411,57 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
   }
 
   return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Global sync with row-level lock (standalone entry point)
+// ---------------------------------------------------------------------------
+
+export async function runAnthropicSync(): Promise<SyncSummary> {
+  // Ensure sentinel row exists
+  await db
+    .insert(anthropicSyncStatus)
+    .values({ userId: LOCK_USER_ID })
+    .onConflictDoNothing({ target: [anthropicSyncStatus.userId] });
+
+  // Atomic lock acquisition: only proceed if the row is not locked or lock is stale
+  const now = new Date();
+  const staleThreshold = new Date(now.getTime() - LOCK_TIMEOUT_MS);
+  const cooldownThreshold = new Date(now.getTime() - LOCK_COOLDOWN_MS);
+
+  const [lockAcquired] = await db
+    .update(anthropicSyncStatus)
+    .set({ lastSyncStartedAt: now, lastSyncError: null })
+    .where(
+      and(
+        eq(anthropicSyncStatus.userId, LOCK_USER_ID),
+        sql`(
+          ${anthropicSyncStatus.lastSyncStartedAt} IS NULL
+          OR (
+            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
+            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
+            AND ${anthropicSyncStatus.lastSyncCompletedAt} < ${cooldownThreshold}
+          )
+          OR (
+            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
+            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
+            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${cooldownThreshold}
+          )
+          OR (
+            (${anthropicSyncStatus.lastSyncCompletedAt} IS NULL
+             OR ${anthropicSyncStatus.lastSyncCompletedAt} < ${anthropicSyncStatus.lastSyncStartedAt})
+            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${staleThreshold}
+          )
+        )`
+      )
+    )
+    .returning();
+
+  if (!lockAcquired) {
+    return { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [{ userId: 0, error: "Sync already in progress or completed recently" }] };
+  }
+
+  return runAnthropicSyncCore();
 }
 
 // ---------------------------------------------------------------------------

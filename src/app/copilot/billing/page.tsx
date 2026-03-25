@@ -1,7 +1,6 @@
-import { getCopilotBilling, getCopilotBillingSyncHistory } from "@/actions/copilot-data";
+import { getCopilotBilling } from "@/actions/copilot-data";
 import { BillingTrendChart } from "@/components/copilot/billing-trend-chart";
 import { CostUtilizationChart } from "@/components/copilot/cost-utilization-chart";
-import { BillingSyncButton } from "@/components/copilot/billing-sync-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,34 +21,8 @@ import { formatCurrency } from "@/lib/utils";
 import { DollarSign } from "lucide-react";
 import Link from "next/link";
 
-function statusBadgeClass(status: string) {
-  switch (status) {
-    case "completed":
-      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 hover:bg-green-100";
-    case "partial":
-      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 hover:bg-yellow-100";
-    case "failed":
-      return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 hover:bg-red-100";
-    default:
-      return "";
-  }
-}
-
-function formatTimestamp(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export default async function CopilotBillingPage() {
-  const [result, historyResult] = await Promise.all([
-    getCopilotBilling(),
-    getCopilotBillingSyncHistory(),
-  ]);
+  const result = await getCopilotBilling();
 
   if (!result.success) {
     return (
@@ -71,14 +44,12 @@ export default async function CopilotBillingPage() {
   }
 
   const { currentMonth } = data;
-  const syncHistory = historyResult.success ? historyResult.data : [];
 
   return (
     <div className="space-y-6">
-      {/* Header with Sync Button */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Billing Overview</h2>
-        <BillingSyncButton />
       </div>
 
       {/* KPI Cards */}
@@ -214,62 +185,6 @@ export default async function CopilotBillingPage() {
         </Card>
       )}
 
-      {/* Sync History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Sync History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {syncHistory.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No sync events recorded yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Processed</TableHead>
-                  <TableHead className="text-right">Linked</TableHead>
-                  <TableHead className="text-right">Skipped</TableHead>
-                  <TableHead>Error</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {syncHistory.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="text-sm">
-                      {formatTimestamp(event.startedAt)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={statusBadgeClass(event.status)}
-                      >
-                        {event.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {event.billingProcessed ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {event.billingLinked ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {event.billingSkipped ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                      {event.errorMessage
-                        ? event.errorMessage.length > 60
-                          ? `${event.errorMessage.slice(0, 60)}...`
-                          : event.errorMessage
-                        : "-"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

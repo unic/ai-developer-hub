@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ExternalLink, UserCheck, UserPlus, SkipForward, Undo2 } from "lucide-react";
+import { ExternalLink, UserCheck, UserPlus, SkipForward, Undo2, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -157,7 +157,18 @@ export function UnmatchedMemberCard({
 
         {/* Action buttons */}
         {!isResolved && !isMatchExpanded && !isCreateExpanded && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() =>
+                onResolve({ type: "import", githubLogin: member.githubLogin })
+              }
+            >
+              <Download className="size-3.5 mr-1.5" />
+              Import
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -202,6 +213,13 @@ export function UnmatchedMemberCard({
 
 function ResolutionBadge({ resolution }: { resolution: PendingResolution }) {
   switch (resolution.type) {
+    case "import":
+      return (
+        <Badge variant="default" className="text-xs">
+          <Download className="size-3 mr-1" />
+          Auto-import
+        </Badge>
+      );
     case "match":
       return (
         <Badge variant="default" className="text-xs">

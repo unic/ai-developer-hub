@@ -12,7 +12,7 @@ import { eq, and, sql, desc, count, ne, isNotNull } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import { validateCopilotScopes } from "@/lib/copilot-api";
-import { runCopilotSync } from "@/lib/copilot-sync";
+import { run as runCopilotSource } from "@/lib/sync/sources/github-copilot";
 import { recordUpdate } from "@/actions/history";
 import { revalidatePath } from "next/cache";
 import type { ActionResult, CopilotSyncStatus } from "@/types";
@@ -66,18 +66,8 @@ export async function enableCopilotSync(): Promise<
     .set({ copilotSyncEnabled: true })
     .where(eq(githubConnections.id, connection.id));
 
-  const [syncEvent] = await db
-    .insert(githubSyncEvents)
-    .values({
-      connectionId: connection.id,
-      triggeredBy: Number(admin.id),
-      status: "in_progress",
-      syncType: "copilot",
-    })
-    .returning({ id: githubSyncEvents.id });
-
   try {
-    await runCopilotSync(connection.id, syncEvent.id);
+    await runCopilotSource(Number(admin.id));
   } catch (err) {
     console.error("Initial Copilot sync failed:", err);
   }
@@ -124,68 +114,17 @@ export async function triggerCopilotSync(): Promise<
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const connection = await db.query.githubConnections.findFirst({
-    where: and(
-      eq(githubConnections.status, "active"),
-      eq(githubConnections.copilotSyncEnabled, true)
-    ),
-  });
-
-  if (!connection) {
-    return {
-      success: false,
-      error: "No active GitHub connection with Copilot sync enabled",
-    };
-  }
-
-  // Clean up stale in_progress events older than 10 minutes (abandoned serverless runs)
-  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000);
-  await db
-    .update(githubSyncEvents)
-    .set({
-      status: "failed",
-      completedAt: new Date(),
-      errorMessage: "Sync timed out (stale in_progress event cleaned up)",
-    })
-    .where(
-      and(
-        eq(githubSyncEvents.connectionId, connection.id),
-        eq(githubSyncEvents.syncType, "copilot"),
-        eq(githubSyncEvents.status, "in_progress"),
-        sql`${githubSyncEvents.startedAt} < ${staleThreshold}`
-      )
-    );
-
-  // Atomic insert: only succeeds if no in_progress event exists for this connection
-  const insertResult = await db.execute<{ id: number }>(sql`
-    INSERT INTO github_sync_events (connection_id, triggered_by, status, sync_type)
-    SELECT ${connection.id}, ${Number(admin.id)}, 'in_progress', 'copilot'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM github_sync_events
-      WHERE connection_id = ${connection.id}
-        AND sync_type = 'copilot'
-        AND status = 'in_progress'
-    )
-    RETURNING id
-  `);
-
-  const rows = insertResult.rows;
-  if (!rows || rows.length === 0) {
-    return { success: false, error: "Sync already in progress" };
-  }
-
-  const syncEventId = rows[0].id;
-
   try {
-    await runCopilotSync(connection.id, syncEventId);
+    const result = await runCopilotSource(Number(admin.id));
+
+    revalidatePath("/copilot");
+    revalidatePath("/settings/integrations");
+
+    return { success: true, data: { syncEventId: result.eventId } };
   } catch (err) {
-    console.error("Copilot sync failed:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message };
   }
-
-  revalidatePath("/copilot");
-  revalidatePath("/settings/integrations");
-
-  return { success: true, data: { syncEventId } };
 }
 
 export async function getCopilotSyncStatus(): Promise<

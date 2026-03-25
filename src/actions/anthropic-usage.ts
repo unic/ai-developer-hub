@@ -3,11 +3,13 @@
 import { db } from "@/lib/db";
 import {
   anthropicUsageMetrics,
+  syncEvents,
 } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { auth } from "@/lib/auth";
-import { syncSingleUser, runAnthropicSync } from "@/lib/anthropic-sync";
+import { syncSingleUser, anthropicToolFilter } from "@/lib/anthropic-sync";
+import { run as runAnthropicUsageSource } from "@/lib/sync/sources/anthropic-usage";
 import { resolveModelPricing, computeCostCents } from "@/lib/anthropic-pricing";
 import { revalidatePath } from "next/cache";
 import { getCurrentMonth } from "@/lib/utils";
@@ -148,18 +150,23 @@ export async function syncAllAnthropicUsage(): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
-    const summary = await runAnthropicSync();
+    const { eventId } = await runAnthropicUsageSource(Number(admin.id));
+
+    // Read actual counts from the completed sync event
+    const event = await db.query.syncEvents.findFirst({
+      where: eq(syncEvents.id, eventId),
+    });
 
     revalidatePath("/users");
 
     return {
       success: true,
       data: {
-        syncedUsers: summary.syncedUsers,
-        skippedUsers: summary.skippedUsers,
-        syncedDays: summary.syncedDays,
-        errorCount: summary.errors.length,
-        firstError: summary.errors[0]?.error ?? null,
+        syncedUsers: event?.createdCount ?? 0,
+        skippedUsers: event?.skippedCount ?? 0,
+        syncedDays: event?.updatedCount ?? 0,
+        errorCount: event?.errorCount ?? 0,
+        firstError: event?.errorMessage ?? null,
       },
     };
   } catch (err) {
@@ -235,3 +242,4 @@ export async function recalculateUnresolvedCosts(): Promise<
     };
   }
 }
+
