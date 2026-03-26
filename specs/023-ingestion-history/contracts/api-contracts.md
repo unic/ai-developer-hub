@@ -6,32 +6,17 @@
 
 ### getIngestionHistory
 
-Fetches paginated, filterable ingestion log entries for the Ingestion History table.
+Fetches the most recent ingestion log entries for the Ingestion History table. Returns up to 500 rows sorted by creation date descending. Sorting, filtering, and pagination are handled client-side via TanStack Table.
 
 **Access**: Admin only (server-side session check)
 
-**Input**:
-```typescript
-{
-  page?: number;          // 1-based, default 1
-  pageSize?: number;      // default 20, max 100
-  sortBy?: string;        // column name, default "created_at"
-  sortOrder?: "asc" | "desc"; // default "desc"
-  filterStatus?: "success" | "failed" | null; // null = all
-  filterVendor?: string | null; // null = all
-}
-```
+**Input**: None (no parameters)
 
 **Output (success)**:
 ```typescript
 {
   success: true;
-  data: {
-    rows: IngestionLogRow[];
-    total: number;
-    page: number;
-    pageSize: number;
-  }
+  data: IngestionLogRow[];
 }
 ```
 
