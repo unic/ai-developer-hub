@@ -1,10 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { apiPreviewSchema } from "@/lib/validators";
-import { GET } from "@/app/api/profile/route";
 
 export type ApiPreviewResponse = {
   status: number;
@@ -31,19 +29,29 @@ export async function previewProfileApi(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const url = new URL("http://localhost/api/profile");
+  const baseUrl = process.env.NEXTAUTH_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+  const url = new URL("/api/profile", baseUrl);
   url.searchParams.set("email", parsed.data.email);
   if (parsed.data.month) {
     url.searchParams.set("month", parsed.data.month);
   }
 
-  const request = new NextRequest(url, {
-    headers: { Authorization: `Bearer ${secret}` },
-  });
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${secret}`,
+  };
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (bypassSecret) {
+    headers["x-vercel-protection-bypass"] = bypassSecret;
+  }
 
   try {
     const start = performance.now();
-    const response = await GET(request);
+    const response = await fetch(url.toString(), {
+      headers,
+      cache: "no-store",
+    });
     const elapsed = performance.now() - start;
 
     let body: unknown;
@@ -65,7 +73,7 @@ export async function previewProfileApi(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to call profile API",
+      error: err instanceof Error ? err.message : "Failed to reach profile API",
     };
   }
 }
