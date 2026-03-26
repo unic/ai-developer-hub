@@ -57,8 +57,8 @@ export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
     source_type: SyncSourceType;
     operation_type: "regular" | "backfill";
     outcome: "in_progress" | "success" | "partial" | "failed";
-    started_at: Date;
-    completed_at: Date | null;
+    started_at: Date | string;
+    completed_at: Date | string | null;
     created_count: number;
     updated_count: number;
     skipped_count: number;
