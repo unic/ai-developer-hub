@@ -38,7 +38,7 @@ function JsonArray({ items, depth }: { items: unknown[]; depth: number }) {
 
   if (!expanded) {
     return (
-      <span>
+      <div className="inline">
         <button
           type="button"
           onClick={toggle}
@@ -51,16 +51,16 @@ function JsonArray({ items, depth }: { items: unknown[]; depth: number }) {
         <span className="text-muted-foreground">
           [{items.length} {items.length === 1 ? "item" : "items"}]
         </span>
-      </span>
+      </div>
     );
   }
 
   return (
-    <span>
+    <div className="inline">
       <button
         type="button"
         onClick={toggle}
-        className="inline-flex items-center gap-0.5 hover:bg-muted rounded px-0.5 -ml-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={toggleBtnClass}
         aria-label={`Collapse array (${items.length} items)`}
         aria-expanded={true}
       >
@@ -76,7 +76,7 @@ function JsonArray({ items, depth }: { items: unknown[]; depth: number }) {
         ))}
       </div>
       {"]"}
-    </span>
+    </div>
   );
 }
 
@@ -97,7 +97,7 @@ function JsonObject({
 
   if (!expanded) {
     return (
-      <span>
+      <div className="inline">
         <button
           type="button"
           onClick={toggle}
@@ -112,16 +112,16 @@ function JsonObject({
           {keys.length} {keys.length === 1 ? "key" : "keys"}
           {"}"}
         </span>
-      </span>
+      </div>
     );
   }
 
   return (
-    <span>
+    <div className="inline">
       <button
         type="button"
         onClick={toggle}
-        className="inline-flex items-center gap-0.5 hover:bg-muted rounded px-0.5 -ml-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={toggleBtnClass}
         aria-label={`Collapse object (${keys.length} keys)`}
         aria-expanded={true}
       >
@@ -139,14 +139,14 @@ function JsonObject({
         ))}
       </div>
       {"}"}
-    </span>
+    </div>
   );
 }
 
 export function JsonViewer({ data }: { data: unknown }) {
   return (
-    <pre className="text-sm font-mono overflow-auto rounded-md bg-muted/50 p-4">
+    <div className="text-sm font-mono whitespace-pre overflow-auto rounded-md bg-muted/50 p-4">
       <JsonValue value={data} depth={0} />
-    </pre>
+    </div>
   );
 }
