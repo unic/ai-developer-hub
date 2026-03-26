@@ -15,7 +15,7 @@ import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
 import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction";
 import { recordCreation } from "@/actions/history";
-import { logIngestionAttempt } from "@/actions/ingestion-log";
+import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
 import type { ActionResult } from "@/types";
 

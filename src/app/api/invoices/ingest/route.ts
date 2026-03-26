@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { extractInvoiceFields } from "@/lib/invoice-extraction";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
-import { logIngestionAttempt } from "@/actions/ingestion-log";
+import { logIngestionAttempt } from "@/lib/ingestion-logger";
 
 /** System user ID for automated/API-initiated operations */
 const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
