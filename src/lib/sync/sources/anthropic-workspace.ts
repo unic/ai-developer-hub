@@ -1,6 +1,6 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
-import { anthropicWorkspaces, anthropicWorkspaceCosts } from "@/lib/db/schema";
+import { anthropicWorkspaceCosts } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
@@ -121,26 +121,21 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
   const response = await retryWithBackoff(() => fetchWorkspaces());
   let upserted = 0;
 
+  // Use raw SQL to correctly target the partial unique index on workspace_id
+  // (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT).
   for (const ws of response.data) {
-    await db
-      .insert(anthropicWorkspaces)
-      .values({
-        workspaceId: ws.id,
-        name: ws.name,
-        isDefault: ws.is_default,
-        isArchived: ws.is_archived,
-        lastSeenAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [anthropicWorkspaces.workspaceId],
-        set: {
-          name: ws.name,
-          isDefault: ws.is_default,
-          isArchived: ws.is_archived,
-          lastSeenAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+    const now = new Date();
+    await db.execute(sql`
+      INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, updated_at)
+      VALUES (${ws.id}, ${ws.name}, ${ws.is_default}, ${ws.is_archived}, ${now}, ${now})
+      ON CONFLICT (workspace_id) WHERE workspace_id IS NOT NULL
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        is_default = EXCLUDED.is_default,
+        is_archived = EXCLUDED.is_archived,
+        last_seen_at = EXCLUDED.last_seen_at,
+        updated_at = EXCLUDED.updated_at
+    `);
     upserted++;
   }
 
