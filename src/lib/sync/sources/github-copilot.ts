@@ -2,7 +2,6 @@ import { withSyncLock, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
 import {
   githubConnections,
-  copilotBillingSnapshots,
 } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { syncBillingData, syncSeatAssignments, syncUsageMetrics } from "@/lib/copilot-sync";
