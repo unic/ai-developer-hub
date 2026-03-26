@@ -123,8 +123,8 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
 
   // Use raw SQL to correctly target the partial unique index on workspace_id
   // (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT).
+  const now = new Date();
   for (const ws of response.data) {
-    const now = new Date();
     await db.execute(sql`
       INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, updated_at)
       VALUES (${ws.id}, ${ws.name}, ${ws.is_default}, ${ws.is_archived}, ${now}, ${now})

@@ -14,6 +14,21 @@ interface SyncDashboardProps {
   initialManualEvents: SyncEventRow[];
 }
 
+/** Compare previous and updated sources; returns true if any event changed. */
+function hasSourcesChanged(
+  prev: SyncSourceWithLastEvent[],
+  updated: SyncSourceWithLastEvent[]
+): boolean {
+  const prevMap = new Map(prev.map((s) => [s.sourceType, s]));
+  return updated.some((s) => {
+    const p = prevMap.get(s.sourceType);
+    return (
+      s.lastEvent?.outcome !== p?.lastEvent?.outcome ||
+      s.lastEvent?.id !== p?.lastEvent?.id
+    );
+  });
+}
+
 export function SyncDashboard({
   initialSources,
   initialManualEvents,
@@ -36,31 +51,19 @@ export function SyncDashboard({
     sourcesRef.current = sources;
   }, [sources]);
 
-  // Background polling (30s) — detect externally-triggered syncs (cron, API)
+  // Background polling (30s) — detect externally-triggered syncs (cron, API).
+  // Depends on isPolling so it pauses while fast polling is active.
   useEffect(() => {
     const intervalId = setInterval(async () => {
-      // Skip when fast polling is already active
       if (isPolling) return;
+      if (document.hidden) return;
 
       const result = await getSyncStatus();
       if (!result.success) return;
 
-      const updated = result.data;
-      const prevMap = new Map(
-        sourcesRef.current.map((s) => [s.sourceType, s])
-      );
-
-      const changed = updated.some((s) => {
-        const prev = prevMap.get(s.sourceType);
-        return (
-          s.lastEvent?.outcome !== prev?.lastEvent?.outcome ||
-          s.lastEvent?.id !== prev?.lastEvent?.id
-        );
-      });
-
-      if (changed) {
-        setSources(updated);
-        if (updated.some((s) => s.lastEvent?.outcome === "in_progress")) {
+      if (hasSourcesChanged(sourcesRef.current, result.data)) {
+        setSources(result.data);
+        if (result.data.some((s) => s.lastEvent?.outcome === "in_progress")) {
           setIsPolling(true);
         }
       }
@@ -78,13 +81,11 @@ export function SyncDashboard({
       if (!result.success) return;
 
       const updated = result.data;
-
-      // Build a Map keyed by sourceType for stable lookups
       const prevMap = new Map(
         sourcesRef.current.map((s) => [s.sourceType, s])
       );
 
-      // Check for completion transitions and show toasts
+      // Show toasts for completion transitions
       for (const source of updated) {
         const prev = prevMap.get(source.sourceType);
         const prevOutcome = prev?.lastEvent?.outcome ?? null;
@@ -105,15 +106,9 @@ export function SyncDashboard({
         }
       }
 
-      // Change detection — only update state if something actually changed
-      const changed = updated.some((s) => {
-        const prev = prevMap.get(s.sourceType);
-        return (
-          s.lastEvent?.outcome !== prev?.lastEvent?.outcome ||
-          s.lastEvent?.createdCount !== prev?.lastEvent?.createdCount
-        );
-      });
-      if (changed) setSources(updated);
+      if (hasSourcesChanged(sourcesRef.current, updated)) {
+        setSources(updated);
+      }
 
       // If nothing is in_progress anymore, stop polling and refresh
       if (!updated.some((s) => s.lastEvent?.outcome === "in_progress")) {

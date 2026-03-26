@@ -4,6 +4,17 @@ import { eq, sql } from "drizzle-orm";
 import type { SyncSourceType } from "./framework";
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Normalize raw SQL timestamps to proper UTC Date objects. */
+function toDate(val: Date | string): Date {
+  if (val instanceof Date) return val;
+  const s = String(val);
+  return new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -63,14 +74,6 @@ export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
       ORDER BY source_type, started_at DESC
     `),
   ]);
-
-  // Ensure timestamps are proper Date objects (raw SQL may return strings)
-  function toDate(val: Date | string): Date {
-    if (val instanceof Date) return val;
-    // DB timestamps lack timezone suffix — treat as UTC
-    const s = String(val);
-    return new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
-  }
 
   const eventMap = new Map<string, SyncEventRecord>();
   for (const row of latestEvents.rows) {

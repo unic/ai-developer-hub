@@ -29,7 +29,7 @@ export default async function ClaudePage() {
   const currentMonth = format(new Date(), "yyyy-MM");
   const availableMonths = await getAvailableWorkspaceCostMonths();
 
-  // Check for last sync time from sync_events (new framework)
+  // Check for last sync time
   const lastEvent = await db.query.syncEvents.findFirst({
     where: eq(syncEvents.sourceType, "anthropic_api_costs"),
     orderBy: desc(syncEvents.startedAt),
