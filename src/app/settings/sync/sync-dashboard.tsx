@@ -26,12 +26,50 @@ export function SyncDashboard({
     initialSources.some((s) => s.lastEvent?.outcome === "in_progress")
   );
 
+  // Sync state when server data changes (e.g. after router.refresh())
+  useEffect(() => {
+    setSources(initialSources);
+  }, [initialSources]);
+
   // Keep ref in sync
   useEffect(() => {
     sourcesRef.current = sources;
   }, [sources]);
 
-  // Polling when any source is in_progress
+  // Background polling (30s) — detect externally-triggered syncs (cron, API)
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      // Skip when fast polling is already active
+      if (isPolling) return;
+
+      const result = await getSyncStatus();
+      if (!result.success) return;
+
+      const updated = result.data;
+      const prevMap = new Map(
+        sourcesRef.current.map((s) => [s.sourceType, s])
+      );
+
+      const changed = updated.some((s) => {
+        const prev = prevMap.get(s.sourceType);
+        return (
+          s.lastEvent?.outcome !== prev?.lastEvent?.outcome ||
+          s.lastEvent?.id !== prev?.lastEvent?.id
+        );
+      });
+
+      if (changed) {
+        setSources(updated);
+        if (updated.some((s) => s.lastEvent?.outcome === "in_progress")) {
+          setIsPolling(true);
+        }
+      }
+    }, 30_000);
+
+    return () => clearInterval(intervalId);
+  }, [isPolling]);
+
+  // Fast polling (5s) when any source is in_progress
   useEffect(() => {
     if (!isPolling) return;
 
