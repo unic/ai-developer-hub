@@ -119,27 +119,31 @@ async function fetchCostReport(
 
 async function fetchAndUpsertWorkspaces(): Promise<number> {
   const response = await retryWithBackoff(() => fetchWorkspaces());
-  let upserted = 0;
 
   // Use raw SQL to correctly target the partial unique index on workspace_id
   // (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT).
+  // Force is_default = FALSE for all named workspaces to avoid conflicting
+  // with the Default Workspace row (workspace_id NULL, is_default = true).
   const now = new Date();
-  for (const ws of response.data) {
+  if (response.data.length > 0) {
+    const valuesSql = sql.join(
+      response.data.map((ws) => sql`(${ws.id}, ${ws.name}, FALSE, ${ws.is_archived}, ${now}, ${now})`),
+      sql`, `
+    );
     await db.execute(sql`
       INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, updated_at)
-      VALUES (${ws.id}, ${ws.name}, ${ws.is_default}, ${ws.is_archived}, ${now}, ${now})
+      VALUES ${valuesSql}
       ON CONFLICT (workspace_id) WHERE workspace_id IS NOT NULL
       DO UPDATE SET
         name = EXCLUDED.name,
-        is_default = EXCLUDED.is_default,
+        is_default = FALSE,
         is_archived = EXCLUDED.is_archived,
         last_seen_at = EXCLUDED.last_seen_at,
         updated_at = EXCLUDED.updated_at
     `);
-    upserted++;
   }
 
-  return upserted;
+  return response.data.length;
 }
 
 async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
