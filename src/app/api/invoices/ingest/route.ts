@@ -46,6 +46,11 @@ export async function POST(request: NextRequest) {
     const file = formData.get("invoice");
 
     if (!file || !(file instanceof File)) {
+      await logIngestionAttempt({
+        outcome: "failed",
+        errorMessage: "No PDF file provided",
+        channel: "api",
+      });
       return NextResponse.json(
         { success: false, error: "No PDF file provided" },
         { status: 400 }
@@ -53,6 +58,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (file.size > MAX_FILE_SIZE) {
+      await logIngestionAttempt({
+        filename: file.name,
+        outcome: "failed",
+        errorMessage: "File exceeds 10 MB limit",
+        channel: "api",
+      });
       return NextResponse.json(
         { success: false, error: "File exceeds 10 MB limit" },
         { status: 400 }
@@ -60,6 +71,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (file.type !== "application/pdf") {
+      await logIngestionAttempt({
+        filename: file.name,
+        outcome: "failed",
+        errorMessage: "File must be a PDF",
+        channel: "api",
+      });
       return NextResponse.json(
         { success: false, error: "File must be a PDF" },
         { status: 400 }
@@ -225,6 +242,16 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Invoice ingestion error:", err);
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
+    try {
+      await logIngestionAttempt({
+        outcome: "failed",
+        errorMessage: message,
+        channel: "api",
+      });
+    } catch {
+      // Best-effort logging — don't mask the original error
+    }
     return NextResponse.json(
       { success: false, error: "An unexpected error occurred. Please try again." },
       { status: 500 }

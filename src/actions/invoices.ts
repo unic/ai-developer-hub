@@ -329,6 +329,14 @@ export async function saveInvoice(
 
   const parsed = createInvoiceSchema.safeParse(input);
   if (!parsed.success) {
+    await logIngestionAttempt({
+      vendor: input.vendor ?? null,
+      invoiceNumber: input.invoiceNumber ?? null,
+      outcome: "failed",
+      errorMessage: "Validation failed",
+      channel,
+      uploadedBy: Number(admin.id),
+    });
     return {
       success: false,
       error: "Validation failed",
@@ -361,6 +369,17 @@ export async function saveInvoice(
       // Best-effort cleanup — ignore secondary failure
     }
     const message = err instanceof Error ? err.message : "Database error";
+    await logIngestionAttempt({
+      vendor: vendor ?? null,
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "failed",
+      errorMessage: `Failed to save invoice: ${message}`,
+      channel,
+      blobPathname,
+      uploadedBy: Number(admin.id),
+    });
     return { success: false, error: `Failed to save invoice: ${message}` };
   }
 
