@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { extractInvoiceFields } from "@/lib/invoice-extraction";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
+import { logIngestionAttempt } from "@/actions/ingestion-log";
 
 /** System user ID for automated/API-initiated operations */
 const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
@@ -77,11 +78,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!extraction.success || !extraction.data) {
+      const error = "Could not extract required fields from the provided PDF";
+      await logIngestionAttempt({
+        filename: file.name,
+        outcome: "failed",
+        errorMessage: error,
+        channel: "api",
+      });
       return NextResponse.json(
-        {
-          success: false,
-          error: "Could not extract required fields from the provided PDF",
-        },
+        { success: false, error },
         { status: 422 }
       );
     }
@@ -90,11 +95,19 @@ export async function POST(request: NextRequest) {
 
     // Require the three critical fields
     if (!invoiceNumber || !invoiceDate || amountCents === null) {
+      const error = "Could not extract required fields (invoiceNumber, invoiceDate, amountCents) from the provided PDF";
+      await logIngestionAttempt({
+        filename: file.name,
+        vendor: vendor ?? null,
+        invoiceNumber: invoiceNumber ?? null,
+        invoiceDate: invoiceDate ?? null,
+        amountCents: amountCents ?? null,
+        outcome: "failed",
+        errorMessage: error,
+        channel: "api",
+      });
       return NextResponse.json(
-        {
-          success: false,
-          error: "Could not extract required fields (invoiceNumber, invoiceDate, amountCents) from the provided PDF",
-        },
+        { success: false, error },
         { status: 422 }
       );
     }
@@ -105,10 +118,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
+      const error = `Invoice ${invoiceNumber} already exists`;
+      await logIngestionAttempt({
+        filename: file.name,
+        vendor: vendor ?? null,
+        invoiceNumber,
+        invoiceDate,
+        amountCents,
+        outcome: "failed",
+        errorMessage: error,
+        channel: "api",
+      });
       return NextResponse.json(
         {
           success: false,
-          error: `Invoice ${invoiceNumber} already exists`,
+          error,
           data: { existingInvoiceId: existing.id },
         },
         { status: 409 }
@@ -172,6 +196,18 @@ export async function POST(request: NextRequest) {
         .returning({ id: invoices.id });
 
       return { invoiceId: newInvoice.id, action, linkedBilledCostId };
+    });
+
+    await logIngestionAttempt({
+      filename: file.name,
+      vendor: vendor ?? "Anthropic",
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "success",
+      channel: "api",
+      blobPathname: objectKey,
+      linkedInvoiceId: result.invoiceId,
     });
 
     return NextResponse.json({

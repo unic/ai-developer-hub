@@ -15,6 +15,7 @@ import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
 import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction";
 import { recordCreation } from "@/actions/history";
+import { logIngestionAttempt } from "@/actions/ingestion-log";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
 import type { ActionResult } from "@/types";
 
@@ -320,7 +321,8 @@ type SaveInvoiceResult =
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveInvoice(
-  input: CreateInvoiceInput
+  input: CreateInvoiceInput,
+  options?: { channel?: "manual" | "bulk" }
 ): Promise<SaveInvoiceResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -363,6 +365,18 @@ export async function saveInvoice(
   }
 
   await recordCreation("invoice", newId, Number(admin.id));
+
+  await logIngestionAttempt({
+    vendor: vendor ?? null,
+    invoiceNumber,
+    invoiceDate,
+    amountCents,
+    outcome: "success",
+    channel: options?.channel ?? "manual",
+    blobPathname,
+    linkedInvoiceId: newId,
+    uploadedBy: Number(admin.id),
+  });
 
   // Auto-link to budget period
   const period = await findActivePeriodForDate(invoiceDate);
@@ -423,12 +437,21 @@ export async function saveBulkInvoices(
   for (const { filename, skip, skipReason, ...invoiceInput } of inputs) {
     if (skip) {
       await cleanupBlob(invoiceInput.blobPathname);
+      await logIngestionAttempt({
+        filename,
+        vendor: invoiceInput.vendor ?? null,
+        invoiceNumber: invoiceInput.invoiceNumber ?? null,
+        outcome: "failed",
+        errorMessage: skipReason ?? "Skipped by user",
+        channel: "bulk",
+        uploadedBy: Number(admin.id),
+      });
       outcomes.push({ filename, skipped: true, skipReason });
       continue;
     }
 
     try {
-      const result = await saveInvoice(invoiceInput);
+      const result = await saveInvoice(invoiceInput, { channel: "bulk" });
       if (result.success) {
         outcomes.push({
           filename,
@@ -441,6 +464,15 @@ export async function saveBulkInvoices(
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
+      await logIngestionAttempt({
+        filename,
+        vendor: invoiceInput.vendor ?? null,
+        invoiceNumber: invoiceInput.invoiceNumber ?? null,
+        outcome: "failed",
+        errorMessage: message,
+        channel: "bulk",
+        uploadedBy: Number(admin.id),
+      });
       outcomes.push({ filename, error: message });
     }
   }
