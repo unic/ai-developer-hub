@@ -11,6 +11,7 @@ const baseTabs = [
 const adminTabs = [
   { label: "Integrations", href: "/settings/integrations" },
   { label: "Sync Status", href: "/settings/sync" },
+  { label: "API Preview", href: "/settings/api-preview" },
 ];
 
 export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
