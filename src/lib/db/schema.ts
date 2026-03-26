@@ -61,6 +61,18 @@ export const inviteTokenStatusEnum = pgEnum("invite_token_status", [
   "invalidated",
 ]);
 
+// Ingestion log enums (023-ingestion-history)
+export const ingestionOutcomeEnum = pgEnum("ingestion_outcome", [
+  "success",
+  "failed",
+]);
+
+export const ingestionChannelEnum = pgEnum("ingestion_channel", [
+  "manual",
+  "api",
+  "bulk",
+]);
+
 // Sync framework enums (019-invoice-automations)
 export const syncSourceTypeEnum = pgEnum("sync_source_type", [
   "github_copilot_billing",
@@ -607,6 +619,37 @@ export const syncEvents = pgTable(
   ]
 );
 
+// Ingestion Log (023-ingestion-history)
+export const ingestionLog = pgTable(
+  "ingestion_log",
+  {
+    id: serial("id").primaryKey(),
+    filename: varchar("filename", { length: 500 }),
+    vendor: varchar("vendor", { length: 255 }),
+    invoiceNumber: varchar("invoice_number", { length: 255 }),
+    invoiceDate: date("invoice_date"),
+    amountCents: integer("amount_cents"),
+    outcome: ingestionOutcomeEnum("outcome").notNull(),
+    errorMessage: text("error_message"),
+    channel: ingestionChannelEnum("channel").notNull(),
+    blobPathname: text("blob_pathname"),
+    linkedInvoiceId: integer("linked_invoice_id").references(
+      () => invoices.id,
+      { onDelete: "set null" }
+    ),
+    uploadedBy: integer("uploaded_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("ingestion_log_outcome_idx").on(table.outcome),
+    index("ingestion_log_created_at_idx").on(table.createdAt),
+    index("ingestion_log_vendor_idx").on(table.vendor),
+    index("ingestion_log_channel_idx").on(table.channel),
+  ]
+);
+
 // Anthropic Workspaces (workspace metadata from Anthropic Admin API)
 export const anthropicWorkspaces = pgTable(
   "anthropic_workspaces",
@@ -882,6 +925,17 @@ export const anthropicSyncStatusRelations = relations(
 export const syncEventsRelations = relations(syncEvents, ({ one }) => ({
   triggeredByUser: one(users, {
     fields: [syncEvents.triggeredBy],
+    references: [users.id],
+  }),
+}));
+
+export const ingestionLogRelations = relations(ingestionLog, ({ one }) => ({
+  linkedInvoice: one(invoices, {
+    fields: [ingestionLog.linkedInvoiceId],
+    references: [invoices.id],
+  }),
+  uploader: one(users, {
+    fields: [ingestionLog.uploadedBy],
     references: [users.id],
   }),
 }));
