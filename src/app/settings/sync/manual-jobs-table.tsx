@@ -54,7 +54,7 @@ export function ManualJobsTable({ events }: ManualJobsTableProps) {
                   {event.triggeredBy?.name ?? "\u2014"}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatDateTime(event.startedAt)}
+                  {formatDateTime(event.completedAt ?? event.startedAt)}
                 </TableCell>
                 <TableCell>
                   <OutcomeBadge outcome={event.outcome} nullLabel="Unknown" />
