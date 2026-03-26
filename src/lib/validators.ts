@@ -188,6 +188,16 @@ export const userPreferencesSchema = z.object({
   theme: z.enum(["light", "dark", "system"]),
 });
 
+// API Preview (profile API testing)
+export const apiPreviewEmailSchema = z.string().email("Invalid email format");
+export const apiPreviewMonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Invalid month format. Expected YYYY-MM.");
+export const apiPreviewSchema = z.object({
+  email: apiPreviewEmailSchema,
+  month: apiPreviewMonthSchema.optional(),
+});
+
 // Type exports for form usage
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ToolInput = z.infer<typeof toolSchema>;
@@ -314,3 +324,4 @@ export const copilotSeatDetailSchema = z.object({
 export type CopilotDateRangeInput = z.infer<typeof copilotDateRangeSchema>;
 export type CopilotSeatFilterInput = z.infer<typeof copilotSeatFilterSchema>;
 export type CopilotSeatDetailInput = z.infer<typeof copilotSeatDetailSchema>;
+export type ApiPreviewInput = z.infer<typeof apiPreviewSchema>;
