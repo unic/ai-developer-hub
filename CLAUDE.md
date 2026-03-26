@@ -1,4 +1,4 @@
-# AI Developer Hub Development Guidelines
+﻿# AI Developer Hub Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-03-02
 
@@ -48,6 +48,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - Neon PostgreSQL (serverless) via Drizzle ORM — no schema changes, UI-only feature (021-ui-enhancements)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React (022-profile-api-preview)
 - N/A — no schema changes, read-only against existing profile API (022-profile-api-preview)
+- TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, TanStack Table 8.21.3, shadcn/ui (new-york), Lucide React (023-ingestion-history)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 1 new table, 2 new enums (023-ingestion-history)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -110,9 +112,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 023-ingestion-history: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, TanStack Table 8.21.3, shadcn/ui (new-york), Lucide React
 - 022-profile-api-preview: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
 - 019-invoice-automations: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React, TanStack Table 8.21.3, Recharts 2.15.4
-- 021-ui-enhancements: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, Zod 4.3.6, React Hook Form 7.71.2, shadcn/ui (new-york), Sonner (toasts), Lucide React
 
 
 <!-- MANUAL ADDITIONS START -->
