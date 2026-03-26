@@ -64,14 +64,22 @@ export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
     `),
   ]);
 
+  // Ensure timestamps are proper Date objects (raw SQL may return strings)
+  function toDate(val: Date | string): Date {
+    if (val instanceof Date) return val;
+    // DB timestamps lack timezone suffix — treat as UTC
+    const s = String(val);
+    return new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
+  }
+
   const eventMap = new Map<string, SyncEventRecord>();
   for (const row of latestEvents.rows) {
     eventMap.set(row.source_type, {
       id: row.id,
       operationType: row.operation_type,
       outcome: row.outcome,
-      startedAt: row.started_at,
-      completedAt: row.completed_at,
+      startedAt: toDate(row.started_at),
+      completedAt: row.completed_at ? toDate(row.completed_at) : null,
       createdCount: row.created_count,
       updatedCount: row.updated_count,
       skippedCount: row.skipped_count,
