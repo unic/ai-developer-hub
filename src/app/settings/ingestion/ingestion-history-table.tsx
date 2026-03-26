@@ -147,6 +147,15 @@ interface IngestionHistoryTableProps {
 }
 
 export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
+  const vendorOptions = useMemo(
+    () =>
+      [...new Set(data.map((r) => r.vendor ?? "Unknown"))].map((v) => ({
+        label: v,
+        value: v,
+      })),
+    [data]
+  );
+
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-12 text-center">
@@ -159,15 +168,6 @@ export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
       </div>
     );
   }
-
-  const vendorOptions = useMemo(
-    () =>
-      [...new Set(data.map((r) => r.vendor ?? "Unknown"))].map((v) => ({
-        label: v,
-        value: v,
-      })),
-    [data]
-  );
 
   return (
     <DataTable
