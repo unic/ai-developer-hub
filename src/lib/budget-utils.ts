@@ -60,16 +60,6 @@ export async function findPeriodForDate(
   return rows[0] ?? null;
 }
 
-/**
- * Build a vendor reference string for Copilot billing sync.
- * Format: github-billing-copilot-YYYY-MM
- */
-export function buildCopilotVendorRef(billingMonth: string): string {
-  const date = new Date(billingMonth);
-  const yyyy = date.getUTCFullYear();
-  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `github-billing-copilot-${yyyy}-${mm}`;
-}
 
 /** Return type for getRunningCostsForPeriod */
 export interface RunningCostsResult {

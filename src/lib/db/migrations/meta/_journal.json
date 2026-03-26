@@ -99,6 +99,13 @@
       "when": 1774617761000,
       "tag": "0013_add_anthropic_workspace_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1774523819181,
+      "tag": "0014_giant_santa_claus",
+      "breakpoints": true
     }
   ]
 }
