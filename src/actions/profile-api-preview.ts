@@ -31,7 +31,7 @@ export async function previewProfileApi(
   // 3. Validate input
   const parsed = apiPreviewSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0]?.message ?? "Invalid input" };
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
   // 4. Construct URL using established base URL pattern from src/lib/invite.ts

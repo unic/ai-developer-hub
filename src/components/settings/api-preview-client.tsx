@@ -31,7 +31,7 @@ export function ApiPreviewClient({ isConfigured }: { isConfigured: boolean }) {
       return false;
     }
     const result = apiPreviewEmailSchema.safeParse(value);
-    setEmailError(result.success ? "" : result.error.errors[0]?.message ?? "Invalid email");
+    setEmailError(result.success ? "" : result.error.issues[0]?.message ?? "Invalid email");
     return result.success;
   }
 
@@ -41,7 +41,7 @@ export function ApiPreviewClient({ isConfigured }: { isConfigured: boolean }) {
       return true;
     }
     const result = apiPreviewMonthSchema.safeParse(value);
-    setMonthError(result.success ? "" : result.error.errors[0]?.message ?? "Invalid month");
+    setMonthError(result.success ? "" : result.error.issues[0]?.message ?? "Invalid month");
     return result.success;
   }
 
