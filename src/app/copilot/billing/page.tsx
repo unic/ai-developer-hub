@@ -2,13 +2,6 @@ import { getCopilotBilling } from "@/actions/copilot-data";
 import { BillingTrendChart } from "@/components/copilot/billing-trend-chart";
 import { CostUtilizationChart } from "@/components/copilot/cost-utilization-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -90,8 +83,7 @@ export default async function CopilotBillingPage() {
             <CardTitle className="text-sm font-medium">Monthly Billing Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <TooltipProvider>
-              <Table>
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Month</TableHead>
@@ -99,8 +91,6 @@ export default async function CopilotBillingPage() {
                     <TableHead className="text-right">Seats</TableHead>
                     <TableHead className="text-right">Active</TableHead>
                     <TableHead className="text-right">Cost / User</TableHead>
-                    <TableHead>Budget Period</TableHead>
-                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -125,62 +115,10 @@ export default async function CopilotBillingPage() {
                       <TableCell className="text-right text-sm">
                         {formatCurrency(trend.costPerActiveUserCents)}
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {trend.linkedPeriodLabel ? (
-                          <span>
-                            {trend.linkedPeriodLabel}
-                            {trend.linkedPeriodUtilization !== null && (
-                              <span className="ml-1 text-xs text-muted-foreground">
-                                ({trend.linkedPeriodUtilization}%)
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {trend.linkStatus === "linked" && (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 hover:bg-green-100">
-                            Linked
-                          </Badge>
-                        )}
-                        {trend.linkStatus === "unlinked" && (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Badge
-                                variant="secondary"
-                                className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 hover:bg-yellow-100"
-                              >
-                                Unlinked
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>No matching budget period</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                        {trend.linkStatus === "conflict" && (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Badge
-                                variant="destructive"
-                                className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 hover:bg-red-100"
-                              >
-                                Conflict
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>A manual cost entry already exists for this period</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </TooltipProvider>
           </CardContent>
         </Card>
       )}

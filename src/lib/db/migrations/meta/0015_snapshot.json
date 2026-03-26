@@ -1,5 +1,5 @@
 {
-  "id": "c6ed2159-0ae3-40fe-ba25-740d9a580d9a",
+  "id": "328ace9c-3e7b-477d-896b-ceacacbb79a7",
   "prevId": "7356fd4a-93e4-4e17-89db-61b7baea53f6",
   "version": "7",
   "dialect": "postgresql",
@@ -1504,6 +1504,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "linked_billed_cost_id": {
+          "name": "linked_billed_cost_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1540,6 +1546,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "copilot_billing_snapshots_linked_cost_idx": {
+          "name": "copilot_billing_snapshots_linked_cost_idx",
+          "columns": [
+            {
+              "expression": "linked_billed_cost_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1554,6 +1575,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "copilot_billing_snapshots_linked_billed_cost_id_billed_costs_id_fk": {
+          "name": "copilot_billing_snapshots_linked_billed_cost_id_billed_costs_id_fk",
+          "tableFrom": "copilot_billing_snapshots",
+          "tableTo": "billed_costs",
+          "columnsFrom": [
+            "linked_billed_cost_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2190,6 +2224,188 @@
             "id"
           ],
           "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ingestion_log": {
+      "name": "ingestion_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "filename": {
+          "name": "filename",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vendor": {
+          "name": "vendor",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_number": {
+          "name": "invoice_number",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_date": {
+          "name": "invoice_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "ingestion_outcome",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "channel": {
+          "name": "channel",
+          "type": "ingestion_channel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blob_pathname": {
+          "name": "blob_pathname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "linked_invoice_id": {
+          "name": "linked_invoice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ingestion_log_outcome_idx": {
+          "name": "ingestion_log_outcome_idx",
+          "columns": [
+            {
+              "expression": "outcome",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ingestion_log_created_at_idx": {
+          "name": "ingestion_log_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ingestion_log_vendor_idx": {
+          "name": "ingestion_log_vendor_idx",
+          "columns": [
+            {
+              "expression": "vendor",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ingestion_log_channel_idx": {
+          "name": "ingestion_log_channel_idx",
+          "columns": [
+            {
+              "expression": "channel",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ingestion_log_linked_invoice_id_invoices_id_fk": {
+          "name": "ingestion_log_linked_invoice_id_invoices_id_fk",
+          "tableFrom": "ingestion_log",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "linked_invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "ingestion_log_uploaded_by_users_id_fk": {
+          "name": "ingestion_log_uploaded_by_users_id_fk",
+          "tableFrom": "ingestion_log",
+          "tableTo": "users",
+          "columnsFrom": [
+            "uploaded_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -3152,6 +3368,23 @@
         "in_progress",
         "completed",
         "partial",
+        "failed"
+      ]
+    },
+    "public.ingestion_channel": {
+      "name": "ingestion_channel",
+      "schema": "public",
+      "values": [
+        "manual",
+        "api",
+        "bulk"
+      ]
+    },
+    "public.ingestion_outcome": {
+      "name": "ingestion_outcome",
+      "schema": "public",
+      "values": [
+        "success",
         "failed"
       ]
     },

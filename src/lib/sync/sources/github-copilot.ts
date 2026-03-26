@@ -2,8 +2,6 @@ import { withSyncLock, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
 import {
   githubConnections,
-  copilotBillingSnapshots,
-  billedCosts,
 } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { syncBillingData, syncSeatAssignments, syncUsageMetrics } from "@/lib/copilot-sync";
@@ -62,20 +60,14 @@ export async function run(
       };
 
       const errors: string[] = [];
-      const adminUserId = triggeredBy ?? connection.connectedBy;
 
       // Sync billing data
       try {
         const billingResult = await syncBillingData(
           syncConnection,
-          token,
-          adminUserId
+          token
         );
-        counts.createdCount += billingResult.billingLinkResult?.linked ?? 0;
-        counts.skippedCount += billingResult.billingLinkResult?.skipped ?? 0;
-        if (billingResult.billingLinkError) {
-          errors.push(billingResult.billingLinkError);
-        }
+        counts.createdCount += billingResult.billingProcessed;
       } catch (err) {
         errors.push(
           `Billing sync failed: ${err instanceof Error ? err.message : String(err)}`

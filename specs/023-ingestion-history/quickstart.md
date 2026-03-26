@@ -37,7 +37,7 @@ pnpm dev
 | Area | Path |
 |------|------|
 | DB schema | `src/lib/db/schema.ts` (ingestion_log table) |
-| Migration | `src/lib/db/migrations/0014_modern_madelyne_pryor.sql` |
+| Migration | `src/lib/db/migrations/0015_add_ingestion_log.sql` |
 | Settings page | `src/app/settings/ingestion/page.tsx` |
 | History table | `src/app/settings/ingestion/ingestion-history-table.tsx` |
 | Server action | `src/actions/ingestion-log.ts` |
