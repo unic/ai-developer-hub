@@ -2,8 +2,6 @@
 
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth-helpers";
-
-// Reuse the shared schemas
 import { apiPreviewSchema } from "@/lib/validators";
 
 export type ApiPreviewResponse = {
@@ -20,21 +18,17 @@ type ActionResult =
 export async function previewProfileApi(
   input: z.infer<typeof apiPreviewSchema>
 ): Promise<ActionResult> {
-  // 1. Auth check - admin only
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  // 2. Check PROFILE_API_SECRET is configured
   const secret = process.env.PROFILE_API_SECRET;
-  if (!secret) return { success: false, error: "PROFILE_API_SECRET is not configured" };
+  if (!secret) return { success: false, error: "API not configured" };
 
-  // 3. Validate input
   const parsed = apiPreviewSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  // 4. Construct URL using established base URL pattern from src/lib/invite.ts
   const baseUrl = process.env.NEXTAUTH_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
@@ -44,7 +38,6 @@ export async function previewProfileApi(
     url.searchParams.set("month", parsed.data.month);
   }
 
-  // 5. Call real API with Bearer token, measuring response time
   try {
     const start = performance.now();
     const response = await fetch(url.toString(), {
@@ -53,7 +46,12 @@ export async function previewProfileApi(
     });
     const elapsed = performance.now() - start;
 
-    const body = await response.json();
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = { error: `Non-JSON response (${response.status})` };
+    }
 
     return {
       success: true,

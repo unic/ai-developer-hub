@@ -3,6 +3,9 @@
 import { useState, useCallback } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 
+const toggleBtnClass =
+  "inline-flex items-center gap-0.5 hover:bg-muted rounded px-0.5 -ml-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 function JsonValue({ value, depth }: { value: unknown; depth: number }) {
   if (value === null) {
     return <span className="text-muted-foreground italic">null</span>;
@@ -39,7 +42,7 @@ function JsonArray({ items, depth }: { items: unknown[]; depth: number }) {
         <button
           type="button"
           onClick={toggle}
-          className="inline-flex items-center gap-0.5 hover:bg-muted rounded px-0.5 -ml-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={toggleBtnClass}
           aria-label={`Expand array (${items.length} items)`}
           aria-expanded={false}
         >
@@ -98,7 +101,7 @@ function JsonObject({
         <button
           type="button"
           onClick={toggle}
-          className="inline-flex items-center gap-0.5 hover:bg-muted rounded px-0.5 -ml-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={toggleBtnClass}
           aria-label={`Expand object (${keys.length} keys)`}
           aria-expanded={false}
         >
