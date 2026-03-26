@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
@@ -77,7 +78,7 @@ const columns: ColumnDef<IngestionLogRow>[] = [
       <DataTableColumnHeader column={column} title="Channel" />
     ),
     cell: ({ row }) => {
-      const channel = row.getValue("channel") as string;
+      const channel = row.getValue<string>("channel");
       return channel.charAt(0).toUpperCase() + channel.slice(1);
     },
   },
@@ -159,9 +160,14 @@ export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
     );
   }
 
-  const vendorOptions = [
-    ...new Set(data.map((r) => r.vendor ?? "Unknown")),
-  ].map((v) => ({ label: v, value: v }));
+  const vendorOptions = useMemo(
+    () =>
+      [...new Set(data.map((r) => r.vendor ?? "Unknown"))].map((v) => ({
+        label: v,
+        value: v,
+      })),
+    [data]
+  );
 
   return (
     <DataTable

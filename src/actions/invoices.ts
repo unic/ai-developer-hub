@@ -322,7 +322,7 @@ type SaveInvoiceResult =
 
 export async function saveInvoice(
   input: CreateInvoiceInput,
-  options?: { channel?: "manual" | "bulk" }
+  channel: "manual" | "bulk" = "manual"
 ): Promise<SaveInvoiceResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -372,7 +372,7 @@ export async function saveInvoice(
     invoiceDate,
     amountCents,
     outcome: "success",
-    channel: options?.channel ?? "manual",
+    channel,
     blobPathname,
     linkedInvoiceId: newId,
     uploadedBy: Number(admin.id),
@@ -451,7 +451,7 @@ export async function saveBulkInvoices(
     }
 
     try {
-      const result = await saveInvoice(invoiceInput, { channel: "bulk" });
+      const result = await saveInvoice(invoiceInput, "bulk");
       if (result.success) {
         outcomes.push({
           filename,

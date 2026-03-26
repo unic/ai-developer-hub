@@ -75,7 +75,8 @@ export async function getIngestionHistory(): Promise<
     })
     .from(ingestionLog)
     .leftJoin(users, eq(ingestionLog.uploadedBy, users.id))
-    .orderBy(desc(ingestionLog.createdAt));
+    .orderBy(desc(ingestionLog.createdAt))
+    .limit(500);
 
   return {
     success: true,
