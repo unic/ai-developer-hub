@@ -8,7 +8,7 @@ import {
   copilotBillingSnapshots,
   licenseAssignments,
 } from "@/lib/db/schema";
-import { eq, and, sql, desc, count, ne, isNotNull } from "drizzle-orm";
+import { eq, and, sql, desc, count, ne } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import { validateCopilotScopes } from "@/lib/copilot-api";
@@ -146,13 +146,13 @@ export async function getCopilotSyncStatus(): Promise<
         lastSyncStatus: null,
         nextScheduledSync: null,
         dataRange: null,
-        recordCounts: { metrics: 0, billing: 0, seats: 0, linkedBillingMonths: 0 },
+        recordCounts: { metrics: 0, billing: 0, seats: 0 },
       },
     };
   }
 
   // Run all independent queries in parallel
-  const [lastSync, [dateRange], [metricsCount], [billingCount], [seatsCount], [linkedBillingCount]] =
+  const [lastSync, [dateRange], [metricsCount], [billingCount], [seatsCount]] =
     await Promise.all([
       db.query.githubSyncEvents.findFirst({
         where: and(
@@ -181,15 +181,6 @@ export async function getCopilotSyncStatus(): Promise<
         .select({ value: count() })
         .from(licenseAssignments)
         .where(eq(licenseAssignments.source, "copilot-sync")),
-      db
-        .select({ value: count() })
-        .from(copilotBillingSnapshots)
-        .where(
-          and(
-            eq(copilotBillingSnapshots.connectionId, connection.id),
-            isNotNull(copilotBillingSnapshots.linkedBilledCostId)
-          )
-        ),
     ]);
 
   const dataRange =
@@ -216,7 +207,6 @@ export async function getCopilotSyncStatus(): Promise<
         metrics: metricsCount?.value ?? 0,
         billing: billingCount?.value ?? 0,
         seats: seatsCount?.value ?? 0,
-        linkedBillingMonths: linkedBillingCount?.value ?? 0,
       },
     },
   };
