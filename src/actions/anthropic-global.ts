@@ -18,7 +18,7 @@ import type {
   WorkspaceListItem,
   OrgCreditsStatus,
 } from "@/types";
-import { syncAnthropicWorkspaces } from "@/lib/anthropic-workspace-sync";
+import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
 
 // ---------------------------------------------------------------------------
 // getGlobalCostDashboard (T014)
@@ -341,8 +341,7 @@ export async function syncWorkspacesManual(): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
-    // force=true bypasses the 50-minute cooldown for manual syncs
-    await syncAnthropicWorkspaces(undefined, true);
+    await runAnthropicSync(admin.id ? Number(admin.id) : undefined);
     return { success: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
