@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SyncNowButton } from "@/components/sync/sync-now-button";
 import { BackfillDialog } from "@/components/sync/backfill-dialog";
-import { ErrorPopover } from "./error-popover";
-import { OutcomeBadge } from "./outcome-badge";
+import { ErrorPopover } from "@/components/error-popover";
+import { OutcomeBadge } from "@/components/outcome-badge";
 import { GitHubMemberSyncSheet } from "./github-member-sync-sheet";
 import { SyncResultsDialog } from "@/app/invoices/sync-results-dialog";
 import { syncInvoices } from "@/actions/invoice-sync";

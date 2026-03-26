@@ -8,8 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ErrorPopover } from "./error-popover";
-import { OutcomeBadge } from "./outcome-badge";
+import { ErrorPopover } from "@/components/error-popover";
+import { OutcomeBadge } from "@/components/outcome-badge";
 import type { SyncEventRow } from "@/actions/sync";
 import { SOURCE_LABELS } from "@/lib/sync/framework";
 import { formatDateTime } from "@/lib/utils";

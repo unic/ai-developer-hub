@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { extractInvoiceFields } from "@/lib/invoice-extraction";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
+import { logIngestionAttempt } from "@/lib/ingestion-logger";
 
 /** System user ID for automated/API-initiated operations */
 const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
@@ -45,6 +46,11 @@ export async function POST(request: NextRequest) {
     const file = formData.get("invoice");
 
     if (!file || !(file instanceof File)) {
+      await logIngestionAttempt({
+        outcome: "failed",
+        errorMessage: "No PDF file provided",
+        channel: "api",
+      });
       return NextResponse.json(
         { success: false, error: "No PDF file provided" },
         { status: 400 }
@@ -52,6 +58,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (file.size > MAX_FILE_SIZE) {
+      await logIngestionAttempt({
+        filename: file.name,
+        outcome: "failed",
+        errorMessage: "File exceeds 10 MB limit",
+        channel: "api",
+      });
       return NextResponse.json(
         { success: false, error: "File exceeds 10 MB limit" },
         { status: 400 }
@@ -59,6 +71,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (file.type !== "application/pdf") {
+      await logIngestionAttempt({
+        filename: file.name,
+        outcome: "failed",
+        errorMessage: "File must be a PDF",
+        channel: "api",
+      });
       return NextResponse.json(
         { success: false, error: "File must be a PDF" },
         { status: 400 }
@@ -77,11 +95,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!extraction.success || !extraction.data) {
+      const error = "Could not extract required fields from the provided PDF";
+      await logIngestionAttempt({
+        filename: file.name,
+        outcome: "failed",
+        errorMessage: error,
+        channel: "api",
+      });
       return NextResponse.json(
-        {
-          success: false,
-          error: "Could not extract required fields from the provided PDF",
-        },
+        { success: false, error },
         { status: 422 }
       );
     }
@@ -90,11 +112,19 @@ export async function POST(request: NextRequest) {
 
     // Require the three critical fields
     if (!invoiceNumber || !invoiceDate || amountCents === null) {
+      const error = "Could not extract required fields (invoiceNumber, invoiceDate, amountCents) from the provided PDF";
+      await logIngestionAttempt({
+        filename: file.name,
+        vendor: vendor ?? null,
+        invoiceNumber: invoiceNumber ?? null,
+        invoiceDate: invoiceDate ?? null,
+        amountCents: amountCents ?? null,
+        outcome: "failed",
+        errorMessage: error,
+        channel: "api",
+      });
       return NextResponse.json(
-        {
-          success: false,
-          error: "Could not extract required fields (invoiceNumber, invoiceDate, amountCents) from the provided PDF",
-        },
+        { success: false, error },
         { status: 422 }
       );
     }
@@ -105,10 +135,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
+      const error = `Invoice ${invoiceNumber} already exists`;
+      await logIngestionAttempt({
+        filename: file.name,
+        vendor: vendor ?? null,
+        invoiceNumber,
+        invoiceDate,
+        amountCents,
+        outcome: "failed",
+        errorMessage: error,
+        channel: "api",
+      });
       return NextResponse.json(
         {
           success: false,
-          error: `Invoice ${invoiceNumber} already exists`,
+          error,
           data: { existingInvoiceId: existing.id },
         },
         { status: 409 }
@@ -174,6 +215,18 @@ export async function POST(request: NextRequest) {
       return { invoiceId: newInvoice.id, action, linkedBilledCostId };
     });
 
+    await logIngestionAttempt({
+      filename: file.name,
+      vendor: vendor ?? "Anthropic",
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "success",
+      channel: "api",
+      blobPathname: objectKey,
+      linkedInvoiceId: result.invoiceId,
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -189,6 +242,16 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Invoice ingestion error:", err);
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
+    try {
+      await logIngestionAttempt({
+        outcome: "failed",
+        errorMessage: message,
+        channel: "api",
+      });
+    } catch {
+      // Best-effort logging — don't mask the original error
+    }
     return NextResponse.json(
       { success: false, error: "An unexpected error occurred. Please try again." },
       { status: 500 }

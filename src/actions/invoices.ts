@@ -15,6 +15,7 @@ import { createInvoiceSchema } from "@/lib/validators";
 import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
 import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction";
 import { recordCreation } from "@/actions/history";
+import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
 import type { ActionResult } from "@/types";
 
@@ -320,13 +321,22 @@ type SaveInvoiceResult =
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveInvoice(
-  input: CreateInvoiceInput
+  input: CreateInvoiceInput,
+  channel: "manual" | "bulk" = "manual"
 ): Promise<SaveInvoiceResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = createInvoiceSchema.safeParse(input);
   if (!parsed.success) {
+    await logIngestionAttempt({
+      vendor: input.vendor ?? null,
+      invoiceNumber: input.invoiceNumber ?? null,
+      outcome: "failed",
+      errorMessage: "Validation failed",
+      channel,
+      uploadedBy: Number(admin.id),
+    });
     return {
       success: false,
       error: "Validation failed",
@@ -359,10 +369,33 @@ export async function saveInvoice(
       // Best-effort cleanup — ignore secondary failure
     }
     const message = err instanceof Error ? err.message : "Database error";
+    await logIngestionAttempt({
+      vendor: vendor ?? null,
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "failed",
+      errorMessage: `Failed to save invoice: ${message}`,
+      channel,
+      blobPathname,
+      uploadedBy: Number(admin.id),
+    });
     return { success: false, error: `Failed to save invoice: ${message}` };
   }
 
   await recordCreation("invoice", newId, Number(admin.id));
+
+  await logIngestionAttempt({
+    vendor: vendor ?? null,
+    invoiceNumber,
+    invoiceDate,
+    amountCents,
+    outcome: "success",
+    channel,
+    blobPathname,
+    linkedInvoiceId: newId,
+    uploadedBy: Number(admin.id),
+  });
 
   // Auto-link to budget period
   const period = await findActivePeriodForDate(invoiceDate);
@@ -423,12 +456,21 @@ export async function saveBulkInvoices(
   for (const { filename, skip, skipReason, ...invoiceInput } of inputs) {
     if (skip) {
       await cleanupBlob(invoiceInput.blobPathname);
+      await logIngestionAttempt({
+        filename,
+        vendor: invoiceInput.vendor ?? null,
+        invoiceNumber: invoiceInput.invoiceNumber ?? null,
+        outcome: "failed",
+        errorMessage: skipReason ?? "Skipped by user",
+        channel: "bulk",
+        uploadedBy: Number(admin.id),
+      });
       outcomes.push({ filename, skipped: true, skipReason });
       continue;
     }
 
     try {
-      const result = await saveInvoice(invoiceInput);
+      const result = await saveInvoice(invoiceInput, "bulk");
       if (result.success) {
         outcomes.push({
           filename,
@@ -441,6 +483,15 @@ export async function saveBulkInvoices(
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
+      await logIngestionAttempt({
+        filename,
+        vendor: invoiceInput.vendor ?? null,
+        invoiceNumber: invoiceInput.invoiceNumber ?? null,
+        outcome: "failed",
+        errorMessage: message,
+        channel: "bulk",
+        uploadedBy: Number(admin.id),
+      });
       outcomes.push({ filename, error: message });
     }
   }
