@@ -13,8 +13,8 @@ import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgCreditsPanel } from "@/components/claude/org-credits-panel";
 import { SyncButton } from "@/components/claude/sync-button";
 import { db } from "@/lib/db";
-import { anthropicSyncStatus } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { syncEvents } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { Bot } from "lucide-react";
 
@@ -30,10 +30,11 @@ export default async function ClaudePage() {
   const availableMonths = await getAvailableWorkspaceCostMonths();
 
   // Check for last sync time
-  const sentinelRow = await db.query.anthropicSyncStatus.findFirst({
-    where: eq(anthropicSyncStatus.userId, -1),
+  const lastEvent = await db.query.syncEvents.findFirst({
+    where: eq(syncEvents.sourceType, "anthropic_api_costs"),
+    orderBy: desc(syncEvents.startedAt),
   });
-  const lastSyncedAt = sentinelRow?.workspaceSyncCompletedAt ?? null;
+  const lastSyncedAt = lastEvent?.completedAt ?? lastEvent?.startedAt ?? null;
 
   // Empty state if no data yet
   if (availableMonths.length === 0) {

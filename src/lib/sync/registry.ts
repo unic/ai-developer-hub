@@ -4,6 +4,17 @@ import { eq, sql } from "drizzle-orm";
 import type { SyncSourceType } from "./framework";
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Normalize raw SQL timestamps to proper UTC Date objects. */
+function toDate(val: Date | string): Date {
+  if (val instanceof Date) return val;
+  const s = String(val);
+  return new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -46,8 +57,8 @@ export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
     source_type: SyncSourceType;
     operation_type: "regular" | "backfill";
     outcome: "in_progress" | "success" | "partial" | "failed";
-    started_at: Date;
-    completed_at: Date | null;
+    started_at: Date | string;
+    completed_at: Date | string | null;
     created_count: number;
     updated_count: number;
     skipped_count: number;
@@ -70,8 +81,8 @@ export async function getSyncSources(): Promise<SyncSourceWithLastEvent[]> {
       id: row.id,
       operationType: row.operation_type,
       outcome: row.outcome,
-      startedAt: row.started_at,
-      completedAt: row.completed_at,
+      startedAt: toDate(row.started_at),
+      completedAt: row.completed_at ? toDate(row.completed_at) : null,
       createdCount: row.created_count,
       updatedCount: row.updated_count,
       skippedCount: row.skipped_count,

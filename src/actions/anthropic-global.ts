@@ -8,6 +8,7 @@ import {
   anthropicWorkspaceLimits,
   anthropicOrgConfig,
   anthropicSyncStatus,
+  syncEvents,
 } from "@/lib/db/schema";
 import { unstable_cache, revalidateTag, revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
@@ -18,7 +19,7 @@ import type {
   WorkspaceListItem,
   OrgCreditsStatus,
 } from "@/types";
-import { syncAnthropicWorkspaces } from "@/lib/anthropic-workspace-sync";
+import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
 
 // ---------------------------------------------------------------------------
 // getGlobalCostDashboard (T014)
@@ -341,8 +342,26 @@ export async function syncWorkspacesManual(): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   try {
-    // force=true bypasses the 50-minute cooldown for manual syncs
-    await syncAnthropicWorkspaces(undefined, true);
+    const { eventId } = await runAnthropicSync(admin.id ? Number(admin.id) : undefined);
+
+    // Check sync event outcome — the sync framework records failures without throwing
+    const [event] = await db
+      .select({ outcome: syncEvents.outcome, errorMessage: syncEvents.errorMessage })
+      .from(syncEvents)
+      .where(eq(syncEvents.id, eventId))
+      .limit(1);
+
+    if (!event || event.outcome !== "success") {
+      return {
+        success: false,
+        error: event?.errorMessage ?? "Sync did not complete successfully",
+      };
+    }
+
+    revalidateTag("anthropic-workspace-costs");
+    revalidateTag("alerts");
+    revalidatePath("/claude");
+
     return { success: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";

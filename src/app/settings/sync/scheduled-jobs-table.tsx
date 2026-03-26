@@ -172,7 +172,9 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
                   </TableCell>
                   <TableCell className="text-sm">
                     {source.lastEvent
-                      ? formatRelativeTime(source.lastEvent.startedAt)
+                      ? source.lastEvent.outcome === "in_progress"
+                        ? `Running (started ${formatRelativeTime(source.lastEvent.startedAt)})`
+                        : formatRelativeTime(source.lastEvent.completedAt ?? source.lastEvent.startedAt)
                       : "Never synced"}
                   </TableCell>
                   <TableCell>

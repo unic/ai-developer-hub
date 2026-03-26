@@ -1,6 +1,6 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
-import { anthropicWorkspaces, anthropicWorkspaceCosts } from "@/lib/db/schema";
+import { anthropicWorkspaceCosts } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
@@ -119,32 +119,31 @@ async function fetchCostReport(
 
 async function fetchAndUpsertWorkspaces(): Promise<number> {
   const response = await retryWithBackoff(() => fetchWorkspaces());
-  let upserted = 0;
 
-  for (const ws of response.data) {
-    await db
-      .insert(anthropicWorkspaces)
-      .values({
-        workspaceId: ws.id,
-        name: ws.name,
-        isDefault: ws.is_default,
-        isArchived: ws.is_archived,
-        lastSeenAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [anthropicWorkspaces.workspaceId],
-        set: {
-          name: ws.name,
-          isDefault: ws.is_default,
-          isArchived: ws.is_archived,
-          lastSeenAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
-    upserted++;
+  // Use raw SQL to correctly target the partial unique index on workspace_id
+  // (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT).
+  // Force is_default = FALSE for all named workspaces to avoid conflicting
+  // with the Default Workspace row (workspace_id NULL, is_default = true).
+  const now = new Date();
+  if (response.data.length > 0) {
+    const valuesSql = sql.join(
+      response.data.map((ws) => sql`(${ws.id}, ${ws.name}, FALSE, ${ws.is_archived}, ${now}, ${now})`),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, updated_at)
+      VALUES ${valuesSql}
+      ON CONFLICT (workspace_id) WHERE workspace_id IS NOT NULL
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        is_default = FALSE,
+        is_archived = EXCLUDED.is_archived,
+        last_seen_at = EXCLUDED.last_seen_at,
+        updated_at = EXCLUDED.updated_at
+    `);
   }
 
-  return upserted;
+  return response.data.length;
 }
 
 async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
