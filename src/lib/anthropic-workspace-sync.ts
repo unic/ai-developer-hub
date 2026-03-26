@@ -93,36 +93,31 @@ export async function fetchAndUpsertWorkspaces(): Promise<number> {
     }
   } while (lastId !== null);
 
-  // Batch upsert all workspaces in a single statement
+  // Batch upsert all workspaces in a single statement.
+  // Use raw SQL to correctly target the partial unique index on workspace_id
+  // (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT).
   const now = new Date();
   if (allWorkspaces.length > 0) {
-    await db
-      .insert(anthropicWorkspaces)
-      .values(
-        allWorkspaces.map((ws) => ({
-          workspaceId: ws.id,
-          name: ws.name,
-          displayColor: ws.display_color,
-          isDefault: false,
-          isArchived: ws.archived_at !== null,
-          archivedAt: ws.archived_at ? new Date(ws.archived_at) : null,
-          anthropicCreatedAt: new Date(ws.created_at),
-          lastSeenAt: now,
-          updatedAt: now,
-        }))
-      )
-      .onConflictDoUpdate({
-        target: anthropicWorkspaces.workspaceId,
-        targetWhere: sql`${anthropicWorkspaces.workspaceId} IS NOT NULL`,
-        set: {
-          name: sql`excluded.name`,
-          displayColor: sql`excluded.display_color`,
-          isArchived: sql`excluded.is_archived`,
-          archivedAt: sql`excluded.archived_at`,
-          lastSeenAt: sql`excluded.last_seen_at`,
-          updatedAt: sql`excluded.updated_at`,
-        },
-      });
+    const valuesSql = sql.join(
+      allWorkspaces.map((ws) => {
+        const archivedAt = ws.archived_at ? new Date(ws.archived_at) : null;
+        const createdAt = new Date(ws.created_at);
+        return sql`(${ws.id}, ${ws.name}, ${ws.display_color}, false, ${ws.archived_at !== null}, ${archivedAt}, ${createdAt}, ${now}, ${now})`;
+      }),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspaces (workspace_id, name, display_color, is_default, is_archived, archived_at, anthropic_created_at, last_seen_at, updated_at)
+      VALUES ${valuesSql}
+      ON CONFLICT (workspace_id) WHERE workspace_id IS NOT NULL
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        display_color = EXCLUDED.display_color,
+        is_archived = EXCLUDED.is_archived,
+        archived_at = EXCLUDED.archived_at,
+        last_seen_at = EXCLUDED.last_seen_at,
+        updated_at = EXCLUDED.updated_at
+    `);
   }
 
   // Ensure default workspace row exists (workspaceId=null, name="Default Workspace", isDefault=true).

@@ -92,6 +92,13 @@
       "when": 1774362118117,
       "tag": "0012_flashy_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1774617761000,
+      "tag": "0013_add_anthropic_workspace_columns",
+      "breakpoints": true
     }
   ]
 }
