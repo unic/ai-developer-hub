@@ -1,6 +1,6 @@
 CREATE TYPE "public"."ingestion_channel" AS ENUM('manual', 'api', 'bulk');--> statement-breakpoint
 CREATE TYPE "public"."ingestion_outcome" AS ENUM('success', 'failed');--> statement-breakpoint
-CREATE TABLE "anthropic_org_config" (
+CREATE TABLE IF NOT EXISTS "anthropic_org_config" (
 	"id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
 	"billing_budget_limit_cents" integer,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE "anthropic_org_config" (
 	CONSTRAINT "anthropic_org_config_id_check" CHECK ("anthropic_org_config"."id" = 1)
 );
 --> statement-breakpoint
-CREATE TABLE "anthropic_workspace_limits" (
+CREATE TABLE IF NOT EXISTS "anthropic_workspace_limits" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" varchar(100),
 	"limit_cents" integer NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE "anthropic_workspace_limits" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "ingestion_log" (
+CREATE TABLE IF NOT EXISTS "ingestion_log" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"filename" varchar(500),
 	"vendor" varchar(255),
@@ -32,14 +32,14 @@ CREATE TABLE "ingestion_log" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DROP INDEX "anthropic_workspace_costs_ws_date_idx";--> statement-breakpoint
-DROP INDEX "anthropic_workspace_costs_null_ws_date_idx";--> statement-breakpoint
-DROP INDEX "anthropic_workspaces_workspace_id_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "anthropic_workspace_costs_ws_date_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "anthropic_workspace_costs_null_ws_date_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "anthropic_workspaces_workspace_id_idx";--> statement-breakpoint
 ALTER TABLE "anthropic_workspaces" ALTER COLUMN "name" SET DATA TYPE varchar(200);--> statement-breakpoint
-ALTER TABLE "anthropic_sync_status" ADD COLUMN "workspace_sync_completed_at" timestamp;--> statement-breakpoint
-ALTER TABLE "anthropic_workspaces" ADD COLUMN "display_color" varchar(20);--> statement-breakpoint
-ALTER TABLE "anthropic_workspaces" ADD COLUMN "archived_at" timestamp;--> statement-breakpoint
-ALTER TABLE "anthropic_workspaces" ADD COLUMN "anthropic_created_at" timestamp;--> statement-breakpoint
+ALTER TABLE "anthropic_sync_status" ADD COLUMN IF NOT EXISTS "workspace_sync_completed_at" timestamp;--> statement-breakpoint
+ALTER TABLE "anthropic_workspaces" ADD COLUMN IF NOT EXISTS "display_color" varchar(20);--> statement-breakpoint
+ALTER TABLE "anthropic_workspaces" ADD COLUMN IF NOT EXISTS "archived_at" timestamp;--> statement-breakpoint
+ALTER TABLE "anthropic_workspaces" ADD COLUMN IF NOT EXISTS "anthropic_created_at" timestamp;--> statement-breakpoint
 ALTER TABLE "anthropic_org_config" ADD CONSTRAINT "anthropic_org_config_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ingestion_log" ADD CONSTRAINT "ingestion_log_linked_invoice_id_invoices_id_fk" FOREIGN KEY ("linked_invoice_id") REFERENCES "public"."invoices"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ingestion_log" ADD CONSTRAINT "ingestion_log_uploaded_by_users_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
