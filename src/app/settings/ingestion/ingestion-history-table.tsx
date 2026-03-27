@@ -182,6 +182,7 @@ export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
           options: [
             { label: "Success", value: "success" },
             { label: "Failed", value: "failed" },
+            { label: "Filtered", value: "filtered" },
           ],
         },
         {

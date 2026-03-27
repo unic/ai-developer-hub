@@ -14,6 +14,7 @@ export function OutcomeBadge({ outcome, nullLabel = "Never synced" }: OutcomeBad
     success: "default",
     partial: "outline",
     failed: "destructive",
+    filtered: "outline",
     in_progress: "secondary",
   };
   return <Badge variant={variants[outcome] ?? "secondary"}>{outcome}</Badge>;
