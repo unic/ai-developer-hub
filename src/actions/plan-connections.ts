@@ -4,30 +4,11 @@ import { db } from "@/lib/db";
 import { anthropicPlanConnections } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { decryptApiKey, encryptApiKey, maskApiKey } from "@/lib/crypto";
+import { encryptApiKey, maskApiKey } from "@/lib/crypto";
 import { checkAnthropicStatus } from "@/actions/anthropic-status";
+import { getActivePlanCount } from "@/lib/plan-connections";
 import { revalidatePath } from "next/cache";
 import type { ActionResult, PlanConnectionListItem } from "@/types";
-
-// ---------------------------------------------------------------------------
-// getActivePlanConnections — internal helper (no auth, returns decrypted keys)
-// ---------------------------------------------------------------------------
-
-export async function getActivePlanConnections(): Promise<
-  { id: number; label: string; adminApiKey: string }[]
-> {
-  const plans = await db
-    .select()
-    .from(anthropicPlanConnections)
-    .where(eq(anthropicPlanConnections.status, "active"));
-
-  const result: { id: number; label: string; adminApiKey: string }[] = [];
-  for (const plan of plans) {
-    const adminApiKey = await decryptApiKey(plan.adminApiKeyEncrypted);
-    result.push({ id: plan.id, label: plan.label, adminApiKey });
-  }
-  return result;
-}
 
 // ---------------------------------------------------------------------------
 // getPlanConnections — admin-only list of all connections
@@ -73,13 +54,8 @@ export async function addPlanConnection(data: {
     return { success: false, error: "Admin API key is required." };
   }
 
-  // Check active connection count
-  const activeCount = await db
-    .select({ id: anthropicPlanConnections.id })
-    .from(anthropicPlanConnections)
-    .where(eq(anthropicPlanConnections.status, "active"));
-
-  if (activeCount.length >= 10) {
+  const count = await getActivePlanCount();
+  if (count >= 10) {
     return { success: false, error: "Maximum of 10 active plan connections reached." };
   }
 
@@ -134,6 +110,7 @@ export async function updatePlanConnectionLabel(
     where: eq(anthropicPlanConnections.id, id),
   });
   if (!existing) return { success: false, error: "Plan connection not found." };
+  if (existing.label === trimmed) return { success: true, data: undefined };
 
   await db
     .update(anthropicPlanConnections)
@@ -154,20 +131,17 @@ export async function disconnectPlanConnection(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const existing = await db.query.anthropicPlanConnections.findFirst({
-    where: eq(anthropicPlanConnections.id, id),
-  });
+  const [existing, count] = await Promise.all([
+    db.query.anthropicPlanConnections.findFirst({
+      where: eq(anthropicPlanConnections.id, id),
+    }),
+    getActivePlanCount(),
+  ]);
+
   if (!existing || existing.status !== "active") {
     return { success: false, error: "Plan connection not found or already disconnected." };
   }
-
-  // Prevent disconnecting the only active connection
-  const activeCount = await db
-    .select({ id: anthropicPlanConnections.id })
-    .from(anthropicPlanConnections)
-    .where(eq(anthropicPlanConnections.status, "active"));
-
-  if (activeCount.length <= 1) {
+  if (count <= 1) {
     return { success: false, error: "Cannot disconnect the only active plan connection." };
   }
 

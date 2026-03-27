@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sql, desc, isNotNull, inArray } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/crypto";
+import { getActivePlanConnections } from "@/lib/plan-connections";
 import { fetchOrgApiKeys, resolveApiKeyId } from "@/lib/anthropic-keys";
 import {
   resolveModelPricing,
@@ -20,9 +21,6 @@ import { z } from "zod";
 // Constants
 // ---------------------------------------------------------------------------
 
-const LOCK_USER_ID = 0;
-const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — stale lock threshold
-const LOCK_COOLDOWN_MS = 60 * 1000; // 60 seconds — minimum between syncs
 const DEFAULT_BACKFILL_DAYS = 31;
 
 // ---------------------------------------------------------------------------
@@ -178,8 +176,9 @@ export async function resolveAllMappings(
   );
 
   // Re-resolve if: no cached mapping, or the assignment was updated after the last resolve
+  const mappedUserIds = new Set(mapping.values());
   const needsResolve = usersWithKeys.filter((u) => {
-    if (!Array.from(mapping.values()).includes(u.userId)) {
+    if (!mappedUserIds.has(u.userId)) {
       return true;
     }
     const syncRow = existingSyncMap.get(u.userId);
@@ -324,11 +323,7 @@ export async function batchUpsertUsageRows(
 export async function runAnthropicSyncCore(): Promise<SyncSummary> {
   const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [] };
 
-  // Get all active plan connections
-  const plans = await db
-    .select()
-    .from(anthropicPlanConnections)
-    .where(eq(anthropicPlanConnections.status, "active"));
+  const plans = await getActivePlanConnections();
 
   if (plans.length === 0) {
     summary.errors.push({ userId: 0, error: "No active plan connections found" });
@@ -337,7 +332,7 @@ export async function runAnthropicSyncCore(): Promise<SyncSummary> {
 
   for (const plan of plans) {
     try {
-      const adminApiKey = await decryptApiKey(plan.adminApiKeyEncrypted);
+      const adminApiKey = plan.adminApiKey;
 
       // Resolve all mappings for this plan
       const apiKeyToUser = await resolveAllMappings(adminApiKey, plan.id);
@@ -458,21 +453,16 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
 
   // If no cached plan or plan was disconnected, resolve across all active plans
   if (!adminApiKey) {
-    const plans = await db
-      .select()
-      .from(anthropicPlanConnections)
-      .where(eq(anthropicPlanConnections.status, "active"));
-
+    const plans = await getActivePlanConnections();
     const decryptedUserKey = await decryptApiKey(assignment.apiKeyEncrypted);
 
     for (const plan of plans) {
-      const planAdminKey = await decryptApiKey(plan.adminApiKeyEncrypted);
-      const orgKeys = await fetchOrgApiKeys(planAdminKey);
+      const orgKeys = await fetchOrgApiKeys(plan.adminApiKey);
       const keyId = resolveApiKeyId(decryptedUserKey, orgKeys);
       if (keyId) {
         resolvedPlanId = plan.id;
         resolvedApiKeyId = keyId;
-        adminApiKey = planAdminKey;
+        adminApiKey = plan.adminApiKey;
         // Cache the resolution
         await db.execute(sql`
           INSERT INTO anthropic_sync_status (user_id, resolved_api_key_id, plan_connection_id)

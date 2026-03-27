@@ -58,6 +58,7 @@ export function PlanConnectionsCard({
   const [newApiKey, setNewApiKey] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
+  const [syncingPlanId, setSyncingPlanId] = useState<number | null>(null);
 
   const activeCount = connections.filter((c) => c.status === "active").length;
 
@@ -98,8 +99,10 @@ export function PlanConnectionsCard({
   }
 
   function handleSync(id: number, label: string) {
+    setSyncingPlanId(id);
     startTransition(async () => {
       const result = await syncAllAnthropicUsageForPlan(id);
+      setSyncingPlanId(null);
       if (result.success) {
         toast.success(`Sync started for "${label}".`);
       } else {
@@ -256,11 +259,11 @@ export function PlanConnectionsCard({
                       <Button
                         size="sm"
                         variant="ghost"
-                        disabled={isPending}
+                        disabled={syncingPlanId != null}
                         title="Sync this plan"
                         onClick={() => handleSync(conn.id, conn.label)}
                       >
-                        <RefreshCw className={`size-4 ${isPending ? "animate-spin" : ""}`} />
+                        <RefreshCw className={`size-4 ${syncingPlanId === conn.id ? "animate-spin" : ""}`} />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>

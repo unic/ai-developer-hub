@@ -40,7 +40,7 @@ async function _getGlobalCostDashboard(
   const costConditions = [
     sql`${anthropicWorkspaceCosts.date} >= ${startDate}::date AND ${anthropicWorkspaceCosts.date} <= ${endDate}::date`,
   ];
-  if (planConnectionId) {
+  if (planConnectionId != null) {
     costConditions.push(
       sql`${anthropicWorkspaceCosts.planConnectionId} = ${planConnectionId}`
     );

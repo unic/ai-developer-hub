@@ -6,7 +6,7 @@ import {
   prepareUsageRow,
   batchUpsertUsageRows,
 } from "@/lib/anthropic-sync";
-import { getActivePlanConnections } from "@/actions/plan-connections";
+import { getActivePlanConnections } from "@/lib/plan-connections";
 
 const WINDOW_DAYS = 31; // Anthropic API max per-request window
 
