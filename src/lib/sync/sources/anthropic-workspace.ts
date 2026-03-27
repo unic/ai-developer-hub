@@ -240,7 +240,7 @@ export async function run(
       if (opts?.backfillStartDate) {
         const start = opts.backfillStartDate;
         const now = new Date();
-        const current = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
+        const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
         const failedMonths: string[] = [];
 
         while (current <= now) {

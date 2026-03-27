@@ -129,7 +129,7 @@ export default async function BudgetPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    Actual{hasRunningCosts && " (incl. API)"}
+                    {hasRunningCosts ? "Actual (incl. API)" : "Billed"}
                   </p>
                   <p className="text-2xl font-bold">
                     {formatCurrency(totalActual)}

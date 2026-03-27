@@ -25,18 +25,14 @@ test.describe("Budget Period Running Costs", () => {
     // In a real environment with seeded data, this would be more specific
   });
 
-  test("budget overview shows Actual (incl. API) when running costs exist", async ({ page }) => {
+  test("budget overview shows Billed or Actual label for cost summary", async ({ page }) => {
     await page.goto("/budget");
     await page.waitForSelector("h1");
 
-    // The overview page should show either "Billed" or "Actual (incl. API)"
-    // depending on whether running costs data exists
+    // Without seeded running cost data, the overview shows "Billed".
+    // With running costs it would show "Actual (incl. API)".
+    // Assert the baseline label is visible.
     const billedLabel = page.getByText("Billed");
-    const actualLabel = page.getByText("Actual (incl. API)");
-
-    // At least one of these labels should be visible
-    const hasBilled = await billedLabel.isVisible().catch(() => false);
-    const hasActual = await actualLabel.isVisible().catch(() => false);
-    expect(hasBilled || hasActual).toBe(true);
+    await expect(billedLabel).toBeVisible();
   });
 });
