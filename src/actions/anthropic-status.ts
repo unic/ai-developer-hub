@@ -15,12 +15,14 @@ type AnthropicStatusResult =
   | { success: true; data: AnthropicStatusData }
   | { success: false; error: string };
 
-export async function checkAnthropicStatus(): Promise<AnthropicStatusResult> {
+export async function checkAnthropicStatus(
+  adminApiKey?: string
+): Promise<AnthropicStatusResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const lastCheckedAt = new Date().toISOString();
-  const apiKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+  const apiKey = adminApiKey ?? process.env.ANTHROPIC_ADMIN_API_KEY;
 
   if (!apiKey) {
     return {

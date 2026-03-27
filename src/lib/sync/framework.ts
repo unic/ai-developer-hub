@@ -39,6 +39,7 @@ export interface WithSyncLockParams {
   triggeredBy?: number;
   operationType?: SyncOperationType;
   backfillStartDate?: Date;
+  planConnectionId?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +114,10 @@ export async function withSyncLock(
   params: WithSyncLockParams,
   fn: (eventId: number) => Promise<SyncCounts>
 ): Promise<{ eventId: number }> {
-  const lockId = hashSourceType(params.sourceType);
+  const lockKey = params.planConnectionId
+    ? `${params.sourceType}:plan_${params.planConnectionId}`
+    : params.sourceType;
+  const lockId = hashSourceType(lockKey);
 
   // Try to acquire advisory lock
   const lockResult = await db.execute(
@@ -135,6 +139,7 @@ export async function withSyncLock(
         ? params.backfillStartDate.toISOString().split("T")[0]
         : null,
       triggeredBy: params.triggeredBy ?? null,
+      planConnectionId: params.planConnectionId ?? null,
     })
     .returning({ id: syncEvents.id });
 

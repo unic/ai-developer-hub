@@ -1,9 +1,10 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
-import { anthropicWorkspaceCosts } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
+import { anthropicWorkspaceCosts, anthropicPlanConnections } from "@/lib/db/schema";
+import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
+import { decryptApiKey } from "@/lib/crypto";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,6 +14,7 @@ interface RunOptions {
   force?: boolean;
   month?: string;
   backfillStartDate?: Date;
+  planConnectionId?: number;
 }
 
 // Zod schemas for Anthropic API responses
@@ -57,13 +59,10 @@ const costReportResponseSchema = z.object({
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function fetchWorkspaces(): Promise<z.infer<typeof workspacesResponseSchema>> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
-  if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
-
+async function fetchWorkspaces(adminApiKey: string): Promise<z.infer<typeof workspacesResponseSchema>> {
   const res = await fetch("https://api.anthropic.com/v1/organizations/workspaces", {
     headers: {
-      "x-api-key": adminKey,
+      "x-api-key": adminApiKey,
       "anthropic-version": ANTHROPIC_API_VERSION,
     },
   });
@@ -77,11 +76,10 @@ async function fetchWorkspaces(): Promise<z.infer<typeof workspacesResponseSchem
 }
 
 async function fetchCostReport(
+  adminApiKey: string,
   startingAt: string,
   endingAt: string
 ): Promise<z.infer<typeof costReportBucketSchema>[]> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
-  if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
   const allBuckets: z.infer<typeof costReportBucketSchema>[] = [];
   let page: string | undefined;
@@ -98,7 +96,7 @@ async function fetchCostReport(
       `https://api.anthropic.com/v1/organizations/cost_report?${query}`,
       {
         headers: {
-          "x-api-key": adminKey,
+          "x-api-key": adminApiKey,
           "anthropic-version": ANTHROPIC_API_VERSION,
         },
       }
@@ -117,8 +115,8 @@ async function fetchCostReport(
   return allBuckets;
 }
 
-async function fetchAndUpsertWorkspaces(): Promise<number> {
-  const response = await retryWithBackoff(() => fetchWorkspaces());
+async function fetchAndUpsertWorkspaces(adminApiKey: string, planConnectionId: number): Promise<number> {
+  const response = await retryWithBackoff(() => fetchWorkspaces(adminApiKey));
 
   // Use raw SQL to correctly target the partial unique index on workspace_id
   // (Drizzle generates incorrect WHERE clauses for partial-index ON CONFLICT).
@@ -127,13 +125,13 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
   const now = new Date();
   if (response.data.length > 0) {
     const valuesSql = sql.join(
-      response.data.map((ws) => sql`(${ws.id}, ${ws.name}, FALSE, ${ws.is_archived}, ${now}, ${now})`),
+      response.data.map((ws) => sql`(${ws.id}, ${ws.name}, FALSE, ${ws.is_archived}, ${now}, ${planConnectionId}, ${now})`),
       sql`, `
     );
     await db.execute(sql`
-      INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, updated_at)
+      INSERT INTO anthropic_workspaces (workspace_id, name, is_default, is_archived, last_seen_at, plan_connection_id, updated_at)
       VALUES ${valuesSql}
-      ON CONFLICT (workspace_id) WHERE workspace_id IS NOT NULL
+      ON CONFLICT (workspace_id, plan_connection_id) WHERE workspace_id IS NOT NULL
       DO UPDATE SET
         name = EXCLUDED.name,
         is_default = FALSE,
@@ -146,7 +144,7 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
   return response.data.length;
 }
 
-async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
+async function fetchAndUpsertWorkspaceCosts(adminApiKey: string, planConnectionId: number, month: string): Promise<number> {
   // month format: YYYY-MM
   const startDate = `${month}-01T00:00:00Z`;
   const endYear = parseInt(month.slice(0, 4));
@@ -156,7 +154,7 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00Z`;
 
   const buckets = await retryWithBackoff(() =>
-    fetchCostReport(startDate, endDate)
+    fetchCostReport(adminApiKey, startDate, endDate)
   );
 
   // Flatten all results across time buckets and aggregate per workspace
@@ -174,17 +172,16 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   for (const [wsId, costCents] of costByWorkspace) {
     if (wsId) {
       await db.execute(sql`
-        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (${wsId}, ${dateStr}, ${costCents})
-        ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents, plan_connection_id)
+        VALUES (${wsId}, ${dateStr}, ${costCents}, ${planConnectionId})
+        ON CONFLICT (workspace_id, date, plan_connection_id) WHERE workspace_id IS NOT NULL
         DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
       `);
     } else {
-      // Default workspace (null workspace_id)
       await db.execute(sql`
-        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (NULL, ${dateStr}, ${costCents})
-        ON CONFLICT (date) WHERE workspace_id IS NULL
+        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents, plan_connection_id)
+        VALUES (NULL, ${dateStr}, ${costCents}, ${planConnectionId})
+        ON CONFLICT (date, plan_connection_id) WHERE workspace_id IS NULL
         DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
       `);
     }
@@ -209,6 +206,43 @@ function appendError(counts: SyncCounts, msg: string): void {
 // Main run function
 // ---------------------------------------------------------------------------
 
+async function syncSinglePlan(
+  adminApiKey: string,
+  planConnectionId: number,
+  counts: SyncCounts,
+  opts?: RunOptions
+): Promise<void> {
+  // Non-fatal — cost sync can proceed without workspace metadata
+  try {
+    counts.createdCount += await fetchAndUpsertWorkspaces(adminApiKey, planConnectionId);
+  } catch (err) {
+    const msg = `Workspace metadata sync failed: ${err instanceof Error ? err.message : String(err)}`;
+    appendError(counts, msg);
+    console.warn(`[anthropic-api-costs] ${msg} — continuing with cost sync`);
+  }
+
+  if (opts?.backfillStartDate) {
+    const start = opts.backfillStartDate;
+    const now = new Date();
+    const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+
+    while (current <= now) {
+      const month = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
+      try {
+        counts.updatedCount += await fetchAndUpsertWorkspaceCosts(adminApiKey, planConnectionId, month);
+      } catch (err) {
+        appendError(counts, `Backfill failed for ${month}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      current.setUTCMonth(current.getUTCMonth() + 1);
+    }
+  } else {
+    const now = new Date();
+    const month = opts?.month ??
+      `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    counts.updatedCount += await fetchAndUpsertWorkspaceCosts(adminApiKey, planConnectionId, month);
+  }
+}
+
 export async function run(
   triggeredBy?: number,
   opts?: RunOptions
@@ -219,8 +253,9 @@ export async function run(
       triggeredBy,
       operationType: opts?.backfillStartDate ? "backfill" : "regular",
       backfillStartDate: opts?.backfillStartDate,
+      planConnectionId: opts?.planConnectionId,
     },
-    async (eventId) => {
+    async () => {
       const counts: SyncCounts = {
         createdCount: 0,
         updatedCount: 0,
@@ -228,43 +263,36 @@ export async function run(
         errorCount: 0,
       };
 
-      // Non-fatal — cost sync can proceed without workspace metadata
-      try {
-        counts.createdCount = await fetchAndUpsertWorkspaces();
-      } catch (err) {
-        const msg = `Workspace metadata sync failed: ${err instanceof Error ? err.message : String(err)}`;
-        appendError(counts, msg);
-        console.warn(`[anthropic-api-costs] ${msg} — continuing with cost sync`);
+      // Determine which plans to sync
+      let plans: { id: number; adminApiKeyEncrypted: string; label: string }[];
+      if (opts?.planConnectionId) {
+        const plan = await db.query.anthropicPlanConnections.findFirst({
+          where: eq(anthropicPlanConnections.id, opts.planConnectionId),
+        });
+        if (!plan || plan.status !== "active") {
+          appendError(counts, `Plan connection ${opts.planConnectionId} not found or not active`);
+          return counts;
+        }
+        plans = [plan];
+      } else {
+        plans = await db
+          .select()
+          .from(anthropicPlanConnections)
+          .where(eq(anthropicPlanConnections.status, "active"));
       }
 
-      if (opts?.backfillStartDate) {
-        const start = opts.backfillStartDate;
-        const now = new Date();
-        const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-        const failedMonths: string[] = [];
+      if (plans.length === 0) {
+        counts.skippedCount = 1;
+        appendError(counts, "No active plan connections found");
+        return counts;
+      }
 
-        while (current <= now) {
-          const month = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
-          try {
-            counts.updatedCount += await fetchAndUpsertWorkspaceCosts(month);
-          } catch (err) {
-            failedMonths.push(month);
-            appendError(counts, `Backfill failed for ${month}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-          current.setUTCMonth(current.getUTCMonth() + 1);
-        }
-
-        if (failedMonths.length > 0) {
-          console.warn(`[anthropic-api-costs] Backfill failed for months: ${failedMonths.join(", ")}`);
-        }
-      } else {
+      for (const plan of plans) {
         try {
-          const now = new Date();
-          const month = opts?.month ??
-            `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-          counts.updatedCount = await fetchAndUpsertWorkspaceCosts(month);
+          const adminApiKey = await decryptApiKey(plan.adminApiKeyEncrypted);
+          await syncSinglePlan(adminApiKey, plan.id, counts, opts);
         } catch (err) {
-          appendError(counts, `Cost sync failed: ${err instanceof Error ? err.message : String(err)}`);
+          appendError(counts, `Plan "${plan.label}" failed: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 

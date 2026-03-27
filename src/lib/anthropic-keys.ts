@@ -16,21 +16,14 @@ export const orgApiKeysResponseSchema = z.object({
 
 export type OrgApiKey = z.infer<typeof orgApiKeySchema>;
 
-export async function fetchOrgApiKeys(): Promise<OrgApiKey[]> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
-  if (!adminKey) {
-    throw new Error(
-      "ANTHROPIC_ADMIN_API_KEY environment variable is not set"
-    );
-  }
-
+export async function fetchOrgApiKeys(adminApiKey: string): Promise<OrgApiKey[]> {
   const url =
     "https://api.anthropic.com/v1/organizations/api_keys?status=active&limit=100";
 
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      "x-api-key": adminKey,
+      "x-api-key": adminApiKey,
       "anthropic-version": ANTHROPIC_API_VERSION,
       "Content-Type": "application/json",
     },

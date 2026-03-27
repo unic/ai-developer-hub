@@ -76,12 +76,11 @@ export const anthropicToolFilter = sql`(${aiTools.vendor} ILIKE '%anthropic%' OR
 // ---------------------------------------------------------------------------
 
 export async function fetchAnthropicUsage(
+  adminApiKey: string,
   startingAt: string,
   endingAt: string,
   apiKeyIds?: string[]
 ): Promise<z.infer<typeof usageReportResponseSchema>> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
-  if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
   // Build query string manually — URLSearchParams encodes [] as %5B%5D
   // which the Anthropic API does not recognise for array parameters.
@@ -112,7 +111,7 @@ export async function fetchAnthropicUsage(
 
     const res = await fetch(`${baseUrl}?${query}`, {
       headers: {
-        "x-api-key": adminKey,
+        "x-api-key": adminApiKey,
         "anthropic-version": ANTHROPIC_API_VERSION,
         "Content-Type": "application/json",
       },
