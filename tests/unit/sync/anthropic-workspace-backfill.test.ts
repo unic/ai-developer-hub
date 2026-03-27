@@ -169,7 +169,7 @@ describe("anthropic-workspace backfill error handling", () => {
     // just verify the error message references some month.
     expect(
       (capturedCounts as { errorMessage?: string }).errorMessage
-    ).toMatch(/Backfill failed for months: \d{4}-\d{2}/);
+    ).toMatch(/Backfill failed for \d{4}-\d{2}/);
 
     vi.useRealTimers();
   });
@@ -239,7 +239,7 @@ describe("anthropic-workspace backfill error handling", () => {
     const msg = (capturedCounts as { errorMessage: string }).errorMessage;
     // Should contain both workspace and backfill error info
     expect(msg).toContain("Workspace metadata sync failed");
-    expect(msg).toMatch(/Backfill failed for months: \d{4}-\d{2}/);
+    expect(msg).toMatch(/Backfill failed for \d{4}-\d{2}/);
 
     vi.useRealTimers();
   });

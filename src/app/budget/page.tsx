@@ -28,7 +28,7 @@ export default async function BudgetPage() {
     getBudgets(),
   ]);
 
-  // Load full cost data for the active budget (depends on activeBudget)
+  // Sequential — depends on activeBudget result above
   const activeBudgetWithCosts = activeBudget
     ? await getBudgetWithCosts(activeBudget.id)
     : null;
@@ -48,7 +48,6 @@ export default async function BudgetPage() {
       (s, p) => s + p.billedTotalCents,
       0
     ) ?? 0;
-  // Fetch running API costs for each period in parallel
   let totalRunning = 0;
   if (activeBudgetWithCosts) {
     const runningResults = await Promise.all(
@@ -130,7 +129,7 @@ export default async function BudgetPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    {hasRunningCosts ? "Actual (incl. API)" : "Billed"}
+                    Actual{hasRunningCosts && " (incl. API)"}
                   </p>
                   <p className="text-2xl font-bold">
                     {formatCurrency(totalActual)}
