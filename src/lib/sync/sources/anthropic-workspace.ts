@@ -195,6 +195,17 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers — error tracking
+// ---------------------------------------------------------------------------
+
+function appendError(counts: SyncCounts, msg: string): void {
+  counts.errorCount++;
+  counts.errorMessage = counts.errorMessage
+    ? `${counts.errorMessage}; ${msg}`
+    : msg;
+}
+
+// ---------------------------------------------------------------------------
 // Main run function
 // ---------------------------------------------------------------------------
 
@@ -217,39 +228,44 @@ export async function run(
         errorCount: 0,
       };
 
+      // Non-fatal — cost sync can proceed without workspace metadata
       try {
-        // Sync workspace metadata
         counts.createdCount = await fetchAndUpsertWorkspaces();
       } catch (err) {
-        counts.errorCount++;
-        counts.errorMessage = `Workspace metadata sync failed: ${err instanceof Error ? err.message : String(err)}`;
-        return counts;
+        const msg = `Workspace metadata sync failed: ${err instanceof Error ? err.message : String(err)}`;
+        appendError(counts, msg);
+        console.warn(`[anthropic-api-costs] ${msg} — continuing with cost sync`);
       }
 
-      try {
-        if (opts?.backfillStartDate) {
-          // Backfill: iterate month by month
-          const start = opts.backfillStartDate;
-          const now = new Date();
-          const current = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
+      if (opts?.backfillStartDate) {
+        const start = opts.backfillStartDate;
+        const now = new Date();
+        const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+        const failedMonths: string[] = [];
 
-          while (current <= now) {
-            const month = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
+        while (current <= now) {
+          const month = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
+          try {
             counts.updatedCount += await fetchAndUpsertWorkspaceCosts(month);
-            current.setUTCMonth(current.getUTCMonth() + 1);
+          } catch (err) {
+            failedMonths.push(month);
+            appendError(counts, `Backfill failed for ${month}: ${err instanceof Error ? err.message : String(err)}`);
           }
-        } else {
-          // Regular sync: current month only
-          const month = opts?.month ??
-            `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
-          counts.updatedCount = await fetchAndUpsertWorkspaceCosts(month);
+          current.setUTCMonth(current.getUTCMonth() + 1);
         }
-      } catch (err) {
-        counts.errorCount++;
-        const msg = err instanceof Error ? err.message : String(err);
-        counts.errorMessage = counts.errorMessage
-          ? `${counts.errorMessage}; Cost sync failed: ${msg}`
-          : `Cost sync failed: ${msg}`;
+
+        if (failedMonths.length > 0) {
+          console.warn(`[anthropic-api-costs] Backfill failed for months: ${failedMonths.join(", ")}`);
+        }
+      } else {
+        try {
+          const now = new Date();
+          const month = opts?.month ??
+            `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+          counts.updatedCount = await fetchAndUpsertWorkspaceCosts(month);
+        } catch (err) {
+          appendError(counts, `Cost sync failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       return counts;

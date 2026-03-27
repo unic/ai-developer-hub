@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { AuthGuard } from "@/components/auth-guard";
 import { BudgetTable } from "./budget-table";
+import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 
 export default async function BudgetPage() {
   const session = await auth();
@@ -27,7 +28,7 @@ export default async function BudgetPage() {
     getBudgets(),
   ]);
 
-  // Load full cost data for the active budget (depends on activeBudget)
+  // Sequential — depends on activeBudget result above
   const activeBudgetWithCosts = activeBudget
     ? await getBudgetWithCosts(activeBudget.id)
     : null;
@@ -47,7 +48,20 @@ export default async function BudgetPage() {
       (s, p) => s + p.billedTotalCents,
       0
     ) ?? 0;
-  const billedVariance = totalBilled - totalExpected;
+  let totalRunning = 0;
+  if (activeBudgetWithCosts) {
+    const runningResults = await Promise.all(
+      activeBudgetWithCosts.periods.map((p) => getRunningCostsForPeriod(p.id))
+    );
+    totalRunning = runningResults.reduce(
+      (s, r) => s + (r?.runningCostCents ?? 0),
+      0
+    );
+  }
+
+  const totalActual = totalBilled + totalRunning;
+  const hasRunningCosts = totalRunning > 0;
+  const actualVariance = totalActual - totalExpected;
 
   return (
     <AuthGuard requiredRole="admin">
@@ -114,9 +128,11 @@ export default async function BudgetPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Billed</p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasRunningCosts ? "Actual (incl. API)" : "Billed"}
+                  </p>
                   <p className="text-2xl font-bold">
-                    {formatCurrency(totalBilled)}
+                    {formatCurrency(totalActual)}
                   </p>
                 </div>
                 <div>
@@ -124,9 +140,9 @@ export default async function BudgetPage() {
                     Variance
                   </p>
                   <p
-                    className={`text-2xl font-bold ${varianceClassName(billedVariance)}`}
+                    className={`text-2xl font-bold ${varianceClassName(actualVariance)}`}
                   >
-                    {formatVariance(billedVariance)}
+                    {formatVariance(actualVariance)}
                   </p>
                 </div>
               </div>

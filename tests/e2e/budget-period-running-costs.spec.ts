@@ -24,4 +24,15 @@ test.describe("Budget Period Running Costs", () => {
     // This test verifies the section structure exists when data is present
     // In a real environment with seeded data, this would be more specific
   });
+
+  test("budget overview shows Billed or Actual label for cost summary", async ({ page }) => {
+    await page.goto("/budget");
+    await page.waitForSelector("h1");
+
+    // Without seeded running cost data, the overview shows "Billed".
+    // With running costs it would show "Actual (incl. API)".
+    // Assert the baseline label is visible.
+    const billedLabel = page.getByText("Billed");
+    await expect(billedLabel).toBeVisible();
+  });
 });
