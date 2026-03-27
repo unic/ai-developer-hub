@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import {
   anthropicUsageMetrics,
   anthropicSyncStatus,
+  anthropicPlanConnections,
   licenseAssignments,
   aiTools,
 } from "@/lib/db/schema";
@@ -135,12 +136,18 @@ export async function fetchAnthropicUsage(
 // Helper: resolve all api_key_id → userId mappings
 // ---------------------------------------------------------------------------
 
-export async function resolveAllMappings(): Promise<Map<string, number>> {
+export async function resolveAllMappings(
+  adminApiKey: string,
+  planConnectionId: number
+): Promise<Map<string, number>> {
   const mapping = new Map<string, number>();
 
-  // Get existing cached mappings
+  // Get existing cached mappings for this plan
   const existing = await db.query.anthropicSyncStatus.findMany({
-    where: isNotNull(anthropicSyncStatus.resolvedApiKeyId),
+    where: and(
+      isNotNull(anthropicSyncStatus.resolvedApiKeyId),
+      eq(anthropicSyncStatus.planConnectionId, planConnectionId)
+    ),
   });
   for (const row of existing) {
     if (row.resolvedApiKeyId) {
@@ -165,46 +172,40 @@ export async function resolveAllMappings(): Promise<Map<string, number>> {
       )
     );
 
-  // Build a set of existing sync status rows with their timestamps for staleness check
+  // Build a set of existing sync status rows for staleness check
   const existingSyncMap = new Map(
     existing.map((row) => [row.userId, row])
   );
 
   // Re-resolve if: no cached mapping, or the assignment was updated after the last resolve
   const needsResolve = usersWithKeys.filter((u) => {
-    if (!mapping.has(u.userId.toString()) && !Array.from(mapping.values()).includes(u.userId)) {
-      // No cached mapping for this user
+    if (!Array.from(mapping.values()).includes(u.userId)) {
       return true;
     }
-    // Check if key was updated since we last resolved
     const syncRow = existingSyncMap.get(u.userId);
     if (syncRow?.resolvedApiKeyId && u.keyUpdatedAt > (syncRow.lastSyncCompletedAt ?? new Date(0))) {
       return true;
     }
     return false;
   });
-  const mappedUserIds = new Set(mapping.values());
-  const unmapped = needsResolve;
 
-  if (unmapped.length > 0) {
-    // Fetch org API keys to resolve
-    const orgKeys = await fetchOrgApiKeys();
+  if (needsResolve.length > 0) {
+    const orgKeys = await fetchOrgApiKeys(adminApiKey);
 
-    for (const u of unmapped) {
+    for (const u of needsResolve) {
       if (!u.apiKeyEncrypted) continue;
       try {
         const decrypted = await decryptApiKey(u.apiKeyEncrypted);
         const apiKeyId = resolveApiKeyId(decrypted, orgKeys);
         if (apiKeyId) {
           mapping.set(apiKeyId, u.userId);
-          // Upsert sync status with resolved ID
-          await db
-            .insert(anthropicSyncStatus)
-            .values({ userId: u.userId, resolvedApiKeyId: apiKeyId })
-            .onConflictDoUpdate({
-              target: [anthropicSyncStatus.userId],
-              set: { resolvedApiKeyId: apiKeyId },
-            });
+          // Upsert sync status with resolved ID and plan
+          await db.execute(sql`
+            INSERT INTO anthropic_sync_status (user_id, resolved_api_key_id, plan_connection_id)
+            VALUES (${u.userId}, ${apiKeyId}, ${planConnectionId})
+            ON CONFLICT (user_id, plan_connection_id)
+            DO UPDATE SET resolved_api_key_id = ${apiKeyId}
+          `);
         }
       } catch (err) {
         console.error(`Failed to resolve API key for user ${u.userId}:`, err);
@@ -247,7 +248,8 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
 export function prepareUsageRow(
   userId: number,
   bucketDate: string,
-  result: z.infer<typeof usageBucketResultSchema>
+  result: z.infer<typeof usageBucketResultSchema>,
+  planConnectionId?: number
 ) {
   const model = result.model;
   if (!model) return null;
@@ -276,6 +278,7 @@ export function prepareUsageRow(
     outputTokens: result.output_tokens,
     computedCostCents: costCents,
     pricingResolved: resolved,
+    ...(planConnectionId != null ? { planConnectionId } : {}),
     updatedAt: new Date(),
   };
 }
@@ -299,6 +302,7 @@ export async function batchUpsertUsageRows(
           anthropicUsageMetrics.userId,
           anthropicUsageMetrics.date,
           anthropicUsageMetrics.model,
+          anthropicUsageMetrics.planConnectionId,
         ],
         set: {
           uncachedInputTokens: sql`excluded.uncached_input_tokens`,
@@ -320,93 +324,72 @@ export async function batchUpsertUsageRows(
 export async function runAnthropicSyncCore(): Promise<SyncSummary> {
   const summary: SyncSummary = { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [] };
 
-  // Ensure sentinel row exists (userId=0) for status tracking
-  await db
-    .insert(anthropicSyncStatus)
-    .values({ userId: LOCK_USER_ID })
-    .onConflictDoNothing({ target: [anthropicSyncStatus.userId] });
+  // Get all active plan connections
+  const plans = await db
+    .select()
+    .from(anthropicPlanConnections)
+    .where(eq(anthropicPlanConnections.status, "active"));
 
-  // Mark sync start on sentinel row
-  await db
-    .update(anthropicSyncStatus)
-    .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
-    .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
+  if (plans.length === 0) {
+    summary.errors.push({ userId: 0, error: "No active plan connections found" });
+    return summary;
+  }
 
-  try {
-    // Resolve all mappings
-    const apiKeyToUser = await resolveAllMappings();
-    if (apiKeyToUser.size === 0) {
-      return { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [{ userId: 0, error: "No users with resolved API keys" }] };
-    }
+  for (const plan of plans) {
+    try {
+      const adminApiKey = await decryptApiKey(plan.adminApiKeyEncrypted);
 
-    // Incremental sync: start from the latest stored date (or 31 days back)
-    // This handles month boundaries correctly — if cron was down, it backfills
-    const oldestLatest = await db
-      .select({ maxDate: sql<string>`MAX(${anthropicUsageMetrics.date})` })
-      .from(anthropicUsageMetrics);
-
-    const { startingAt, endingAt } = computeSyncWindow(oldestLatest[0]?.maxDate ?? null);
-
-    // Fetch all org usage in one call
-    const response = await fetchAnthropicUsage(startingAt, endingAt);
-
-    // Track which users received data and unique synced days
-    const usersWithData = new Set<number>();
-    const syncedDates = new Set<string>();
-
-    // Collect all rows for batch upsert
-    const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
-
-    for (const bucket of response.data) {
-      const bucketDate = bucket.starting_at.split("T")[0];
-
-      for (const result of bucket.results) {
-        const apiKeyId = result.api_key_id;
-        const model = result.model;
-        if (!apiKeyId || !model) continue;
-
-        const userId = apiKeyToUser.get(apiKeyId);
-        if (!userId) continue;
-
-        usersWithData.add(userId);
-        syncedDates.add(bucketDate);
-
-        const row = prepareUsageRow(userId, bucketDate, result);
-        if (row) pendingRows.push(row);
+      // Resolve all mappings for this plan
+      const apiKeyToUser = await resolveAllMappings(adminApiKey, plan.id);
+      if (apiKeyToUser.size === 0) {
+        summary.skippedUsers++;
+        continue;
       }
+
+      // Incremental sync: start from the latest stored date for this plan
+      const oldestLatest = await db
+        .select({ maxDate: sql<string>`MAX(${anthropicUsageMetrics.date})` })
+        .from(anthropicUsageMetrics)
+        .where(eq(anthropicUsageMetrics.planConnectionId, plan.id));
+
+      const { startingAt, endingAt } = computeSyncWindow(oldestLatest[0]?.maxDate ?? null);
+
+      // Fetch all org usage for this plan
+      const response = await fetchAnthropicUsage(adminApiKey, startingAt, endingAt);
+
+      const usersWithData = new Set<number>();
+      const syncedDates = new Set<string>();
+      const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
+
+      for (const bucket of response.data) {
+        const bucketDate = bucket.starting_at.split("T")[0];
+
+        for (const result of bucket.results) {
+          const apiKeyId = result.api_key_id;
+          const model = result.model;
+          if (!apiKeyId || !model) continue;
+
+          const userId = apiKeyToUser.get(apiKeyId);
+          if (!userId) continue;
+
+          usersWithData.add(userId);
+          syncedDates.add(bucketDate);
+
+          const row = prepareUsageRow(userId, bucketDate, result, plan.id);
+          if (row) pendingRows.push(row);
+        }
+      }
+
+      await batchUpsertUsageRows(pendingRows);
+
+      summary.syncedUsers += usersWithData.size;
+      summary.syncedDays += syncedDates.size;
+      summary.skippedUsers += new Set(apiKeyToUser.values()).size - usersWithData.size;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`Anthropic sync failed for plan "${plan.label}":`, errorMsg);
+      summary.errors.push({ userId: 0, error: `Plan "${plan.label}": ${errorMsg}` });
     }
-
-    // Batch upsert all collected rows
-    await batchUpsertUsageRows(pendingRows);
-
-    // Batch update sync status for all users that received data
-    const userIds = Array.from(usersWithData);
-    if (userIds.length > 0) {
-      await db
-        .update(anthropicSyncStatus)
-        .set({ lastSyncCompletedAt: new Date(), lastSyncError: null })
-        .where(inArray(anthropicSyncStatus.userId, userIds));
-    }
-
-    // Mark completion on sentinel row (including syncedDays)
-    const totalSyncedDays = syncedDates.size;
-    await db
-      .update(anthropicSyncStatus)
-      .set({ lastSyncCompletedAt: new Date(), lastSyncError: null, syncedDays: totalSyncedDays })
-      .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
-
-    summary.syncedUsers = usersWithData.size;
-    summary.syncedDays = totalSyncedDays;
-    summary.skippedUsers = new Set(apiKeyToUser.values()).size - usersWithData.size;
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error("Anthropic sync failed:", errorMsg);
-    // Set error on sentinel row only
-    await db
-      .update(anthropicSyncStatus)
-      .set({ lastSyncError: errorMsg.slice(0, 500) })
-      .where(eq(anthropicSyncStatus.userId, LOCK_USER_ID));
-    summary.errors.push({ userId: 0, error: errorMsg });
   }
 
   return summary;
@@ -417,49 +400,7 @@ export async function runAnthropicSyncCore(): Promise<SyncSummary> {
 // ---------------------------------------------------------------------------
 
 export async function runAnthropicSync(): Promise<SyncSummary> {
-  // Ensure sentinel row exists
-  await db
-    .insert(anthropicSyncStatus)
-    .values({ userId: LOCK_USER_ID })
-    .onConflictDoNothing({ target: [anthropicSyncStatus.userId] });
-
-  // Atomic lock acquisition: only proceed if the row is not locked or lock is stale
-  const now = new Date();
-  const staleThreshold = new Date(now.getTime() - LOCK_TIMEOUT_MS);
-  const cooldownThreshold = new Date(now.getTime() - LOCK_COOLDOWN_MS);
-
-  const [lockAcquired] = await db
-    .update(anthropicSyncStatus)
-    .set({ lastSyncStartedAt: now, lastSyncError: null })
-    .where(
-      and(
-        eq(anthropicSyncStatus.userId, LOCK_USER_ID),
-        sql`(
-          ${anthropicSyncStatus.lastSyncStartedAt} IS NULL
-          OR (
-            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
-            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
-            AND ${anthropicSyncStatus.lastSyncCompletedAt} < ${cooldownThreshold}
-          )
-          OR (
-            ${anthropicSyncStatus.lastSyncCompletedAt} IS NOT NULL
-            AND ${anthropicSyncStatus.lastSyncCompletedAt} >= ${anthropicSyncStatus.lastSyncStartedAt}
-            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${cooldownThreshold}
-          )
-          OR (
-            (${anthropicSyncStatus.lastSyncCompletedAt} IS NULL
-             OR ${anthropicSyncStatus.lastSyncCompletedAt} < ${anthropicSyncStatus.lastSyncStartedAt})
-            AND ${anthropicSyncStatus.lastSyncStartedAt} < ${staleThreshold}
-          )
-        )`
-      )
-    )
-    .returning();
-
-  if (!lockAcquired) {
-    return { syncedUsers: 0, skippedUsers: 0, syncedDays: 0, errors: [{ userId: 0, error: "Sync already in progress or completed recently" }] };
-  }
-
+  // Locking is now handled by the sync framework (withSyncLock in anthropic-usage source)
   return runAnthropicSyncCore();
 }
 
@@ -468,64 +409,87 @@ export async function runAnthropicSync(): Promise<SyncSummary> {
 // ---------------------------------------------------------------------------
 
 export async function syncSingleUser(userId: number): Promise<{ syncedDays: number; latestDate: string | null }> {
-  // Get or create sync status
-  let syncStatus = await db.query.anthropicSyncStatus.findFirst({
-    where: eq(anthropicSyncStatus.userId, userId),
+  // Find the user's resolved plan by checking sync status
+  const existingSyncStatus = await db.query.anthropicSyncStatus.findFirst({
+    where: and(
+      eq(anthropicSyncStatus.userId, userId),
+      isNotNull(anthropicSyncStatus.planConnectionId)
+    ),
   });
 
-  if (!syncStatus) {
-    const [created] = await db
-      .insert(anthropicSyncStatus)
-      .values({ userId })
-      .returning();
-    syncStatus = created;
+  // Get the user's API key assignment
+  const [assignment] = await db
+    .select({
+      apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
+    })
+    .from(licenseAssignments)
+    .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
+    .where(
+      and(
+        eq(licenseAssignments.userId, userId),
+        eq(licenseAssignments.status, "active"),
+        isNotNull(licenseAssignments.apiKeyEncrypted),
+        anthropicToolFilter
+      )
+    )
+    .limit(1);
+
+  if (!assignment?.apiKeyEncrypted) {
+    throw new Error("No API key configured for this user");
   }
 
-  // Mark sync start time
-  await db
-    .update(anthropicSyncStatus)
-    .set({ lastSyncStartedAt: new Date(), lastSyncError: null })
-    .where(eq(anthropicSyncStatus.userId, userId));
+  // If we have a cached plan, use it. Otherwise, resolve across all plans.
+  let resolvedPlanId: number | null = existingSyncStatus?.planConnectionId ?? null;
+  let resolvedApiKeyId = existingSyncStatus?.resolvedApiKeyId ?? null;
+  let adminApiKey: string | null = null;
+
+  if (resolvedPlanId && resolvedApiKeyId) {
+    // Use cached plan
+    const plan = await db.query.anthropicPlanConnections.findFirst({
+      where: and(
+        eq(anthropicPlanConnections.id, resolvedPlanId),
+        eq(anthropicPlanConnections.status, "active")
+      ),
+    });
+    if (plan) {
+      adminApiKey = await decryptApiKey(plan.adminApiKeyEncrypted);
+    }
+  }
+
+  // If no cached plan or plan was disconnected, resolve across all active plans
+  if (!adminApiKey) {
+    const plans = await db
+      .select()
+      .from(anthropicPlanConnections)
+      .where(eq(anthropicPlanConnections.status, "active"));
+
+    const decryptedUserKey = await decryptApiKey(assignment.apiKeyEncrypted);
+
+    for (const plan of plans) {
+      const planAdminKey = await decryptApiKey(plan.adminApiKeyEncrypted);
+      const orgKeys = await fetchOrgApiKeys(planAdminKey);
+      const keyId = resolveApiKeyId(decryptedUserKey, orgKeys);
+      if (keyId) {
+        resolvedPlanId = plan.id;
+        resolvedApiKeyId = keyId;
+        adminApiKey = planAdminKey;
+        // Cache the resolution
+        await db.execute(sql`
+          INSERT INTO anthropic_sync_status (user_id, resolved_api_key_id, plan_connection_id)
+          VALUES (${userId}, ${keyId}, ${plan.id})
+          ON CONFLICT (user_id, plan_connection_id)
+          DO UPDATE SET resolved_api_key_id = ${keyId}
+        `);
+        break;
+      }
+    }
+  }
+
+  if (!adminApiKey || !resolvedApiKeyId || !resolvedPlanId) {
+    throw new Error("Could not resolve API key ID from any active plan");
+  }
 
   try {
-    // Resolve API key ID if not cached
-    if (!syncStatus.resolvedApiKeyId) {
-      const [assignment] = await db
-        .select({
-          apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
-        })
-        .from(licenseAssignments)
-        .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
-        .where(
-          and(
-            eq(licenseAssignments.userId, userId),
-            eq(licenseAssignments.status, "active"),
-            isNotNull(licenseAssignments.apiKeyEncrypted),
-            anthropicToolFilter
-          )
-        )
-        .limit(1);
-
-      if (!assignment?.apiKeyEncrypted) {
-        throw new Error("No API key configured for this user");
-      }
-
-      const decrypted = await decryptApiKey(assignment.apiKeyEncrypted);
-      const orgKeys = await fetchOrgApiKeys();
-      const apiKeyId = resolveApiKeyId(decrypted, orgKeys);
-      if (!apiKeyId) {
-        throw new Error("Could not resolve API key ID from org keys");
-      }
-
-      await db
-        .update(anthropicSyncStatus)
-        .set({ resolvedApiKeyId: apiKeyId })
-        .where(eq(anthropicSyncStatus.userId, userId));
-
-      syncStatus = { ...syncStatus, resolvedApiKeyId: apiKeyId };
-    }
-
-    // Determine start date
     const latestRow = await db.query.anthropicUsageMetrics.findFirst({
       where: eq(anthropicUsageMetrics.userId, userId),
       orderBy: desc(anthropicUsageMetrics.date),
@@ -533,50 +497,30 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
 
     const { startingAt, endingAt } = computeSyncWindow(latestRow?.date ?? null);
 
-    // Fetch filtered by this user's API key
-    const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId!]);
+    const response = await fetchAnthropicUsage(adminApiKey, startingAt, endingAt, [resolvedApiKeyId]);
 
-    // Collect all rows for batch upsert
     const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
     let syncedDays = 0;
     let latestDate: string | null = null;
 
     for (const bucket of response.data) {
       const bucketDate = bucket.starting_at.split("T")[0];
-
       for (const result of bucket.results) {
-        const row = prepareUsageRow(userId, bucketDate, result);
+        const row = prepareUsageRow(userId, bucketDate, result, resolvedPlanId);
         if (row) pendingRows.push(row);
       }
-
       syncedDays++;
       if (!latestDate || bucketDate > latestDate) {
         latestDate = bucketDate;
       }
     }
 
-    // Batch upsert all collected rows
     await batchUpsertUsageRows(pendingRows);
-
-    await db
-      .update(anthropicSyncStatus)
-      .set({
-        lastSyncCompletedAt: new Date(),
-        lastSyncError: null,
-        syncedDays,
-      })
-      .where(eq(anthropicSyncStatus.userId, userId));
 
     return { syncedDays, latestDate };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    await db
-      .update(anthropicSyncStatus)
-      .set({
-        lastSyncError: errorMsg.slice(0, 500),
-        lastSyncCompletedAt: new Date(),
-      })
-      .where(eq(anthropicSyncStatus.userId, userId));
+    console.error(`Single-user sync failed for user ${userId}:`, errorMsg);
     throw err;
   }
 }

@@ -11,12 +11,13 @@
 import { db } from "@/lib/db";
 import {
   anthropicUsageMetrics,
+  anthropicPlanConnections,
   licenseAssignments,
   aiTools,
   accessTiers,
   users,
 } from "@/lib/db/schema";
-import { eq, and, between, isNotNull } from "drizzle-orm";
+import { eq, and, between, isNotNull, inArray, sql } from "drizzle-orm";
 import { anthropicToolFilter } from "@/lib/anthropic-sync";
 import type {
   CostData,
@@ -30,7 +31,8 @@ import type {
 
 export async function fetchUserCostDataInternal(
   userId: number,
-  month?: string
+  month?: string,
+  opts?: { includePlanLabel?: boolean }
 ): Promise<CostData> {
   // Determine month boundaries (UTC-consistent)
   const now = new Date();
@@ -94,14 +96,32 @@ export async function fetchUserCostDataInternal(
     };
   }
 
-  // Query usage metrics for the user in the date range
+  // Query usage metrics for the user in the date range, filtered to active plans
   const metrics = await db
-    .select()
+    .select({
+      id: anthropicUsageMetrics.id,
+      userId: anthropicUsageMetrics.userId,
+      date: anthropicUsageMetrics.date,
+      model: anthropicUsageMetrics.model,
+      uncachedInputTokens: anthropicUsageMetrics.uncachedInputTokens,
+      cacheReadInputTokens: anthropicUsageMetrics.cacheReadInputTokens,
+      cacheCreationInputTokens: anthropicUsageMetrics.cacheCreationInputTokens,
+      outputTokens: anthropicUsageMetrics.outputTokens,
+      computedCostCents: anthropicUsageMetrics.computedCostCents,
+      pricingResolved: anthropicUsageMetrics.pricingResolved,
+      planConnectionId: anthropicUsageMetrics.planConnectionId,
+      planLabel: anthropicPlanConnections.label,
+    })
     .from(anthropicUsageMetrics)
+    .innerJoin(
+      anthropicPlanConnections,
+      eq(anthropicUsageMetrics.planConnectionId, anthropicPlanConnections.id)
+    )
     .where(
       and(
         eq(anthropicUsageMetrics.userId, userId),
-        between(anthropicUsageMetrics.date, startDate, endDate)
+        between(anthropicUsageMetrics.date, startDate, endDate),
+        eq(anthropicPlanConnections.status, "active")
       )
     )
     .orderBy(anthropicUsageMetrics.date);
@@ -168,12 +188,20 @@ export async function fetchUserCostDataInternal(
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // Determine plan label if admin requested it and there's a single plan
+  let planLabel: string | undefined;
+  if (opts?.includePlanLabel && metrics.length > 0) {
+    const uniqueLabels = [...new Set(metrics.map((m) => m.planLabel))];
+    planLabel = uniqueLabels.length === 1 ? uniqueLabels[0] : `${uniqueLabels.length} plans`;
+  }
+
   return {
     available: true,
     monthlyTotalCents,
     dailyBreakdown,
     latestDataDate,
     hasUnresolvedPricing,
+    ...(planLabel ? { planLabel } : {}),
   };
 }
 
