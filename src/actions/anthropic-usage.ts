@@ -55,7 +55,10 @@ export async function getUserCostData(
     };
   }
 
-  return fetchUserCostDataInternal(userId, month);
+  const isAdmin = session.user.role === "admin";
+  return fetchUserCostDataInternal(userId, month, {
+    includePlanLabel: isAdmin && callerId !== userId,
+  });
 }
 
 // ---------------------------------------------------------------------------

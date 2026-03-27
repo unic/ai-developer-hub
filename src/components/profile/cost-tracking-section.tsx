@@ -7,6 +7,7 @@ import { MonthPicker } from "./month-picker";
 import { formatCurrency, getCurrentMonth } from "@/lib/utils";
 import { getUserCostData } from "@/actions/anthropic-usage";
 import { CostChart } from "@/components/cost-chart";
+import { Badge } from "@/components/ui/badge";
 import { DollarSign, Info, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { CostData } from "@/types";
@@ -134,7 +135,14 @@ export function CostTrackingSection({
 
         {/* Monthly total */}
         <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Monthly Total</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-muted-foreground">Monthly Total</p>
+            {costData.planLabel && (
+              <Badge variant="outline" className="text-xs">
+                {costData.planLabel}
+              </Badge>
+            )}
+          </div>
           <p className={`text-3xl font-bold ${isPending ? "opacity-50" : ""}`}>
             {formatCurrency(costData.monthlyTotalCents)}
           </p>
