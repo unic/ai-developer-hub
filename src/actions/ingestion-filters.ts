@@ -123,13 +123,16 @@ export async function updateIngestionFilter(
   if (updates.enabled !== undefined) setValues.enabled = updates.enabled;
   if (updates.priority !== undefined) setValues.priority = updates.priority;
 
-  await db
+  const [updated] = await db
     .update(ingestionFilters)
     .set(setValues)
-    .where(eq(ingestionFilters.id, id));
+    .where(eq(ingestionFilters.id, id))
+    .returning({ id: ingestionFilters.id });
+
+  if (!updated) return { success: false, error: "Filter not found" };
 
   revalidatePath("/settings/ingestion");
-  return { success: true, data: { id } };
+  return { success: true, data: { id: updated.id } };
 }
 
 export async function deleteIngestionFilter(

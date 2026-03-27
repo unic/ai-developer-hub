@@ -27,9 +27,13 @@ export default async function IngestionSettingsPage() {
           documents.
         </p>
       </div>
-      <IngestionFiltersSection
-        filters={filtersResult.success ? filtersResult.data : []}
-      />
+      {filtersResult.success ? (
+        <IngestionFiltersSection filters={filtersResult.data} />
+      ) : (
+        <div className="text-destructive">
+          Error loading filters: {filtersResult.error}
+        </div>
+      )}
       <IngestionHistoryTable data={historyResult.data} />
     </div>
   );

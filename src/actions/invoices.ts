@@ -17,7 +17,7 @@ import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction
 import { recordCreation } from "@/actions/history";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
-import { evaluateIngestionFilters } from "@/lib/ingestion-filters";
+import { evaluateIngestionFilters, fetchEnabledFilterRules } from "@/lib/ingestion-filters";
 import type { ActionResult } from "@/types";
 
 export async function extractInvoiceFieldsAction(
@@ -323,7 +323,8 @@ type SaveInvoiceResult =
 
 export async function saveInvoice(
   input: CreateInvoiceInput,
-  channel: "manual" | "bulk" = "manual"
+  channel: "manual" | "bulk" = "manual",
+  preloadedFilterRules?: Awaited<ReturnType<typeof fetchEnabledFilterRules>>
 ): Promise<SaveInvoiceResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -348,10 +349,10 @@ export async function saveInvoice(
   const { invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = parsed.data;
 
   // Evaluate ingestion filters before insert to set filteredOut in one query
-  const filterResult = await evaluateIngestionFilters({
-    vendor: vendor ?? null,
-    invoiceNumber,
-  });
+  const filterResult = await evaluateIngestionFilters(
+    { vendor: vendor ?? null, invoiceNumber },
+    preloadedFilterRules
+  );
 
   let newId: number;
   try {
@@ -483,6 +484,9 @@ export async function saveBulkInvoices(
 
   const outcomes: BulkSaveOutcome[] = [];
 
+  // Preload filter rules once for the entire bulk operation
+  const filterRules = await fetchEnabledFilterRules();
+
   for (const { filename, skip, skipReason, ...invoiceInput } of inputs) {
     if (skip) {
       await cleanupBlob(invoiceInput.blobPathname);
@@ -500,7 +504,7 @@ export async function saveBulkInvoices(
     }
 
     try {
-      const result = await saveInvoice(invoiceInput, "bulk");
+      const result = await saveInvoice(invoiceInput, "bulk", filterRules);
       if (result.success) {
         outcomes.push({
           filename,

@@ -369,16 +369,31 @@ export const createIngestionFilterSchema = z
     { message: "Value shape must match the selected field type" }
   );
 
-export const updateIngestionFilterSchema = z.object({
-  id: z.number().int().positive(),
-  name: z.string().min(1).max(255).optional(),
-  mode: z.enum(["whitelist", "blacklist"]).optional(),
-  value: z
-    .union([vendorFilterValueSchema, invoiceNumberFilterValueSchema])
-    .optional(),
-  enabled: z.boolean().optional(),
-  priority: z.number().int().min(0).optional(),
-});
+export const updateIngestionFilterSchema = z
+  .object({
+    id: z.number().int().positive(),
+    name: z.string().min(1).max(255).optional(),
+    field: z.enum(["vendor", "invoice_number"]).optional(),
+    mode: z.enum(["whitelist", "blacklist"]).optional(),
+    value: z
+      .union([vendorFilterValueSchema, invoiceNumberFilterValueSchema])
+      .optional(),
+    enabled: z.boolean().optional(),
+    priority: z.number().int().min(0).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.value === undefined) return true;
+      if (!data.field) return false;
+      if (data.field === "vendor") return "values" in data.value;
+      if (data.field === "invoice_number") return "pattern" in data.value;
+      return false;
+    },
+    {
+      message:
+        "When updating value, field must be provided and value shape must match the field type",
+    }
+  );
 
 export const deleteIngestionFilterSchema = z.object({
   id: z.number().int().positive(),

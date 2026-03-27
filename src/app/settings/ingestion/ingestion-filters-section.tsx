@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ function buildValue(form: FormState) {
 export function IngestionFiltersSection({
   filters,
 }: IngestionFiltersSectionProps) {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
@@ -138,6 +140,7 @@ export function IngestionFiltersSection({
         ? await updateIngestionFilter({
             id: editingId,
             name: form.name,
+            field: form.field,
             mode: form.mode,
             value,
             priority,
@@ -153,6 +156,7 @@ export function IngestionFiltersSection({
       if (result.success) {
         toast.success(editingId ? "Filter updated" : "Filter created");
         setDialogOpen(false);
+        router.refresh();
       } else {
         toast.error(result.error);
       }
@@ -162,7 +166,11 @@ export function IngestionFiltersSection({
   function handleToggle(id: number) {
     startTransition(async () => {
       const result = await toggleIngestionFilter(id);
-      if (!result.success) toast.error(result.error);
+      if (result.success) {
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
     });
   }
 
@@ -174,6 +182,7 @@ export function IngestionFiltersSection({
       const result = await deleteIngestionFilter(id);
       if (result.success) {
         toast.success("Filter deleted");
+        router.refresh();
       } else {
         toast.error(result.error);
       }

@@ -3,7 +3,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { ingestionFilters } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
-import type { VendorFilterValue, InvoiceNumberFilterValue } from "@/lib/validators";
+import {
+  vendorFilterValueSchema,
+  invoiceNumberFilterValueSchema,
+} from "@/lib/validators";
 
 export interface FilterEvaluationResult {
   filteredOut: boolean;
@@ -87,15 +90,19 @@ function matchesRule(
 ): boolean {
   if (rule.field === "vendor") {
     if (!invoice.vendor) return false;
-    const { values } = rule.value as VendorFilterValue;
+    const parsed = vendorFilterValueSchema.safeParse(rule.value);
+    if (!parsed.success) return false;
     const vendorLower = invoice.vendor.toLowerCase();
-    return values.some((v) => vendorLower.includes(v.toLowerCase()));
+    return parsed.data.values.some((v) =>
+      vendorLower.includes(v.toLowerCase())
+    );
   }
 
   if (rule.field === "invoice_number") {
-    const { pattern } = rule.value as InvoiceNumberFilterValue;
+    const parsed = invoiceNumberFilterValueSchema.safeParse(rule.value);
+    if (!parsed.success) return false;
     try {
-      const regex = new RegExp(pattern, "i");
+      const regex = new RegExp(parsed.data.pattern, "i");
       return regex.test(invoice.invoiceNumber);
     } catch {
       return false;

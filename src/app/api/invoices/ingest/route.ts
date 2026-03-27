@@ -169,9 +169,12 @@ export async function POST(request: NextRequest) {
 
     const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
 
+    // Normalize vendor once so filter evaluation and persistence are consistent
+    const resolvedVendor = vendor ?? "Anthropic";
+
     // Evaluate ingestion filters before budget linking
     const filterResult = await evaluateIngestionFilters({
-      vendor: vendor ?? null,
+      vendor: resolvedVendor,
       invoiceNumber,
     });
 
@@ -183,7 +186,7 @@ export async function POST(request: NextRequest) {
           invoiceNumber,
           invoiceDate,
           amountCents,
-          vendor: vendor ?? "Anthropic",
+          vendor: resolvedVendor,
           blobUrl,
           blobPathname: objectKey,
           uploadedBy: SYSTEM_ADMIN_USER_ID,
@@ -193,7 +196,7 @@ export async function POST(request: NextRequest) {
 
       await logIngestionAttempt({
         filename: file.name,
-        vendor: vendor ?? "Anthropic",
+        vendor: resolvedVendor,
         invoiceNumber,
         invoiceDate,
         amountCents,
@@ -211,7 +214,7 @@ export async function POST(request: NextRequest) {
           invoiceNumber,
           invoiceDate,
           amountCents,
-          vendor: vendor ?? "Anthropic",
+          vendor: resolvedVendor,
           action: "filtered" as const,
           filterReason: filterResult.reason,
         },
@@ -254,7 +257,7 @@ export async function POST(request: NextRequest) {
           invoiceNumber,
           invoiceDate,
           amountCents,
-          vendor: vendor ?? "Anthropic",
+          vendor: resolvedVendor,
           blobUrl,
           blobPathname: objectKey,
           uploadedBy: SYSTEM_ADMIN_USER_ID,
@@ -267,7 +270,7 @@ export async function POST(request: NextRequest) {
 
     await logIngestionAttempt({
       filename: file.name,
-      vendor: vendor ?? "Anthropic",
+      vendor: resolvedVendor,
       invoiceNumber,
       invoiceDate,
       amountCents,
@@ -284,7 +287,7 @@ export async function POST(request: NextRequest) {
         invoiceNumber,
         invoiceDate,
         amountCents,
-        vendor: vendor ?? "Anthropic",
+        vendor: resolvedVendor,
         action: result.action,
         linkedPeriodId: period?.id ?? null,
         linkedPeriodLabel: period?.periodLabel ?? null,
