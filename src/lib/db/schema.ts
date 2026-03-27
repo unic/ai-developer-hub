@@ -85,6 +85,12 @@ export const ingestionChannelEnum = pgEnum("ingestion_channel", [
   "bulk",
 ]);
 
+// Anthropic plan connection enum (026-multiple-api-plans)
+export const anthropicPlanStatusEnum = pgEnum("anthropic_plan_status", [
+  "active",
+  "disconnected",
+]);
+
 // Sync framework enums (019-invoice-automations)
 export const syncSourceTypeEnum = pgEnum("sync_source_type", [
   "github_copilot_billing",
@@ -547,14 +553,18 @@ export const anthropicUsageMetrics = pgTable(
       .default(0),
     computedCostCents: integer("computed_cost_cents").notNull().default(0),
     pricingResolved: boolean("pricing_resolved").notNull().default(true),
+    planConnectionId: integer("plan_connection_id")
+      .notNull()
+      .references(() => anthropicPlanConnections.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("anthropic_usage_metrics_user_date_model_idx").on(
+    uniqueIndex("anthropic_usage_metrics_user_date_model_plan_idx").on(
       table.userId,
       table.date,
-      table.model
+      table.model,
+      table.planConnectionId
     ),
     index("anthropic_usage_metrics_user_date_idx").on(table.userId, table.date),
     index("anthropic_usage_metrics_date_idx").on(table.date),
@@ -574,9 +584,15 @@ export const anthropicSyncStatus = pgTable(
     lastSyncError: varchar("last_sync_error", { length: 500 }),
     syncedDays: integer("synced_days").notNull().default(0),
     resolvedApiKeyId: varchar("resolved_api_key_id", { length: 100 }),
+    planConnectionId: integer("plan_connection_id"),
     workspaceSyncCompletedAt: timestamp("workspace_sync_completed_at"),
   },
-  (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
+  (table) => [
+    uniqueIndex("anthropic_sync_status_user_plan_idx").on(
+      table.userId,
+      table.planConnectionId
+    ),
+  ]
 );
 
 // Sync Sources (019-invoice-automations)
@@ -607,6 +623,9 @@ export const syncEvents = pgTable(
     startedAt: timestamp("started_at").notNull().defaultNow(),
     completedAt: timestamp("completed_at"),
     triggeredBy: integer("triggered_by").references(() => users.id),
+    planConnectionId: integer("plan_connection_id").references(
+      () => anthropicPlanConnections.id
+    ),
     createdCount: integer("created_count").notNull().default(0),
     updatedCount: integer("updated_count").notNull().default(0),
     skippedCount: integer("skipped_count").notNull().default(0),
@@ -669,15 +688,18 @@ export const anthropicWorkspaces = pgTable(
     archivedAt: timestamp("archived_at"),
     anthropicCreatedAt: timestamp("anthropic_created_at"),
     lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    planConnectionId: integer("plan_connection_id")
+      .notNull()
+      .references(() => anthropicPlanConnections.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("anthropic_workspaces_workspace_id_idx")
-      .on(table.workspaceId)
+    uniqueIndex("anthropic_workspaces_workspace_plan_idx")
+      .on(table.workspaceId, table.planConnectionId)
       .where(sql`${table.workspaceId} IS NOT NULL`),
-    uniqueIndex("anthropic_workspaces_is_default_idx")
-      .on(table.isDefault)
+    uniqueIndex("anthropic_workspaces_default_plan_idx")
+      .on(table.planConnectionId, table.isDefault)
       .where(sql`${table.isDefault} = true`),
     index("anthropic_workspaces_archived_idx").on(table.isArchived),
   ]
@@ -691,15 +713,18 @@ export const anthropicWorkspaceCosts = pgTable(
     workspaceId: varchar("workspace_id", { length: 100 }),
     date: date("date").notNull(),
     costCents: integer("cost_cents").notNull(),
+    planConnectionId: integer("plan_connection_id")
+      .notNull()
+      .references(() => anthropicPlanConnections.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("anthropic_workspace_costs_workspace_date_idx")
-      .on(table.workspaceId, table.date)
+    uniqueIndex("anthropic_workspace_costs_ws_date_plan_idx")
+      .on(table.workspaceId, table.date, table.planConnectionId)
       .where(sql`${table.workspaceId} IS NOT NULL`),
-    uniqueIndex("anthropic_workspace_costs_default_date_idx")
-      .on(table.date)
+    uniqueIndex("anthropic_workspace_costs_default_date_plan_idx")
+      .on(table.date, table.planConnectionId)
       .where(sql`${table.workspaceId} IS NULL`),
     index("anthropic_workspace_costs_date_idx").on(table.date),
     index("anthropic_workspace_costs_workspace_id_idx").on(table.workspaceId),
@@ -738,6 +763,28 @@ export const anthropicOrgConfig = pgTable(
   },
   (table) => [
     check("anthropic_org_config_id_check", sql`${table.id} = 1`),
+  ]
+);
+
+// Anthropic Plan Connections (026-multiple-api-plans)
+export const anthropicPlanConnections = pgTable(
+  "anthropic_plan_connections",
+  {
+    id: serial("id").primaryKey(),
+    label: varchar("label", { length: 200 }).notNull(),
+    adminApiKeyEncrypted: varchar("admin_api_key_encrypted", { length: 700 }).notNull(),
+    adminApiKeyHint: varchar("admin_api_key_hint", { length: 20 }).notNull(),
+    status: anthropicPlanStatusEnum("status").notNull().default("active"),
+    disconnectedAt: timestamp("disconnected_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    createdBy: integer("created_by").references(() => users.id),
+  },
+  (table) => [
+    uniqueIndex("anthropic_plan_connections_hint_active_idx")
+      .on(table.adminApiKeyHint)
+      .where(sql`${table.status} = 'active'`),
+    index("anthropic_plan_connections_status_idx").on(table.status),
   ]
 );
 

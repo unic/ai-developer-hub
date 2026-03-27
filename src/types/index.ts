@@ -19,6 +19,7 @@ import type {
   anthropicWorkspaceCosts,
   anthropicWorkspaceLimits,
   anthropicOrgConfig,
+  anthropicPlanConnections,
 } from "@/lib/db/schema";
 
 // Action result type
@@ -439,6 +440,7 @@ export type CostData = {
   dailyBreakdown: DailyBreakdown[];
   latestDataDate: string | null;
   hasUnresolvedPricing: boolean;
+  planLabel?: string;
 };
 
 export type ProfileData = {
@@ -476,6 +478,8 @@ export interface GlobalCostDashboardData {
   workspaceBreakdown: {
     workspaceId: string | null;
     name: string;
+    planLabel?: string;
+    planConnectionId?: number;
     totalCents: number;
     dailyTotals: { date: string; costCents: number }[];
   }[];
@@ -505,3 +509,17 @@ export interface ActiveAlertsData {
 }
 
 export type OrgCreditsStatus = { available: false; reason: string };
+
+// 026-multiple-api-plans types
+export type AnthropicPlanConnection = InferSelectModel<typeof anthropicPlanConnections>;
+export type NewAnthropicPlanConnection = InferInsertModel<typeof anthropicPlanConnections>;
+export type AnthropicPlanStatus = "active" | "disconnected";
+
+export interface PlanConnectionListItem {
+  id: number;
+  label: string;
+  adminApiKeyHint: string;
+  status: AnthropicPlanStatus;
+  createdAt: Date;
+  disconnectedAt: Date | null;
+}
