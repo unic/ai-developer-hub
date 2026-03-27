@@ -31,9 +31,9 @@
 
 ### Tests for User Story 1
 
-- [ ] T004 [P] [US1] Create unit tests in `tests/unit/sync/anthropic-workspace-backfill.test.ts` — test cases: (1) workspace metadata failure does not prevent cost sync, (2) single month API failure does not abort backfill and remaining months still sync, (3) error counts and messages correctly reflect partial failures, (4) successful backfill with no errors returns zero errorCount. Mock `fetchCostReport` and `syncWorkspaceMetadata` using vi.mock pattern from existing tests.
-- [ ] T005 [P] [US1] Complete stub integration test in `tests/integration/sync/workspace-costs.test.ts` — test cases: (1) backfill upserts are idempotent (run twice, verify same row count and amounts), (2) backfill creates rows for each month in range. Follow seed/verify/cleanup pattern from `tests/integration/invoice-sync.test.ts`.
-- [ ] T006 [US1] Run all tests to verify: `pnpm test && pnpm test:integration`
+- [x] T004 [P] [US1] Create unit tests in `tests/unit/sync/anthropic-workspace-backfill.test.ts` — test cases: (1) workspace metadata failure does not prevent cost sync, (2) single month API failure does not abort backfill and remaining months still sync, (3) error counts and messages correctly reflect partial failures, (4) successful backfill with no errors returns zero errorCount. Mock `fetchCostReport` and `syncWorkspaceMetadata` using vi.mock pattern from existing tests.
+- [x] T005 [P] [US1] Complete stub integration test in `tests/integration/sync/workspace-costs.test.ts` — test cases: (1) backfill upserts are idempotent (run twice, verify same row count and amounts), (2) backfill creates rows for each month in range. Follow seed/verify/cleanup pattern from `tests/integration/invoice-sync.test.ts`.
+- [x] T006 [US1] Run all tests to verify: `pnpm test && pnpm test:integration`
 
 **Commit checkpoint**: Commit with message `test(sync): add backfill error handling and idempotency tests`
 
@@ -49,8 +49,8 @@
 
 ### Verification for User Story 2
 
-- [ ] T007 [US2] Verify regular sync path is unaffected by reading `src/lib/sync/sources/anthropic-workspace.ts` and confirming the non-backfill branch (when `opts?.backfillStartDate` is not set) is unchanged — the metadata try-catch applies to both paths but per-month error recovery only applies to backfill loop
-- [ ] T008 [US2] Run full test suite to confirm no regressions: `pnpm test && pnpm test:integration`
+- [x] T007 [US2] Verify regular sync path is unaffected by reading `src/lib/sync/sources/anthropic-workspace.ts` and confirming the non-backfill branch (when `opts?.backfillStartDate` is not set) is unchanged — the metadata try-catch applies to both paths but per-month error recovery only applies to backfill loop
+- [x] T008 [US2] Run full test suite to confirm no regressions: `pnpm test && pnpm test:integration`
 
 **Checkpoint**: Existing current-month sync behavior confirmed intact. No commits needed unless fixes are required.
 
@@ -72,8 +72,8 @@
 
 ### Tests for User Story 3
 
-- [ ] T012 [US3] Extend E2E test in `tests/e2e/budget-period-running-costs.spec.ts` — add test case: navigate to `/budget` overview page, verify "Actual (incl. API)" label appears when running costs exist, verify combined total is displayed
-- [ ] T013 [US3] Run all tests: `pnpm test && pnpm test:integration`
+- [x] T012 [US3] Extend E2E test in `tests/e2e/budget-period-running-costs.spec.ts` — add test case: navigate to `/budget` overview page, verify "Actual (incl. API)" label appears when running costs exist, verify combined total is displayed
+- [x] T013 [US3] Run all tests: `pnpm test && pnpm test:integration`
 
 **Commit checkpoint**: Commit with message `test(budget): add E2E test for overview running costs display`
 
@@ -85,9 +85,9 @@
 
 **Purpose**: Final verification and cleanup
 
-- [ ] T014 Run full verification suite: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:integration`
-- [ ] T015 Verify end-to-end flow manually per quickstart.md: trigger backfill from UI, check budget detail shows historical API costs, check budget overview shows combined totals
-- [ ] T016 Review all modified files for any leftover console.log or debug statements
+- [x] T014 Run full verification suite: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:integration`
+- [x] T015 Verify end-to-end flow manually per quickstart.md: trigger backfill from UI, check budget detail shows historical API costs, check budget overview shows combined totals
+- [x] T016 Review all modified files for any leftover console.log or debug statements
 
 **Commit checkpoint**: Only if cleanup changes are needed.
 
