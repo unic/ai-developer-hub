@@ -1,4 +1,4 @@
-# AI Developer Hub Development Guidelines
+﻿# AI Developer Hub Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-03-02
 
@@ -51,6 +51,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-02
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, TanStack Table 8.21.3, shadcn/ui (new-york), Lucide React (023-ingestion-history)
 - Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 1 new table, 2 new enums (023-ingestion-history)
 - TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, React 19.2.4 (025-running-api-costs)
+- Neon PostgreSQL (serverless) via `@neondatabase/serverless` — 1 new table (`anthropic_plan_connections`), 4 modified tables (`anthropic_usage_metrics`, `anthropic_sync_status`, `anthropic_workspaces`, `anthropic_workspace_costs`), `sync_events` gains optional column (026-multiple-api-plans)
 
 - **Language**: TypeScript 5.x (strict mode), Node.js LTS
 - **Framework**: Next.js 15 (App Router, Server Components, Server Actions)
@@ -113,9 +114,9 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 026-multiple-api-plans: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, NextAuth 5.0.0-beta.30, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
 - 025-running-api-costs: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), Drizzle ORM 0.45.1, React 19.2.4
 - 023-ingestion-history: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, Drizzle ORM 0.45.1, TanStack Table 8.21.3, shadcn/ui (new-york), Lucide React
-- 022-profile-api-preview: Added TypeScript 5.9.3 (strict mode) + Next.js 15.5.12 (App Router), React 19.2.4, shadcn/ui (new-york), Zod 4.3.6, Sonner (toasts), Lucide React
 
 
 <!-- MANUAL ADDITIONS START -->
