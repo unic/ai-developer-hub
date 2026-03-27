@@ -17,6 +17,7 @@ import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction
 import { recordCreation } from "@/actions/history";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
+import { evaluateIngestionFilters } from "@/lib/ingestion-filters";
 import type { ActionResult } from "@/types";
 
 export async function extractInvoiceFieldsAction(
@@ -317,7 +318,7 @@ export async function overwriteInvoice(
 }
 
 type SaveInvoiceResult =
-  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string }
+  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string; filterWarning?: string }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveInvoice(
@@ -384,6 +385,39 @@ export async function saveInvoice(
   }
 
   await recordCreation("invoice", newId, Number(admin.id));
+
+  // Evaluate ingestion filters before budget linking
+  const filterResult = await evaluateIngestionFilters({
+    vendor: vendor ?? null,
+    invoiceNumber,
+  });
+
+  if (filterResult.filteredOut) {
+    await db
+      .update(invoices)
+      .set({ filteredOut: true })
+      .where(eq(invoices.id, newId));
+
+    await logIngestionAttempt({
+      vendor: vendor ?? null,
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "filtered",
+      errorMessage: filterResult.reason,
+      channel,
+      blobPathname,
+      linkedInvoiceId: newId,
+      uploadedBy: Number(admin.id),
+    });
+
+    revalidatePath("/invoices");
+    return {
+      success: true,
+      data: { id: newId },
+      filterWarning: filterResult.reason ?? "Invoice was filtered by an ingestion rule.",
+    };
+  }
 
   await logIngestionAttempt({
     vendor: vendor ?? null,

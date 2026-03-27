@@ -8,6 +8,7 @@ import { extractInvoiceFields } from "@/lib/invoice-extraction";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
+import { evaluateIngestionFilters } from "@/lib/ingestion-filters";
 
 /** System user ID for automated/API-initiated operations */
 const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
@@ -167,6 +168,55 @@ export async function POST(request: NextRequest) {
     );
 
     const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
+
+    // Evaluate ingestion filters before budget linking
+    const filterResult = await evaluateIngestionFilters({
+      vendor: vendor ?? null,
+      invoiceNumber,
+    });
+
+    if (filterResult.filteredOut) {
+      // Store the invoice but skip budget linking
+      const [newInvoice] = await db
+        .insert(invoices)
+        .values({
+          invoiceNumber,
+          invoiceDate,
+          amountCents,
+          vendor: vendor ?? "Anthropic",
+          blobUrl,
+          blobPathname: objectKey,
+          uploadedBy: SYSTEM_ADMIN_USER_ID,
+          filteredOut: true,
+        })
+        .returning({ id: invoices.id });
+
+      await logIngestionAttempt({
+        filename: file.name,
+        vendor: vendor ?? "Anthropic",
+        invoiceNumber,
+        invoiceDate,
+        amountCents,
+        outcome: "filtered",
+        errorMessage: filterResult.reason,
+        channel: "api",
+        blobPathname: objectKey,
+        linkedInvoiceId: newInvoice.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          invoiceId: newInvoice.id,
+          invoiceNumber,
+          invoiceDate,
+          amountCents,
+          vendor: vendor ?? "Anthropic",
+          action: "filtered" as const,
+          filterReason: filterResult.reason,
+        },
+      });
+    }
 
     // Find matching budget period
     const period = await findPeriodForDate(invoiceDate);
