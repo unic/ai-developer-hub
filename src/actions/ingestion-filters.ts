@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { ingestionFilters, users } from "@/lib/db/schema";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import {
@@ -157,18 +157,20 @@ export async function toggleIngestionFilter(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const existing = await db.query.ingestionFilters.findFirst({
-    where: eq(ingestionFilters.id, id),
-  });
-
-  if (!existing) return { success: false, error: "Filter not found" };
-
-  const newEnabled = !existing.enabled;
-  await db
+  const [updated] = await db
     .update(ingestionFilters)
-    .set({ enabled: newEnabled, updatedAt: new Date() })
-    .where(eq(ingestionFilters.id, id));
+    .set({
+      enabled: sql`NOT ${ingestionFilters.enabled}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(ingestionFilters.id, id))
+    .returning({
+      id: ingestionFilters.id,
+      enabled: ingestionFilters.enabled,
+    });
+
+  if (!updated) return { success: false, error: "Filter not found" };
 
   revalidatePath("/settings/ingestion");
-  return { success: true, data: { id, enabled: newEnabled } };
+  return { success: true, data: { id: updated.id, enabled: updated.enabled } };
 }

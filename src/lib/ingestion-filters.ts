@@ -16,15 +16,22 @@ export interface FilterEvaluationResult {
   reason: string | null;
 }
 
-export async function evaluateIngestionFilters(invoice: {
-  vendor: string | null;
-  invoiceNumber: string;
-}): Promise<FilterEvaluationResult> {
-  const rules = await db
+type IngestionFilterRule = typeof ingestionFilters.$inferSelect;
+
+/** Fetch all enabled rules, ordered by priority. Cache this for bulk operations. */
+export async function fetchEnabledFilterRules(): Promise<IngestionFilterRule[]> {
+  return db
     .select()
     .from(ingestionFilters)
     .where(eq(ingestionFilters.enabled, true))
     .orderBy(asc(ingestionFilters.priority), asc(ingestionFilters.id));
+}
+
+export async function evaluateIngestionFilters(
+  invoice: { vendor: string | null; invoiceNumber: string },
+  preloadedRules?: IngestionFilterRule[]
+): Promise<FilterEvaluationResult> {
+  const rules = preloadedRules ?? (await fetchEnabledFilterRules());
 
   if (rules.length === 0) {
     return { filteredOut: false, matchedRule: null, reason: null };

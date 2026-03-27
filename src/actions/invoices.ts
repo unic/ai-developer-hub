@@ -347,6 +347,12 @@ export async function saveInvoice(
 
   const { invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = parsed.data;
 
+  // Evaluate ingestion filters before insert to set filteredOut in one query
+  const filterResult = await evaluateIngestionFilters({
+    vendor: vendor ?? null,
+    invoiceNumber,
+  });
+
   let newId: number;
   try {
     const [created] = await db
@@ -359,6 +365,7 @@ export async function saveInvoice(
         blobUrl,
         blobPathname,
         uploadedBy: Number(admin.id),
+        filteredOut: filterResult.filteredOut,
       })
       .returning({ id: invoices.id });
     newId = created.id;
@@ -386,18 +393,7 @@ export async function saveInvoice(
 
   await recordCreation("invoice", newId, Number(admin.id));
 
-  // Evaluate ingestion filters before budget linking
-  const filterResult = await evaluateIngestionFilters({
-    vendor: vendor ?? null,
-    invoiceNumber,
-  });
-
   if (filterResult.filteredOut) {
-    await db
-      .update(invoices)
-      .set({ filteredOut: true })
-      .where(eq(invoices.id, newId));
-
     await logIngestionAttempt({
       vendor: vendor ?? null,
       invoiceNumber,
