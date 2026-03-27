@@ -61,10 +61,22 @@ export const inviteTokenStatusEnum = pgEnum("invite_token_status", [
   "invalidated",
 ]);
 
+// Ingestion filter enums (024-ingestion-filter)
+export const filterFieldEnum = pgEnum("filter_field", [
+  "vendor",
+  "invoice_number",
+]);
+
+export const filterModeEnum = pgEnum("filter_mode", [
+  "whitelist",
+  "blacklist",
+]);
+
 // Ingestion log enums (023-ingestion-history)
 export const ingestionOutcomeEnum = pgEnum("ingestion_outcome", [
   "success",
   "failed",
+  "filtered",
 ]);
 
 export const ingestionChannelEnum = pgEnum("ingestion_channel", [
@@ -351,6 +363,7 @@ export const invoices = pgTable(
     ),
     blobUrl: text("blob_url").notNull(),
     blobPathname: text("blob_pathname").notNull(),
+    filteredOut: boolean("filtered_out").notNull().default(false),
     uploadedBy: integer("uploaded_by")
       .notNull()
       .references(() => users.id),
@@ -928,3 +941,33 @@ export const ingestionLogRelations = relations(ingestionLog, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+// Ingestion Filters (024-ingestion-filter)
+export const ingestionFilters = pgTable(
+  "ingestion_filters",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    field: filterFieldEnum("field").notNull(),
+    mode: filterModeEnum("mode").notNull(),
+    value: jsonb("value").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    priority: integer("priority").notNull().default(0),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("ingestion_filters_enabled_idx").on(table.enabled)]
+);
+
+export const ingestionFiltersRelations = relations(
+  ingestionFilters,
+  ({ one }) => ({
+    creator: one(users, {
+      fields: [ingestionFilters.createdBy],
+      references: [users.id],
+    }),
+  })
+);
