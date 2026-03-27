@@ -19,10 +19,10 @@
 
 **Purpose**: Schema changes, new table, migration, and shared type definitions
 
-- [ ] T001 Add `anthropic_plan_status` enum and `anthropic_plan_connections` table to Drizzle schema in `src/lib/db/schema.ts`
-- [ ] T002 Add `planConnectionId` column (nullable initially) to `anthropic_usage_metrics`, `anthropic_sync_status`, `anthropic_workspaces`, `anthropic_workspace_costs`, and `sync_events` tables in `src/lib/db/schema.ts`
-- [ ] T003 Add plan-connection-related TypeScript types to `src/types/index.ts` (PlanConnection, PlanConnectionStatus, extended CostData with planLabel, extended GlobalCostDashboardData with planLabel/planConnectionId on workspace breakdown)
-- [ ] T004 Generate Drizzle migration files with `pnpm db:generate`
+- [x] T001 Add `anthropic_plan_status` enum and `anthropic_plan_connections` table to Drizzle schema in `src/lib/db/schema.ts`
+- [x] T002 Add `planConnectionId` column (nullable initially) to `anthropic_usage_metrics`, `anthropic_sync_status`, `anthropic_workspaces`, `anthropic_workspace_costs`, and `sync_events` tables in `src/lib/db/schema.ts`
+- [x] T003 Add plan-connection-related TypeScript types to `src/types/index.ts` (PlanConnection, PlanConnectionStatus, extended CostData with planLabel, extended GlobalCostDashboardData with planLabel/planConnectionId on workspace breakdown)
+- [x] T004 Generate Drizzle migration files with `pnpm db:generate`
 
 **Checkpoint**: Schema definitions complete, migration files generated. Ready for foundational work.
 
@@ -34,14 +34,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Write migration SQL to create `anthropic_plan_connections` table, auto-import `ANTHROPIC_ADMIN_API_KEY` env var as first plan connection (encrypt with existing `encryptApiKey()` from `src/lib/crypto.ts`, generate hint with `maskApiKey()`), backfill all existing rows in modified tables with the first plan's ID, then set `planConnectionId` columns to NOT NULL, drop old unique indexes, and create new composite indexes — in `drizzle/` migration file
-- [ ] T006 Refactor `fetchOrgApiKeys()` in `src/lib/anthropic-keys.ts` to accept explicit `adminApiKey: string` parameter instead of reading `process.env.ANTHROPIC_ADMIN_API_KEY`
-- [ ] T007 [P] Refactor `fetchAnthropicUsage()` in `src/lib/anthropic-sync.ts` to accept explicit `adminApiKey: string` parameter instead of reading env var
-- [ ] T008 [P] Refactor `fetchWorkspaces()` and `fetchCostReport()` in `src/lib/sync/sources/anthropic-workspace.ts` to accept explicit `adminApiKey: string` parameter instead of reading env var
-- [ ] T009 [P] Refactor `checkAnthropicStatus()` in `src/actions/anthropic-status.ts` to accept optional `adminApiKey?: string` parameter (falls back to env var for backward compat during auto-import)
-- [ ] T010 Add `planConnectionId?: number` to `WithSyncLockParams` in `src/lib/sync/framework.ts` — include it in FNV-32 advisory lock hash computation and store in `sync_events` row on insert
-- [ ] T011 Add helper function `getActivePlanConnections()` in `src/actions/plan-connections.ts` that queries all active plan connections and decrypts their admin API keys (used by sync orchestration)
-- [ ] T012 Apply migration with `pnpm db:migrate` and verify auto-import of env var key
+- [x] T005 Write migration SQL to create `anthropic_plan_connections` table, auto-import `ANTHROPIC_ADMIN_API_KEY` env var as first plan connection (encrypt with existing `encryptApiKey()` from `src/lib/crypto.ts`, generate hint with `maskApiKey()`), backfill all existing rows in modified tables with the first plan's ID, then set `planConnectionId` columns to NOT NULL, drop old unique indexes, and create new composite indexes — in `drizzle/` migration file
+- [x] T006 Refactor `fetchOrgApiKeys()` in `src/lib/anthropic-keys.ts` to accept explicit `adminApiKey: string` parameter instead of reading `process.env.ANTHROPIC_ADMIN_API_KEY`
+- [x] T007 [P] Refactor `fetchAnthropicUsage()` in `src/lib/anthropic-sync.ts` to accept explicit `adminApiKey: string` parameter instead of reading env var
+- [x] T008 [P] Refactor `fetchWorkspaces()` and `fetchCostReport()` in `src/lib/sync/sources/anthropic-workspace.ts` to accept explicit `adminApiKey: string` parameter instead of reading env var
+- [x] T009 [P] Refactor `checkAnthropicStatus()` in `src/actions/anthropic-status.ts` to accept optional `adminApiKey?: string` parameter (falls back to env var for backward compat during auto-import)
+- [x] T010 Add `planConnectionId?: number` to `WithSyncLockParams` in `src/lib/sync/framework.ts` — include it in FNV-32 advisory lock hash computation and store in `sync_events` row on insert
+- [x] T011 Add helper function `getActivePlanConnections()` in `src/actions/plan-connections.ts` that queries all active plan connections and decrypts their admin API keys (used by sync orchestration)
+- [x] T012 Apply migration with `pnpm db:migrate` and verify auto-import of env var key
 
 **Checkpoint**: Foundation ready — all API functions accept plan-specific keys, sync framework supports plan IDs, migration applied. User story implementation can now begin.
 
@@ -55,14 +55,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Create Zod validation schemas for plan connection inputs (label: 1–200 chars trimmed, adminApiKey: non-empty) in `src/lib/validators.ts`
-- [ ] T014 [US1] Implement `getPlanConnections()` server action in `src/actions/plan-connections.ts` — returns all connections with id, label, adminApiKeyHint, status, createdAt, disconnectedAt (admin-only auth check)
-- [ ] T015 [P] [US1] Implement `addPlanConnection(data)` server action in `src/actions/plan-connections.ts` — validates input, checks active count < 10, checks hint uniqueness among active connections, verifies API key via `checkAnthropicStatus(adminApiKey)`, encrypts key, inserts row, returns new connection
-- [ ] T016 [P] [US1] Implement `updatePlanConnectionLabel(id, label)` server action in `src/actions/plan-connections.ts` — validates label, updates row
-- [ ] T017 [P] [US1] Implement `disconnectPlanConnection(id)` server action in `src/actions/plan-connections.ts` — validates connection exists and is active, prevents disconnecting if it's the only active connection, sets status to 'disconnected' and disconnectedAt timestamp
-- [ ] T018 [US1] Create `PlanConnectionsCard` client component in `src/components/settings/plan-connections-card.tsx` — displays list of plan connections with label, masked key hint, status badge (Connected/Disconnected), created date; includes "Add Plan" button opening a dialog with label + API key inputs; edit label inline; disconnect button with confirmation
-- [ ] T019 [US1] Integrate `PlanConnectionsCard` into `/settings/integrations` page in `src/app/settings/integrations/page.tsx` — add below or replace existing `ClaudeCodeStatusCard`, pass plan connections data from server action
-- [ ] T020 [US1] Update `ClaudeCodeStatusCard` in `src/app/settings/integrations/claude-code-status-card.tsx` to show connection status based on active plan connections count rather than env var check — or replace with `PlanConnectionsCard`
+- [x] T013 [US1] Create Zod validation schemas for plan connection inputs (label: 1–200 chars trimmed, adminApiKey: non-empty) in `src/lib/validators.ts`
+- [x] T014 [US1] Implement `getPlanConnections()` server action in `src/actions/plan-connections.ts` — returns all connections with id, label, adminApiKeyHint, status, createdAt, disconnectedAt (admin-only auth check)
+- [x] T015 [P] [US1] Implement `addPlanConnection(data)` server action in `src/actions/plan-connections.ts` — validates input, checks active count < 10, checks hint uniqueness among active connections, verifies API key via `checkAnthropicStatus(adminApiKey)`, encrypts key, inserts row, returns new connection
+- [x] T016 [P] [US1] Implement `updatePlanConnectionLabel(id, label)` server action in `src/actions/plan-connections.ts` — validates label, updates row
+- [x] T017 [P] [US1] Implement `disconnectPlanConnection(id)` server action in `src/actions/plan-connections.ts` — validates connection exists and is active, prevents disconnecting if it's the only active connection, sets status to 'disconnected' and disconnectedAt timestamp
+- [x] T018 [US1] Create `PlanConnectionsCard` client component in `src/components/settings/plan-connections-card.tsx` — displays list of plan connections with label, masked key hint, status badge (Connected/Disconnected), created date; includes "Add Plan" button opening a dialog with label + API key inputs; edit label inline; disconnect button with confirmation
+- [x] T019 [US1] Integrate `PlanConnectionsCard` into `/settings/integrations` page in `src/app/settings/integrations/page.tsx` — add below or replace existing `ClaudeCodeStatusCard`, pass plan connections data from server action
+- [x] T020 [US1] Update `ClaudeCodeStatusCard` in `src/app/settings/integrations/claude-code-status-card.tsx` to show connection status based on active plan connections count rather than env var check — or replace with `PlanConnectionsCard`
 
 **Checkpoint**: Admin can fully manage plan connections via UI. MVP deliverable.
 
@@ -76,13 +76,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Refactor `resolveAllMappings()` in `src/lib/anthropic-sync.ts` to accept `adminApiKey: string` and `planConnectionId: number` — call `fetchOrgApiKeys(adminApiKey)` for that specific plan, resolve user keys against that plan's org keys, cache `planConnectionId` in `anthropicSyncStatus.resolvedApiKeyId` alongside the key ID
-- [ ] T022 [US2] Refactor `runAnthropicSyncCore()` in `src/lib/anthropic-sync.ts` to iterate all active plan connections — for each plan: decrypt admin key, call `resolveAllMappings(adminApiKey, planConnectionId)`, fetch usage via `fetchAnthropicUsage(adminApiKey, ...)`, store results with `planConnectionId` in `anthropicUsageMetrics`
-- [ ] T023 [US2] Update `batchUpsertUsageRows()` in `src/lib/anthropic-sync.ts` to include `planConnectionId` in upsert composite key `(userId, date, model, planConnectionId)` and in the inserted/updated data
-- [ ] T024 [US2] Update `syncSingleUser()` in `src/lib/anthropic-sync.ts` to look up the user's resolved plan connection and use that plan's admin key for the sync
-- [ ] T025 [US2] Update the `run()` function in `src/lib/sync/sources/anthropic-usage.ts` to accept optional `planConnectionId` in `RunOptions` — when omitted, iterate all plans; when specified, sync that plan only. Pass `planConnectionId` to `withSyncLock()` for independent per-plan advisory locks
-- [ ] T026 [US2] Update `fetchUserCostDataInternal()` in `src/lib/profile-data.ts` to query `anthropicUsageMetrics` filtering by active plan connections (exclude disconnected plans' data from user view), aggregating across all plans transparently
-- [ ] T027 [US2] Verify profile page (`src/app/profile/page.tsx`) displays usage correctly without changes — the transparent aggregation in T026 should make this work without UI modifications
+- [x] T021 [US2] Refactor `resolveAllMappings()` in `src/lib/anthropic-sync.ts` to accept `adminApiKey: string` and `planConnectionId: number` — call `fetchOrgApiKeys(adminApiKey)` for that specific plan, resolve user keys against that plan's org keys, cache `planConnectionId` in `anthropicSyncStatus.resolvedApiKeyId` alongside the key ID
+- [x] T022 [US2] Refactor `runAnthropicSyncCore()` in `src/lib/anthropic-sync.ts` to iterate all active plan connections — for each plan: decrypt admin key, call `resolveAllMappings(adminApiKey, planConnectionId)`, fetch usage via `fetchAnthropicUsage(adminApiKey, ...)`, store results with `planConnectionId` in `anthropicUsageMetrics`
+- [x] T023 [US2] Update `batchUpsertUsageRows()` in `src/lib/anthropic-sync.ts` to include `planConnectionId` in upsert composite key `(userId, date, model, planConnectionId)` and in the inserted/updated data
+- [x] T024 [US2] Update `syncSingleUser()` in `src/lib/anthropic-sync.ts` to look up the user's resolved plan connection and use that plan's admin key for the sync
+- [x] T025 [US2] Update the `run()` function in `src/lib/sync/sources/anthropic-usage.ts` to accept optional `planConnectionId` in `RunOptions` — when omitted, iterate all plans; when specified, sync that plan only. Pass `planConnectionId` to `withSyncLock()` for independent per-plan advisory locks
+- [x] T026 [US2] Update `fetchUserCostDataInternal()` in `src/lib/profile-data.ts` to query `anthropicUsageMetrics` filtering by active plan connections (exclude disconnected plans' data from user view), aggregating across all plans transparently
+- [x] T027 [US2] Verify profile page (`src/app/profile/page.tsx`) displays usage correctly without changes — the transparent aggregation in T026 should make this work without UI modifications
 
 **Checkpoint**: Users see their correct usage data regardless of which plan their key belongs to. Sync resolves across all plans.
 
@@ -96,11 +96,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Extend `fetchUserCostDataInternal()` in `src/lib/profile-data.ts` to join `anthropic_plan_connections` table and return `planLabel` when caller is admin — add to return type
-- [ ] T029 [US3] Update `getUserCostData()` server action in `src/actions/anthropic-usage.ts` to pass caller role context so `fetchUserCostDataInternal()` knows whether to include `planLabel`
-- [ ] T030 [US3] Update `CostTrackingSection` component in `src/components/profile/cost-tracking-section.tsx` to accept and display optional `planLabel` prop — show as a subtle badge or label next to the monthly total when present
-- [ ] T031 [US3] Update `AdminCostSection` in `src/components/profile/admin-cost-section.tsx` to pass `planLabel` from cost data to `CostTrackingSection`
-- [ ] T032 [US3] Update user detail page data fetching in `src/app/users/[id]/page.tsx` to pass plan label through to the cost section component
+- [x] T028 [US3] Extend `fetchUserCostDataInternal()` in `src/lib/profile-data.ts` to join `anthropic_plan_connections` table and return `planLabel` when caller is admin — add to return type
+- [x] T029 [US3] Update `getUserCostData()` server action in `src/actions/anthropic-usage.ts` to pass caller role context so `fetchUserCostDataInternal()` knows whether to include `planLabel`
+- [x] T030 [US3] Update `CostTrackingSection` component in `src/components/profile/cost-tracking-section.tsx` to accept and display optional `planLabel` prop — show as a subtle badge or label next to the monthly total when present
+- [x] T031 [US3] Update `AdminCostSection` in `src/components/profile/admin-cost-section.tsx` to pass `planLabel` from cost data to `CostTrackingSection`
+- [x] T032 [US3] Update user detail page data fetching in `src/app/users/[id]/page.tsx` to pass plan label through to the cost section component
 
 **Checkpoint**: Admins see plan attribution on user detail pages. No change to user self-view.
 
@@ -114,12 +114,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] Update the `run()` function in `src/lib/sync/sources/anthropic-workspace.ts` to accept optional `planConnectionId` in `RunOptions` — when omitted iterate all plans; for each plan: decrypt admin key, call `fetchWorkspaces(adminApiKey)` and `fetchCostReport(adminApiKey, ...)`, store results with `planConnectionId` in `anthropicWorkspaces` and `anthropicWorkspaceCosts`
-- [ ] T034 [US4] Update workspace upsert logic in `src/lib/sync/sources/anthropic-workspace.ts` to use composite unique keys including `planConnectionId` — update the partial unique index conflict clauses for both named and default workspaces
-- [ ] T035 [US4] Extend `getGlobalCostDashboard()` server action in `src/actions/anthropic-usage.ts` to accept optional `planConnectionId` filter — when provided filter by plan, when omitted aggregate across all active plans. Add `planLabel` and `planConnectionId` to each workspace breakdown entry
-- [ ] T036 [US4] Extend `getWorkspaceList()` server action to include `planLabel` for each workspace by joining `anthropic_plan_connections`
-- [ ] T037 [US4] Add plan filter dropdown to `GlobalMetricsClient` in `src/components/claude/global-metrics-client.tsx` — populate from active plan connections, add "All Plans" default option, re-fetch dashboard data when plan filter changes
-- [ ] T038 [US4] Update workspace breakdown display in `GlobalMetricsClient` to show plan label alongside workspace name for disambiguation when multiple plans are active
+- [x] T033 [US4] Update the `run()` function in `src/lib/sync/sources/anthropic-workspace.ts` to accept optional `planConnectionId` in `RunOptions` — when omitted iterate all plans; for each plan: decrypt admin key, call `fetchWorkspaces(adminApiKey)` and `fetchCostReport(adminApiKey, ...)`, store results with `planConnectionId` in `anthropicWorkspaces` and `anthropicWorkspaceCosts`
+- [x] T034 [US4] Update workspace upsert logic in `src/lib/sync/sources/anthropic-workspace.ts` to use composite unique keys including `planConnectionId` — update the partial unique index conflict clauses for both named and default workspaces
+- [x] T035 [US4] Extend `getGlobalCostDashboard()` server action in `src/actions/anthropic-usage.ts` to accept optional `planConnectionId` filter — when provided filter by plan, when omitted aggregate across all active plans. Add `planLabel` and `planConnectionId` to each workspace breakdown entry
+- [x] T036 [US4] Extend `getWorkspaceList()` server action to include `planLabel` for each workspace by joining `anthropic_plan_connections`
+- [x] T037 [US4] Add plan filter dropdown to `GlobalMetricsClient` in `src/components/claude/global-metrics-client.tsx` — populate from active plan connections, add "All Plans" default option, re-fetch dashboard data when plan filter changes
+- [x] T038 [US4] Update workspace breakdown display in `GlobalMetricsClient` to show plan label alongside workspace name for disambiguation when multiple plans are active
 
 **Checkpoint**: Dashboard shows aggregated costs with plan filtering. Workspace names disambiguated by plan.
 
@@ -133,11 +133,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T039 [US5] Update the Anthropic usage cron route in `src/app/api/sync/anthropic-usage/route.ts` to support optional `planConnectionId` query parameter — pass to `run()` for plan-specific manual triggers
-- [ ] T040 [P] [US5] Update the Anthropic workspace costs cron route in `src/app/api/sync/anthropic-api-costs/route.ts` to support optional `planConnectionId` query parameter
-- [ ] T041 [US5] Add error isolation in `runAnthropicSyncCore()` in `src/lib/anthropic-sync.ts` — wrap each plan's sync iteration in try/catch so one plan's failure doesn't abort the remaining plans; collect per-plan errors in sync summary
-- [ ] T042 [US5] Update `SyncSummary` type in `src/lib/anthropic-sync.ts` to include per-plan results (plan label, synced users, errors) alongside the existing aggregate totals
-- [ ] T043 [US5] Add manual per-plan sync trigger to `PlanConnectionsCard` in `src/components/settings/plan-connections-card.tsx` — small sync icon button per plan that calls the sync endpoint with `planConnectionId`
+- [x] T039 [US5] Update the Anthropic usage cron route in `src/app/api/sync/anthropic-usage/route.ts` to support optional `planConnectionId` query parameter — pass to `run()` for plan-specific manual triggers
+- [x] T040 [P] [US5] Update the Anthropic workspace costs cron route in `src/app/api/sync/anthropic-api-costs/route.ts` to support optional `planConnectionId` query parameter
+- [x] T041 [US5] Add error isolation in `runAnthropicSyncCore()` in `src/lib/anthropic-sync.ts` — wrap each plan's sync iteration in try/catch so one plan's failure doesn't abort the remaining plans; collect per-plan errors in sync summary
+- [x] T042 [US5] Update `SyncSummary` type in `src/lib/anthropic-sync.ts` to include per-plan results (plan label, synced users, errors) alongside the existing aggregate totals
+- [x] T043 [US5] Add manual per-plan sync trigger to `PlanConnectionsCard` in `src/components/settings/plan-connections-card.tsx` — small sync icon button per plan that calls the sync endpoint with `planConnectionId`
 
 **Checkpoint**: Sync is fully plan-aware with error isolation. All user stories functional.
 
@@ -147,11 +147,11 @@
 
 **Purpose**: Cleanup, edge cases, and validation
 
-- [ ] T044 [P] Add edge case handling for duplicate API key hint detection across plans in `addPlanConnection()` in `src/actions/plan-connections.ts` — warn if a key hint matches across different plans (potential cross-plan key collision)
-- [ ] T045 [P] Update `syncAnthropicUsage()` and `syncAllAnthropicUsage()` manual trigger actions in `src/actions/anthropic-usage.ts` to work with the multi-plan sync orchestration
-- [ ] T046 Run `pnpm typecheck` and fix any TypeScript errors across all modified files
-- [ ] T047 Run `pnpm lint` and fix any ESLint warnings across all modified files
-- [ ] T048 Run quickstart.md validation — verify migration, plan connections UI, sync, profile page, and dashboard all work end-to-end
+- [x] T044 [P] Add edge case handling for duplicate API key hint detection across plans in `addPlanConnection()` in `src/actions/plan-connections.ts` — warn if a key hint matches across different plans (potential cross-plan key collision)
+- [x] T045 [P] Update `syncAnthropicUsage()` and `syncAllAnthropicUsage()` manual trigger actions in `src/actions/anthropic-usage.ts` to work with the multi-plan sync orchestration
+- [x] T046 Run `pnpm typecheck` and fix any TypeScript errors across all modified files
+- [x] T047 Run `pnpm lint` and fix any ESLint warnings across all modified files
+- [x] T048 Run quickstart.md validation — verify migration, plan connections UI, sync, profile page, and dashboard all work end-to-end
 
 ---
 
