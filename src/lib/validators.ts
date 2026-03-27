@@ -325,3 +325,87 @@ export type CopilotDateRangeInput = z.infer<typeof copilotDateRangeSchema>;
 export type CopilotSeatFilterInput = z.infer<typeof copilotSeatFilterSchema>;
 export type CopilotSeatDetailInput = z.infer<typeof copilotSeatDetailSchema>;
 export type ApiPreviewInput = z.infer<typeof apiPreviewSchema>;
+
+// Ingestion filter value schemas (024-ingestion-filter)
+export const vendorFilterValueSchema = z.object({
+  values: z
+    .array(z.string().min(1, "Value cannot be empty").max(255))
+    .min(1, "At least one vendor value is required"),
+});
+
+export const invoiceNumberFilterValueSchema = z.object({
+  pattern: z
+    .string()
+    .min(1, "Pattern is required")
+    .max(500, "Pattern must be 500 characters or less")
+    .refine(
+      (val) => {
+        try {
+          new RegExp(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "Invalid regular expression pattern" }
+    ),
+});
+
+export const createIngestionFilterSchema = z
+  .object({
+    name: z.string().min(1, "Name is required").max(255),
+    field: z.enum(["vendor", "invoice_number"]),
+    mode: z.enum(["whitelist", "blacklist"]),
+    value: z.union([vendorFilterValueSchema, invoiceNumberFilterValueSchema]),
+    enabled: z.boolean().optional(),
+    priority: z.number().int().min(0).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.field === "vendor") return "values" in data.value;
+      if (data.field === "invoice_number") return "pattern" in data.value;
+      return false;
+    },
+    { message: "Value shape must match the selected field type" }
+  );
+
+export const updateIngestionFilterSchema = z
+  .object({
+    id: z.number().int().positive(),
+    name: z.string().min(1).max(255).optional(),
+    field: z.enum(["vendor", "invoice_number"]).optional(),
+    mode: z.enum(["whitelist", "blacklist"]).optional(),
+    value: z
+      .union([vendorFilterValueSchema, invoiceNumberFilterValueSchema])
+      .optional(),
+    enabled: z.boolean().optional(),
+    priority: z.number().int().min(0).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.value === undefined) return true;
+      if (!data.field) return false;
+      if (data.field === "vendor") return "values" in data.value;
+      if (data.field === "invoice_number") return "pattern" in data.value;
+      return false;
+    },
+    {
+      message:
+        "When updating value, field must be provided and value shape must match the field type",
+    }
+  );
+
+export const deleteIngestionFilterSchema = z.object({
+  id: z.number().int().positive(),
+});
+
+export type VendorFilterValue = z.infer<typeof vendorFilterValueSchema>;
+export type InvoiceNumberFilterValue = z.infer<
+  typeof invoiceNumberFilterValueSchema
+>;
+export type CreateIngestionFilterInput = z.infer<
+  typeof createIngestionFilterSchema
+>;
+export type UpdateIngestionFilterInput = z.infer<
+  typeof updateIngestionFilterSchema
+>;

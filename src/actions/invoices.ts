@@ -17,6 +17,7 @@ import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction
 import { recordCreation } from "@/actions/history";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
+import { evaluateIngestionFilters, fetchEnabledFilterRules } from "@/lib/ingestion-filters";
 import type { ActionResult } from "@/types";
 
 export async function extractInvoiceFieldsAction(
@@ -317,12 +318,13 @@ export async function overwriteInvoice(
 }
 
 type SaveInvoiceResult =
-  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string }
+  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string; filterWarning?: string }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveInvoice(
   input: CreateInvoiceInput,
-  channel: "manual" | "bulk" = "manual"
+  channel: "manual" | "bulk" = "manual",
+  preloadedFilterRules?: Awaited<ReturnType<typeof fetchEnabledFilterRules>>
 ): Promise<SaveInvoiceResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -346,6 +348,12 @@ export async function saveInvoice(
 
   const { invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = parsed.data;
 
+  // Evaluate ingestion filters before insert to set filteredOut in one query
+  const filterResult = await evaluateIngestionFilters(
+    { vendor: vendor ?? null, invoiceNumber },
+    preloadedFilterRules
+  );
+
   let newId: number;
   try {
     const [created] = await db
@@ -358,6 +366,7 @@ export async function saveInvoice(
         blobUrl,
         blobPathname,
         uploadedBy: Number(admin.id),
+        filteredOut: filterResult.filteredOut,
       })
       .returning({ id: invoices.id });
     newId = created.id;
@@ -384,6 +393,28 @@ export async function saveInvoice(
   }
 
   await recordCreation("invoice", newId, Number(admin.id));
+
+  if (filterResult.filteredOut) {
+    await logIngestionAttempt({
+      vendor: vendor ?? null,
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "filtered",
+      errorMessage: filterResult.reason,
+      channel,
+      blobPathname,
+      linkedInvoiceId: newId,
+      uploadedBy: Number(admin.id),
+    });
+
+    revalidatePath("/invoices");
+    return {
+      success: true,
+      data: { id: newId },
+      filterWarning: filterResult.reason ?? "Invoice was filtered by an ingestion rule.",
+    };
+  }
 
   await logIngestionAttempt({
     vendor: vendor ?? null,
@@ -453,6 +484,9 @@ export async function saveBulkInvoices(
 
   const outcomes: BulkSaveOutcome[] = [];
 
+  // Preload filter rules once for the entire bulk operation
+  const filterRules = await fetchEnabledFilterRules();
+
   for (const { filename, skip, skipReason, ...invoiceInput } of inputs) {
     if (skip) {
       await cleanupBlob(invoiceInput.blobPathname);
@@ -470,7 +504,7 @@ export async function saveBulkInvoices(
     }
 
     try {
-      const result = await saveInvoice(invoiceInput, "bulk");
+      const result = await saveInvoice(invoiceInput, "bulk", filterRules);
       if (result.success) {
         outcomes.push({
           filename,

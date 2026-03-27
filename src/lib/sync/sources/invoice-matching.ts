@@ -47,7 +47,8 @@ export async function run(
         })
         .from(invoices)
         .leftJoin(billedCosts, eq(invoices.linkedBilledCostId, billedCosts.id))
-        .leftJoin(budgetPeriods, eq(billedCosts.periodId, budgetPeriods.id));
+        .leftJoin(budgetPeriods, eq(billedCosts.periodId, budgetPeriods.id))
+        .where(eq(invoices.filteredOut, false));
 
       // Bulk-load all budget periods pre-sorted for matching
       const allPeriods = (

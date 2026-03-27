@@ -8,6 +8,7 @@ import { extractInvoiceFields } from "@/lib/invoice-extraction";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
+import { evaluateIngestionFilters } from "@/lib/ingestion-filters";
 
 /** System user ID for automated/API-initiated operations */
 const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
@@ -168,6 +169,58 @@ export async function POST(request: NextRequest) {
 
     const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
 
+    // Normalize vendor once so filter evaluation and persistence are consistent
+    const resolvedVendor = vendor ?? "Anthropic";
+
+    // Evaluate ingestion filters before budget linking
+    const filterResult = await evaluateIngestionFilters({
+      vendor: resolvedVendor,
+      invoiceNumber,
+    });
+
+    if (filterResult.filteredOut) {
+      // Store the invoice but skip budget linking
+      const [newInvoice] = await db
+        .insert(invoices)
+        .values({
+          invoiceNumber,
+          invoiceDate,
+          amountCents,
+          vendor: resolvedVendor,
+          blobUrl,
+          blobPathname: objectKey,
+          uploadedBy: SYSTEM_ADMIN_USER_ID,
+          filteredOut: true,
+        })
+        .returning({ id: invoices.id });
+
+      await logIngestionAttempt({
+        filename: file.name,
+        vendor: resolvedVendor,
+        invoiceNumber,
+        invoiceDate,
+        amountCents,
+        outcome: "filtered",
+        errorMessage: filterResult.reason,
+        channel: "api",
+        blobPathname: objectKey,
+        linkedInvoiceId: newInvoice.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          invoiceId: newInvoice.id,
+          invoiceNumber,
+          invoiceDate,
+          amountCents,
+          vendor: resolvedVendor,
+          action: "filtered" as const,
+          filterReason: filterResult.reason,
+        },
+      });
+    }
+
     // Find matching budget period
     const period = await findPeriodForDate(invoiceDate);
 
@@ -204,7 +257,7 @@ export async function POST(request: NextRequest) {
           invoiceNumber,
           invoiceDate,
           amountCents,
-          vendor: vendor ?? "Anthropic",
+          vendor: resolvedVendor,
           blobUrl,
           blobPathname: objectKey,
           uploadedBy: SYSTEM_ADMIN_USER_ID,
@@ -217,7 +270,7 @@ export async function POST(request: NextRequest) {
 
     await logIngestionAttempt({
       filename: file.name,
-      vendor: vendor ?? "Anthropic",
+      vendor: resolvedVendor,
       invoiceNumber,
       invoiceDate,
       amountCents,
@@ -234,7 +287,7 @@ export async function POST(request: NextRequest) {
         invoiceNumber,
         invoiceDate,
         amountCents,
-        vendor: vendor ?? "Anthropic",
+        vendor: resolvedVendor,
         action: result.action,
         linkedPeriodId: period?.id ?? null,
         linkedPeriodLabel: period?.periodLabel ?? null,

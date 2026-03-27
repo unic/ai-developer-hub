@@ -1,16 +1,21 @@
 import { getIngestionHistory } from "@/actions/ingestion-log";
+import { getIngestionFilters } from "@/actions/ingestion-filters";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { IngestionHistoryTable } from "./ingestion-history-table";
+import { IngestionFiltersSection } from "./ingestion-filters-section";
 
 export default async function IngestionSettingsPage() {
   const admin = await requireAdmin();
   if (!admin) redirect("/settings");
 
-  const result = await getIngestionHistory();
+  const [historyResult, filtersResult] = await Promise.all([
+    getIngestionHistory(),
+    getIngestionFilters(),
+  ]);
 
-  if (!result.success) {
-    return <div className="text-destructive">Error: {result.error}</div>;
+  if (!historyResult.success) {
+    return <div className="text-destructive">Error: {historyResult.error}</div>;
   }
 
   return (
@@ -18,10 +23,18 @@ export default async function IngestionSettingsPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Ingestion</h2>
         <p className="text-muted-foreground">
-          View the history of all ingested billing documents across sources.
+          Manage filter rules and view the history of all ingested billing
+          documents.
         </p>
       </div>
-      <IngestionHistoryTable data={result.data} />
+      {filtersResult.success ? (
+        <IngestionFiltersSection filters={filtersResult.data} />
+      ) : (
+        <div className="text-destructive">
+          Error loading filters: {filtersResult.error}
+        </div>
+      )}
+      <IngestionHistoryTable data={historyResult.data} />
     </div>
   );
 }

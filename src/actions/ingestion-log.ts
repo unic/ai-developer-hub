@@ -12,7 +12,7 @@ export interface IngestionLogRow {
   invoiceNumber: string | null;
   invoiceDate: string | null;
   amountCents: number | null;
-  outcome: "success" | "failed";
+  outcome: "success" | "failed" | "filtered";
   errorMessage: string | null;
   channel: "manual" | "api" | "bulk";
   blobPathname: string | null;
