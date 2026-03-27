@@ -8,6 +8,7 @@ import {
   getWorkspaceList,
   getOrgConfig,
 } from "@/actions/anthropic-global";
+import { getPlanConnections } from "@/actions/plan-connections";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgCreditsPanel } from "@/components/claude/org-credits-panel";
@@ -42,11 +43,14 @@ export default async function ClaudePage() {
   }
 
   const creditsStatus = { available: false as const, reason: "not_exposed_by_api" as const };
-  const [dashboardData, workspaceList, orgConfig] = await Promise.all([
+  const [dashboardData, workspaceList, orgConfig, planResult] = await Promise.all([
     getGlobalCostDashboard(currentMonth),
     getWorkspaceList(),
     getOrgConfig(),
+    getPlanConnections(),
   ]);
+
+  const planConnections = planResult.success ? planResult.data : [];
 
   return (
     <div className="space-y-6">
@@ -64,6 +68,7 @@ export default async function ClaudePage() {
           availableMonths={availableMonths}
           initialMonth={currentMonth}
           lastSyncedAt={lastSyncedAt}
+          planConnections={planConnections}
         />
       </Suspense>
 

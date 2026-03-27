@@ -7,6 +7,7 @@ import {
   anthropicWorkspaces,
   anthropicWorkspaceLimits,
   anthropicOrgConfig,
+  anthropicPlanConnections,
   anthropicSyncStatus,
   syncEvents,
 } from "@/lib/db/schema";
@@ -18,6 +19,7 @@ import type {
   GlobalCostDashboardData,
   WorkspaceListItem,
   OrgCreditsStatus,
+  PlanConnectionListItem,
 } from "@/types";
 import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
 
@@ -27,37 +29,61 @@ import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace"
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 
-async function _getGlobalCostDashboard(month: string): Promise<GlobalCostDashboardData> {
+async function _getGlobalCostDashboard(
+  month: string,
+  planConnectionId?: number
+): Promise<GlobalCostDashboardData> {
   const startDate = `${month}-01`;
   const endDate = format(endOfMonth(parseISO(`${month}-01`)), "yyyy-MM-dd");
 
-  // Fetch all workspace cost rows for the month
+  // Build cost query with optional plan filter
+  const costConditions = [
+    sql`${anthropicWorkspaceCosts.date} >= ${startDate}::date AND ${anthropicWorkspaceCosts.date} <= ${endDate}::date`,
+  ];
+  if (planConnectionId) {
+    costConditions.push(
+      sql`${anthropicWorkspaceCosts.planConnectionId} = ${planConnectionId}`
+    );
+  }
+
   const costRows = await db
     .select()
     .from(anthropicWorkspaceCosts)
-    .where(
-      sql`${anthropicWorkspaceCosts.date} >= ${startDate}::date AND ${anthropicWorkspaceCosts.date} <= ${endDate}::date`
+    .where(sql.join(costConditions, sql` AND `));
+
+  // Fetch workspace metadata with plan labels
+  const workspaceRows = await db
+    .select({
+      workspaceId: anthropicWorkspaces.workspaceId,
+      name: anthropicWorkspaces.name,
+      planConnectionId: anthropicWorkspaces.planConnectionId,
+      planLabel: anthropicPlanConnections.label,
+    })
+    .from(anthropicWorkspaces)
+    .innerJoin(
+      anthropicPlanConnections,
+      eq(anthropicWorkspaces.planConnectionId, anthropicPlanConnections.id)
     );
 
-  // Fetch only the fields needed to build the workspace name map
-  const workspaceRows = await db
-    .select({ workspaceId: anthropicWorkspaces.workspaceId, name: anthropicWorkspaces.name })
-    .from(anthropicWorkspaces);
-
-  // Build workspace map (workspaceId -> name)
-  const workspaceMap = new Map<string | null, string>();
+  // Build workspace map (workspaceId:planId -> {name, planLabel, planConnectionId})
+  const workspaceMap = new Map<string, { name: string; planLabel: string; planConnectionId: number }>();
   for (const ws of workspaceRows) {
-    workspaceMap.set(ws.workspaceId, ws.name);
+    const key = `${ws.workspaceId ?? "null"}:${ws.planConnectionId}`;
+    workspaceMap.set(key, {
+      name: ws.name,
+      planLabel: ws.planLabel,
+      planConnectionId: ws.planConnectionId,
+    });
   }
 
-  // Group cost rows by workspaceId
+  // Group cost rows by workspaceId:planConnectionId
   const byWorkspace = new Map<
-    string | null,
+    string,
     { date: string; costCents: number }[]
   >();
 
   for (const row of costRows) {
-    const key = row.workspaceId;
+    const key = `${row.workspaceId ?? "null"}:${row.planConnectionId}`;
     if (!byWorkspace.has(key)) {
       byWorkspace.set(key, []);
     }
@@ -75,15 +101,20 @@ async function _getGlobalCostDashboard(month: string): Promise<GlobalCostDashboa
 
   const grandTotalCents = dailyTotals.reduce((sum, d) => sum + d.costCents, 0);
 
-  // Build workspace breakdown
+  // Build workspace breakdown with plan labels
   const workspaceBreakdown: GlobalCostDashboardData["workspaceBreakdown"] = [];
-  for (const [workspaceId, days] of byWorkspace.entries()) {
-    const name = workspaceMap.get(workspaceId) ?? (workspaceId === null ? "Default Workspace" : workspaceId);
+  for (const [compositeKey, days] of byWorkspace.entries()) {
+    const wsInfo = workspaceMap.get(compositeKey);
+    const [wsId] = compositeKey.split(":");
+    const workspaceId = wsId === "null" ? null : wsId;
+    const name = wsInfo?.name ?? (workspaceId === null ? "Default Workspace" : workspaceId);
     const sortedDays = [...days].sort((a, b) => a.date.localeCompare(b.date));
     const totalCents = sortedDays.reduce((sum, d) => sum + d.costCents, 0);
     workspaceBreakdown.push({
       workspaceId,
       name,
+      planLabel: wsInfo?.planLabel,
+      planConnectionId: wsInfo?.planConnectionId,
       totalCents,
       dailyTotals: sortedDays,
     });
@@ -94,7 +125,8 @@ async function _getGlobalCostDashboard(month: string): Promise<GlobalCostDashboa
 }
 
 export async function getGlobalCostDashboard(
-  month?: string
+  month?: string,
+  planConnectionId?: number
 ): Promise<GlobalCostDashboardData> {
   const admin = await requireAdmin();
   if (!admin) {
@@ -105,9 +137,13 @@ export async function getGlobalCostDashboard(
     ? month
     : format(new Date(), "yyyy-MM");
 
+  const cacheKey = planConnectionId
+    ? `anthropic-global-cost-dashboard:${targetMonth}:plan_${planConnectionId}`
+    : `anthropic-global-cost-dashboard:${targetMonth}`;
+
   return unstable_cache(
-    () => _getGlobalCostDashboard(targetMonth),
-    ["anthropic-global-cost-dashboard", targetMonth],
+    () => _getGlobalCostDashboard(targetMonth, planConnectionId),
+    [cacheKey],
     { tags: ["anthropic-workspace-costs"] }
   )();
 }

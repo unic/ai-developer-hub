@@ -25,7 +25,7 @@ import {
 import { MonthPicker } from "@/components/profile/month-picker";
 import { getGlobalCostDashboard } from "@/actions/anthropic-global";
 import { formatDistanceToNow } from "date-fns";
-import type { GlobalCostDashboardData } from "@/types";
+import type { GlobalCostDashboardData, PlanConnectionListItem } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
 type GlobalMetricsClientProps = {
@@ -33,9 +33,11 @@ type GlobalMetricsClientProps = {
   availableMonths: string[];
   initialMonth: string;
   lastSyncedAt: Date | null;
+  planConnections?: PlanConnectionListItem[];
 };
 
 const ALL_WORKSPACES = "__all__";
+const ALL_PLANS = "__all__";
 
 const chartConfig = {
   cost: { label: "Cost (USD)", color: "var(--chart-1)" },
@@ -46,19 +48,35 @@ export function GlobalMetricsClient({
   availableMonths,
   initialMonth,
   lastSyncedAt,
+  planConnections,
 }: GlobalMetricsClientProps) {
   const [dashboardData, setDashboardData] = useState<GlobalCostDashboardData>(initialData);
   const [selectedMonth, setSelectedMonth] = useState<string>(initialMonth);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(ALL_WORKSPACES);
+  const [selectedPlan, setSelectedPlan] = useState<string>(ALL_PLANS);
   const [isPending, startTransition] = useTransition();
+
+  const activePlans = planConnections?.filter((p) => p.status === "active") ?? [];
+  const showPlanFilter = activePlans.length > 1;
+
+  function fetchDashboard(month: string, planId?: string) {
+    const parsedPlanId = planId && planId !== ALL_PLANS ? Number(planId) : undefined;
+    startTransition(async () => {
+      const data = await getGlobalCostDashboard(month, parsedPlanId);
+      setDashboardData(data);
+    });
+  }
 
   function handleMonthChange(newMonth: string) {
     setSelectedMonth(newMonth);
     setSelectedWorkspace(ALL_WORKSPACES);
-    startTransition(async () => {
-      const data = await getGlobalCostDashboard(newMonth);
-      setDashboardData(data);
-    });
+    fetchDashboard(newMonth, selectedPlan);
+  }
+
+  function handlePlanChange(planId: string) {
+    setSelectedPlan(planId);
+    setSelectedWorkspace(ALL_WORKSPACES);
+    fetchDashboard(selectedMonth, planId);
   }
 
   const { displayDailyTotals, displayTotal } = useMemo(() => {
@@ -95,20 +113,40 @@ export function GlobalMetricsClient({
           onChange={handleMonthChange}
           months={availableMonths}
         />
+        {showPlanFilter && (
+          <Select value={selectedPlan} onValueChange={handlePlanChange}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All plans" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_PLANS}>All plans</SelectItem>
+              {activePlans.map((plan) => (
+                <SelectItem key={plan.id} value={String(plan.id)}>
+                  {plan.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-          <SelectTrigger className="w-[220px]">
+          <SelectTrigger className="w-[260px]">
             <SelectValue placeholder="All workspaces" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_WORKSPACES}>All workspaces</SelectItem>
-            {dashboardData.workspaceBreakdown.map((ws) => (
-              <SelectItem
-                key={ws.workspaceId ?? "__null__"}
-                value={ws.workspaceId ?? "__null__"}
-              >
-                {ws.name}
-              </SelectItem>
-            ))}
+            {dashboardData.workspaceBreakdown.map((ws) => {
+              const label = showPlanFilter && ws.planLabel
+                ? `${ws.name} (${ws.planLabel})`
+                : ws.name;
+              return (
+                <SelectItem
+                  key={`${ws.workspaceId ?? "__null__"}:${ws.planConnectionId ?? 0}`}
+                  value={ws.workspaceId ?? "__null__"}
+                >
+                  {label}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         {lastSyncedAt && (
