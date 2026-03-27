@@ -409,3 +409,28 @@ export type CreateIngestionFilterInput = z.infer<
 export type UpdateIngestionFilterInput = z.infer<
   typeof updateIngestionFilterSchema
 >;
+
+// 026-multiple-api-plans: Plan connection validators
+export const addPlanConnectionSchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, "Label is required")
+    .max(200, "Label must be 200 characters or less"),
+  adminApiKey: z
+    .string()
+    .trim()
+    .min(1, "Admin API key is required"),
+});
+
+export const updatePlanConnectionLabelSchema = z.object({
+  id: z.number().int().positive(),
+  label: z
+    .string()
+    .trim()
+    .min(1, "Label is required")
+    .max(200, "Label must be 200 characters or less"),
+});
+
+export type AddPlanConnectionInput = z.infer<typeof addPlanConnectionSchema>;
+export type UpdatePlanConnectionLabelInput = z.infer<typeof updatePlanConnectionLabelSchema>;
