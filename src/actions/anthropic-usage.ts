@@ -184,6 +184,36 @@ export async function syncAllAnthropicUsage(): Promise<
 }
 
 // ---------------------------------------------------------------------------
+// syncAllAnthropicUsageForPlan — admin-only manual sync for a specific plan
+// ---------------------------------------------------------------------------
+
+export async function syncAllAnthropicUsageForPlan(
+  planConnectionId: number
+): Promise<
+  ActionResult<{ eventId: number }>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  try {
+    const { eventId } = await runAnthropicUsageSource(Number(admin.id), {
+      planConnectionId,
+    });
+
+    revalidatePath("/settings/integrations");
+    return { success: true, data: { eventId } };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Failed to sync Anthropic usage data for plan",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // recalculateUnresolvedCosts — admin-only repricing of unresolved rows
 // ---------------------------------------------------------------------------
 

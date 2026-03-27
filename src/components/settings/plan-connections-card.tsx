@@ -39,6 +39,7 @@ import {
   disconnectPlanConnection,
   getPlanConnections,
 } from "@/actions/plan-connections";
+import { syncAllAnthropicUsageForPlan } from "@/actions/anthropic-usage";
 import { formatDateTime } from "@/lib/utils";
 import type { PlanConnectionListItem } from "@/types";
 
@@ -90,6 +91,17 @@ export function PlanConnectionsCard({
         toast.success("Label updated.");
         setEditingId(null);
         await refreshConnections();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function handleSync(id: number, label: string) {
+    startTransition(async () => {
+      const result = await syncAllAnthropicUsageForPlan(id);
+      if (result.success) {
+        toast.success(`Sync started for "${label}".`);
       } else {
         toast.error(result.error);
       }
@@ -241,6 +253,15 @@ export function PlanConnectionsCard({
                   {conn.status === "active" ? (
                     <>
                       <Badge variant="default">Connected</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={isPending}
+                        title="Sync this plan"
+                        onClick={() => handleSync(conn.id, conn.label)}
+                      >
+                        <RefreshCw className={`size-4 ${isPending ? "animate-spin" : ""}`} />
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
