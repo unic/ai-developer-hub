@@ -218,38 +218,54 @@ export async function run(
       };
 
       try {
-        // Sync workspace metadata
+        // Sync workspace metadata (non-fatal — cost sync can proceed without it)
         counts.createdCount = await fetchAndUpsertWorkspaces();
       } catch (err) {
         counts.errorCount++;
         counts.errorMessage = `Workspace metadata sync failed: ${err instanceof Error ? err.message : String(err)}`;
-        return counts;
+        console.warn(`[anthropic-api-costs] ${counts.errorMessage} — continuing with cost sync`);
       }
 
-      try {
-        if (opts?.backfillStartDate) {
-          // Backfill: iterate month by month
-          const start = opts.backfillStartDate;
-          const now = new Date();
-          const current = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
+      if (opts?.backfillStartDate) {
+        // Backfill: iterate month by month with per-month error recovery
+        const start = opts.backfillStartDate;
+        const now = new Date();
+        const current = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
+        const failedMonths: string[] = [];
 
-          while (current <= now) {
-            const month = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
+        while (current <= now) {
+          const month = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
+          try {
             counts.updatedCount += await fetchAndUpsertWorkspaceCosts(month);
-            current.setUTCMonth(current.getUTCMonth() + 1);
+          } catch (err) {
+            counts.errorCount++;
+            failedMonths.push(month);
+            console.warn(
+              `[anthropic-api-costs] Backfill failed for ${month}: ${err instanceof Error ? err.message : String(err)}`
+            );
           }
-        } else {
-          // Regular sync: current month only
+          current.setUTCMonth(current.getUTCMonth() + 1);
+        }
+
+        if (failedMonths.length > 0) {
+          const msg = `Backfill failed for months: ${failedMonths.join(", ")}`;
+          counts.errorMessage = counts.errorMessage
+            ? `${counts.errorMessage}; ${msg}`
+            : msg;
+        }
+      } else {
+        // Regular sync: current month only
+        try {
           const month = opts?.month ??
             `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
           counts.updatedCount = await fetchAndUpsertWorkspaceCosts(month);
+        } catch (err) {
+          counts.errorCount++;
+          const msg = err instanceof Error ? err.message : String(err);
+          counts.errorMessage = counts.errorMessage
+            ? `${counts.errorMessage}; Cost sync failed: ${msg}`
+            : `Cost sync failed: ${msg}`;
         }
-      } catch (err) {
-        counts.errorCount++;
-        const msg = err instanceof Error ? err.message : String(err);
-        counts.errorMessage = counts.errorMessage
-          ? `${counts.errorMessage}; Cost sync failed: ${msg}`
-          : `Cost sync failed: ${msg}`;
       }
 
       return counts;
