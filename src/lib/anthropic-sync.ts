@@ -249,7 +249,7 @@ export function prepareUsageRow(
   userId: number,
   bucketDate: string,
   result: z.infer<typeof usageBucketResultSchema>,
-  planConnectionId?: number
+  planConnectionId: number
 ) {
   const model = result.model;
   if (!model) return null;
@@ -278,7 +278,7 @@ export function prepareUsageRow(
     outputTokens: result.output_tokens,
     computedCostCents: costCents,
     pricingResolved: resolved,
-    ...(planConnectionId != null ? { planConnectionId } : {}),
+    planConnectionId,
     updatedAt: new Date(),
   };
 }
