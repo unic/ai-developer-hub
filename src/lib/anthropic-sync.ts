@@ -23,6 +23,7 @@ const LOCK_USER_ID = 0;
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — stale lock threshold
 const LOCK_COOLDOWN_MS = 60 * 1000; // 60 seconds — minimum between syncs
 const DEFAULT_BACKFILL_DAYS = 31;
+const MAX_HOURLY_BUCKETS = 168; // 24h × 7d — Anthropic API limit for 1h buckets
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,20 +79,22 @@ export const anthropicToolFilter = sql`(${aiTools.vendor} ILIKE '%anthropic%' OR
 export async function fetchAnthropicUsage(
   startingAt: string,
   endingAt: string,
-  apiKeyIds?: string[]
+  apiKeyIds?: string[],
+  bucketWidth: "1d" | "1h" = "1d"
 ): Promise<z.infer<typeof usageReportResponseSchema>> {
   const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
   // Build query string manually — URLSearchParams encodes [] as %5B%5D
   // which the Anthropic API does not recognise for array parameters.
+  const limit = bucketWidth === "1h" ? MAX_HOURLY_BUCKETS : DEFAULT_BACKFILL_DAYS;
   const parts = [
     `starting_at=${encodeURIComponent(startingAt)}`,
     `ending_at=${encodeURIComponent(endingAt)}`,
-    "bucket_width=1d",
+    `bucket_width=${bucketWidth}`,
     "group_by[]=model",
     "group_by[]=api_key_id",
-    `limit=${DEFAULT_BACKFILL_DAYS}`,
+    `limit=${limit}`,
   ];
 
   if (apiKeyIds) {
@@ -220,6 +223,10 @@ export async function resolveAllMappings(): Promise<Map<string, number>> {
 // Helper: compute sync date window
 // ---------------------------------------------------------------------------
 
+function formatAnthropicTimestamp(date: Date): string {
+  return date.toISOString().replace(/\.\d+Z$/, "Z");
+}
+
 function computeSyncWindow(latestDateStr: string | null): { startingAt: string; endingAt: string } {
   const now = new Date();
   now.setUTCHours(0, 0, 0, 0);
@@ -232,13 +239,117 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
     startDate = new Date(now);
     startDate.setUTCDate(startDate.getUTCDate() - DEFAULT_BACKFILL_DAYS);
   }
+  // End at start-of-today; today is covered separately with hourly buckets
   const endDate = new Date(now);
-  endDate.setUTCDate(endDate.getUTCDate() + 1);
 
   return {
-    startingAt: startDate.toISOString().replace(/\.\d+Z$/, "Z"),
-    endingAt: endDate.toISOString().replace(/\.\d+Z$/, "Z"),
+    startingAt: formatAnthropicTimestamp(startDate),
+    endingAt: formatAnthropicTimestamp(endDate),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: today's sync window (start of today UTC → start of tomorrow UTC)
+// ---------------------------------------------------------------------------
+
+function todaySyncWindow(): { startingAt: string; endingAt: string } {
+  const now = new Date();
+  const todayStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+  return {
+    startingAt: formatAnthropicTimestamp(todayStart),
+    endingAt: formatAnthropicTimestamp(tomorrowStart),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: aggregate hourly buckets into daily totals
+// ---------------------------------------------------------------------------
+
+function aggregateHourlyBuckets(
+  buckets: z.infer<typeof usageBucketSchema>[]
+): z.infer<typeof usageBucketSchema>[] {
+  const dateMap = new Map<
+    string,
+    Map<
+      string,
+      {
+        model: string | null;
+        api_key_id: string | null;
+        uncached_input_tokens: number;
+        cache_read_input_tokens: number;
+        cache_creation_5m: number;
+        cache_creation_1h: number;
+        output_tokens: number;
+      }
+    >
+  >();
+
+  for (const bucket of buckets) {
+    const dateStr = bucket.starting_at.split("T")[0];
+    if (!dateMap.has(dateStr)) dateMap.set(dateStr, new Map());
+    const resultMap = dateMap.get(dateStr)!;
+
+    for (const r of bucket.results) {
+      const key = `${r.model ?? ""}|${r.api_key_id ?? ""}`;
+      const cc5m = r.cache_creation?.ephemeral_5m_input_tokens ?? 0;
+      const cc1h = r.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+      const existing = resultMap.get(key);
+
+      if (existing) {
+        existing.uncached_input_tokens += r.uncached_input_tokens;
+        existing.cache_read_input_tokens += r.cache_read_input_tokens;
+        existing.cache_creation_5m += cc5m;
+        existing.cache_creation_1h += cc1h;
+        existing.output_tokens += r.output_tokens;
+      } else {
+        resultMap.set(key, {
+          model: r.model ?? null,
+          api_key_id: r.api_key_id ?? null,
+          uncached_input_tokens: r.uncached_input_tokens,
+          cache_read_input_tokens: r.cache_read_input_tokens,
+          cache_creation_5m: cc5m,
+          cache_creation_1h: cc1h,
+          output_tokens: r.output_tokens,
+        });
+      }
+    }
+  }
+
+  return Array.from(dateMap.entries()).map(([dateStr, resultMap]) => {
+    const nextDay = new Date(dateStr + "T00:00:00Z");
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    return {
+      starting_at: `${dateStr}T00:00:00Z`,
+      ending_at: formatAnthropicTimestamp(nextDay),
+      results: Array.from(resultMap.values()).map((v) => ({
+        model: v.model,
+        api_key_id: v.api_key_id,
+        uncached_input_tokens: v.uncached_input_tokens,
+        cache_read_input_tokens: v.cache_read_input_tokens,
+        cache_creation: {
+          ephemeral_5m_input_tokens: v.cache_creation_5m,
+          ephemeral_1h_input_tokens: v.cache_creation_1h,
+        },
+        output_tokens: v.output_tokens,
+      })),
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Helper: fetch today's usage with hourly granularity and aggregate to daily
+// ---------------------------------------------------------------------------
+
+async function fetchTodayAggregated(
+  apiKeyIds?: string[]
+): Promise<z.infer<typeof usageBucketSchema>[]> {
+  const { startingAt, endingAt } = todaySyncWindow();
+  const response = await fetchAnthropicUsage(startingAt, endingAt, apiKeyIds, "1h");
+  return aggregateHourlyBuckets(response.data);
 }
 
 // ---------------------------------------------------------------------------
@@ -348,8 +459,11 @@ export async function runAnthropicSyncCore(): Promise<SyncSummary> {
 
     const { startingAt, endingAt } = computeSyncWindow(oldestLatest[0]?.maxDate ?? null);
 
-    // Fetch all org usage in one call
-    const response = await fetchAnthropicUsage(startingAt, endingAt);
+    // Fetch historical (daily) and today (hourly, ~5 min freshness) in parallel
+    const [response, todayBuckets] = await Promise.all([
+      fetchAnthropicUsage(startingAt, endingAt),
+      fetchTodayAggregated(),
+    ]);
 
     // Track which users received data and unique synced days
     const usersWithData = new Set<number>();
@@ -358,7 +472,7 @@ export async function runAnthropicSyncCore(): Promise<SyncSummary> {
     // Collect all rows for batch upsert
     const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
 
-    for (const bucket of response.data) {
+    for (const bucket of [...response.data, ...todayBuckets]) {
       const bucketDate = bucket.starting_at.split("T")[0];
 
       for (const result of bucket.results) {
@@ -534,15 +648,19 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
 
     const { startingAt, endingAt } = computeSyncWindow(latestRow?.date ?? null);
 
-    // Fetch filtered by this user's API key
-    const response = await fetchAnthropicUsage(startingAt, endingAt, [syncStatus.resolvedApiKeyId!]);
+    // Fetch historical (daily) and today (hourly, ~5 min freshness) in parallel
+    const apiKeyFilter = [syncStatus.resolvedApiKeyId!];
+    const [response, todayBuckets] = await Promise.all([
+      fetchAnthropicUsage(startingAt, endingAt, apiKeyFilter),
+      fetchTodayAggregated(apiKeyFilter),
+    ]);
 
     // Collect all rows for batch upsert
     const pendingRows: NonNullable<ReturnType<typeof prepareUsageRow>>[] = [];
-    let syncedDays = 0;
+    const syncedDates = new Set<string>();
     let latestDate: string | null = null;
 
-    for (const bucket of response.data) {
+    for (const bucket of [...response.data, ...todayBuckets]) {
       const bucketDate = bucket.starting_at.split("T")[0];
 
       for (const result of bucket.results) {
@@ -550,7 +668,7 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
         if (row) pendingRows.push(row);
       }
 
-      syncedDays++;
+      syncedDates.add(bucketDate);
       if (!latestDate || bucketDate > latestDate) {
         latestDate = bucketDate;
       }
@@ -559,6 +677,7 @@ export async function syncSingleUser(userId: number): Promise<{ syncedDays: numb
     // Batch upsert all collected rows
     await batchUpsertUsageRows(pendingRows);
 
+    const syncedDays = syncedDates.size;
     await db
       .update(anthropicSyncStatus)
       .set({
