@@ -469,6 +469,12 @@ export function UserDetailClient({
               size="sm"
               variant="outline"
               onClick={async () => {
+                setSelectedToolId("");
+                setSelectedTierId("");
+                setAvailableTiers([]);
+                setAssignWorkspace("");
+                setAssignApiKey("");
+                setShowAssignApiKey(false);
                 setAssignDialogOpen(true);
                 if (tools.length === 0) {
                   setLoadingTools(true);
@@ -628,6 +634,7 @@ export function UserDetailClient({
               <Input
                 placeholder="e.g. team-alpha"
                 maxLength={200}
+                autoComplete="off"
                 value={assignWorkspace}
                 onChange={(e) => setAssignWorkspace(e.target.value)}
               />
@@ -639,6 +646,7 @@ export function UserDetailClient({
                   type={showAssignApiKey ? "text" : "password"}
                   placeholder="Enter API key"
                   maxLength={500}
+                  autoComplete="new-password"
                   value={assignApiKey}
                   onChange={(e) => setAssignApiKey(e.target.value)}
                 />
