@@ -160,6 +160,20 @@ export function UserDetailClient({
     }
   }
 
+  function resetAssignDialogState() {
+    setSelectedToolId("");
+    setSelectedTierId("");
+    setAvailableTiers([]);
+    setAssignWorkspace("");
+    setAssignApiKey("");
+    setShowAssignApiKey(false);
+  }
+
+  function closeAssignDialog() {
+    resetAssignDialogState();
+    setAssignDialogOpen(false);
+  }
+
   async function handleToolChange(toolId: string) {
     setSelectedToolId(toolId);
     setSelectedTierId("");
@@ -184,12 +198,7 @@ export function UserDetailClient({
     setAssigning(false);
     if (result.success) {
       toast.success("License assigned");
-      setAssignDialogOpen(false);
-      setSelectedToolId("");
-      setSelectedTierId("");
-      setAssignWorkspace("");
-      setAssignApiKey("");
-      setShowAssignApiKey(false);
+      closeAssignDialog();
       router.refresh();
     } else {
       toast.error(result.error);
@@ -469,12 +478,7 @@ export function UserDetailClient({
               size="sm"
               variant="outline"
               onClick={async () => {
-                setSelectedToolId("");
-                setSelectedTierId("");
-                setAvailableTiers([]);
-                setAssignWorkspace("");
-                setAssignApiKey("");
-                setShowAssignApiKey(false);
+                resetAssignDialogState();
                 setAssignDialogOpen(true);
                 if (tools.length === 0) {
                   setLoadingTools(true);
@@ -581,14 +585,8 @@ export function UserDetailClient({
 
       {/* Assign License Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={(open) => {
+        if (!open) resetAssignDialogState();
         setAssignDialogOpen(open);
-        if (!open) {
-          setSelectedToolId("");
-          setSelectedTierId("");
-          setAssignWorkspace("");
-          setAssignApiKey("");
-          setShowAssignApiKey(false);
-        }
       }}>
         <DialogContent>
           <DialogHeader>
@@ -671,7 +669,7 @@ export function UserDetailClient({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAssignDialogOpen(false)}
+              onClick={closeAssignDialog}
             >
               Cancel
             </Button>
