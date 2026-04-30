@@ -1,6 +1,6 @@
 {
-  "id": "328ace9c-3e7b-477d-896b-ceacacbb79a7",
-  "prevId": "c6ed2159-0ae3-40fe-ba25-740d9a580d9a",
+  "id": "13abc984-57a7-4d76-80fc-2a2d4a74cc94",
+  "prevId": "d74fb99c-1b6f-4c6c-ba90-85433906ae72",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1504,12 +1504,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "linked_billed_cost_id": {
-          "name": "linked_billed_cost_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1546,21 +1540,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "copilot_billing_snapshots_linked_cost_idx": {
-          "name": "copilot_billing_snapshots_linked_cost_idx",
-          "columns": [
-            {
-              "expression": "linked_billed_cost_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -1575,19 +1554,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "copilot_billing_snapshots_linked_billed_cost_id_billed_costs_id_fk": {
-          "name": "copilot_billing_snapshots_linked_billed_cost_id_billed_costs_id_fk",
-          "tableFrom": "copilot_billing_snapshots",
-          "tableTo": "billed_costs",
-          "columnsFrom": [
-            "linked_billed_cost_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2233,6 +2199,115 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.ingestion_filters": {
+      "name": "ingestion_filters",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "field": {
+          "name": "field",
+          "type": "filter_field",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "filter_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ingestion_filters_enabled_idx": {
+          "name": "ingestion_filters_enabled_idx",
+          "columns": [
+            {
+              "expression": "enabled",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ingestion_filters_created_by_users_id_fk": {
+          "name": "ingestion_filters_created_by_users_id_fk",
+          "tableFrom": "ingestion_filters",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.ingestion_log": {
       "name": "ingestion_log",
       "schema": "",
@@ -2585,6 +2660,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "filtered_out": {
+          "name": "filtered_out",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "uploaded_by": {
           "name": "uploaded_by",
@@ -3255,6 +3337,13 @@
           "notNull": true,
           "default": true
         },
+        "is_agent": {
+          "name": "is_agent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp",
@@ -3353,6 +3442,22 @@
         "copilot"
       ]
     },
+    "public.filter_field": {
+      "name": "filter_field",
+      "schema": "public",
+      "values": [
+        "vendor",
+        "invoice_number"
+      ]
+    },
+    "public.filter_mode": {
+      "name": "filter_mode",
+      "schema": "public",
+      "values": [
+        "whitelist",
+        "blacklist"
+      ]
+    },
     "public.github_connection_status": {
       "name": "github_connection_status",
       "schema": "public",
@@ -3385,7 +3490,8 @@
       "schema": "public",
       "values": [
         "success",
-        "failed"
+        "failed",
+        "filtered"
       ]
     },
     "public.invite_token_status": {
