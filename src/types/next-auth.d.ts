@@ -9,12 +9,14 @@ declare module "next-auth" {
       email: string;
       role: string;
       preferences: UserPreferences;
+      isAgent: boolean;
     };
   }
 
   interface User {
     role?: string;
     preferences?: UserPreferences;
+    isAgent?: boolean;
   }
 }
 
@@ -23,5 +25,6 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: string;
     preferences?: UserPreferences;
+    isAgent?: boolean;
   }
 }

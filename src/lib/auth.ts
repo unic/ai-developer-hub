@@ -48,6 +48,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || user.status !== "active") return null;
 
+        // Agent rows must never be reachable via password login.
+        if (user.isAgent) return null;
+
         if (user.mustChangePassword) {
           throw new Error(MUST_CHANGE_PASSWORD_ERROR);
         }
@@ -63,6 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           role: user.role,
           preferences: user.preferences ?? DEFAULT_PREFERENCES,
+          isAgent: user.isAgent,
         };
       },
     }),
@@ -73,6 +77,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as { role: string }).role;
         token.preferences = (user as { preferences?: UserPreferences }).preferences ?? DEFAULT_PREFERENCES;
+        token.isAgent = (user as { isAgent?: boolean }).isAgent ?? false;
       }
       if (trigger === "update" && session?.preferences) {
         token.preferences = session.preferences;
@@ -84,6 +89,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.preferences = (token.preferences as UserPreferences | undefined) ?? DEFAULT_PREFERENCES;
+        session.user.isAgent = (token.isAgent as boolean | undefined) ?? false;
       }
       return session;
     },
