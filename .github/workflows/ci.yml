@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      # Stub env vars required for Next.js build — no real credentials needed
+      DATABASE_URL: "postgresql://user:pass@localhost/ci?sslmode=require"
+      DATABASE_URL_UNPOOLED: "postgresql://user:pass@localhost/ci?sslmode=require"
+      AUTH_SECRET: "ci-stub-secret-at-least-32-characters-long"
+      NEXTAUTH_URL: "http://localhost:3000"
+      API_KEY_ENCRYPTION_SECRET: "ci-stub-encryption-secret-32bytes="
+      CLOUDFLARE_R2_ACCOUNT_ID: "ci-stub"
+      CLOUDFLARE_R2_ACCESS_KEY_ID: "ci-stub"
+      CLOUDFLARE_R2_SECRET_ACCESS_KEY: "ci-stub"
+      CLOUDFLARE_R2_BUCKET_NAME: "ci-stub"
+      ANTHROPIC_API_KEY: "ci-stub"
+      ANTHROPIC_ADMIN_API_KEY: "ci-stub"
+      CRON_SECRET: "ci-stub-cron-secret"
+      RESEND_API_KEY: "re_ci_stub"
+      FROM_EMAIL: "noreply@ci.example.com"
+      INVOICE_INGEST_SECRET: "ci-stub"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+  # ---------------------------------------------------------------------------
+  # Integration tests — requires a live Neon database branch.
+  # Enable once both NEON_DATABASE_URL_CI and NEON_DATABASE_URL_UNPOOLED_CI
+  # secrets are configured in the repo.
+  # ---------------------------------------------------------------------------
+  # integration-tests:
+  #   name: Integration Tests
+  #   runs-on: ubuntu-latest
+  #   if: false  # Remove this line after configuring the Neon CI branch secret
+  #   env:
+  #     DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_CI }}
+  #     DATABASE_URL_UNPOOLED: ${{ secrets.NEON_DATABASE_URL_UNPOOLED_CI }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: pnpm/action-setup@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version-file: .nvmrc
+  #         cache: pnpm
+  #     - name: Install dependencies
+  #       run: pnpm install --frozen-lockfile
+  #     - name: Run integration tests
+  #       run: pnpm test:integration
+
+  # ---------------------------------------------------------------------------
+  # E2E tests — requires a running application and Playwright browsers.
+  # Enable once infrastructure for a Playwright-compatible CI environment is
+  # in place; the commented job below shows the activation steps (install
+  # deps, install Playwright browsers, run e2e).
+  # ---------------------------------------------------------------------------
+  # e2e-tests:
+  #   name: E2E Tests
+  #   runs-on: ubuntu-latest
+  #   if: false  # Remove this line after configuring the E2E environment
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: pnpm/action-setup@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version-file: .nvmrc
+  #         cache: pnpm
+  #     - name: Install dependencies
+  #       run: pnpm install --frozen-lockfile
+  #     - name: Install Playwright browsers
+  #       run: pnpm exec playwright install --with-deps chromium
+  #     - name: Run E2E tests
+  #       run: pnpm test:e2e
