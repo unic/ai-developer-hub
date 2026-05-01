@@ -153,7 +153,18 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   const endMonth = parseInt(month.slice(5, 7));
   const nextMonth = endMonth === 12 ? 1 : endMonth + 1;
   const nextYear = endMonth === 12 ? endYear + 1 : endYear;
-  const endDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00Z`;
+  const monthEndDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00Z`;
+
+  // Cap endDate to now — Anthropic rejects requests where ending_at is in the future.
+  const now = new Date();
+  const startDateObj = new Date(startDate);
+  const monthEndDateObj = new Date(monthEndDate);
+  const effectiveEnd = monthEndDateObj > now ? now : monthEndDateObj;
+  if (effectiveEnd.getTime() <= startDateObj.getTime()) {
+    // Month hasn't started yet or no time has elapsed — nothing to sync.
+    return 0;
+  }
+  const endDate = effectiveEnd.toISOString();
 
   const buckets = await retryWithBackoff(() =>
     fetchCostReport(startDate, endDate)
