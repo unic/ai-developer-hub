@@ -62,16 +62,19 @@ export async function getSystemAdminUserId(): Promise<number> {
   if (_systemAdminUserId !== null) return _systemAdminUserId;
 
   const raw = process.env.SYSTEM_ADMIN_USER_ID;
-  if (!raw?.trim()) {
+  const trimmed = raw?.trim();
+  if (!trimmed) {
     throw new Error("SYSTEM_ADMIN_USER_ID is not set or empty");
   }
 
-  const parsed = Number.parseInt(raw.trim(), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  // Reject partially-numeric tokens like "7abc"/"7.5"/"1e3" that Number.parseInt would silently accept.
+  if (!/^[1-9]\d*$/.test(trimmed)) {
     throw new Error(
       `SYSTEM_ADMIN_USER_ID="${raw}" is not a valid positive integer`
     );
   }
+
+  const parsed = Number(trimmed);
 
   const user = await db.query.users.findFirst({
     where: and(

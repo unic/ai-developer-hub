@@ -75,6 +75,25 @@ describe("getSystemAdminUserId", () => {
     );
   });
 
+  // Regression: Number.parseInt would silently accept these as valid ids.
+  it.each([
+    ["7abc", "trailing garbage"],
+    ["7.5", "decimal"],
+    ["1e3", "scientific notation"],
+    ["+7", "leading plus sign"],
+    ["07", "leading zero"],
+    [" 7 8", "internal whitespace"],
+  ])(
+    "throws on partially-numeric input %j (%s)",
+    async (value) => {
+      vi.stubEnv("SYSTEM_ADMIN_USER_ID", value);
+      const { getSystemAdminUserId } = await import("@/lib/auth-helpers");
+      await expect(getSystemAdminUserId()).rejects.toThrow(
+        "not a valid positive integer"
+      );
+    }
+  );
+
   it("throws when no active admin user with that id exists in the DB", async () => {
     vi.stubEnv("SYSTEM_ADMIN_USER_ID", "999");
     mockFindFirst.mockResolvedValue(undefined);
