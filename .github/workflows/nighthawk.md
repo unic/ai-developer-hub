@@ -34,27 +34,23 @@ network:
     - console.neon.tech
 
 pre-agent-steps:
-  # Pinned version (matches packageManager field in package.json) avoids the
-  # Corepack codepath in pnpm/action-setup, which fails with EROFS when it
-  # tries to write shims into the read-only /opt/hostedtoolcache/node tree
-  # inside the gh-aw agent sandbox.
-  - name: Setup pnpm
-    uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-    with:
-      version: 10.30.3
-      run_install: false
-  # Publish pnpm's user-writable bin dir through standard Actions mechanisms
-  # so subsequent steps (and the agent sandbox) see pnpm on PATH without
-  # depending on Corepack mutating the Node install.
-  - name: Ensure pnpm is on PATH
-    run: |
-      echo "PNPM_HOME=${HOME}/.local/share/pnpm" >> "$GITHUB_ENV"
-      echo "${HOME}/.local/share/pnpm" >> "$GITHUB_PATH"
-  - name: Setup Node.js with pnpm cache
-    uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-    with:
-      node-version: '24'
-      cache: 'pnpm'
+  # The agent runs inside the gh-aw firewall container (`awf …`), which
+  # constructs its PATH from `/opt/hostedtoolcache/**/bin` only — see the
+  # `find /opt/hostedtoolcache … -name bin` expansion in the compiled
+  # `Execute Claude Code CLI` step. Anything pnpm/action-setup installs
+  # to `~/.local/share/pnpm` is invisible to that container, so the agent
+  # gets `pnpm: command not found` no matter how PATH is exported on the
+  # runner.
+  #
+  # Installing via `npm install -g` lands pnpm in
+  # `/opt/hostedtoolcache/node/<ver>/x64/bin/pnpm` — the same toolcache
+  # path that gh-aw uses for the Claude Code CLI. The container's PATH
+  # already covers it, so the agent finds pnpm with zero extra config.
+  #
+  # gh-aw's own `Setup Node.js` and `Install Claude Code CLI` steps run
+  # before pre-agent-steps, so npm + Node are already available here.
+  - name: Install pnpm into the toolcache (visible inside the AWF container)
+    run: npm install -g pnpm@10.30.3
 
 tools:
   github:
