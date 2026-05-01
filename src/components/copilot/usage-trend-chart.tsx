@@ -57,10 +57,14 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
       <CardContent>
         {isUsageTrendSparse(data) ? (
           <div className="flex flex-col items-center justify-center min-h-[300px] gap-3 text-muted-foreground">
-            <LineChartIcon className="size-10" />
+            <LineChartIcon
+              className="size-10"
+              aria-hidden="true"
+              focusable="false"
+            />
             <p className="text-sm text-center max-w-xs">
               Not enough usage data yet — Copilot trends will appear here once
-              at least 2 days of activity have been synced.
+              at least 2 days with recorded Copilot usage have been synced.
             </p>
           </div>
         ) : (
