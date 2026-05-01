@@ -70,10 +70,24 @@ tools:
     - "cat:*"
     - "echo:*"
     - "sleep:*"
+    # Localhost-only curl patterns. gh-aw bash matching uses trailing wildcards
+    # (`:*`) only — mid-pattern `*` is not supported. Step 9 curl invocations
+    # below are ordered with variable parts AFTER the URL so the trailing
+    # wildcard captures them.
+    - "curl http://localhost:*"
+    - "curl http://127.0.0.1:*"
     - "curl -sf http://localhost:*"
     - "curl -sf http://127.0.0.1:*"
+    - "curl -sf -o /dev/null http://localhost:*"
+    - "curl -sf -o /dev/null http://127.0.0.1:*"
     - "curl -sS http://localhost:*"
     - "curl -sS http://127.0.0.1:*"
+    - "curl -sS -o /dev/null http://localhost:*"
+    - "curl -sS -o /dev/null http://127.0.0.1:*"
+    - "curl -sS -c cookies.txt -X POST http://localhost:*"
+    - "curl -sS -c cookies.txt -X POST http://127.0.0.1:*"
+    - "curl -sS -b cookies.txt http://localhost:*"
+    - "curl -sS -b cookies.txt http://127.0.0.1:*"
     - "curl -si http://localhost:*"
     - "curl -si http://127.0.0.1:*"
     - "curl -i http://localhost:*"
@@ -108,58 +122,74 @@ safe-outputs:
 post-steps:
   - name: Cleanup sandbox Neon branch (safety net)
     if: always()
+    continue-on-error: true
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       BRANCH_NAME: agent-sandbox-${{ github.run_id }}
     run: |
-      set -euo pipefail
+      # Best-effort cleanup. Never fail the job from this step — every error
+      # path either logs a ::warning:: and continues, or exits 0. Combined
+      # with continue-on-error: true above as defense in depth.
+      set -u
       if [ -z "${NEON_API_KEY:-}" ] || [ -z "${NEON_PROJECT_ID:-}" ]; then
         echo "::warning::NEON_API_KEY or NEON_PROJECT_ID missing; skipping safety-net cleanup"
-        exit 0
-      fi
-      BRANCH_ID=$(curl -sS \
-        -H "Authorization: Bearer $NEON_API_KEY" \
-        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" \
-        | jq -r ".branches[]? | select(.name == \"$BRANCH_NAME\") | .id" | head -n1)
-      if [ -z "$BRANCH_ID" ] || [ "$BRANCH_ID" = "null" ]; then
-        echo "No sandbox branch named $BRANCH_NAME found (already deleted or never created)."
         exit 0
       fi
       case "$BRANCH_NAME" in
         agent-sandbox-*) ;;
         *)
-          echo "::error::Refusing to delete branch with non-sandbox name: $BRANCH_NAME"
-          exit 1
+          echo "::warning::BRANCH_NAME ($BRANCH_NAME) does not match agent-sandbox-* prefix; skipping"
+          exit 0
           ;;
       esac
-      echo "Deleting orphaned sandbox branch $BRANCH_NAME ($BRANCH_ID)"
-      HTTP_CODE=$(curl -sS -o /tmp/neon-delete.json -w "%{http_code}" -X DELETE \
+      LIST_OUT=/tmp/neon-list.json
+      LIST_HTTP=$(curl -sS -o "$LIST_OUT" -w "%{http_code}" \
         -H "Authorization: Bearer $NEON_API_KEY" \
-        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID")
-      if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-        echo "Branch deleted (HTTP $HTTP_CODE)"
-      else
-        echo "::warning::Branch delete returned HTTP $HTTP_CODE — may need manual cleanup of $BRANCH_NAME"
-        cat /tmp/neon-delete.json || true
+        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" || echo "000")
+      if [ "$LIST_HTTP" != "200" ]; then
+        echo "::warning::Neon list-branches returned HTTP $LIST_HTTP; skipping safety-net cleanup"
+        exit 0
       fi
+      BRANCH_ID=$(jq -r ".branches[]? | select(.name == \"$BRANCH_NAME\") | .id" < "$LIST_OUT" 2>/dev/null | head -n1 || true)
+      BRANCH_ID=${BRANCH_ID:-}
+      if [ -z "$BRANCH_ID" ] || [ "$BRANCH_ID" = "null" ]; then
+        echo "No sandbox branch named $BRANCH_NAME found (already deleted or never created)."
+        exit 0
+      fi
+      echo "Deleting orphaned sandbox branch $BRANCH_NAME ($BRANCH_ID)"
+      DEL_OUT=/tmp/neon-delete.json
+      DEL_HTTP=$(curl -sS -o "$DEL_OUT" -w "%{http_code}" -X DELETE \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" || echo "000")
+      if [ "$DEL_HTTP" -ge 200 ] 2>/dev/null && [ "$DEL_HTTP" -lt 300 ] 2>/dev/null; then
+        echo "Branch deleted (HTTP $DEL_HTTP)"
+      else
+        echo "::warning::Branch delete returned HTTP $DEL_HTTP — may need manual cleanup of $BRANCH_NAME"
+        cat "$DEL_OUT" 2>/dev/null || true
+      fi
+      exit 0
   - name: Sanitize server.log for upload
     if: failure()
+    continue-on-error: true
     run: |
-      set -euo pipefail
+      set -u
       if [ ! -f server.log ]; then
         echo "No server.log to upload"
         exit 0
       fi
+      # Hardened patterns:
+      #   - [Bb]earer + any non-whitespace token (catches lowercase, =, +, /, etc.)
+      #   - postgres(ql)? URIs
+      #   - Set-Cookie/Authorization headers with optional leading whitespace
       sed -E \
-        -e 's/Bearer [A-Za-z0-9._-]+/Bearer [REDACTED]/g' \
+        -e 's/[Bb]earer[[:space:]]+[^[:space:]]+/Bearer [REDACTED]/g' \
         -e 's#postgres(ql)?://[^[:space:]]+#[REDACTED]#g' \
-        -e '/^[Ss]et-[Cc]ookie:/d' \
-        -e '/^[Aa]uthorization:/d' \
-        server.log > server.log.sanitized
-      tail -c 1048576 server.log.sanitized > server.log.sanitized.tail
-      mv server.log.sanitized.tail server.log.sanitized
-      echo "Sanitized server.log written ($(wc -c < server.log.sanitized) bytes)"
+        -e '/^[[:space:]]*[Ss]et-[Cc]ookie:/d' \
+        -e '/^[[:space:]]*[Aa]uthorization:/d' \
+        server.log > server.log.sanitized || cp server.log server.log.sanitized
+      tail -c 1048576 server.log.sanitized > server.log.sanitized.tail 2>/dev/null && mv server.log.sanitized.tail server.log.sanitized || true
+      echo "Sanitized server.log written ($(wc -c < server.log.sanitized 2>/dev/null || echo unknown) bytes)"
   - name: Upload sanitized server.log on failure
     if: failure() && hashFiles('server.log.sanitized') != ''
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -395,8 +425,10 @@ If the server doesn't respond within 60s, treat it as a build/startup failure: r
 
 ### 9a — Smoke test
 
+> **Curl flag-ordering rule (applies throughout Step 9):** the bash allowlist uses trailing-wildcard patterns, so any flags whose values are dynamic (`-w "%{http_code}"`, `-H "Authorization: ..."`, etc.) must appear **after** the URL. The shapes shown below are the only ones whitelisted.
+
 ```
-curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:3000/
+curl -sS -o /dev/null http://localhost:3000/ -w "%{http_code}\n"
 ```
 
 Expect 200 or a redirect to `/login`. 5xx means the server is crashing — check `server.log` and proceed to iteration.
@@ -406,13 +438,12 @@ Expect 200 or a redirect to `/login`. 5xx means the server is crashing — check
 For each check from Step 2:
 
 - **Public pages** — `curl http://localhost:3000/<path>`, check status and grep for expected content
-- **Auth-gated routes** — mint a session via the AGENT_SESSION_SECRET route the repo provides. The route uses [`requireBearerSecret`](src/lib/auth-helpers.ts#L19), so the header must be `Authorization: Bearer <secret>` — anything else returns 401:
+- **Auth-gated routes** — mint a session via the AGENT_SESSION_SECRET route the repo provides. The route uses [`requireBearerSecret`](src/lib/auth-helpers.ts#L19), so the header must be `Authorization: Bearer <secret>` — anything else returns 401. Note the URL precedes `-H` so the trailing wildcard captures the dynamic header value:
   ```
-  curl -sS -c cookies.txt -X POST \
-    -H "Authorization: Bearer $AGENT_SESSION_SECRET" \
-    http://localhost:3000/api/agent/session
+  curl -sS -c cookies.txt -X POST http://localhost:3000/api/agent/session \
+    -H "Authorization: Bearer $AGENT_SESSION_SECRET"
   ```
-  Then use `-b cookies.txt` on subsequent authenticated requests. If the mint endpoint is missing or returns non-2xx, mark the check `skipped (session mint failed)` and move on
+  Then use `-b cookies.txt` on subsequent authenticated requests, e.g. `curl -sS -b cookies.txt http://localhost:3000/api/...`. If the mint endpoint is missing or returns non-2xx, mark the check `skipped (session mint failed)` and move on
 - **API endpoints** — same as above with `-b cookies.txt` once a session is minted
 - **Server actions** — exercised the same way the UI would (POST to the page that triggers the action)
 - **Cron / scheduled paths** — `skipped (requires CRON_SECRET; not exercised in sandbox)`
