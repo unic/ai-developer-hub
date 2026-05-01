@@ -66,10 +66,7 @@ tools:
     - "pnpm build"
     - "pnpm start"
     - "env:*"
-    - "git diff"
-    - "git diff:*"
-    - "git status"
-    - "git log:*"
+    - "git:*"
     - "gh api:*"
     - "jq:*"
     - "kill:*"
@@ -78,28 +75,12 @@ tools:
     - "cat:*"
     - "echo:*"
     - "sleep:*"
-    # Localhost-only curl patterns. gh-aw bash matching uses trailing wildcards
-    # (`:*`) only — mid-pattern `*` is not supported. Step 9 curl invocations
-    # below are ordered with variable parts AFTER the URL so the trailing
-    # wildcard captures them.
-    - "curl http://localhost:*"
-    - "curl http://127.0.0.1:*"
-    - "curl -sf http://localhost:*"
-    - "curl -sf http://127.0.0.1:*"
-    - "curl -sf -o /dev/null http://localhost:*"
-    - "curl -sf -o /dev/null http://127.0.0.1:*"
-    - "curl -sS http://localhost:*"
-    - "curl -sS http://127.0.0.1:*"
-    - "curl -sS -o /dev/null http://localhost:*"
-    - "curl -sS -o /dev/null http://127.0.0.1:*"
-    - "curl -sS -c cookies.txt -X POST http://localhost:*"
-    - "curl -sS -c cookies.txt -X POST http://127.0.0.1:*"
-    - "curl -sS -b cookies.txt http://localhost:*"
-    - "curl -sS -b cookies.txt http://127.0.0.1:*"
-    - "curl -si http://localhost:*"
-    - "curl -si http://127.0.0.1:*"
-    - "curl -i http://localhost:*"
-    - "curl -i http://127.0.0.1:*"
+    # Curl is broad here because Claude Code's `:*` wildcard doesn't span
+    # tokens far enough to enumerate every flag combination the agent
+    # legitimately needs. Localhost-only protection comes from the
+    # `network.allowed` list above (only github/node/mcp.neon.tech/
+    # console.neon.tech are reachable; localhost is internal).
+    - "curl:*"
 
 mcp-servers:
   neon:
@@ -239,6 +220,8 @@ Your job tonight: pick one open issue, implement the fix, then **verify the impl
 
 `AGENT_SESSION_SECRET` is **not** a repo secret. Step 8 generates a fresh one per run with `openssl` so the curl in Step 9b and the local `pnpm start` server share a value that never leaves the runner. gh-aw strict mode would reject putting it in `engine.env` (would leak the value to the agent's container, where prompt injection could exfiltrate it).
 
+> **Note:** Long or frequently-run iterations can hit Anthropic API workspace usage limits; if the workflow fails with a rate-limit or quota error, the limit is configured in the [Anthropic console](https://console.anthropic.com/settings/limits) — not in this repo.
+
 **Variables (non-sensitive):**
 
 - `NEON_PROJECT_ID` — **required**. The Neon project ID for ai-developer-hub. Scopes the Neon MCP to one project
@@ -247,7 +230,7 @@ Your job tonight: pick one open issue, implement the fix, then **verify the impl
 ## Prerequisites
 
 - Neon project allows on-demand branch create + delete via API key (default)
-- The repo's session-mint route at [src/app/api/agent/session/route.ts](src/app/api/agent/session/route.ts) is functional locally — POSTing with `Authorization: Bearer <AGENT_SESSION_SECRET>` returns a session cookie. The route reads `process.env.AGENT_SESSION_SECRET`, so the workflow's ephemeral export in Step 8 is what the locally-spawned `pnpm start` server picks up
+- The repo's session-mint route at [src/app/api/agent/session/route.ts](src/app/api/agent/session/route.ts) is functional locally — POSTing with `Authorization: Bearer <AGENT_SESSION_SECRET>` returns a session cookie. The route reads `process.env.AGENT_SESSION_SECRET`, which Step 8 supplies via `.env.local` (Next.js auto-loads it into `process.env` for `pnpm start`)
 
 The Vercel-Neon integration and Vercel preview deployments are **not** dependencies of this workflow. They serve human reviewers after the PR opens; the bot doesn't read them.
 
@@ -395,20 +378,33 @@ env DATABASE_URL_UNPOOLED="<connection-string>" pnpm db:migrate
 
 ## Step 8 — Build and start the local server
 
-Generate throwaway secrets and configure env (these are local to this run only — never logged, never committed):
+Generate throwaway secrets and write them to `.env.local` (Next.js auto-loads this file for both `pnpm build` and `pnpm start` — no shell exports needed, and env vars set via `export` don't persist across separate Bash tool invocations anyway). `.env.local` is gitignored and never committed.
+
+**Do NOT write any files to `/tmp/gh-aw/...` paths — those are hard-blocked by Claude Code. Use workspace paths only (e.g. `.env.local`, `server.log`, `server.pid`, `cookies.txt` in the repo root).**
+
+Generate each secret with a separate Bash invocation and hold the value in agent memory:
 
 ```
-export AUTH_SECRET=$(openssl rand -base64 32)
-export NEXTAUTH_SECRET="$AUTH_SECRET"
-export NEXTAUTH_URL=http://localhost:3000
-export API_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
-export AGENT_SESSION_SECRET=$(openssl rand -base64 32)   # ephemeral; the curl in Step 9b reads the same shell var
-
-# DATABASE_URL[_UNPOOLED] from Step 7b (use sandbox branch). If Step 7 was skipped,
-# call get_connection_string here for a fresh string against agent-sandbox-${{ github.run_id }}
-export DATABASE_URL="<from neon mcp, pooled=true>"
-export DATABASE_URL_UNPOOLED="<from neon mcp, pooled=false>"
+openssl rand -base64 32   # → AUTH_SECRET / NEXTAUTH_SECRET
+openssl rand -hex 32      # → API_KEY_ENCRYPTION_SECRET
+openssl rand -base64 32   # → AGENT_SESSION_SECRET (keep this value in memory — Step 9b needs it)
 ```
+
+If Step 7 was skipped, call `get_connection_string` now (with `branchId: agent-sandbox-${{ github.run_id }}`) to obtain both the pooled and unpooled connection strings.
+
+Use the Write tool to create `.env.local` in the workspace root with all required variables:
+
+```
+AUTH_SECRET=<generated>
+NEXTAUTH_SECRET=<generated>
+NEXTAUTH_URL=http://localhost:3000
+API_KEY_ENCRYPTION_SECRET=<generated>
+AGENT_SESSION_SECRET=<generated>
+DATABASE_URL=<from neon mcp, pooled=true, sandbox branch>
+DATABASE_URL_UNPOOLED=<from neon mcp, pooled=false, sandbox branch>
+```
+
+The locally-spawned `pnpm start` server reads `AGENT_SESSION_SECRET` from `.env.local` via `process.env`. Keep the generated value in agent memory as well — Step 9b uses it when constructing the session-mint curl (or read it back from `.env.local` if needed).
 
 Build and start:
 
@@ -433,10 +429,8 @@ If the server doesn't respond within 60s, treat it as a build/startup failure: r
 
 ### 9a — Smoke test
 
-> **Curl flag-ordering rule (applies throughout Step 9):** the bash allowlist uses trailing-wildcard patterns, so any flags whose values are dynamic (`-w "%{http_code}"`, `-H "Authorization: ..."`, etc.) must appear **after** the URL. The shapes shown below are the only ones whitelisted.
-
 ```
-curl -sS -o /dev/null http://localhost:3000/ -w "%{http_code}\n"
+curl -sS -o /dev/null -w "%{http_code}\n" http://localhost:3000/
 ```
 
 Expect 200 or a redirect to `/login`. 5xx means the server is crashing — check `server.log` and proceed to iteration.
@@ -446,10 +440,11 @@ Expect 200 or a redirect to `/login`. 5xx means the server is crashing — check
 For each check from Step 2:
 
 - **Public pages** — `curl http://localhost:3000/<path>`, check status and grep for expected content
-- **Auth-gated routes** — mint a session via the AGENT_SESSION_SECRET route the repo provides. The route uses [`requireBearerSecret`](src/lib/auth-helpers.ts#L19), so the header must be `Authorization: Bearer <secret>` — anything else returns 401. Note the URL precedes `-H` so the trailing wildcard captures the dynamic header value:
+- **Auth-gated routes** — mint a session via the AGENT_SESSION_SECRET route the repo provides. The route uses [`requireBearerSecret`](src/lib/auth-helpers.ts#L19), so the header must be `Authorization: Bearer <secret>` — anything else returns 401. Use the value generated in Step 8 (read from `.env.local` if no longer in agent memory):
   ```
-  curl -sS -c cookies.txt -X POST http://localhost:3000/api/agent/session \
-    -H "Authorization: Bearer $AGENT_SESSION_SECRET"
+  curl -sS -c cookies.txt -X POST \
+    -H "Authorization: Bearer <AGENT_SESSION_SECRET value from Step 8>" \
+    http://localhost:3000/api/agent/session
   ```
   Then use `-b cookies.txt` on subsequent authenticated requests, e.g. `curl -sS -b cookies.txt http://localhost:3000/api/...`. If the mint endpoint is missing or returns non-2xx, mark the check `skipped (session mint failed)` and move on
 - **API endpoints** — same as above with `-b cookies.txt` once a session is minted

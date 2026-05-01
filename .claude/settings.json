@@ -17,22 +17,9 @@
       "Bash(openssl rand *)",
       "Bash(curl http://localhost:*)",
       "Bash(curl http://127.0.0.1:*)",
-      "Bash(curl -sf http://localhost:*)",
-      "Bash(curl -sf http://127.0.0.1:*)",
-      "Bash(curl -sf -o /dev/null http://localhost:*)",
-      "Bash(curl -sf -o /dev/null http://127.0.0.1:*)",
-      "Bash(curl -sS http://localhost:*)",
-      "Bash(curl -sS http://127.0.0.1:*)",
-      "Bash(curl -sS -o /dev/null http://localhost:*)",
-      "Bash(curl -sS -o /dev/null http://127.0.0.1:*)",
-      "Bash(curl -sS -c cookies.txt -X POST http://localhost:*)",
-      "Bash(curl -sS -c cookies.txt -X POST http://127.0.0.1:*)",
-      "Bash(curl -sS -b cookies.txt http://localhost:*)",
-      "Bash(curl -sS -b cookies.txt http://127.0.0.1:*)",
-      "Bash(curl -si http://localhost:*)",
-      "Bash(curl -si http://127.0.0.1:*)",
-      "Bash(curl -i http://localhost:*)",
-      "Bash(curl -i http://127.0.0.1:*)"
+      "Bash(curl * http://localhost:*)",
+      "Bash(curl * http://127.0.0.1:*)",
+      "Bash(npm install -g pnpm@*)"
     ]
   },
   "env": {
