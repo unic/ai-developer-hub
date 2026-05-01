@@ -83,3 +83,18 @@ export function formatDateOnly(d: Date): string {
 export const NO_CIRCLE_SENTINEL = "__no_circle__";
 export const NO_PROFILE_SENTINEL = "__no_profile__";
 export const NO_WORKSPACE_SENTINEL = "__no_workspace__";
+
+/**
+ * Report-specific normalization: null, empty string, "n/a", "none" (case-insensitive, trimmed) → null.
+ * Stricter than `normalizeField` (which only collapses null/empty); used for grouping circles in
+ * `/reports` so legacy "n/a"/"none" sentinels collapse with real nulls. Do not reuse for persistence
+ * paths without coordinating, since user import/update flows currently rely on `normalizeField`.
+ */
+export function normalizeCircle(circle: string | null | undefined): string | null {
+  if (circle === null || circle === undefined) return null;
+  const trimmed = circle.trim();
+  if (trimmed === "") return null;
+  const lower = trimmed.toLowerCase();
+  if (lower === "n/a" || lower === "none") return null;
+  return trimmed;
+}

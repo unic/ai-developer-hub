@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, NO_CIRCLE_SENTINEL } from "@/lib/utils";
 import type {
   ReportOverviewData,
   PeriodSpendPoint,
@@ -243,9 +243,9 @@ export function ReportsChartsPanel({
                   {[...circleReport]
                     .sort((a, b) => b.totalMonthlyCost - a.totalMonthlyCost)
                     .map((item) => (
-                      <TableRow key={item.circle}>
+                      <TableRow key={item.circle ?? NO_CIRCLE_SENTINEL}>
                         <TableCell className="font-medium">
-                          {item.circle}
+                          {item.circle ?? "Unassigned"}
                         </TableCell>
                         <TableCell>{item.userCount}</TableCell>
                         <TableCell>{item.licenseCount}</TableCell>
