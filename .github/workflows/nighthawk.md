@@ -32,6 +32,11 @@ network:
     - node
     - mcp.neon.tech
     - console.neon.tech
+    # next/font/google fetches font metadata and stylesheet from Google's font CDN
+    - fonts
+    # *.neon.tech covers Neon data-plane WebSocket endpoints (ep-xxx[-pooler].<region>.aws.neon.tech)
+    # without which every API route that hits the DB returns 500
+    - "*.neon.tech"
 
 pre-agent-steps:
   # The agent runs inside the gh-aw firewall container (`awf …`), which
@@ -70,6 +75,7 @@ tools:
     - "gh api:*"
     - "jq:*"
     - "kill:*"
+    - "pkill:*"
     - "nohup:*"
     - "openssl:*"
     - "cat:*"
@@ -423,6 +429,8 @@ for i in $(seq 1 60); do
 done
 ```
 
+> **Bash gateway constraints:** Claude Code rejects shell expansions like `$!`, `${VAR:-default}`, and command-substitution composed with redirection. Capture the server PID via `pgrep -f "next start"` (or `pgrep -f "next dev"` if you fall back to dev mode) into a separate Bash call rather than using `$!`. Don't try to combine `nohup pnpm start > server.log 2>&1 &` with PID capture in one command — split it.
+
 If the server doesn't respond within 60s, treat it as a build/startup failure: read the **last 50 lines** of `server.log` (sanitized — see Step 9c rule), record as a failure for this attempt, and proceed to iteration. Do **not** skip cleanup: even if everything fails after this point, Step 11 still runs.
 
 ## Step 9 — Verify against the local sandbox
@@ -452,7 +460,7 @@ For each check from Step 2:
 - **Cron / scheduled paths** — `skipped (requires CRON_SECRET; not exercised in sandbox)`
 - **Database state** — for any check whose expected outcome is a row inserted/updated/deleted, use the Neon MCP `run_sql` (with `branchId: agent-sandbox-${{ github.run_id }}`, read-only `SELECT`) to confirm directly. This is far more reliable than scraping HTTP responses
 
-Record each item: `pass` / `fail` / `skipped (reason)`. **Verification passes only if at least one item is `pass` and zero items are `fail`.** A 100%-skipped plan is reported as "could not verify".
+Record each item: `pass` / `fail` / `skipped (reason)`. **Verification passes only if at least one item is `pass` and zero items are `fail`.** Database-state checks via Neon MCP `run_sql` count as `pass` — they're often more reliable than HTTP for state assertions. A 100%-skipped plan is reported as "could not verify".
 
 ### 9c — Sanitization rule
 
