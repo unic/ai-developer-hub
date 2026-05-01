@@ -16,6 +16,9 @@ on:
 engine:
   id: claude
   model: claude-sonnet-4-6
+  env:
+    AGENT_SESSION_SECRET: ${{ secrets.AGENT_SESSION_SECRET }}
+    NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
 
 permissions:
   contents: read

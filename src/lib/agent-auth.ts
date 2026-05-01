@@ -6,6 +6,13 @@ import type { UserPreferences } from "@/types";
  * bare path prefix (matches any method) or `METHOD path` (matches that method
  * only). Outbound side effects (real emails, real R2 uploads, key rotations)
  * and destructive admin operations belong here. Read-only admin pages do not.
+ *
+ * Note: `/api/sync` and `/api/invoices/ingest` are excluded from the
+ * middleware matcher (they use their own bearer auth — CRON_SECRET and
+ * INVOICE_INGEST_SECRET respectively — not session cookies). The entries
+ * below are defense-in-depth: they activate only if the matcher is later
+ * widened to cover those paths. Day-to-day, route-level bearer auth is what
+ * keeps an agent session out of those endpoints.
  */
 export const BUILT_IN_DENY_PATHS: readonly string[] = [
   "DELETE /api/users",

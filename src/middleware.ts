@@ -19,6 +19,7 @@ export default auth((req) => {
       logAgentRequest({
         pathname,
         method: req.method,
+        decision: "deny",
         status: 403,
         userId: req.auth.user.id,
         reason: "deny-list",
@@ -28,7 +29,7 @@ export default auth((req) => {
     logAgentRequest({
       pathname,
       method: req.method,
-      status: 200,
+      decision: "allow",
       userId: req.auth.user.id,
     });
   }
@@ -40,6 +41,6 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|api/sync|api/invoices/ingest|api/profile|api/agent).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|api/sync|api/invoices/ingest|api/profile|api/agent/session).*)",
   ],
 };

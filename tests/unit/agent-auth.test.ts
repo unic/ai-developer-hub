@@ -234,15 +234,21 @@ describe("POST /api/agent/session", () => {
     expect(body.success).toBe(true);
     expect(body.cookieName).toBe("__Secure-authjs.session-token");
     expect(body.expiresIn).toBe(30 * 60);
-    expect(typeof body.token).toBe("string");
+    expect(body.token).toBeUndefined();
 
     const setCookie = res.headers.get("set-cookie");
     expect(setCookie).toBeTruthy();
     expect(setCookie!.toLowerCase()).toContain("httponly");
     expect(setCookie!.toLowerCase()).toContain("samesite=lax");
 
+    const tokenMatch = setCookie!.match(
+      new RegExp(`${body.cookieName}=([^;]+)`)
+    );
+    expect(tokenMatch).not.toBeNull();
+    const token = decodeURIComponent(tokenMatch![1]);
+
     const decoded = await decode({
-      token: body.token,
+      token,
       secret: TEST_AUTH_SECRET,
       salt: body.cookieName,
     });

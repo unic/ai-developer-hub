@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     logAgentRequest({
       pathname: "/api/agent/session",
       method: "POST",
+      decision: "auth-failure",
       status: 401,
       reason: "missing or wrong bearer",
     });
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
     logAgentRequest({
       pathname: "/api/agent/session",
       method: "POST",
+      decision: "production-refused",
       status: 403,
       reason: "production refused",
     });
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
     logAgentRequest({
       pathname: "/api/agent/session",
       method: "POST",
+      decision: "no-agent-user",
       status: 503,
       reason: "agent user not provisioned",
     });
@@ -75,6 +78,7 @@ export async function POST(request: NextRequest) {
   logAgentRequest({
     pathname: "/api/agent/session",
     method: "POST",
+    decision: "allow",
     status: 200,
     userId: String(agent.id),
   });
@@ -82,7 +86,6 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({
     success: true,
     cookieName,
-    token,
     expiresIn: maxAgeSeconds,
   });
   response.cookies.set({

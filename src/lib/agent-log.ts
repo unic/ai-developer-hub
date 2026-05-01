@@ -1,7 +1,8 @@
 export interface AgentRequestLog {
   pathname: string;
   method: string;
-  status: number;
+  decision: "allow" | "deny" | "auth-failure" | "production-refused" | "no-agent-user";
+  status?: number;
   userId?: string;
   reason?: string;
 }
