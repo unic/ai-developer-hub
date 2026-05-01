@@ -93,7 +93,8 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Integration tests — requires a live Neon database branch.
-  # Enable once a NEON_DATABASE_URL_CI secret is configured in the repo.
+  # Enable once both NEON_DATABASE_URL_CI and NEON_DATABASE_URL_UNPOOLED_CI
+  # secrets are configured in the repo.
   # ---------------------------------------------------------------------------
   # integration-tests:
   #   name: Integration Tests
@@ -117,7 +118,8 @@ jobs:
   # ---------------------------------------------------------------------------
   # E2E tests — requires a running application and Playwright browsers.
   # Enable once infrastructure for a Playwright-compatible CI environment is
-  # in place (see docs/ci-e2e.md for setup instructions).
+  # in place; the commented job below shows the activation steps (install
+  # deps, install Playwright browsers, run e2e).
   # ---------------------------------------------------------------------------
   # e2e-tests:
   #   name: E2E Tests
