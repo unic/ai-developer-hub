@@ -16,9 +16,6 @@ on:
 engine:
   id: claude
   model: claude-sonnet-4-6
-  env:
-    AGENT_SESSION_SECRET: ${{ secrets.AGENT_SESSION_SECRET }}
-    NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
 
 permissions:
   contents: read
@@ -119,8 +116,9 @@ Your job tonight: pick one open issue, implement the fix, then **verify the impl
 
 - `GITHUB_TOKEN` — auto-provided
 - `ANTHROPIC_API_KEY` — **required**. Pinning `engine.model: claude-sonnet-4-6` (and the Opus 4.7 subagent in Step 2) requires direct Anthropic billing — gh-aw's Claude engine uses this key to call the Anthropic API. Create at https://console.anthropic.com/settings/keys
-- `NEON_API_KEY` — **required**. Organization-scoped, write-capable. Used to create/delete the sandbox branch, fetch its connection string, and run SQL against it. Never used against production. Create at https://console.neon.tech/app/settings?modal=create_api_key
-- `AGENT_SESSION_SECRET` — **required** for verifying auth-gated routes. The repo's session-mint route accepts this secret and returns a session cookie scoped to a synthetic admin user. Works against the local sandbox server the same way it would against a Vercel preview
+- `NEON_API_KEY` — **required**. Organization-scoped, write-capable. Used to create/delete the sandbox branch, fetch its connection string, and run SQL against it. Never used against production. Create at https://console.neon.tech/app/settings?modal=create_api_key. Wired through the Neon MCP server (`mcp-servers.neon.headers`), not the agent's container env
+
+`AGENT_SESSION_SECRET` is **not** a repo secret. Step 8 generates a fresh one per run with `openssl` so the curl in Step 9b and the local `pnpm start` server share a value that never leaves the runner. gh-aw strict mode would reject putting it in `engine.env` (would leak the value to the agent's container, where prompt injection could exfiltrate it).
 
 **Variables (non-sensitive):**
 
@@ -130,7 +128,7 @@ Your job tonight: pick one open issue, implement the fix, then **verify the impl
 ## Prerequisites
 
 - Neon project allows on-demand branch create + delete via API key (default)
-- The repo's `AGENT_SESSION_SECRET` mint route (added in commit `16ca34d`) is functional locally — i.e. POSTing to it with the secret returns a valid session cookie
+- The repo's session-mint route at [src/app/api/agent/session/route.ts](src/app/api/agent/session/route.ts) is functional locally — POSTing with `Authorization: Bearer <AGENT_SESSION_SECRET>` returns a session cookie. The route reads `process.env.AGENT_SESSION_SECRET`, so the workflow's ephemeral export in Step 8 is what the locally-spawned `pnpm start` server picks up
 
 The Vercel-Neon integration and Vercel preview deployments are **not** dependencies of this workflow. They serve human reviewers after the PR opens; the bot doesn't read them.
 
@@ -285,7 +283,7 @@ export AUTH_SECRET=$(openssl rand -base64 32)
 export NEXTAUTH_SECRET="$AUTH_SECRET"
 export NEXTAUTH_URL=http://localhost:3000
 export API_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
-export AGENT_SESSION_SECRET="$AGENT_SESSION_SECRET"   # passthrough from secrets
+export AGENT_SESSION_SECRET=$(openssl rand -base64 32)   # ephemeral; the curl in Step 9b reads the same shell var
 
 # DATABASE_URL[_UNPOOLED] from Step 7b (use sandbox branch). If Step 7 was skipped,
 # call get_connection_string here for a fresh string against agent-sandbox-${{ github.run_id }}
