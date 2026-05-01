@@ -79,6 +79,95 @@ function costReportResponse(
   );
 }
 
+describe("anthropic-workspace date-range capping", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupWithSyncLock();
+  });
+
+  it("skips cost fetch when now equals startDate (month just began)", async () => {
+    vi.useFakeTimers();
+    // Cron fires at the exact start of May 2026 — the scenario from issue #72
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 1, 0, 0, 0))); // 2026-05-01T00:00:00Z
+
+    // Workspace call succeeds
+    mockFetch.mockResolvedValueOnce(workspacesResponse([]));
+    // No cost report call should be made — month just started, ending_at would equal starting_at
+
+    const result = await run(1, { month: "2026-05" });
+    expect(result).toHaveProperty("eventId");
+    // Only the workspace fetch should have been called (1 call), not the cost report
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
+  it("caps endDate to now when month end is in the future", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 15, 12, 0, 0))); // 2026-05-15T12:00:00Z
+
+    mockFetch.mockResolvedValueOnce(workspacesResponse([]));
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "500.00" }])
+    );
+
+    await run(1, { month: "2026-05" });
+
+    // The cost report fetch should have been called
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Verify ending_at in the URL is not June 1 (which would be in the future)
+    const costReportCall = mockFetch.mock.calls[1];
+    const calledUrl: string = costReportCall[0] as string;
+    expect(calledUrl).not.toContain("2026-06-01");
+    // ending_at should encode the current time (2026-05-15T12:00:00.000Z)
+    expect(calledUrl).toContain("2026-05-15");
+
+    vi.useRealTimers();
+  });
+
+  it("uses full month range for past months without capping", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 15))); // May 15
+
+    mockFetch.mockResolvedValueOnce(workspacesResponse([]));
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: null, amount: "1000.00" }])
+    );
+
+    await run(1, { month: "2026-04" }); // April is fully in the past
+
+    const costReportCall = mockFetch.mock.calls[1];
+    const calledUrl: string = costReportCall[0] as string;
+    // ending_at should be May 1 (full month range) not capped to now
+    expect(calledUrl).toContain("2026-05-01");
+
+    vi.useRealTimers();
+  });
+
+  it("skips current-month iteration in backfill when cron fires at exact month start", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 1, 0, 0, 0))); // 2026-05-01T00:00:00Z
+
+    // Workspaces succeeds
+    mockFetch.mockResolvedValueOnce(workspacesResponse([]));
+    // April cost report succeeds
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "300.00" }])
+    );
+    // May cost report must NOT be called (effectiveEnd <= startDate)
+
+    const result = await run(1, {
+      backfillStartDate: new Date(Date.UTC(2026, 3, 1)), // Apr 2026
+    });
+
+    expect(result).toHaveProperty("eventId");
+    // 1 workspace + 1 April cost report = 2 calls; May should be skipped
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+});
+
 describe("anthropic-workspace backfill error handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
