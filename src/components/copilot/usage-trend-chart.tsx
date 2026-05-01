@@ -22,14 +22,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-interface TrendDataPoint {
-  date: string;
-  suggestions: number;
-  acceptances: number;
-  activeUsers: number;
-  acceptanceRate: number;
-}
+import { LineChart as LineChartIcon } from "lucide-react";
+import { isUsageTrendSparse } from "@/lib/copilot-chart-utils";
+import type { TrendDataPoint } from "@/lib/copilot-chart-utils";
 
 interface UsageTrendChartProps {
   data: TrendDataPoint[];
@@ -51,10 +46,6 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function UsageTrendChart({ data }: UsageTrendChartProps) {
-  if (data.length === 0) {
-    return null;
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -64,48 +55,58 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-          <LineChart data={data} accessibilityLayer>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              tickFormatter={(value: string) => {
-                const date = new Date(value);
-                return date.toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                });
-              }}
-            />
-            <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Line
-              type="monotone"
-              dataKey="suggestions"
-              stroke="var(--color-suggestions)"
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="acceptances"
-              stroke="var(--color-acceptances)"
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="activeUsers"
-              stroke="var(--color-activeUsers)"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ChartContainer>
+        {isUsageTrendSparse(data) ? (
+          <div className="flex flex-col items-center justify-center min-h-[300px] gap-3 text-muted-foreground">
+            <LineChartIcon className="size-10" />
+            <p className="text-sm text-center max-w-xs">
+              Not enough usage data yet — Copilot trends will appear here once
+              at least 2 days of activity have been synced.
+            </p>
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+            <LineChart data={data} accessibilityLayer>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tickFormatter={(value: string) => {
+                  const date = new Date(value);
+                  return date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  });
+                }}
+              />
+              <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Line
+                type="monotone"
+                dataKey="suggestions"
+                stroke="var(--color-suggestions)"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="acceptances"
+                stroke="var(--color-acceptances)"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="activeUsers"
+                stroke="var(--color-activeUsers)"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );
