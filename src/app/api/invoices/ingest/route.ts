@@ -9,9 +9,7 @@ import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { evaluateIngestionFilters } from "@/lib/ingestion-filters";
-
-/** System user ID for automated/API-initiated operations */
-const SYSTEM_ADMIN_USER_ID = Number.parseInt(process.env.SYSTEM_ADMIN_USER_ID ?? "1", 10);
+import { getSystemAdminUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +36,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }
+    );
+  }
+
+  // Validate SYSTEM_ADMIN_USER_ID before any processing — fails fast with a
+  // clear error rather than propagating NaN or the wrong user id into DB rows.
+  let systemAdminUserId: number;
+  try {
+    systemAdminUserId = await getSystemAdminUserId();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Server misconfigured";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
     );
   }
 
@@ -189,7 +200,7 @@ export async function POST(request: NextRequest) {
           vendor: resolvedVendor,
           blobUrl,
           blobPathname: objectKey,
-          uploadedBy: SYSTEM_ADMIN_USER_ID,
+          uploadedBy: systemAdminUserId,
           filteredOut: true,
         })
         .returning({ id: invoices.id });
@@ -260,7 +271,7 @@ export async function POST(request: NextRequest) {
           vendor: resolvedVendor,
           blobUrl,
           blobPathname: objectKey,
-          uploadedBy: SYSTEM_ADMIN_USER_ID,
+          uploadedBy: systemAdminUserId,
           linkedBilledCostId,
         })
         .returning({ id: invoices.id });
