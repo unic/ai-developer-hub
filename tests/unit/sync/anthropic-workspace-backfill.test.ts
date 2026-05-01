@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the sync framework - make withSyncLock invoke the callback directly
 const mockWithSyncLock = vi.fn();
@@ -85,6 +85,12 @@ describe("anthropic-workspace date-range capping", () => {
     setupWithSyncLock();
   });
 
+  // Guarantee fake timers are reset even if an assertion throws — leaked
+  // fake timers cascade into unrelated test failures.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("skips cost fetch when now equals startDate (month just began)", async () => {
     vi.useFakeTimers();
     // Cron fires at the exact start of May 2026 — the scenario from issue #72
@@ -98,8 +104,6 @@ describe("anthropic-workspace date-range capping", () => {
     expect(result).toHaveProperty("eventId");
     // Only the workspace fetch should have been called (1 call), not the cost report
     expect(mockFetch).toHaveBeenCalledTimes(1);
-
-    vi.useRealTimers();
   });
 
   it("caps endDate to now when month end is in the future", async () => {
@@ -121,8 +125,6 @@ describe("anthropic-workspace date-range capping", () => {
     expect(calledUrl).not.toContain("2026-06-01");
     // ending_at should encode the current time (2026-05-15T12:00:00.000Z)
     expect(calledUrl).toContain("2026-05-15");
-
-    vi.useRealTimers();
   });
 
   it("uses full month range for past months without capping", async () => {
@@ -140,8 +142,6 @@ describe("anthropic-workspace date-range capping", () => {
     const calledUrl: string = costReportCall[0] as string;
     // ending_at should be May 1 (full month range) not capped to now
     expect(calledUrl).toContain("2026-05-01");
-
-    vi.useRealTimers();
   });
 
   it("skips current-month iteration in backfill when cron fires at exact month start", async () => {
@@ -163,8 +163,6 @@ describe("anthropic-workspace date-range capping", () => {
     expect(result).toHaveProperty("eventId");
     // 1 workspace + 1 April cost report = 2 calls; May should be skipped
     expect(mockFetch).toHaveBeenCalledTimes(2);
-
-    vi.useRealTimers();
   });
 });
 
@@ -172,6 +170,11 @@ describe("anthropic-workspace backfill error handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupWithSyncLock();
+  });
+
+  // Guarantee fake timers are reset even if an assertion throws.
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("continues cost sync when workspace metadata fetch fails", async () => {
@@ -217,8 +220,6 @@ describe("anthropic-workspace backfill error handling", () => {
     expect(result).toHaveProperty("eventId");
     // 1 workspace + 2 cost report calls (Jan fails, Feb succeeds)
     expect(mockFetch).toHaveBeenCalledTimes(3);
-
-    vi.useRealTimers();
   });
 
   it("reports error counts for partial failures", async () => {
@@ -259,8 +260,6 @@ describe("anthropic-workspace backfill error handling", () => {
     expect(
       (capturedCounts as { errorMessage?: string }).errorMessage
     ).toMatch(/Backfill failed for \d{4}-\d{2}/);
-
-    vi.useRealTimers();
   });
 
   it("returns zero errorCount on fully successful sync", async () => {
@@ -329,7 +328,5 @@ describe("anthropic-workspace backfill error handling", () => {
     // Should contain both workspace and backfill error info
     expect(msg).toContain("Workspace metadata sync failed");
     expect(msg).toMatch(/Backfill failed for \d{4}-\d{2}/);
-
-    vi.useRealTimers();
   });
 });

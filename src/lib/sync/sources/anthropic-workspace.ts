@@ -157,8 +157,10 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
 
   // Cap endDate to now — Anthropic rejects requests where ending_at is in the future.
   const now = new Date();
-  const effectiveEnd = new Date(monthEndDate) > now ? now : new Date(monthEndDate);
-  if (effectiveEnd.getTime() <= new Date(startDate).getTime()) {
+  const startDateObj = new Date(startDate);
+  const monthEndDateObj = new Date(monthEndDate);
+  const effectiveEnd = monthEndDateObj > now ? now : monthEndDateObj;
+  if (effectiveEnd.getTime() <= startDateObj.getTime()) {
     // Month hasn't started yet or no time has elapsed — nothing to sync.
     return 0;
   }
