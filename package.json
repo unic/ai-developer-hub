@@ -16,6 +16,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:baseline": "tsx src/lib/db/baseline-migration.ts",
     "db:seed": "tsx src/lib/db/seed.ts",
+    "db:seed:agent": "tsx src/lib/db/seed-agent-user.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.config.integration.mts",

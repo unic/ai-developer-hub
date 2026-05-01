@@ -125,6 +125,7 @@ export const users = pgTable(
       .default({ theme: "system" }),
     profile: userProfileEnum("profile"),
     mustChangePassword: boolean("must_change_password").notNull().default(true),
+    isAgent: boolean("is_agent").notNull().default(false),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
