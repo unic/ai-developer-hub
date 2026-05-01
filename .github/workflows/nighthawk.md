@@ -33,6 +33,17 @@ network:
     - mcp.neon.tech
     - console.neon.tech
 
+pre-agent-steps:
+  - name: Setup pnpm
+    uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+    with:
+      run_install: false
+  - name: Setup Node.js with pnpm cache
+    uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    with:
+      node-version: '24'
+      cache: 'pnpm'
+
 tools:
   github:
     toolsets: [issues, pull_requests, repos, search]
@@ -52,7 +63,6 @@ tools:
     - "git status"
     - "git log:*"
     - "gh api:*"
-    - "curl:*"
     - "jq:*"
     - "kill:*"
     - "nohup:*"
@@ -60,6 +70,14 @@ tools:
     - "cat:*"
     - "echo:*"
     - "sleep:*"
+    - "curl -sf http://localhost:*"
+    - "curl -sf http://127.0.0.1:*"
+    - "curl -sS http://localhost:*"
+    - "curl -sS http://127.0.0.1:*"
+    - "curl -si http://localhost:*"
+    - "curl -si http://127.0.0.1:*"
+    - "curl -i http://localhost:*"
+    - "curl -i http://127.0.0.1:*"
 
 mcp-servers:
   neon:
@@ -85,9 +103,72 @@ safe-outputs:
     draft: true
   add-comment:
     target: "*"
-    max: 4
+    max: 2
 
-timeout-minutes: 60
+post-steps:
+  - name: Cleanup sandbox Neon branch (safety net)
+    if: always()
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      BRANCH_NAME: agent-sandbox-${{ github.run_id }}
+    run: |
+      set -euo pipefail
+      if [ -z "${NEON_API_KEY:-}" ] || [ -z "${NEON_PROJECT_ID:-}" ]; then
+        echo "::warning::NEON_API_KEY or NEON_PROJECT_ID missing; skipping safety-net cleanup"
+        exit 0
+      fi
+      BRANCH_ID=$(curl -sS \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" \
+        | jq -r ".branches[]? | select(.name == \"$BRANCH_NAME\") | .id" | head -n1)
+      if [ -z "$BRANCH_ID" ] || [ "$BRANCH_ID" = "null" ]; then
+        echo "No sandbox branch named $BRANCH_NAME found (already deleted or never created)."
+        exit 0
+      fi
+      case "$BRANCH_NAME" in
+        agent-sandbox-*) ;;
+        *)
+          echo "::error::Refusing to delete branch with non-sandbox name: $BRANCH_NAME"
+          exit 1
+          ;;
+      esac
+      echo "Deleting orphaned sandbox branch $BRANCH_NAME ($BRANCH_ID)"
+      HTTP_CODE=$(curl -sS -o /tmp/neon-delete.json -w "%{http_code}" -X DELETE \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID")
+      if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+        echo "Branch deleted (HTTP $HTTP_CODE)"
+      else
+        echo "::warning::Branch delete returned HTTP $HTTP_CODE — may need manual cleanup of $BRANCH_NAME"
+        cat /tmp/neon-delete.json || true
+      fi
+  - name: Sanitize server.log for upload
+    if: failure()
+    run: |
+      set -euo pipefail
+      if [ ! -f server.log ]; then
+        echo "No server.log to upload"
+        exit 0
+      fi
+      sed -E \
+        -e 's/Bearer [A-Za-z0-9._-]+/Bearer [REDACTED]/g' \
+        -e 's#postgres(ql)?://[^[:space:]]+#[REDACTED]#g' \
+        -e '/^[Ss]et-[Cc]ookie:/d' \
+        -e '/^[Aa]uthorization:/d' \
+        server.log > server.log.sanitized
+      tail -c 1048576 server.log.sanitized > server.log.sanitized.tail
+      mv server.log.sanitized.tail server.log.sanitized
+      echo "Sanitized server.log written ($(wc -c < server.log.sanitized) bytes)"
+  - name: Upload sanitized server.log on failure
+    if: failure() && hashFiles('server.log.sanitized') != ''
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+    with:
+      name: nighthawk-server-log-${{ github.run_id }}
+      path: server.log.sanitized
+      retention-days: 7
+
+timeout-minutes: 45
 ---
 
 # Nightly Issue Implementer
