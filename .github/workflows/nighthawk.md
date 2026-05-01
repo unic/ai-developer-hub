@@ -34,10 +34,22 @@ network:
     - console.neon.tech
 
 pre-agent-steps:
+  # Pinned version (matches packageManager field in package.json) avoids the
+  # Corepack codepath in pnpm/action-setup, which fails with EROFS when it
+  # tries to write shims into the read-only /opt/hostedtoolcache/node tree
+  # inside the gh-aw agent sandbox.
   - name: Setup pnpm
     uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
     with:
+      version: 10.30.3
       run_install: false
+  # Publish pnpm's user-writable bin dir through standard Actions mechanisms
+  # so subsequent steps (and the agent sandbox) see pnpm on PATH without
+  # depending on Corepack mutating the Node install.
+  - name: Ensure pnpm is on PATH
+    run: |
+      echo "PNPM_HOME=${HOME}/.local/share/pnpm" >> "$GITHUB_ENV"
+      echo "${HOME}/.local/share/pnpm" >> "$GITHUB_PATH"
   - name: Setup Node.js with pnpm cache
     uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
     with:
