@@ -26,7 +26,8 @@ vi.mock("@/lib/crypto", () => ({
 
 // ── Import after mocks ────────────────────────────────────────────────────────
 
-import { GET, DECRYPTION_FAILED_SENTINEL } from "@/app/api/export/assignments/route";
+import { GET } from "@/app/api/export/assignments/route";
+import { DECRYPTION_FAILED_SENTINEL } from "@/app/api/export/assignments/constants";
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 

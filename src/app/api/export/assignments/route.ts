@@ -5,10 +5,7 @@ import { licenseAssignments } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import { toCsv, csvResponse } from "@/lib/csv";
-
-// Sentinel placed in the api_key CSV cell when decryption fails.
-// Distinguishes "key stored but unreadable" from "" (no key ever set).
-export const DECRYPTION_FAILED_SENTINEL = "DECRYPTION_FAILED";
+import { DECRYPTION_FAILED_SENTINEL } from "./constants";
 
 export async function GET() {
   const admin = await requireAdmin();
