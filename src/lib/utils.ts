@@ -83,3 +83,13 @@ export function formatDateOnly(d: Date): string {
 export const NO_CIRCLE_SENTINEL = "__no_circle__";
 export const NO_PROFILE_SENTINEL = "__no_profile__";
 export const NO_WORKSPACE_SENTINEL = "__no_workspace__";
+
+/** Normalize a circle value: null, empty string, "n/a", "none" (case-insensitive, trimmed) → null */
+export function normalizeCircle(circle: string | null | undefined): string | null {
+  if (circle === null || circle === undefined) return null;
+  const trimmed = circle.trim();
+  if (trimmed === "") return null;
+  const lower = trimmed.toLowerCase();
+  if (lower === "n/a" || lower === "none") return null;
+  return trimmed;
+}

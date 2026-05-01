@@ -243,9 +243,9 @@ export function ReportsChartsPanel({
                   {[...circleReport]
                     .sort((a, b) => b.totalMonthlyCost - a.totalMonthlyCost)
                     .map((item) => (
-                      <TableRow key={item.circle}>
+                      <TableRow key={item.circle ?? "__no_circle__"}>
                         <TableCell className="font-medium">
-                          {item.circle}
+                          {item.circle ?? "Unassigned"}
                         </TableCell>
                         <TableCell>{item.userCount}</TableCell>
                         <TableCell>{item.licenseCount}</TableCell>

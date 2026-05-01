@@ -9,10 +9,10 @@ import {
 import { getLicenseUtilizationByTool } from "@/actions/assignments";
 import { AuthGuard } from "@/components/auth-guard";
 import { ReportsTabBar } from "./reports-tab-bar";
+import { buildCircleReport } from "@/lib/reports/circle-report";
 import type {
   ReportOverviewData,
   ToolSummaryItem,
-  CircleReportItem,
 } from "@/types";
 
 const VALID_TABS = ["overview", "trends", "usage", "forecast"] as const;
@@ -70,24 +70,7 @@ export default async function ReportsPage({
     };
   });
 
-  const circles = [...new Set(userList.map((u) => u.circle))];
-  const circleReport: CircleReportItem[] = circles.map((circle) => {
-    const circleUsers = userList.filter((u) => u.circle === circle);
-    const circleUserIds = new Set(circleUsers.map((u) => u.id));
-    const circleAssignments = activeAssignments.filter((a) =>
-      circleUserIds.has(a.user.id)
-    );
-    const totalCost = circleAssignments.reduce(
-      (s, a) => s + a.costAtAssignmentCents,
-      0
-    );
-    return {
-      circle,
-      userCount: circleUsers.length,
-      licenseCount: circleAssignments.length,
-      totalMonthlyCost: totalCost,
-    };
-  });
+  const circleReport = buildCircleReport(userList, activeAssignments);
 
   const totalActiveUsers = userList.filter((u) => u.status === "active").length;
   const totalActiveTools = tools.filter((t) => t.status === "active").length;
