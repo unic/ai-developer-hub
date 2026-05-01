@@ -6,7 +6,7 @@ description: |
   migration if the schema changed, then verifies the implementation
   end-to-end inside an ephemeral sandbox (a temporary Neon branch + a
   local Next.js server bound to 127.0.0.1). On verification success, opens
-  a draft PR via safe-outputs. The Vercel preview that auto-deploys after
+  a PR via safe-outputs. The Vercel preview that auto-deploys after
   the PR opens is the human-review signal — not part of the bot's gate.
 
 on:
@@ -109,7 +109,10 @@ safe-outputs:
   create-pull-request:
     title-prefix: "[agent] "
     base-branch: main
-    draft: true
+    # Open as ready-for-review so Vercel preview deploys and code-review
+    # bots fire automatically. The agent's verification gate (Step 9) is
+    # the bot-side signal; humans still review before merge.
+    draft: false
   add-comment:
     target: "*"
     max: 2
@@ -200,7 +203,7 @@ timeout-minutes: 45
 
 You are an expert Next.js developer working on **ai-developer-hub** — a Next.js 15 App Router app on Vercel with Neon Postgres, NextAuth v5, Drizzle ORM, Tailwind v4, and shadcn/ui. Package manager is **pnpm** (10.30.x).
 
-Your job tonight: pick one open issue, implement the fix, then **verify the implementation end-to-end inside a self-contained sandbox** (a temporary Neon branch you create + a local Next.js server bound to `127.0.0.1:3000`). Iterate up to three times if verification fails. Only when verification passes do you open a draft PR. After the PR opens, Vercel will auto-deploy a preview for human reviewers — that's *their* signal, not part of your gate.
+Your job tonight: pick one open issue, implement the fix, then **verify the implementation end-to-end inside a self-contained sandbox** (a temporary Neon branch you create + a local Next.js server bound to `127.0.0.1:3000`). Iterate up to three times if verification fails. Only when verification passes do you open a PR. After the PR opens, Vercel will auto-deploy a preview for human reviewers — that's *their* signal, not part of your gate.
 
 **Read [CLAUDE.md](CLAUDE.md) before you start.** Code-style rules to honour:
 
@@ -518,7 +521,7 @@ If the run is aborting before Step 12 (e.g. no PR being opened due to total veri
 
 ## Step 12 — Open the PR (only if verification produced something worth shipping)
 
-Submit a `safe-outputs.create-pull-request` request. The PR will be opened as a draft (gh-aw policy in strict mode).
+Submit a `safe-outputs.create-pull-request` request. The PR opens as ready-for-review (`draft: false` in the safe-outputs config) so Vercel preview deploys and code-review bots fire on creation. Strict mode forbids direct git pushes regardless.
 
 **Branch name** the safe-output uses: `agent/issue-<issue-number>-<short-slug>`. Slug must be lowercase ASCII alphanumeric plus hyphens.
 
@@ -528,6 +531,17 @@ Submit a `safe-outputs.create-pull-request` request. The PR will be opened as a 
 
 ```
 Closes #<issue-number>
+
+## ⚠️ Post-merge actions
+<Pick exactly ONE of the two callouts below based on whether Step 6 generated migration files>
+
+<If schema unchanged — no migration files created in Step 6:>
+> 🟢 **No post-merge actions required.** Schema unchanged; safe to merge.
+
+<If one or more migrations were generated:>
+> 🟡 **Run `pnpm db:migrate` against production after merge.** This PR ships N new migration file(s):
+> - `drizzle/<file>.sql` — <one-line summary of what it does, e.g. "adds `is_agent` column to `users`">
+> The migration was applied and verified against the sandbox Neon branch during Step 7.
 
 ## What changed
 <brief summary>
@@ -539,9 +553,6 @@ Closes #<issue-number>
 - ✅ `pnpm lint` — zero warnings
 - ✅ `pnpm typecheck`
 - ✅ `pnpm test` — unit only
-
-## Schema
-<none | "1 new migration: drizzle/<file>.sql, applied to sandbox and verified">
 
 ## Sandbox verification — <✅ Passed | ❌ Failed after 3 attempts | ⚠️ Could not verify>
 **Attempts used:** N of 3
@@ -562,10 +573,10 @@ Verification plan results:
 
 ## Next steps
 <For success:>
-This PR is in draft state. Vercel will auto-deploy a preview after the PR opens — please verify the change in the live preview before promoting to ready and merging.
+Vercel will auto-deploy a preview after the PR opens — please verify the change in the live preview before merging.
 
 <For failure:>
-This PR is in draft and will not be promoted by the agent. The implementation may still be partially useful for human review, but verification did not pass.
+This PR opened with verification failing. The implementation may still be partially useful for human review, but the agent's automated checks did not pass — please scrutinize before merging.
 ```
 
 **When NOT to open a PR:** if no implementation work happened (Step 4 was aborted, all local checks failed before any meaningful change, sandbox couldn't be created), do **not** open a PR. Instead, post a `safe-outputs.add-comment` on the original issue (`issue_number: <num>`) with a one-paragraph explanation of what blocked the run. The cleanup in Step 11 still runs.
