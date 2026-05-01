@@ -6,7 +6,7 @@ description: |
   migration if the schema changed, then verifies the implementation
   end-to-end inside an ephemeral sandbox (a temporary Neon branch + a
   local Next.js server bound to 127.0.0.1). On verification success, opens
-  a draft PR via safe-outputs. The Vercel preview that auto-deploys after
+  a PR via safe-outputs. The Vercel preview that auto-deploys after
   the PR opens is the human-review signal — not part of the bot's gate.
 
 on:
@@ -32,6 +32,30 @@ network:
     - node
     - mcp.neon.tech
     - console.neon.tech
+    # next/font/google fetches font metadata and stylesheet from Google's font CDN
+    - fonts
+    # *.neon.tech covers Neon data-plane WebSocket endpoints (ep-xxx[-pooler].<region>.aws.neon.tech)
+    # without which every API route that hits the DB returns 500
+    - "*.neon.tech"
+
+pre-agent-steps:
+  # The agent runs inside the gh-aw firewall container (`awf …`), which
+  # constructs its PATH from `/opt/hostedtoolcache/**/bin` only — see the
+  # `find /opt/hostedtoolcache … -name bin` expansion in the compiled
+  # `Execute Claude Code CLI` step. Anything pnpm/action-setup installs
+  # to `~/.local/share/pnpm` is invisible to that container, so the agent
+  # gets `pnpm: command not found` no matter how PATH is exported on the
+  # runner.
+  #
+  # Installing via `npm install -g` lands pnpm in
+  # `/opt/hostedtoolcache/node/<ver>/x64/bin/pnpm` — the same toolcache
+  # path that gh-aw uses for the Claude Code CLI. The container's PATH
+  # already covers it, so the agent finds pnpm with zero extra config.
+  #
+  # gh-aw's own `Setup Node.js` and `Install Claude Code CLI` steps run
+  # before pre-agent-steps, so npm + Node are already available here.
+  - name: Install pnpm into the toolcache (visible inside the AWF container)
+    run: npm install -g pnpm@10.30.3
 
 tools:
   github:
@@ -47,19 +71,22 @@ tools:
     - "pnpm build"
     - "pnpm start"
     - "env:*"
-    - "git diff"
-    - "git diff:*"
-    - "git status"
-    - "git log:*"
+    - "git:*"
     - "gh api:*"
-    - "curl:*"
     - "jq:*"
     - "kill:*"
+    - "pkill:*"
     - "nohup:*"
     - "openssl:*"
     - "cat:*"
     - "echo:*"
     - "sleep:*"
+    # Curl is broad here because Claude Code's `:*` wildcard doesn't span
+    # tokens far enough to enumerate every flag combination the agent
+    # legitimately needs. Localhost-only protection comes from the
+    # `network.allowed` list above (only github/node/mcp.neon.tech/
+    # console.neon.tech are reachable; localhost is internal).
+    - "curl:*"
 
 mcp-servers:
   neon:
@@ -82,19 +109,101 @@ safe-outputs:
   create-pull-request:
     title-prefix: "[agent] "
     base-branch: main
-    draft: true
+    # Open as ready-for-review so Vercel preview deploys and code-review
+    # bots fire automatically. The agent's verification gate (Step 9) is
+    # the bot-side signal; humans still review before merge.
+    draft: false
   add-comment:
     target: "*"
-    max: 4
+    max: 2
 
-timeout-minutes: 60
+post-steps:
+  - name: Cleanup sandbox Neon branch (safety net)
+    if: always()
+    continue-on-error: true
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      BRANCH_NAME: agent-sandbox-${{ github.run_id }}
+    run: |
+      # Best-effort cleanup. Never fail the job from this step — every error
+      # path either logs a ::warning:: and continues, or exits 0. Combined
+      # with continue-on-error: true above as defense in depth.
+      set -u
+      if [ -z "${NEON_API_KEY:-}" ] || [ -z "${NEON_PROJECT_ID:-}" ]; then
+        echo "::warning::NEON_API_KEY or NEON_PROJECT_ID missing; skipping safety-net cleanup"
+        exit 0
+      fi
+      case "$BRANCH_NAME" in
+        agent-sandbox-*) ;;
+        *)
+          echo "::warning::BRANCH_NAME ($BRANCH_NAME) does not match agent-sandbox-* prefix; skipping"
+          exit 0
+          ;;
+      esac
+      LIST_OUT=/tmp/neon-list.json
+      LIST_HTTP=$(curl -sS -o "$LIST_OUT" -w "%{http_code}" \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" || echo "000")
+      if [ "$LIST_HTTP" != "200" ]; then
+        echo "::warning::Neon list-branches returned HTTP $LIST_HTTP; skipping safety-net cleanup"
+        exit 0
+      fi
+      BRANCH_ID=$(jq -r ".branches[]? | select(.name == \"$BRANCH_NAME\") | .id" < "$LIST_OUT" 2>/dev/null | head -n1 || true)
+      BRANCH_ID=${BRANCH_ID:-}
+      if [ -z "$BRANCH_ID" ] || [ "$BRANCH_ID" = "null" ]; then
+        echo "No sandbox branch named $BRANCH_NAME found (already deleted or never created)."
+        exit 0
+      fi
+      echo "Deleting orphaned sandbox branch $BRANCH_NAME ($BRANCH_ID)"
+      DEL_OUT=/tmp/neon-delete.json
+      DEL_HTTP=$(curl -sS -o "$DEL_OUT" -w "%{http_code}" -X DELETE \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" || echo "000")
+      if [ "$DEL_HTTP" -ge 200 ] 2>/dev/null && [ "$DEL_HTTP" -lt 300 ] 2>/dev/null; then
+        echo "Branch deleted (HTTP $DEL_HTTP)"
+      else
+        echo "::warning::Branch delete returned HTTP $DEL_HTTP — may need manual cleanup of $BRANCH_NAME"
+        cat "$DEL_OUT" 2>/dev/null || true
+      fi
+      exit 0
+  - name: Sanitize server.log for upload
+    if: failure()
+    continue-on-error: true
+    run: |
+      set -u
+      if [ ! -f server.log ]; then
+        echo "No server.log to upload"
+        exit 0
+      fi
+      # Hardened patterns:
+      #   - [Bb]earer + any non-whitespace token (catches lowercase, =, +, /, etc.)
+      #   - postgres(ql)? URIs
+      #   - Set-Cookie/Authorization headers with optional leading whitespace
+      sed -E \
+        -e 's/[Bb]earer[[:space:]]+[^[:space:]]+/Bearer [REDACTED]/g' \
+        -e 's#postgres(ql)?://[^[:space:]]+#[REDACTED]#g' \
+        -e '/^[[:space:]]*[Ss]et-[Cc]ookie:/d' \
+        -e '/^[[:space:]]*[Aa]uthorization:/d' \
+        server.log > server.log.sanitized || cp server.log server.log.sanitized
+      tail -c 1048576 server.log.sanitized > server.log.sanitized.tail 2>/dev/null && mv server.log.sanitized.tail server.log.sanitized || true
+      echo "Sanitized server.log written ($(wc -c < server.log.sanitized 2>/dev/null || echo unknown) bytes)"
+  - name: Upload sanitized server.log on failure
+    if: failure() && hashFiles('server.log.sanitized') != ''
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+    with:
+      name: nighthawk-server-log-${{ github.run_id }}
+      path: server.log.sanitized
+      retention-days: 7
+
+timeout-minutes: 45
 ---
 
 # Nightly Issue Implementer
 
 You are an expert Next.js developer working on **ai-developer-hub** — a Next.js 15 App Router app on Vercel with Neon Postgres, NextAuth v5, Drizzle ORM, Tailwind v4, and shadcn/ui. Package manager is **pnpm** (10.30.x).
 
-Your job tonight: pick one open issue, implement the fix, then **verify the implementation end-to-end inside a self-contained sandbox** (a temporary Neon branch you create + a local Next.js server bound to `127.0.0.1:3000`). Iterate up to three times if verification fails. Only when verification passes do you open a draft PR. After the PR opens, Vercel will auto-deploy a preview for human reviewers — that's *their* signal, not part of your gate.
+Your job tonight: pick one open issue, implement the fix, then **verify the implementation end-to-end inside a self-contained sandbox** (a temporary Neon branch you create + a local Next.js server bound to `127.0.0.1:3000`). Iterate up to three times if verification fails. Only when verification passes do you open a PR. After the PR opens, Vercel will auto-deploy a preview for human reviewers — that's *their* signal, not part of your gate.
 
 **Read [CLAUDE.md](CLAUDE.md) before you start.** Code-style rules to honour:
 
@@ -120,6 +229,8 @@ Your job tonight: pick one open issue, implement the fix, then **verify the impl
 
 `AGENT_SESSION_SECRET` is **not** a repo secret. Step 8 generates a fresh one per run with `openssl` so the curl in Step 9b and the local `pnpm start` server share a value that never leaves the runner. gh-aw strict mode would reject putting it in `engine.env` (would leak the value to the agent's container, where prompt injection could exfiltrate it).
 
+> **Note:** Long or frequently-run iterations can hit Anthropic API workspace usage limits; if the workflow fails with a rate-limit or quota error, the limit is configured in the [Anthropic console](https://console.anthropic.com/settings/limits) — not in this repo.
+
 **Variables (non-sensitive):**
 
 - `NEON_PROJECT_ID` — **required**. The Neon project ID for ai-developer-hub. Scopes the Neon MCP to one project
@@ -128,7 +239,7 @@ Your job tonight: pick one open issue, implement the fix, then **verify the impl
 ## Prerequisites
 
 - Neon project allows on-demand branch create + delete via API key (default)
-- The repo's session-mint route at [src/app/api/agent/session/route.ts](src/app/api/agent/session/route.ts) is functional locally — POSTing with `Authorization: Bearer <AGENT_SESSION_SECRET>` returns a session cookie. The route reads `process.env.AGENT_SESSION_SECRET`, so the workflow's ephemeral export in Step 8 is what the locally-spawned `pnpm start` server picks up
+- The repo's session-mint route at [src/app/api/agent/session/route.ts](src/app/api/agent/session/route.ts) is functional locally — POSTing with `Authorization: Bearer <AGENT_SESSION_SECRET>` returns a session cookie. The route reads `process.env.AGENT_SESSION_SECRET`, which Step 8 supplies via `.env.local` (Next.js auto-loads it into `process.env` for `pnpm start`)
 
 The Vercel-Neon integration and Vercel preview deployments are **not** dependencies of this workflow. They serve human reviewers after the PR opens; the bot doesn't read them.
 
@@ -276,20 +387,33 @@ env DATABASE_URL_UNPOOLED="<connection-string>" pnpm db:migrate
 
 ## Step 8 — Build and start the local server
 
-Generate throwaway secrets and configure env (these are local to this run only — never logged, never committed):
+Generate throwaway secrets and write them to `.env.local` (Next.js auto-loads this file for both `pnpm build` and `pnpm start` — no shell exports needed, and env vars set via `export` don't persist across separate Bash tool invocations anyway). `.env.local` is gitignored and never committed.
+
+**Do NOT write any files to `/tmp/gh-aw/...` paths — those are hard-blocked by Claude Code. Use workspace paths only (e.g. `.env.local`, `server.log`, `server.pid`, `cookies.txt` in the repo root).**
+
+Generate each secret with a separate Bash invocation and hold the value in agent memory:
 
 ```
-export AUTH_SECRET=$(openssl rand -base64 32)
-export NEXTAUTH_SECRET="$AUTH_SECRET"
-export NEXTAUTH_URL=http://localhost:3000
-export API_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
-export AGENT_SESSION_SECRET=$(openssl rand -base64 32)   # ephemeral; the curl in Step 9b reads the same shell var
-
-# DATABASE_URL[_UNPOOLED] from Step 7b (use sandbox branch). If Step 7 was skipped,
-# call get_connection_string here for a fresh string against agent-sandbox-${{ github.run_id }}
-export DATABASE_URL="<from neon mcp, pooled=true>"
-export DATABASE_URL_UNPOOLED="<from neon mcp, pooled=false>"
+openssl rand -base64 32   # → AUTH_SECRET / NEXTAUTH_SECRET
+openssl rand -hex 32      # → API_KEY_ENCRYPTION_SECRET
+openssl rand -base64 32   # → AGENT_SESSION_SECRET (keep this value in memory — Step 9b needs it)
 ```
+
+If Step 7 was skipped, call `get_connection_string` now (with `branchId: agent-sandbox-${{ github.run_id }}`) to obtain both the pooled and unpooled connection strings.
+
+Use the Write tool to create `.env.local` in the workspace root with all required variables:
+
+```
+AUTH_SECRET=<generated>
+NEXTAUTH_SECRET=<generated>
+NEXTAUTH_URL=http://localhost:3000
+API_KEY_ENCRYPTION_SECRET=<generated>
+AGENT_SESSION_SECRET=<generated>
+DATABASE_URL=<from neon mcp, pooled=true, sandbox branch>
+DATABASE_URL_UNPOOLED=<from neon mcp, pooled=false, sandbox branch>
+```
+
+The locally-spawned `pnpm start` server reads `AGENT_SESSION_SECRET` from `.env.local` via `process.env`. Keep the generated value in agent memory as well — Step 9b uses it when constructing the session-mint curl (or read it back from `.env.local` if needed).
 
 Build and start:
 
@@ -308,6 +432,8 @@ for i in $(seq 1 60); do
 done
 ```
 
+> **Bash gateway constraints:** Claude Code rejects shell expansions like `$!`, `${VAR:-default}`, and command-substitution composed with redirection. Capture the server PID via `pgrep -f "next start"` (or `pgrep -f "next dev"` if you fall back to dev mode) into a separate Bash call rather than using `$!`. Don't try to combine `nohup pnpm start > server.log 2>&1 &` with PID capture in one command — split it.
+
 If the server doesn't respond within 60s, treat it as a build/startup failure: read the **last 50 lines** of `server.log` (sanitized — see Step 9c rule), record as a failure for this attempt, and proceed to iteration. Do **not** skip cleanup: even if everything fails after this point, Step 11 still runs.
 
 ## Step 9 — Verify against the local sandbox
@@ -325,19 +451,19 @@ Expect 200 or a redirect to `/login`. 5xx means the server is crashing — check
 For each check from Step 2:
 
 - **Public pages** — `curl http://localhost:3000/<path>`, check status and grep for expected content
-- **Auth-gated routes** — mint a session via the AGENT_SESSION_SECRET route the repo provides. The route uses [`requireBearerSecret`](src/lib/auth-helpers.ts#L19), so the header must be `Authorization: Bearer <secret>` — anything else returns 401:
+- **Auth-gated routes** — mint a session via the AGENT_SESSION_SECRET route the repo provides. The route uses [`requireBearerSecret`](src/lib/auth-helpers.ts#L19), so the header must be `Authorization: Bearer <secret>` — anything else returns 401. Use the value generated in Step 8 (read from `.env.local` if no longer in agent memory):
   ```
   curl -sS -c cookies.txt -X POST \
-    -H "Authorization: Bearer $AGENT_SESSION_SECRET" \
+    -H "Authorization: Bearer <AGENT_SESSION_SECRET value from Step 8>" \
     http://localhost:3000/api/agent/session
   ```
-  Then use `-b cookies.txt` on subsequent authenticated requests. If the mint endpoint is missing or returns non-2xx, mark the check `skipped (session mint failed)` and move on
+  Then use `-b cookies.txt` on subsequent authenticated requests, e.g. `curl -sS -b cookies.txt http://localhost:3000/api/...`. If the mint endpoint is missing or returns non-2xx, mark the check `skipped (session mint failed)` and move on
 - **API endpoints** — same as above with `-b cookies.txt` once a session is minted
 - **Server actions** — exercised the same way the UI would (POST to the page that triggers the action)
 - **Cron / scheduled paths** — `skipped (requires CRON_SECRET; not exercised in sandbox)`
 - **Database state** — for any check whose expected outcome is a row inserted/updated/deleted, use the Neon MCP `run_sql` (with `branchId: agent-sandbox-${{ github.run_id }}`, read-only `SELECT`) to confirm directly. This is far more reliable than scraping HTTP responses
 
-Record each item: `pass` / `fail` / `skipped (reason)`. **Verification passes only if at least one item is `pass` and zero items are `fail`.** A 100%-skipped plan is reported as "could not verify".
+Record each item: `pass` / `fail` / `skipped (reason)`. **Verification passes only if at least one item is `pass` and zero items are `fail`.** Database-state checks via Neon MCP `run_sql` count as `pass` — they're often more reliable than HTTP for state assertions. A 100%-skipped plan is reported as "could not verify".
 
 ### 9c — Sanitization rule
 
@@ -395,7 +521,7 @@ If the run is aborting before Step 12 (e.g. no PR being opened due to total veri
 
 ## Step 12 — Open the PR (only if verification produced something worth shipping)
 
-Submit a `safe-outputs.create-pull-request` request. The PR will be opened as a draft (gh-aw policy in strict mode).
+Submit a `safe-outputs.create-pull-request` request. The PR opens as ready-for-review (`draft: false` in the safe-outputs config) so Vercel preview deploys and code-review bots fire on creation. Strict mode forbids direct git pushes regardless.
 
 **Branch name** the safe-output uses: `agent/issue-<issue-number>-<short-slug>`. Slug must be lowercase ASCII alphanumeric plus hyphens.
 
@@ -405,6 +531,17 @@ Submit a `safe-outputs.create-pull-request` request. The PR will be opened as a 
 
 ```
 Closes #<issue-number>
+
+## ⚠️ Post-merge actions
+<Pick exactly ONE of the two callouts below based on whether Step 6 generated migration files>
+
+<If schema unchanged — no migration files created in Step 6:>
+> 🟢 **No post-merge actions required.** Schema unchanged; safe to merge.
+
+<If one or more migrations were generated:>
+> 🟡 **Run `pnpm db:migrate` against production after merge.** This PR ships N new migration file(s):
+> - `drizzle/<file>.sql` — <one-line summary of what it does, e.g. "adds `is_agent` column to `users`">
+> The migration was applied and verified against the sandbox Neon branch during Step 7.
 
 ## What changed
 <brief summary>
@@ -416,9 +553,6 @@ Closes #<issue-number>
 - ✅ `pnpm lint` — zero warnings
 - ✅ `pnpm typecheck`
 - ✅ `pnpm test` — unit only
-
-## Schema
-<none | "1 new migration: drizzle/<file>.sql, applied to sandbox and verified">
 
 ## Sandbox verification — <✅ Passed | ❌ Failed after 3 attempts | ⚠️ Could not verify>
 **Attempts used:** N of 3
@@ -439,10 +573,10 @@ Verification plan results:
 
 ## Next steps
 <For success:>
-This PR is in draft state. Vercel will auto-deploy a preview after the PR opens — please verify the change in the live preview before promoting to ready and merging.
+Vercel will auto-deploy a preview after the PR opens — please verify the change in the live preview before merging.
 
 <For failure:>
-This PR is in draft and will not be promoted by the agent. The implementation may still be partially useful for human review, but verification did not pass.
+This PR opened with verification failing. The implementation may still be partially useful for human review, but the agent's automated checks did not pass — please scrutinize before merging.
 ```
 
 **When NOT to open a PR:** if no implementation work happened (Step 4 was aborted, all local checks failed before any meaningful change, sandbox couldn't be created), do **not** open a PR. Instead, post a `safe-outputs.add-comment` on the original issue (`issue_number: <num>`) with a one-paragraph explanation of what blocked the run. The cleanup in Step 11 still runs.

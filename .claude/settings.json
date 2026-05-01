@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(corepack enable)",
+      "Bash(corepack prepare pnpm@*)",
+      "Bash(pnpm install --frozen-lockfile)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm db:generate)",
+      "Bash(pnpm db:migrate)",
+      "Bash(nohup pnpm start *)",
+      "Bash(kill -TERM *)",
+      "Bash(kill -KILL *)",
+      "Bash(openssl rand *)",
+      "Bash(curl http://localhost:*)",
+      "Bash(curl http://127.0.0.1:*)",
+      "Bash(curl * http://localhost:*)",
+      "Bash(curl * http://127.0.0.1:*)",
+      "Bash(npm install -g pnpm@*)"
+    ]
+  },
+  "env": {
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  }
+}
