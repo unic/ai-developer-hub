@@ -5,6 +5,7 @@ import { licenseAssignments } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import { toCsv, csvResponse } from "@/lib/csv";
+import { DECRYPTION_FAILED_SENTINEL } from "./constants";
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -14,6 +15,7 @@ export async function GET() {
 
   const data = await db.query.licenseAssignments.findMany({
     columns: {
+      id: true,
       workspace: true,
       apiKeyEncrypted: true,
       assignedAt: true,
@@ -28,30 +30,41 @@ export async function GET() {
 
   const DECRYPT_BATCH_SIZE = 50;
   const csvRows: string[][] = [];
+  let decryptionFailures = 0;
 
   for (let i = 0; i < data.length; i += DECRYPT_BATCH_SIZE) {
     const batch = data.slice(i, i + DECRYPT_BATCH_SIZE);
-    const batchRows = await Promise.all(
-      batch.map(async (row) => {
+    const batchResults = await Promise.all(
+      batch.map(async (row): Promise<{ cells: string[]; failed: boolean }> => {
         let apiKey = "";
+        let failed = false;
         if (row.apiKeyEncrypted) {
           try {
             apiKey = await decryptApiKey(row.apiKeyEncrypted);
-          } catch {
-            apiKey = "";
+          } catch (err) {
+            console.error(
+              `[assignments-export] Decryption failed for assignment id=${row.id}`,
+              err
+            );
+            apiKey = DECRYPTION_FAILED_SENTINEL;
+            failed = true;
           }
         }
-        return [
-          row.user.email,
-          row.tool.name,
-          row.tier.name,
-          row.workspace ?? "",
-          apiKey,
-          format(row.assignedAt, "yyyy-MM-dd"),
-        ];
+        return {
+          cells: [
+            row.user.email,
+            row.tool.name,
+            row.tier.name,
+            row.workspace ?? "",
+            apiKey,
+            format(row.assignedAt, "yyyy-MM-dd"),
+          ],
+          failed,
+        };
       })
     );
-    csvRows.push(...batchRows);
+    csvRows.push(...batchResults.map((r) => r.cells));
+    decryptionFailures += batchResults.filter((r) => r.failed).length;
   }
 
   const csv = toCsv(
@@ -59,5 +72,9 @@ export async function GET() {
     csvRows
   );
 
-  return csvResponse(csv, "assignments");
+  const response = csvResponse(csv, "assignments");
+  if (decryptionFailures > 0) {
+    response.headers.set("X-Decryption-Failures", String(decryptionFailures));
+  }
+  return response;
 }
