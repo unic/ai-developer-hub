@@ -72,12 +72,9 @@ export async function GET() {
     csvRows
   );
 
-  if (decryptionFailures === 0) {
-    return csvResponse(csv, "assignments");
+  const response = csvResponse(csv, "assignments");
+  if (decryptionFailures > 0) {
+    response.headers.set("X-Decryption-Failures", String(decryptionFailures));
   }
-
-  const base = csvResponse(csv, "assignments");
-  const headers = new Headers(base.headers);
-  headers.set("X-Decryption-Failures", String(decryptionFailures));
-  return new Response(csv, { headers });
+  return response;
 }

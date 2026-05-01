@@ -43,7 +43,7 @@ function makeRow(overrides: {
     id: 1,
     apiKeyEncrypted: "encrypted-key-data",
     workspace: "default",
-    assignedAt: new Date("2026-01-15"),
+    assignedAt: new Date(2026, 0, 15),
     user: { email: "alice@example.com" },
     tool: { name: "Claude API" },
     tier: { name: "Team" },
@@ -109,8 +109,7 @@ describe("GET /api/export/assignments", () => {
       mockDecryptApiKey.mockRejectedValue(new Error("GCM auth tag mismatch"));
       const response = await GET();
       const body = await response.text();
-      expect(body).toContain(DECRYPTION_FAILED_SENTINEL);
-      expect(body).not.toContain(",,");
+      expect(body).toContain(`,${DECRYPTION_FAILED_SENTINEL},`);
     });
 
     it("logs error to console with assignment id when decryption fails", async () => {
