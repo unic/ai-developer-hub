@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
+import { env } from "@/lib/env";
 
 export const orgApiKeySchema = z.object({
   id: z.string(),
@@ -17,7 +18,7 @@ export const orgApiKeysResponseSchema = z.object({
 export type OrgApiKey = z.infer<typeof orgApiKeySchema>;
 
 export async function fetchOrgApiKeys(): Promise<OrgApiKey[]> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+  const adminKey = env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) {
     throw new Error(
       "ANTHROPIC_ADMIN_API_KEY environment variable is not set"

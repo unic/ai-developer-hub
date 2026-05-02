@@ -1,11 +1,12 @@
 import { Resend } from "resend";
 import type React from "react";
+import { env } from "@/lib/env";
 
 let resend: Resend | null = null;
 
 function getResend(): Resend {
   if (!resend) {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = env.RESEND_API_KEY;
     if (!apiKey) {
       throw new Error("RESEND_API_KEY environment variable is not set");
     }
@@ -25,7 +26,7 @@ export async function sendEmail({ to, subject, react }: SendEmailParams): Promis
   data?: { id: string };
   error?: string;
 }> {
-  const from = process.env.FROM_EMAIL;
+  const from = env.FROM_EMAIL;
   if (!from) {
     return { success: false, error: "FROM_EMAIL environment variable is not set" };
   }

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { env } from "@/lib/env";
 
 /**
  * Require the current session user to be an admin.
@@ -61,7 +62,7 @@ let _systemAdminUserId: number | null = null;
 export async function getSystemAdminUserId(): Promise<number> {
   if (_systemAdminUserId !== null) return _systemAdminUserId;
 
-  const raw = process.env.SYSTEM_ADMIN_USER_ID;
+  const raw = env.SYSTEM_ADMIN_USER_ID;
   const trimmed = raw?.trim();
   if (!trimmed) {
     throw new Error("SYSTEM_ADMIN_USER_ID is not set or empty");

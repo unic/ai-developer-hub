@@ -1,5 +1,6 @@
 import { encode } from "next-auth/jwt";
 import type { UserPreferences } from "@/types";
+import { env } from "@/lib/env";
 
 /**
  * Built-in deny-list for the nighthawk agent session. Each entry is either a
@@ -42,7 +43,7 @@ function parseDenyEntry(entry: string): { method: string | null; path: string } 
  */
 export function isAgentDenied(pathname: string, method: string): boolean {
   const upper = method.toUpperCase();
-  const extras = (process.env.AGENT_DENY_PATHS ?? "")
+  const extras = (env.AGENT_DENY_PATHS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -65,7 +66,7 @@ export function isAgentDenied(pathname: string, method: string): boolean {
  * Vercel preview deploys).
  */
 export function getSessionCookieName(): string {
-  const url = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "";
+  const url = env.AUTH_URL || env.NEXTAUTH_URL || "";
   const isHttps = url.startsWith("https://");
   return isHttps ? "__Secure-authjs.session-token" : "authjs.session-token";
 }
@@ -90,7 +91,7 @@ export async function mintAgentJwt(
   payload: AgentJwtPayload,
   options: { maxAgeSeconds?: number } = {}
 ): Promise<{ cookieName: string; token: string; maxAgeSeconds: number }> {
-  const secret = process.env.AUTH_SECRET;
+  const secret = env.AUTH_SECRET;
   if (!secret) {
     throw new Error("AUTH_SECRET is not set");
   }

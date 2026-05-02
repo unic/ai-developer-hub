@@ -1,12 +1,13 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { redirect } from "next/navigation";
 import { ApiPreviewClient } from "@/components/settings/api-preview-client";
+import { env } from "@/lib/env";
 
 export default async function ApiPreviewPage() {
   const admin = await requireAdmin();
   if (!admin) redirect("/settings/appearance");
 
-  const isConfigured = !!process.env.PROFILE_API_SECRET;
+  const isConfigured = !!env.PROFILE_API_SECRET;
 
   return (
     <div className="space-y-6">

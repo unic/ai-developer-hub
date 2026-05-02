@@ -1,5 +1,6 @@
 import { randomBytes, createCipheriv, createDecipheriv, scrypt } from "crypto";
 import { promisify } from "util";
+import { env } from "@/lib/env";
 
 const scryptAsync = promisify(scrypt);
 
@@ -10,7 +11,7 @@ const SALT_LENGTH = 32;
 const KEY_LENGTH = 32;
 
 async function getEncryptionKey(salt: Buffer): Promise<Buffer> {
-  const secret = process.env.API_KEY_ENCRYPTION_SECRET;
+  const secret = env.API_KEY_ENCRYPTION_SECRET;
   if (!secret) {
     throw new Error("API_KEY_ENCRYPTION_SECRET environment variable is not set");
   }

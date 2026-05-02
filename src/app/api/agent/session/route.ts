@@ -6,6 +6,7 @@ import { users } from "@/lib/db/schema";
 import { mintAgentJwt } from "@/lib/agent-auth";
 import { logAgentRequest } from "@/lib/agent-log";
 import type { UserPreferences } from "@/types";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     return authError;
   }
 
-  if (process.env.VERCEL_ENV === "production") {
+  if (env.VERCEL_ENV === "production") {
     logAgentRequest({
       pathname: "/api/agent/session",
       method: "POST",
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const agentEmail = (process.env.AGENT_USER_EMAIL ?? "nighthawk@agent.local").toLowerCase();
+  const agentEmail = (env.AGENT_USER_EMAIL ?? "nighthawk@agent.local").toLowerCase();
 
   const agent = await db.query.users.findFirst({
     where: and(eq(users.email, agentEmail), eq(users.isAgent, true)),

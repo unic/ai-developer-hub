@@ -9,35 +9,16 @@ import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { evaluateIngestionFilters } from "@/lib/ingestion-filters";
-import { getSystemAdminUserId } from "@/lib/auth-helpers";
+import { getSystemAdminUserId, requireBearerSecret } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
 // Max file size: 10 MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-function validateAuth(request: NextRequest): boolean {
-  const secret = process.env.INVOICE_INGEST_SECRET;
-  if (!secret) return false;
-  const authHeader = request.headers.get("authorization");
-  return authHeader === `Bearer ${secret}`;
-}
-
 export async function POST(request: NextRequest) {
-  // Auth check
-  if (!process.env.INVOICE_INGEST_SECRET) {
-    return NextResponse.json(
-      { success: false, error: "INVOICE_INGEST_SECRET is not configured" },
-      { status: 500 }
-    );
-  }
-
-  if (!validateAuth(request)) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
+  const authError = requireBearerSecret(request, "INVOICE_INGEST_SECRET");
+  if (authError) return authError;
 
   // Validate SYSTEM_ADMIN_USER_ID before any processing — fails fast with a
   // clear error rather than propagating NaN or the wrong user id into DB rows.

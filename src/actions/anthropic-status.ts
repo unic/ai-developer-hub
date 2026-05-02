@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import { anthropicWorkspaces } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { env } from "@/lib/env";
 
 type AnthropicStatusData = {
   connected: boolean;
@@ -20,7 +21,7 @@ export async function checkAnthropicStatus(): Promise<AnthropicStatusResult> {
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const lastCheckedAt = new Date().toISOString();
-  const apiKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+  const apiKey = env.ANTHROPIC_ADMIN_API_KEY;
 
   if (!apiKey) {
     return {
@@ -37,7 +38,7 @@ export async function checkAnthropicStatus(): Promise<AnthropicStatusResult> {
         cache: "no-store",
         headers: {
           "x-api-key": apiKey,
-          "anthropic-version": process.env.ANTHROPIC_API_VERSION ?? "2023-06-01",
+          "anthropic-version": env.ANTHROPIC_API_VERSION ?? "2023-06-01",
         },
       }
     );

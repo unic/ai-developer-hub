@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from "crypto";
+import { env } from "@/lib/env";
 
 export function generateToken(): { raw: string; hash: string } {
   const raw = randomBytes(32).toString("hex");
@@ -12,9 +13,9 @@ export function hashToken(raw: string): string {
 
 export function buildInviteUrl(raw: string): string {
   const baseUrl =
-    process.env.NEXTAUTH_URL ||
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
+    env.NEXTAUTH_URL ||
+    (env.VERCEL_URL
+      ? `https://${env.VERCEL_URL}`
       : "http://localhost:3000");
   return `${baseUrl}/setup-password/${raw}`;
 }

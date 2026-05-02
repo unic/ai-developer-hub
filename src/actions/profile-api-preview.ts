@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { apiPreviewSchema } from "@/lib/validators";
+import { env } from "@/lib/env";
 
 export type ApiPreviewResponse = {
   status: number;
@@ -21,7 +22,7 @@ export async function previewProfileApi(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const secret = process.env.PROFILE_API_SECRET;
+  const secret = env.PROFILE_API_SECRET;
   if (!secret) return { success: false, error: "API not configured" };
 
   const parsed = apiPreviewSchema.safeParse(input);
@@ -29,8 +30,8 @@ export async function previewProfileApi(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const baseUrl = env.NEXTAUTH_URL
+    || (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "http://localhost:3000");
 
   const url = new URL("/api/profile", baseUrl);
   url.searchParams.set("email", parsed.data.email);
@@ -41,7 +42,7 @@ export async function previewProfileApi(
   const headers: Record<string, string> = {
     Authorization: `Bearer ${secret}`,
   };
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  const bypassSecret = env.VERCEL_AUTOMATION_BYPASS_SECRET;
   if (bypassSecret) {
     headers["x-vercel-protection-bypass"] = bypassSecret;
   }
