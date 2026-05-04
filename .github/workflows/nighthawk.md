@@ -424,10 +424,10 @@ nohup pnpm start > server.log 2>&1 &
 
 You do **not** need to capture the PID. Step 10 and Step 11 stop the server with `pkill -f "next start"`, which targets the process by name. Do not write a `server.pid` file. Do not capture or store the PID for later reuse.
 
-Wait for ready (max 60s):
+Wait for ready (max 60s). Use brace expansion `{1..60}` — **not** `$(seq 1 60)`, which is command substitution and gets rejected by the bash gateway (see Step 8 callout below):
 
 ```
-for i in $(seq 1 60); do
+for i in {1..60}; do
   curl -sf -o /dev/null http://localhost:3000/ && break
   sleep 1
 done
@@ -435,7 +435,7 @@ done
 
 > **Bash gateway constraints — read carefully, this section exists because of a real outage:**
 >
-> 1. **Command substitution `$(...)` is rejected in any form.** That includes `$(cat server.pid)`, `$(pgrep ...)`, `$(echo "")`, etc. The gateway returns `Error: Contains command_substitution` and the call never executes. Do not try to read a PID file via `$(cat ...)`. Do not assign `PID=$(...)`. Do not pipe a captured value through `$(...)` into another command.
+> 1. **Command substitution `$(...)` is rejected in any form.** That includes `$(cat server.pid)`, `$(pgrep ...)`, `$(seq 1 60)`, `$(echo "")`, and backticks. The gateway returns `Error: Contains command_substitution` and the call never executes. Do not try to read a PID file via `$(cat ...)`. Do not assign `PID=$(...)`. Do not pipe a captured value through `$(...)` into another command. For for-loop ranges use brace expansion (`for i in {1..60}; do ...; done`), which is parse-time and not command substitution.
 > 2. **Other rejected expansions:** `$!`, `${VAR:-default}`, and process substitution `<(...)` / `>(...)`. Avoid them entirely.
 > 3. **NEVER hardcode a PID.** If a previous Bash call surfaced a PID (in `pgrep` output, `ps` output, a log line, or anywhere else), do **not** plug that integer literal into a follow-up `kill -TERM <N>`. PIDs are not stable across the agent's process tree, and a stale PID may target the agent's own container — that has caused the workflow to kill itself mid-run.
 > 4. **Stop the local Next.js server with `pkill -f` only.** It targets by process name, takes no PID, uses no command substitution, and is on the allow-list:
