@@ -84,10 +84,16 @@ describe("env proxy", () => {
     // use delete to simulate absence, but vi.stubEnv("X", "") gives empty string)
     // This test verifies the proxy passes through whatever process.env holds
     const original = process.env.PROFILE_API_SECRET;
-    delete process.env.PROFILE_API_SECRET;
-    expect(env.PROFILE_API_SECRET).toBeUndefined();
-    if (original !== undefined) {
-      process.env.PROFILE_API_SECRET = original;
+
+    try {
+      delete process.env.PROFILE_API_SECRET;
+      expect(env.PROFILE_API_SECRET).toBeUndefined();
+    } finally {
+      if (original !== undefined) {
+        process.env.PROFILE_API_SECRET = original;
+      } else {
+        delete process.env.PROFILE_API_SECRET;
+      }
     }
   });
 });
