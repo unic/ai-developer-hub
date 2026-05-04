@@ -17,17 +17,28 @@ export async function requireAdmin() {
 
 /**
  * Validate a Bearer token from the Authorization header against a named
- * environment variable. Returns an error response if unauthorized, or null
- * if authenticated. Fails closed when the env var is not set.
+ * environment variable. Returns an error response if unauthorized / the route
+ * is misconfigured, or null if authenticated.
+ *
+ * - 500 when the expected secret env var is unset → operators can distinguish
+ *   "server not configured" from "client sent a bad token".
+ * - 401 when the token is missing or doesn't match.
  */
 export function requireBearerSecret(
   request: NextRequest,
   envVarName: string
 ): NextResponse | null {
-  const authHeader = request.headers.get("authorization");
   const expectedToken = process.env[envVarName];
 
-  if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
+  if (!expectedToken) {
+    return NextResponse.json(
+      { success: false, error: `Server misconfigured: ${envVarName} is not set` },
+      { status: 500 }
+    );
+  }
+
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${expectedToken}`) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }

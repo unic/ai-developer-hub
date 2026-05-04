@@ -5,8 +5,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DATABASE_URL_UNPOOLED: z.string().optional(),
 
-  // Auth (NextAuth v5)
-  AUTH_SECRET: z.string().min(1, "AUTH_SECRET is required"),
+  // Auth (NextAuth v5) — min 32 chars matches `openssl rand -base64 32` output
+  // and Auth.js's recommended minimum entropy for HMAC-derived session keys.
+  AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters (generate with `openssl rand -base64 32`)"),
   AUTH_URL: z.string().optional(),
   NEXTAUTH_URL: z.string().optional(),
 
@@ -29,9 +30,10 @@ const envSchema = z.object({
   ANTHROPIC_ADMIN_API_KEY: z.string().optional(),
   ANTHROPIC_API_VERSION: z.string().optional(),
 
-  // Cron and bearer authentication secrets
-  CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
-  INVOICE_INGEST_SECRET: z.string().min(1, "INVOICE_INGEST_SECRET is required"),
+  // Cron and bearer authentication secrets — min 16 chars rejects accidental
+  // weak values (e.g. "test", "changeme") at startup.
+  CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 characters"),
+  INVOICE_INGEST_SECRET: z.string().min(16, "INVOICE_INGEST_SECRET must be at least 16 characters"),
   // Agent session secret — only required on non-production preview/local
   AGENT_SESSION_SECRET: z.string().optional(),
 
@@ -39,9 +41,11 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   FROM_EMAIL: z.string().min(1, "FROM_EMAIL is required"),
 
-  // Admin user for automated/API-initiated operations
-  // Must reference an active admin user; validated at runtime by getSystemAdminUserId()
-  SYSTEM_ADMIN_USER_ID: z.string().regex(/^[1-9]\d*$/, "SYSTEM_ADMIN_USER_ID must be a positive integer").optional(),
+  // Admin user for automated/API-initiated operations.
+  // Required at startup so /api/invoices/ingest doesn't hard-fail in production.
+  // Must reference an active admin user; the actual DB lookup is performed at
+  // runtime by getSystemAdminUserId() since the schema can't reach the DB.
+  SYSTEM_ADMIN_USER_ID: z.string().regex(/^[1-9]\d*$/, "SYSTEM_ADMIN_USER_ID must be a positive integer"),
 
   // Nighthawk agent
   AGENT_USER_EMAIL: z.string().optional(),
@@ -63,7 +67,9 @@ export type Env = z.infer<typeof envSchema>;
  * @param input Defaults to process.env. Pass a custom object in unit tests.
  */
 export function validateEnv(input: Record<string, string | undefined> = process.env): void {
-  if ((input.SKIP_ENV_VALIDATION ?? process.env.SKIP_ENV_VALIDATION) === "1") return;
+  // Read SKIP from the explicit input only — never fall back to process.env so
+  // tests passing a custom env object are fully in control of validation.
+  if (input.SKIP_ENV_VALIDATION === "1") return;
   const result = envSchema.safeParse(input);
   if (!result.success) {
     const issues = result.error.issues

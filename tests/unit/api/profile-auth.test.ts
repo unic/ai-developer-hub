@@ -64,12 +64,14 @@ describe("Profile API authentication (requireBearerSecret)", () => {
     expect(result).toBeNull();
   });
 
-  it("rejects all requests when env var is not set (fail-closed)", () => {
+  it("returns 500 (server misconfigured) when env var is not set, distinguishing from 401", async () => {
     vi.stubEnv("PROFILE_API_SECRET", "");
     const request = makeRequest(`Bearer ${TEST_SECRET}`);
     const result = requireBearerSecret(request, "PROFILE_API_SECRET");
     expect(result).not.toBeNull();
-    expect(result!.status).toBe(401);
+    expect(result!.status).toBe(500);
+    const body = await result!.json();
+    expect(body.error).toMatch(/PROFILE_API_SECRET/);
   });
 
   it("returns consistent error response format", async () => {

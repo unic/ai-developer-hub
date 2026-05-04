@@ -14,10 +14,11 @@ const REQUIRED_ENV = {
   CLOUDFLARE_R2_SECRET_ACCESS_KEY: "r2-secret",
   CLOUDFLARE_R2_BUCKET_NAME: "my-bucket",
   ANTHROPIC_API_KEY: "sk-ant-test",
-  CRON_SECRET: "cron-secret",
-  INVOICE_INGEST_SECRET: "ingest-secret",
+  CRON_SECRET: "cron-secret-1234567890",
+  INVOICE_INGEST_SECRET: "ingest-secret-1234567890",
   RESEND_API_KEY: "re_test",
   FROM_EMAIL: "noreply@test.com",
+  SYSTEM_ADMIN_USER_ID: "1",
 };
 
 describe("validateEnv", () => {
@@ -33,12 +34,30 @@ describe("validateEnv", () => {
     expect(() => validateEnv({ ...REQUIRED_ENV, AUTH_SECRET: "" })).toThrow(/AUTH_SECRET/);
   });
 
+  it("throws when AUTH_SECRET is shorter than 32 characters", () => {
+    expect(() => validateEnv({ ...REQUIRED_ENV, AUTH_SECRET: "too-short" })).toThrow(/AUTH_SECRET/);
+  });
+
   it("throws when ANTHROPIC_API_KEY is missing", () => {
     expect(() => validateEnv({ ...REQUIRED_ENV, ANTHROPIC_API_KEY: "" })).toThrow(/ANTHROPIC_API_KEY/);
   });
 
   it("throws when CRON_SECRET is missing", () => {
     expect(() => validateEnv({ ...REQUIRED_ENV, CRON_SECRET: "" })).toThrow(/CRON_SECRET/);
+  });
+
+  it("throws when CRON_SECRET is shorter than 16 characters", () => {
+    expect(() => validateEnv({ ...REQUIRED_ENV, CRON_SECRET: "tooshort" })).toThrow(/CRON_SECRET/);
+  });
+
+  it("throws when INVOICE_INGEST_SECRET is shorter than 16 characters", () => {
+    expect(() => validateEnv({ ...REQUIRED_ENV, INVOICE_INGEST_SECRET: "weak" })).toThrow(/INVOICE_INGEST_SECRET/);
+  });
+
+  it("throws when SYSTEM_ADMIN_USER_ID is missing", () => {
+    const { SYSTEM_ADMIN_USER_ID: _omit, ...withoutAdmin } = REQUIRED_ENV;
+    void _omit;
+    expect(() => validateEnv(withoutAdmin)).toThrow(/SYSTEM_ADMIN_USER_ID/);
   });
 
   it("throws when SYSTEM_ADMIN_USER_ID is set but not a positive integer", () => {
@@ -54,9 +73,20 @@ describe("validateEnv", () => {
     expect(() => validateEnv({ ...REQUIRED_ENV })).not.toThrow();
   });
 
-  it("skips validation when SKIP_ENV_VALIDATION=1", () => {
+  it("skips validation when SKIP_ENV_VALIDATION=1 in input", () => {
     // Deliberately omit all required vars — should not throw because of the flag
     expect(() => validateEnv({ SKIP_ENV_VALIDATION: "1" })).not.toThrow();
+  });
+
+  it("does not skip validation when only process.env has SKIP_ENV_VALIDATION", () => {
+    // Setting SKIP on process.env must NOT bypass validation when the caller
+    // passes an explicit input — tests stay in full control of the env they validate.
+    vi.stubEnv("SKIP_ENV_VALIDATION", "1");
+    try {
+      expect(() => validateEnv({ DATABASE_URL: "" } as Record<string, string>)).toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
