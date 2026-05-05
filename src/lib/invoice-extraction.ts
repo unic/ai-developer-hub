@@ -4,9 +4,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getR2Client, getR2Bucket } from "@/lib/r2-client";
 import { invoiceExtractionResultSchema } from "@/lib/validators";
 import type { InvoiceExtractionResult } from "@/lib/validators";
+import { env } from "@/lib/env";
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: env.ANTHROPIC_API_KEY,
 });
 
 const EXTRACTION_TOOL = {

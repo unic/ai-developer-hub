@@ -71,10 +71,11 @@ jobs:
       CLOUDFLARE_R2_BUCKET_NAME: "ci-stub"
       ANTHROPIC_API_KEY: "ci-stub"
       ANTHROPIC_ADMIN_API_KEY: "ci-stub"
-      CRON_SECRET: "ci-stub-cron-secret"
+      CRON_SECRET: "ci-stub-cron-secret-32bytes-min-len"
       RESEND_API_KEY: "re_ci_stub"
       FROM_EMAIL: "noreply@ci.example.com"
-      INVOICE_INGEST_SECRET: "ci-stub"
+      INVOICE_INGEST_SECRET: "ci-stub-invoice-ingest-secret-32bytes"
+      SYSTEM_ADMIN_USER_ID: "1"
     steps:
       - uses: actions/checkout@v4
 

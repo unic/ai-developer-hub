@@ -14,6 +14,7 @@ import {
 } from "@/lib/anthropic-pricing";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
 import { z } from "zod";
+import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -82,7 +83,7 @@ export async function fetchAnthropicUsage(
   apiKeyIds?: string[],
   bucketWidth: "1d" | "1h" = "1d"
 ): Promise<z.infer<typeof usageReportResponseSchema>> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+  const adminKey = env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
   // Build query string manually — URLSearchParams encodes [] as %5B%5D

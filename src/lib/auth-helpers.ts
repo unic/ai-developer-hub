@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { env } from "@/lib/env";
 
 /**
  * Require the current session user to be an admin.
@@ -16,17 +17,28 @@ export async function requireAdmin() {
 
 /**
  * Validate a Bearer token from the Authorization header against a named
- * environment variable. Returns an error response if unauthorized, or null
- * if authenticated. Fails closed when the env var is not set.
+ * environment variable. Returns an error response if unauthorized / the route
+ * is misconfigured, or null if authenticated.
+ *
+ * - 500 when the expected secret env var is unset → operators can distinguish
+ *   "server not configured" from "client sent a bad token".
+ * - 401 when the token is missing or doesn't match.
  */
 export function requireBearerSecret(
   request: NextRequest,
   envVarName: string
 ): NextResponse | null {
-  const authHeader = request.headers.get("authorization");
   const expectedToken = process.env[envVarName];
 
-  if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
+  if (!expectedToken) {
+    return NextResponse.json(
+      { success: false, error: `Server misconfigured: ${envVarName} is not set` },
+      { status: 500 }
+    );
+  }
+
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${expectedToken}`) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }
@@ -61,7 +73,7 @@ let _systemAdminUserId: number | null = null;
 export async function getSystemAdminUserId(): Promise<number> {
   if (_systemAdminUserId !== null) return _systemAdminUserId;
 
-  const raw = process.env.SYSTEM_ADMIN_USER_ID;
+  const raw = env.SYSTEM_ADMIN_USER_ID;
   const trimmed = raw?.trim();
   if (!trimmed) {
     throw new Error("SYSTEM_ADMIN_USER_ID is not set or empty");

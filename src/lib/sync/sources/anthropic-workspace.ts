@@ -4,6 +4,7 @@ import { anthropicWorkspaceCosts } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
+import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,7 +59,7 @@ const costReportResponseSchema = z.object({
 // ---------------------------------------------------------------------------
 
 async function fetchWorkspaces(): Promise<z.infer<typeof workspacesResponseSchema>> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+  const adminKey = env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
   const res = await fetch("https://api.anthropic.com/v1/organizations/workspaces", {
@@ -80,7 +81,7 @@ async function fetchCostReport(
   startingAt: string,
   endingAt: string
 ): Promise<z.infer<typeof costReportBucketSchema>[]> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+  const adminKey = env.ANTHROPIC_ADMIN_API_KEY;
   if (!adminKey) throw new Error("ANTHROPIC_ADMIN_API_KEY is not set");
 
   const allBuckets: z.infer<typeof costReportBucketSchema>[] = [];

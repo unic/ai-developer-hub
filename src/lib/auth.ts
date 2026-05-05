@@ -9,13 +9,15 @@ import { loginSchema } from "@/lib/validators";
 import { isRateLimited, resetLimit } from "@/lib/rate-limit";
 import { MUST_CHANGE_PASSWORD_ERROR } from "@/lib/routes";
 import type { UserPreferences } from "@/types";
+import { env } from "@/lib/env";
 
 const DEFAULT_PREFERENCES: UserPreferences = { theme: "system" };
 
 // On Vercel preview deployments, override NEXTAUTH_URL so Auth.js uses the
 // actual deployment URL instead of the production domain for cookies/redirects.
-if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
-  process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
+// process.env.NEXTAUTH_URL is mutated directly so Auth.js's internal reads see it.
+if (env.VERCEL_ENV === "preview" && env.VERCEL_URL) {
+  process.env.NEXTAUTH_URL = `https://${env.VERCEL_URL}`;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
