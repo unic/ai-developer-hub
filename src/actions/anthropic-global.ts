@@ -13,12 +13,24 @@ import {
 import { unstable_cache, revalidateTag, revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { format, endOfMonth, parseISO } from "date-fns";
+import {
+  format,
+  endOfMonth,
+  parseISO,
+  subMonths,
+  startOfMonth,
+  getDate,
+  getDaysInMonth,
+} from "date-fns";
 import type {
   GlobalCostDashboardData,
   WorkspaceListItem,
   OrgCreditsStatus,
+  DashboardKpis,
+  DailyStackedRow,
+  SyncStatus,
 } from "@/types";
+import { projectMonthEnd } from "@/lib/utils";
 import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
 
 // ---------------------------------------------------------------------------
@@ -146,12 +158,19 @@ async function _getWorkspaceList(): Promise<WorkspaceListItem[]> {
   const startDate = `${currentMonth}-01`;
   const endDate = format(endOfMonth(parseISO(`${currentMonth}-01`)), "yyyy-MM-dd");
 
+  // Sort order (spec 026 T115):
+  //   1. over 100% (utilization >= 100, limited)
+  //   2. over 80% (80 <= utilization < 100, limited)
+  //   3. with-limit by utilization DESC
+  //   4. no-limit by spend DESC
+  //   5. $0 + no-limit last
   const rows = await db.execute(sql`
     SELECT
       w.workspace_id,
       w.name,
       w.is_default,
       w.is_archived,
+      w.display_color,
       COALESCE(c.total_cents, 0) as current_month_cents,
       l.limit_cents
     FROM anthropic_workspaces w
@@ -164,7 +183,23 @@ async function _getWorkspaceList(): Promise<WorkspaceListItem[]> {
     LEFT JOIN anthropic_workspace_limits l
       ON l.workspace_id IS NOT DISTINCT FROM w.workspace_id
     WHERE w.is_archived = false
-    ORDER BY w.is_default DESC, w.name
+    ORDER BY
+      CASE
+        WHEN l.limit_cents IS NOT NULL AND l.limit_cents > 0
+             AND COALESCE(c.total_cents, 0) >= l.limit_cents THEN 1
+        WHEN l.limit_cents IS NOT NULL AND l.limit_cents > 0
+             AND COALESCE(c.total_cents, 0) >= 0.8 * l.limit_cents THEN 2
+        WHEN l.limit_cents IS NOT NULL AND l.limit_cents > 0 THEN 3
+        WHEN COALESCE(c.total_cents, 0) > 0 THEN 4
+        ELSE 5
+      END,
+      CASE
+        WHEN l.limit_cents IS NOT NULL AND l.limit_cents > 0
+          THEN (COALESCE(c.total_cents, 0)::float / l.limit_cents)
+        ELSE NULL
+      END DESC NULLS LAST,
+      COALESCE(c.total_cents, 0) DESC,
+      w.name ASC
   `);
 
   return rows.rows.map((r) => {
@@ -182,6 +217,7 @@ async function _getWorkspaceList(): Promise<WorkspaceListItem[]> {
       currentMonthCents,
       limitCents,
       utilizationPct,
+      displayColor: (r.display_color as string | null) ?? null,
     };
   });
 }
@@ -367,4 +403,238 @@ export async function syncWorkspacesManual(): Promise<
     const msg = e instanceof Error ? e.message : "Unknown error";
     return { success: false, error: msg };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Spec 026 — Phase 1 additions
+// ---------------------------------------------------------------------------
+
+async function _getDashboardKpis(month: string): Promise<DashboardKpis> {
+  const monthStart = `${month}-01`;
+  const monthEnd = format(endOfMonth(parseISO(monthStart)), "yyyy-MM-dd");
+  const priorMonthDate = subMonths(parseISO(monthStart), 1);
+  const priorMonthStart = format(startOfMonth(priorMonthDate), "yyyy-MM-dd");
+  const priorMonthEnd = format(endOfMonth(priorMonthDate), "yyyy-MM-dd");
+
+  const totalsResult = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN date >= ${monthStart}::date AND date <= ${monthEnd}::date THEN cost_cents ELSE 0 END), 0) AS total_cents,
+      COALESCE(SUM(CASE WHEN date >= ${priorMonthStart}::date AND date <= ${priorMonthEnd}::date THEN cost_cents ELSE 0 END), 0) AS prior_cents
+    FROM anthropic_workspace_costs
+  `);
+  const totalsRow = totalsResult.rows[0];
+  const totalCents = Number(totalsRow?.total_cents ?? 0);
+  const priorMonthCents = Number(totalsRow?.prior_cents ?? 0);
+  const momDeltaCents = totalCents - priorMonthCents;
+  const momDeltaPct =
+    priorMonthCents < 100
+      ? null
+      : Math.round((momDeltaCents / priorMonthCents) * 100);
+
+  const nowMonth = format(new Date(), "yyyy-MM");
+  const daysInMonth = getDaysInMonth(parseISO(monthStart));
+  const daysElapsed =
+    month === nowMonth ? Math.max(1, getDate(new Date())) : daysInMonth;
+  const projectedMonthEndCents = projectMonthEnd(totalCents, daysElapsed, daysInMonth);
+
+  const overRows = await db.execute(sql`
+    SELECT
+      w.workspace_id,
+      w.name,
+      COALESCE(c.total_cents, 0) AS current_month_cents,
+      l.limit_cents
+    FROM anthropic_workspaces w
+    LEFT JOIN (
+      SELECT workspace_id, SUM(cost_cents) AS total_cents
+      FROM anthropic_workspace_costs
+      WHERE date >= ${monthStart}::date AND date <= ${monthEnd}::date
+      GROUP BY workspace_id
+    ) c ON c.workspace_id IS NOT DISTINCT FROM w.workspace_id
+    LEFT JOIN anthropic_workspace_limits l
+      ON l.workspace_id IS NOT DISTINCT FROM w.workspace_id
+    WHERE w.is_archived = false
+      AND l.limit_cents IS NOT NULL
+      AND l.limit_cents > 0
+  `);
+
+  let overCount = 0;
+  let workspacesWithLimitCount = 0;
+  let topName: string | null = null;
+  let topPct: number | null = null;
+  for (const r of overRows.rows) {
+    const limit = Number(r.limit_cents);
+    const cents = Number(r.current_month_cents ?? 0);
+    workspacesWithLimitCount += 1;
+    const pct = Math.round((cents / limit) * 100);
+    if (pct >= 80) overCount += 1;
+    if (topPct === null || pct > topPct) {
+      topPct = pct;
+      topName = (r.name as string) ?? null;
+    }
+  }
+
+  return {
+    totalCents,
+    momDeltaCents,
+    momDeltaPct,
+    projectedMonthEndCents,
+    workspacesOverEightyCount: overCount,
+    workspacesWithLimitCount,
+    topOverWorkspaceName: overCount > 0 ? topName : null,
+    topOverWorkspaceUtilizationPct: overCount > 0 ? topPct : null,
+    priorMonthCents,
+  };
+}
+
+export async function getDashboardKpis(month?: string): Promise<DashboardKpis> {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return {
+      totalCents: 0,
+      momDeltaCents: 0,
+      momDeltaPct: null,
+      projectedMonthEndCents: 0,
+      workspacesOverEightyCount: 0,
+      workspacesWithLimitCount: 0,
+      topOverWorkspaceName: null,
+      topOverWorkspaceUtilizationPct: null,
+      priorMonthCents: 0,
+    };
+  }
+  const targetMonth =
+    month && monthSchema.safeParse(month).success
+      ? month
+      : format(new Date(), "yyyy-MM");
+
+  return unstable_cache(
+    () => _getDashboardKpis(targetMonth),
+    ["anthropic-dashboard-kpis", targetMonth],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+const TOP_STACKED_LIMIT = 8;
+const STACKED_OTHER_KEY = "__other__";
+const STACKED_NULL_KEY = "__default__";
+
+async function _getDailyTotalsByWorkspace(month: string): Promise<{
+  rows: DailyStackedRow[];
+  topWorkspaces: { key: string; name: string; displayColor: string | null }[];
+}> {
+  const monthStart = `${month}-01`;
+  const monthEnd = format(endOfMonth(parseISO(monthStart)), "yyyy-MM-dd");
+
+  const costRows = await db.execute(sql`
+    SELECT date::text AS date, workspace_id, cost_cents
+    FROM anthropic_workspace_costs
+    WHERE date >= ${monthStart}::date AND date <= ${monthEnd}::date
+  `);
+
+  const wsMeta = await db.execute(sql`
+    SELECT workspace_id, name, display_color
+    FROM anthropic_workspaces
+  `);
+
+  const nameMap = new Map<string, { name: string; color: string | null }>();
+  for (const r of wsMeta.rows) {
+    const key = (r.workspace_id as string | null) ?? STACKED_NULL_KEY;
+    nameMap.set(key, {
+      name: r.name as string,
+      color: (r.display_color as string | null) ?? null,
+    });
+  }
+
+  const totals = new Map<string, number>();
+  for (const r of costRows.rows) {
+    const key = (r.workspace_id as string | null) ?? STACKED_NULL_KEY;
+    totals.set(key, (totals.get(key) ?? 0) + Number(r.cost_cents ?? 0));
+  }
+  const ranked = Array.from(totals.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      const nameA = nameMap.get(a[0])?.name ?? a[0];
+      const nameB = nameMap.get(b[0])?.name ?? b[0];
+      return nameA.localeCompare(nameB);
+    })
+    .map(([key]) => key);
+
+  const topKeys = new Set(ranked.slice(0, TOP_STACKED_LIMIT));
+  const hasOther = ranked.length > TOP_STACKED_LIMIT;
+
+  const dayMap = new Map<string, DailyStackedRow>();
+  for (const r of costRows.rows) {
+    const date = r.date as string;
+    const key = (r.workspace_id as string | null) ?? STACKED_NULL_KEY;
+    const cents = Number(r.cost_cents ?? 0);
+    let row = dayMap.get(date);
+    if (!row) {
+      row = { date, perWorkspace: {}, total: 0 };
+      dayMap.set(date, row);
+    }
+    const bucket = topKeys.has(key) ? key : STACKED_OTHER_KEY;
+    row.perWorkspace[bucket] = (row.perWorkspace[bucket] ?? 0) + cents;
+    row.total += cents;
+  }
+
+  const rows = Array.from(dayMap.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
+
+  const topWorkspaces = ranked.slice(0, TOP_STACKED_LIMIT).map((key) => ({
+    key,
+    name:
+      nameMap.get(key)?.name ??
+      (key === STACKED_NULL_KEY ? "Default Workspace" : key),
+    displayColor: nameMap.get(key)?.color ?? null,
+  }));
+  if (hasOther) {
+    topWorkspaces.push({ key: STACKED_OTHER_KEY, name: "Other", displayColor: null });
+  }
+
+  return { rows, topWorkspaces };
+}
+
+export async function getDailyTotalsByWorkspace(month?: string): Promise<{
+  rows: DailyStackedRow[];
+  topWorkspaces: { key: string; name: string; displayColor: string | null }[];
+}> {
+  const admin = await requireAdmin();
+  if (!admin) return { rows: [], topWorkspaces: [] };
+
+  const targetMonth =
+    month && monthSchema.safeParse(month).success
+      ? month
+      : format(new Date(), "yyyy-MM");
+
+  return unstable_cache(
+    () => _getDailyTotalsByWorkspace(targetMonth),
+    ["anthropic-daily-stacked", targetMonth],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+const STALE_MINUTES = 70;
+const SYNC_SENTINEL_USER_ID = 0;
+
+export async function getSyncStatus(): Promise<SyncStatus> {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return { lastSyncedAt: null, ageMinutes: null, isStale: true };
+  }
+
+  const row = await db.query.anthropicSyncStatus.findFirst({
+    where: eq(anthropicSyncStatus.userId, SYNC_SENTINEL_USER_ID),
+  });
+  const lastSyncedAt =
+    row?.workspaceSyncCompletedAt ?? row?.lastSyncCompletedAt ?? null;
+  if (!lastSyncedAt) {
+    return { lastSyncedAt: null, ageMinutes: null, isStale: true };
+  }
+  const ageMs = Date.now() - lastSyncedAt.getTime();
+  const ageMinutes = Math.floor(ageMs / 60_000);
+  return {
+    lastSyncedAt,
+    ageMinutes,
+    isStale: ageMinutes > STALE_MINUTES,
+  };
 }

@@ -1,137 +1,175 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonthPicker } from "@/components/profile/month-picker";
-import { getGlobalCostDashboard } from "@/actions/anthropic-global";
-import { formatDistanceToNow } from "date-fns";
-import type { GlobalCostDashboardData } from "@/types";
+import {
+  getDailyTotalsByWorkspace,
+  getDashboardKpis,
+} from "@/actions/anthropic-global";
+import type {
+  DailyStackedRow,
+  DashboardKpis,
+  SyncStatus,
+} from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { KpiStrip, buildOrgKpiTiles } from "@/components/claude/kpi-strip";
+import { SyncStatusPill } from "@/components/claude/sync-status-pill";
 
-type GlobalMetricsClientProps = {
-  initialData: GlobalCostDashboardData;
-  availableMonths: string[];
-  initialMonth: string;
-  lastSyncedAt: Date | null;
+// Deterministic palette fallback when workspace.displayColor is null.
+const FALLBACK_PALETTE = [
+  "#d4f057",
+  "#86efac",
+  "#67e8f9",
+  "#93c5fd",
+  "#c4b5fd",
+  "#f9a8d4",
+  "#fcd34d",
+  "#fdba74",
+];
+
+function hashKey(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) {
+    h = (h * 31 + key.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function resolveSeriesColor(
+  key: string,
+  displayColor: string | null,
+  idx: number
+): string {
+  if (displayColor && displayColor.trim()) return displayColor;
+  if (key === "__other__") return "#71717a";
+  return FALLBACK_PALETTE[(hashKey(key) + idx) % FALLBACK_PALETTE.length];
+}
+
+type StackedSeries = {
+  key: string;
+  name: string;
+  displayColor: string | null;
 };
 
-const ALL_WORKSPACES = "__all__";
-
-const chartConfig = {
-  cost: { label: "Cost (USD)", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+type GlobalMetricsClientProps = {
+  initialKpis: DashboardKpis;
+  initialDaily: { rows: DailyStackedRow[]; topWorkspaces: StackedSeries[] };
+  availableMonths: string[];
+  initialMonth: string;
+  orgBudgetCents: number | null;
+  syncStatus: SyncStatus;
+};
 
 export function GlobalMetricsClient({
-  initialData,
+  initialKpis,
+  initialDaily,
   availableMonths,
   initialMonth,
-  lastSyncedAt,
+  orgBudgetCents,
+  syncStatus,
 }: GlobalMetricsClientProps) {
-  const [dashboardData, setDashboardData] = useState<GlobalCostDashboardData>(initialData);
+  const [kpis, setKpis] = useState<DashboardKpis>(initialKpis);
+  const [daily, setDaily] = useState(initialDaily);
   const [selectedMonth, setSelectedMonth] = useState<string>(initialMonth);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(ALL_WORKSPACES);
   const [isPending, startTransition] = useTransition();
 
   function handleMonthChange(newMonth: string) {
     setSelectedMonth(newMonth);
-    setSelectedWorkspace(ALL_WORKSPACES);
     startTransition(async () => {
-      const data = await getGlobalCostDashboard(newMonth);
-      setDashboardData(data);
+      const [k, d] = await Promise.all([
+        getDashboardKpis(newMonth),
+        getDailyTotalsByWorkspace(newMonth),
+      ]);
+      setKpis(k);
+      setDaily(d);
     });
   }
 
-  const { displayDailyTotals, displayTotal } = useMemo(() => {
-    if (selectedWorkspace === ALL_WORKSPACES) {
-      return {
-        displayDailyTotals: dashboardData.dailyTotals,
-        displayTotal: dashboardData.grandTotalCents,
-      };
+  const tiles = useMemo(
+    () =>
+      buildOrgKpiTiles({
+        month: selectedMonth,
+        totalCents: kpis.totalCents,
+        momDeltaCents: kpis.momDeltaCents,
+        momDeltaPct: kpis.momDeltaPct,
+        priorMonthCents: kpis.priorMonthCents,
+        projectedMonthEndCents: kpis.projectedMonthEndCents,
+        orgBudgetCents,
+        workspacesOverEightyCount: kpis.workspacesOverEightyCount,
+        workspacesWithLimitCount: kpis.workspacesWithLimitCount,
+        topOverWorkspaceName: kpis.topOverWorkspaceName,
+        topOverWorkspaceUtilizationPct: kpis.topOverWorkspaceUtilizationPct,
+      }),
+    [kpis, orgBudgetCents, selectedMonth]
+  );
+
+  const seriesWithColors = useMemo(
+    () =>
+      daily.topWorkspaces.map((s, idx) => ({
+        ...s,
+        color: resolveSeriesColor(s.key, s.displayColor, idx),
+      })),
+    [daily.topWorkspaces]
+  );
+
+  const chartConfig = useMemo<ChartConfig>(() => {
+    const out: ChartConfig = {};
+    for (const s of seriesWithColors) {
+      out[s.key] = { label: s.name, color: s.color };
     }
-    const ws = dashboardData.workspaceBreakdown.find(
-      (w) => (w.workspaceId ?? "__null__") === selectedWorkspace
-    );
-    return {
-      displayDailyTotals: ws?.dailyTotals ?? [],
-      displayTotal: ws?.totalCents ?? 0,
-    };
-  }, [dashboardData, selectedWorkspace]);
+    return out;
+  }, [seriesWithColors]);
 
   const chartData = useMemo(
     () =>
-      displayDailyTotals.map((d) => ({
-        date: d.date,
-        cost: d.costCents / 100,
-      })),
-    [displayDailyTotals]
+      daily.rows.map((d) => {
+        const row: Record<string, number | string> = { date: d.date };
+        for (const s of seriesWithColors) {
+          row[s.key] = (d.perWorkspace[s.key] ?? 0) / 100;
+        }
+        return row;
+      }),
+    [daily.rows, seriesWithColors]
   );
 
   return (
     <div className="space-y-4">
-      {/* Controls row */}
-      <div className="flex flex-wrap items-center gap-3">
-        <MonthPicker
-          value={selectedMonth}
-          onChange={handleMonthChange}
-          months={availableMonths}
-        />
-        <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="All workspaces" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_WORKSPACES}>All workspaces</SelectItem>
-            {dashboardData.workspaceBreakdown.map((ws) => (
-              <SelectItem
-                key={ws.workspaceId ?? "__null__"}
-                value={ws.workspaceId ?? "__null__"}
-              >
-                {ws.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {lastSyncedAt && (
-          <p className="text-sm text-muted-foreground">
-            Last synced {formatDistanceToNow(lastSyncedAt, { addSuffix: true })}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <MonthPicker
+            value={selectedMonth}
+            onChange={handleMonthChange}
+            months={availableMonths}
+          />
+          {isPending && (
+            <span className="text-sm text-muted-foreground animate-pulse">
+              Loading…
+            </span>
+          )}
+        </div>
+        <SyncStatusPill status={syncStatus} />
       </div>
 
-      {/* Summary card */}
+      <KpiStrip tiles={tiles} />
+
       <Card>
         <CardHeader className="pb-2">
-          <CardDescription>
-            {selectedWorkspace === ALL_WORKSPACES ? "Total org spend" : "Workspace spend"} —{" "}
-            {selectedMonth}
-          </CardDescription>
-          <CardTitle className="text-3xl tabular-nums">
-            {isPending ? (
-              <span className="animate-pulse text-muted-foreground">Loading…</span>
-            ) : (
-              formatCurrency(displayTotal)
-            )}
-          </CardTitle>
+          <CardTitle className="text-base">Daily spend by workspace</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Stacked · top {seriesWithColors.filter((s) => s.key !== "__other__").length}{" "}
+            workspaces
+            {seriesWithColors.some((s) => s.key === "__other__") && " + Other"} ·{" "}
+            <span className="tabular-nums">{formatCurrency(kpis.totalCents)}</span>{" "}
+            this period
+          </p>
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
@@ -139,7 +177,7 @@ export function GlobalMetricsClient({
               No data for this period.
             </p>
           ) : (
-            <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+            <ChartContainer config={chartConfig} className="min-h-[320px] w-full">
               <BarChart data={chartData} accessibilityLayer>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
@@ -164,15 +202,28 @@ export function GlobalMetricsClient({
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => `$${Number(value).toFixed(2)}`}
+                      formatter={(value, name) => [
+                        `$${Number(value).toFixed(2)}`,
+                        chartConfig[name as string]?.label ?? name,
+                      ]}
                     />
                   }
                 />
-                <Bar
-                  dataKey="cost"
-                  fill="var(--chart-1)"
-                  radius={[4, 4, 0, 0]}
-                />
+                <Legend wrapperStyle={{ paddingTop: 8 }} />
+                {seriesWithColors.map((s) => (
+                  <Bar
+                    key={s.key}
+                    dataKey={s.key}
+                    stackId="costs"
+                    fill={s.color}
+                    name={s.name}
+                    radius={
+                      s.key === seriesWithColors[seriesWithColors.length - 1].key
+                        ? [4, 4, 0, 0]
+                        : [0, 0, 0, 0]
+                    }
+                  />
+                ))}
               </BarChart>
             </ChartContainer>
           )}

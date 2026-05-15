@@ -481,6 +481,39 @@ export interface GlobalCostDashboardData {
   }[];
 }
 
+// Spec 026 — Claude page redesign
+
+export interface DashboardKpis {
+  totalCents: number;
+  momDeltaCents: number;
+  momDeltaPct: number | null;
+  projectedMonthEndCents: number;
+  workspacesOverEightyCount: number;
+  workspacesWithLimitCount: number;
+  topOverWorkspaceName: string | null;
+  topOverWorkspaceUtilizationPct: number | null;
+  priorMonthCents: number;
+}
+
+export interface DailyStackedRow {
+  date: string;
+  perWorkspace: Record<string, number>;
+  total: number;
+}
+
+export interface StackedSeries {
+  key: string;
+  name: string;
+  color: string;
+  isOther: boolean;
+}
+
+export interface SyncStatus {
+  lastSyncedAt: Date | null;
+  ageMinutes: number | null;
+  isStale: boolean;
+}
+
 export interface WorkspaceListItem {
   workspaceId: string | null;
   name: string;
@@ -489,6 +522,7 @@ export interface WorkspaceListItem {
   currentMonthCents: number;
   limitCents: number | null;
   utilizationPct: number | null;
+  displayColor: string | null;
 }
 
 export interface WorkspaceAlert {
