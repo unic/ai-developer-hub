@@ -575,6 +575,7 @@ export const anthropicSyncStatus = pgTable(
     lastSyncError: varchar("last_sync_error", { length: 500 }),
     syncedDays: integer("synced_days").notNull().default(0),
     resolvedApiKeyId: varchar("resolved_api_key_id", { length: 100 }),
+    resolvedWorkspaceId: varchar("resolved_workspace_id", { length: 100 }),
     workspaceSyncCompletedAt: timestamp("workspace_sync_completed_at"),
   },
   (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]

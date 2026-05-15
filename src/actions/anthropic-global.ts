@@ -33,6 +33,9 @@ import type {
   PacingRow,
   TopMover,
   WorkspaceSparkline,
+  WorkspaceDetail,
+  WorkspaceUser,
+  ModelBreakdownRow,
 } from "@/types";
 import { projectMonthEnd } from "@/lib/utils";
 import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
@@ -852,6 +855,223 @@ export async function getWorkspaceSparklines(): Promise<
   return unstable_cache(
     _getWorkspaceSparklines,
     ["anthropic-workspace-sparklines", String(SPARKLINE_MONTHS)],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// Spec 026 — Phase 3 additions (workspace drill-through)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_WORKSPACE_SENTINEL = "default";
+
+/**
+ * Translate the URL-level `"default"` sentinel to a SQL NULL workspace_id.
+ */
+function parseWorkspaceParam(workspaceId: string): string | null {
+  if (workspaceId === DEFAULT_WORKSPACE_SENTINEL) return null;
+  return workspaceId;
+}
+
+async function _getWorkspaceMonths(
+  workspaceId: string | null
+): Promise<string[]> {
+  const rows = await db.execute(sql`
+    SELECT DISTINCT to_char(date_trunc('month', date::date), 'YYYY-MM') AS month
+    FROM anthropic_workspace_costs
+    WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+    ORDER BY 1 DESC
+  `);
+  return rows.rows.map((r) => r.month as string);
+}
+
+export async function getWorkspaceMonths(
+  workspaceIdParam: string
+): Promise<string[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  const workspaceId = parseWorkspaceParam(workspaceIdParam);
+  return unstable_cache(
+    () => _getWorkspaceMonths(workspaceId),
+    ["anthropic-workspace-months", workspaceIdParam],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+async function _getWorkspaceDetail(
+  workspaceId: string | null,
+  month: string
+): Promise<WorkspaceDetail | null> {
+  const monthStart = `${month}-01`;
+  const monthEnd = format(endOfMonth(parseISO(monthStart)), "yyyy-MM-dd");
+  const priorMonthDate = subMonths(parseISO(monthStart), 1);
+  const priorStart = format(startOfMonth(priorMonthDate), "yyyy-MM-dd");
+  const priorEnd = format(endOfMonth(priorMonthDate), "yyyy-MM-dd");
+
+  // Workspace meta
+  const wsResult = await db.execute(sql`
+    SELECT workspace_id, name, is_default, display_color
+    FROM anthropic_workspaces
+    WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+    LIMIT 1
+  `);
+  const wsRow = wsResult.rows[0];
+  if (!wsRow) return null;
+
+  // Daily totals for the selected month
+  const dailyResult = await db.execute(sql`
+    SELECT date::text AS date, COALESCE(SUM(cost_cents), 0)::bigint AS cents
+    FROM anthropic_workspace_costs
+    WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+      AND date >= ${monthStart}::date
+      AND date <= ${monthEnd}::date
+    GROUP BY date
+    ORDER BY date
+  `);
+  const dailyTotals = dailyResult.rows.map((r) => ({
+    date: r.date as string,
+    costCents: Number(r.cents ?? 0),
+  }));
+  const currentMonthCents = dailyTotals.reduce((s, d) => s + d.costCents, 0);
+
+  // Prior month total (for MoM)
+  const priorResult = await db.execute(sql`
+    SELECT COALESCE(SUM(cost_cents), 0)::bigint AS cents
+    FROM anthropic_workspace_costs
+    WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+      AND date >= ${priorStart}::date
+      AND date <= ${priorEnd}::date
+  `);
+  const priorMonthCents = Number(priorResult.rows[0]?.cents ?? 0);
+  const momDeltaCents = currentMonthCents - priorMonthCents;
+  const momDeltaPct =
+    priorMonthCents < 100
+      ? null
+      : Math.round((momDeltaCents / priorMonthCents) * 100);
+
+  // Limit + utilization
+  const limitResult = await db.execute(sql`
+    SELECT limit_cents
+    FROM anthropic_workspace_limits
+    WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+    LIMIT 1
+  `);
+  const limitCents = limitResult.rows[0]?.limit_cents != null
+    ? Number(limitResult.rows[0].limit_cents)
+    : null;
+  const utilizationPct =
+    limitCents != null && limitCents > 0
+      ? Math.round((currentMonthCents / limitCents) * 100)
+      : null;
+
+  // Projected month-end
+  const nowMonth = format(new Date(), "yyyy-MM");
+  const daysInMonth = getDaysInMonth(parseISO(monthStart));
+  const daysElapsed =
+    month === nowMonth ? Math.max(1, getDate(new Date())) : daysInMonth;
+  const projectedMonthEndCents = projectMonthEnd(
+    currentMonthCents,
+    daysElapsed,
+    daysInMonth
+  );
+
+  // Top users — joined via anthropic_sync_status.resolved_workspace_id.
+  // Returns up to 10 users by total cost; IS NOT DISTINCT FROM handles the NULL sentinel cleanly.
+  const usersResult = await db.execute(sql`
+    SELECT
+      u.id AS user_id,
+      u.email,
+      u.name,
+      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents,
+      COALESCE(SUM(m.uncached_input_tokens + m.cache_read_input_tokens + m.cache_creation_input_tokens + m.output_tokens), 0)::bigint AS request_count
+    FROM anthropic_usage_metrics m
+    JOIN anthropic_sync_status s ON s.user_id = m.user_id
+    JOIN users u ON u.id = m.user_id
+    WHERE s.resolved_workspace_id IS NOT DISTINCT FROM ${workspaceId}
+      AND m.date >= ${monthStart}::date
+      AND m.date <= ${monthEnd}::date
+    GROUP BY u.id, u.email, u.name
+    ORDER BY cents DESC
+    LIMIT 10
+  `);
+  const topUsers: WorkspaceUser[] = usersResult.rows.map((r) => ({
+    userId: Number(r.user_id),
+    email: r.email as string,
+    name: (r.name as string) ?? "",
+    costCents: Number(r.cents ?? 0),
+    requestCount: Number(r.request_count ?? 0),
+  }));
+
+  // Model breakdown
+  const modelResult = await db.execute(sql`
+    SELECT
+      m.model AS model_name,
+      COALESCE(SUM(m.uncached_input_tokens + m.cache_read_input_tokens + m.cache_creation_input_tokens), 0)::bigint AS tokens_in,
+      COALESCE(SUM(m.output_tokens), 0)::bigint AS tokens_out,
+      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+    FROM anthropic_usage_metrics m
+    JOIN anthropic_sync_status s ON s.user_id = m.user_id
+    WHERE s.resolved_workspace_id IS NOT DISTINCT FROM ${workspaceId}
+      AND m.date >= ${monthStart}::date
+      AND m.date <= ${monthEnd}::date
+    GROUP BY m.model
+    ORDER BY cents DESC
+  `);
+  const userVisibleTotal = modelResult.rows.reduce(
+    (s, r) => s + Number(r.cents ?? 0),
+    0
+  );
+  const modelBreakdown: ModelBreakdownRow[] = modelResult.rows.map((r) => {
+    const cents = Number(r.cents ?? 0);
+    return {
+      modelName: r.model_name as string,
+      tokensIn: Number(r.tokens_in ?? 0),
+      tokensOut: Number(r.tokens_out ?? 0),
+      costCents: cents,
+      pctOfWorkspace:
+        userVisibleTotal === 0 ? 0 : Math.round((cents / userVisibleTotal) * 100),
+    };
+  });
+
+  // Months for the picker
+  const months = await _getWorkspaceMonths(workspaceId);
+
+  return {
+    workspace: {
+      id: (wsRow.workspace_id as string | null) ?? null,
+      name: wsRow.name as string,
+      isDefault: wsRow.is_default as boolean,
+      displayColor: (wsRow.display_color as string | null) ?? null,
+    },
+    month,
+    currentMonthCents,
+    priorMonthCents,
+    limitCents,
+    utilizationPct,
+    projectedMonthEndCents,
+    momDeltaCents,
+    momDeltaPct,
+    dailyTotals,
+    topUsers,
+    modelBreakdown,
+    availableMonths: months,
+  };
+}
+
+export async function getWorkspaceDetail(
+  workspaceIdParam: string,
+  month?: string
+): Promise<WorkspaceDetail | null> {
+  const admin = await requireAdmin();
+  if (!admin) return null;
+  const workspaceId = parseWorkspaceParam(workspaceIdParam);
+  const targetMonth =
+    month && monthSchema.safeParse(month).success
+      ? month
+      : format(new Date(), "yyyy-MM");
+  return unstable_cache(
+    () => _getWorkspaceDetail(workspaceId, targetMonth),
+    ["anthropic-workspace-detail", workspaceIdParam, targetMonth],
     { tags: ["anthropic-workspace-costs"] }
   )();
 }

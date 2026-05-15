@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -90,15 +91,14 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
               {pct}%
             </Badge>
           )}
-          <button
-            type="button"
+          <Link
+            href={`/claude/workspaces/${workspace.workspaceId ?? "default"}`}
             className="ml-auto opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100"
-            title="Drill into workspace (Phase 3)"
+            title="Drill into workspace"
             aria-label={`Drill into ${workspace.name}`}
-            disabled
           >
             <ChevronRight className="size-4" />
-          </button>
+          </Link>
         </div>
         <div className="mt-1 flex items-baseline gap-3">
           <span className="text-xl font-semibold tabular-nums">

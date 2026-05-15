@@ -8,6 +8,9 @@ export const orgApiKeySchema = z.object({
   partial_key_hint: z.string(),
   status: z.string(),
   type: z.string(),
+  // Anthropic returns null for keys in the org's default workspace; that
+  // null is meaningful and must be preserved as null (not coerced to a string).
+  workspace_id: z.string().nullable().optional().default(null),
 });
 
 export const orgApiKeysResponseSchema = z.object({

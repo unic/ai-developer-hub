@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { TrendingUp } from "lucide-react";
 import type { TopMover } from "@/types";
 
@@ -16,15 +17,16 @@ export function TopMoversChips({ movers }: TopMoversChipsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {movers.map((m) => (
-        <span
+        <Link
           key={m.workspaceId ?? "__default__"}
-          className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive"
+          href={`/claude/workspaces/${m.workspaceId ?? "default"}`}
+          className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
           title={`${m.name}: $${(m.priorCents / 100).toFixed(0)} → $${(m.currentCents / 100).toFixed(0)} over 6 months`}
         >
           <TrendingUp className="size-3" />
           <span className="font-medium">{m.name}</span>
           <span>+{m.deltaPct}%</span>
-        </span>
+        </Link>
       ))}
     </div>
   );

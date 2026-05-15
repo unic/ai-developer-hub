@@ -543,6 +543,45 @@ export interface WorkspaceSparkline {
   months: { month: string; totalCents: number }[];
 }
 
+// Spec 026 — Phase 3 (workspace drill-through)
+
+export interface WorkspaceUser {
+  userId: number;
+  email: string;
+  name: string;
+  costCents: number;
+  requestCount: number;
+}
+
+export interface ModelBreakdownRow {
+  modelName: string;
+  tokensIn: number;
+  tokensOut: number;
+  costCents: number;
+  pctOfWorkspace: number;
+}
+
+export interface WorkspaceDetail {
+  workspace: {
+    id: string | null;
+    name: string;
+    isDefault: boolean;
+    displayColor: string | null;
+  };
+  month: string;
+  currentMonthCents: number;
+  priorMonthCents: number;
+  limitCents: number | null;
+  utilizationPct: number | null;
+  projectedMonthEndCents: number;
+  momDeltaCents: number;
+  momDeltaPct: number | null;
+  dailyTotals: { date: string; costCents: number }[];
+  topUsers: WorkspaceUser[];
+  modelBreakdown: ModelBreakdownRow[];
+  availableMonths: string[];
+}
+
 export interface WorkspaceListItem {
   workspaceId: string | null;
   name: string;
