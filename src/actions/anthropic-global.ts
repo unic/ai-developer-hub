@@ -29,6 +29,10 @@ import type {
   DashboardKpis,
   DailyStackedRow,
   SyncStatus,
+  TwelveMonthRow,
+  PacingRow,
+  TopMover,
+  WorkspaceSparkline,
 } from "@/types";
 import { projectMonthEnd } from "@/lib/utils";
 import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
@@ -637,4 +641,217 @@ export async function getSyncStatus(): Promise<SyncStatus> {
     ageMinutes,
     isStale: ageMinutes > STALE_MINUTES,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Spec 026 — Phase 2 additions (historical trend + sparklines)
+// ---------------------------------------------------------------------------
+
+const TOP_MOVERS_FLOOR_CENTS = 500;
+const SPARKLINE_MONTHS = 6;
+
+async function _getTwelveMonthTotals(): Promise<TwelveMonthRow[]> {
+  const rows = await db.execute(sql`
+    SELECT
+      to_char(date_trunc('month', date), 'YYYY-MM') AS month,
+      COALESCE(SUM(cost_cents), 0)::bigint AS total_cents
+    FROM anthropic_workspace_costs
+    WHERE date >= (date_trunc('month', current_date) - interval '11 months')::date
+    GROUP BY 1
+    ORDER BY 1
+  `);
+
+  const cfg = await db.query.anthropicOrgConfig.findFirst({
+    where: eq(anthropicOrgConfig.id, 1),
+  });
+  const cap = cfg?.billingBudgetLimitCents ?? null;
+
+  return rows.rows.map((r) => ({
+    month: r.month as string,
+    totalCents: Number(r.total_cents ?? 0),
+    budgetLimitCents: cap,
+  }));
+}
+
+export async function getTwelveMonthTotals(): Promise<TwelveMonthRow[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  return unstable_cache(
+    _getTwelveMonthTotals,
+    ["anthropic-twelve-month"],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+async function _getCumulativePacing(): Promise<PacingRow[]> {
+  // Window function: cumulative SUM by day-of-month for the last 4 months.
+  const rows = await db.execute(sql`
+    SELECT
+      to_char(date_trunc('month', date), 'YYYY-MM') AS month,
+      EXTRACT(DAY FROM date)::int AS day_of_month,
+      SUM(cost_cents) OVER (
+        PARTITION BY date_trunc('month', date)
+        ORDER BY date
+      )::bigint AS cumulative_cents
+    FROM (
+      SELECT date, SUM(cost_cents)::bigint AS cost_cents
+      FROM anthropic_workspace_costs
+      WHERE date >= (date_trunc('month', current_date) - interval '3 months')::date
+      GROUP BY date
+    ) daily
+    ORDER BY month, day_of_month
+  `);
+
+  // Pivot per (dayOfMonth, monthOffset 0=current, 1=prev, 2=2-back, 3=3-back).
+  const months = new Set<string>();
+  for (const r of rows.rows) months.add(r.month as string);
+  const sortedMonths = Array.from(months).sort().reverse(); // newest first
+
+  const dayMap = new Map<number, PacingRow>();
+  for (const r of rows.rows) {
+    const dom = r.day_of_month as number;
+    const month = r.month as string;
+    const cents = Number(r.cumulative_cents ?? 0);
+    const offset = sortedMonths.indexOf(month);
+    let row = dayMap.get(dom);
+    if (!row) {
+      row = { dayOfMonth: dom, current: null, m1: null, m2: null, m3: null };
+      dayMap.set(dom, row);
+    }
+    if (offset === 0) row.current = cents;
+    else if (offset === 1) row.m1 = cents;
+    else if (offset === 2) row.m2 = cents;
+    else if (offset === 3) row.m3 = cents;
+  }
+
+  // Pad missing days 1..maxDayOfMonth
+  const maxDay = Math.max(31, ...Array.from(dayMap.keys()));
+  for (let d = 1; d <= maxDay; d++) {
+    if (!dayMap.has(d)) {
+      dayMap.set(d, { dayOfMonth: d, current: null, m1: null, m2: null, m3: null });
+    }
+  }
+  return Array.from(dayMap.values()).sort((a, b) => a.dayOfMonth - b.dayOfMonth);
+}
+
+export async function getCumulativePacing(): Promise<PacingRow[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  return unstable_cache(
+    _getCumulativePacing,
+    ["anthropic-cumulative-pacing"],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+async function _getTopMovers(): Promise<TopMover[]> {
+  // Compare newest 3 months vs the oldest 3 months of the last 6.
+  // Floor on prior_cents >= 500 cents ($5) to suppress noise.
+  const rows = await db.execute(sql`
+    WITH window6 AS (
+      SELECT
+        c.workspace_id,
+        date_trunc('month', c.date) AS month,
+        SUM(c.cost_cents)::bigint AS cents
+      FROM anthropic_workspace_costs c
+      WHERE c.date >= (date_trunc('month', current_date) - interval '5 months')::date
+      GROUP BY c.workspace_id, date_trunc('month', c.date)
+    ),
+    bounds AS (
+      SELECT
+        date_trunc('month', current_date) AS curr_month,
+        date_trunc('month', current_date) - interval '5 months' AS oldest_month
+    ),
+    classified AS (
+      SELECT
+        w6.workspace_id,
+        CASE
+          WHEN w6.month >= (SELECT curr_month FROM bounds) - interval '2 months' THEN 'new'
+          ELSE 'old'
+        END AS bucket,
+        w6.cents
+      FROM window6 w6
+    )
+    SELECT
+      workspace_id,
+      COALESCE(SUM(CASE WHEN bucket = 'new' THEN cents ELSE 0 END), 0)::bigint AS new_cents,
+      COALESCE(SUM(CASE WHEN bucket = 'old' THEN cents ELSE 0 END), 0)::bigint AS old_cents
+    FROM classified
+    GROUP BY workspace_id
+  `);
+
+  const wsMeta = await db.execute(sql`
+    SELECT workspace_id, name FROM anthropic_workspaces WHERE is_archived = false
+  `);
+  const nameMap = new Map<string | null, string>();
+  for (const r of wsMeta.rows) {
+    nameMap.set(r.workspace_id as string | null, r.name as string);
+  }
+
+  const movers: TopMover[] = [];
+  for (const r of rows.rows) {
+    const newCents = Number(r.new_cents ?? 0);
+    const oldCents = Number(r.old_cents ?? 0);
+    if (oldCents < TOP_MOVERS_FLOOR_CENTS) continue;
+    const delta = newCents - oldCents;
+    if (delta <= 0) continue;
+    const pct = Math.round((delta / oldCents) * 100);
+    const wsId = (r.workspace_id as string | null) ?? null;
+    movers.push({
+      workspaceId: wsId,
+      name: nameMap.get(wsId) ?? (wsId === null ? "Default Workspace" : (wsId as string)),
+      priorCents: oldCents,
+      currentCents: newCents,
+      deltaCents: delta,
+      deltaPct: pct,
+      direction: "up",
+    });
+  }
+  return movers.sort((a, b) => b.deltaPct - a.deltaPct).slice(0, 3);
+}
+
+export async function getTopMovers(): Promise<TopMover[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  return unstable_cache(
+    _getTopMovers,
+    ["anthropic-top-movers"],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+async function _getWorkspaceSparklines(): Promise<Record<string, WorkspaceSparkline>> {
+  const rows = await db.execute(sql`
+    SELECT
+      COALESCE(workspace_id, '__default__') AS key,
+      to_char(date_trunc('month', date), 'YYYY-MM') AS month,
+      COALESCE(SUM(cost_cents), 0)::bigint AS cents
+    FROM anthropic_workspace_costs
+    WHERE date >= (date_trunc('month', current_date) - interval '5 months')::date
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+  `);
+
+  const out: Record<string, WorkspaceSparkline> = {};
+  for (const r of rows.rows) {
+    const key = r.key as string;
+    if (!out[key]) out[key] = { workspaceKey: key, months: [] };
+    out[key].months.push({
+      month: r.month as string,
+      totalCents: Number(r.cents ?? 0),
+    });
+  }
+  return out;
+}
+
+export async function getWorkspaceSparklines(): Promise<
+  Record<string, WorkspaceSparkline>
+> {
+  const admin = await requireAdmin();
+  if (!admin) return {};
+  return unstable_cache(
+    _getWorkspaceSparklines,
+    ["anthropic-workspace-sparklines", String(SPARKLINE_MONTHS)],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
 }

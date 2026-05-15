@@ -9,10 +9,15 @@ import {
   getDashboardKpis,
   getDailyTotalsByWorkspace,
   getSyncStatus,
+  getTwelveMonthTotals,
+  getCumulativePacing,
+  getTopMovers,
+  getWorkspaceSparklines,
 } from "@/actions/anthropic-global";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
+import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
 import { format } from "date-fns";
 import { Bot } from "lucide-react";
@@ -32,12 +37,26 @@ export default async function ClaudePage() {
     return <EmptyState />;
   }
 
-  const [kpis, daily, workspaceList, orgConfig, syncStatus] = await Promise.all([
+  const [
+    kpis,
+    daily,
+    workspaceList,
+    orgConfig,
+    syncStatus,
+    twelveMonth,
+    pacing,
+    movers,
+    sparklines,
+  ] = await Promise.all([
     getDashboardKpis(currentMonth),
     getDailyTotalsByWorkspace(currentMonth),
     getWorkspaceList(),
     getOrgConfig(),
     getSyncStatus(),
+    getTwelveMonthTotals(),
+    getCumulativePacing(),
+    getTopMovers(),
+    getWorkspaceSparklines(),
   ]);
 
   return (
@@ -63,6 +82,12 @@ export default async function ClaudePage() {
         />
       </Suspense>
 
+      <HistoricalTrendCard
+        twelveMonth={twelveMonth}
+        pacing={pacing}
+        movers={movers}
+      />
+
       <section aria-label="Organization billing">
         <h2 className="mb-4 text-lg font-semibold">Organization Billing</h2>
         <OrgBillingBudgetCard
@@ -74,7 +99,10 @@ export default async function ClaudePage() {
 
       <section aria-label="Workspace budgets">
         <h2 className="mb-4 text-lg font-semibold">Workspace Budgets</h2>
-        <WorkspaceBudgetList workspaces={workspaceList} />
+        <WorkspaceBudgetList
+          workspaces={workspaceList}
+          sparklines={sparklines}
+        />
       </section>
     </div>
   );

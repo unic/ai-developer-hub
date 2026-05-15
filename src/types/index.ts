@@ -514,6 +514,35 @@ export interface SyncStatus {
   isStale: boolean;
 }
 
+export interface TwelveMonthRow {
+  month: string;
+  totalCents: number;
+  budgetLimitCents: number | null;
+}
+
+export interface PacingRow {
+  dayOfMonth: number;
+  current: number | null;
+  m1: number | null;
+  m2: number | null;
+  m3: number | null;
+}
+
+export interface TopMover {
+  workspaceId: string | null;
+  name: string;
+  priorCents: number;
+  currentCents: number;
+  deltaCents: number;
+  deltaPct: number;
+  direction: "up";
+}
+
+export interface WorkspaceSparkline {
+  workspaceKey: string;
+  months: { month: string; totalCents: number }[];
+}
+
 export interface WorkspaceListItem {
   workspaceId: string | null;
   name: string;

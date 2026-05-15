@@ -13,17 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-react";
 import { setWorkspaceLimit } from "@/actions/anthropic-global";
+import { Sparkline } from "@/components/ui/sparkline";
 import { toast } from "sonner";
-import type { WorkspaceListItem } from "@/types";
+import type { WorkspaceListItem, WorkspaceSparkline } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const HIDE_ZERO_STORAGE_KEY = "claude-hide-zero-workspaces";
 
 type WorkspaceBudgetRowProps = {
   workspace: WorkspaceListItem;
+  sparkline?: WorkspaceSparkline;
 };
 
-function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
+function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(
     workspace.limitCents != null ? String(workspace.limitCents / 100) : ""
@@ -121,6 +123,15 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
         )}
       </div>
 
+      <div className="hidden shrink-0 items-center gap-3 md:flex">
+        <Sparkline
+          data={(sparkline?.months ?? []).map((m) => m.totalCents / 100)}
+          color={workspace.displayColor ?? "currentColor"}
+          ariaLabel={`6-month trend for ${workspace.name}`}
+          className="text-muted-foreground"
+        />
+      </div>
+
       <div className="flex shrink-0 items-center gap-2">
         {editing ? (
           <>
@@ -162,9 +173,13 @@ function WorkspaceBudgetRow({ workspace }: WorkspaceBudgetRowProps) {
 
 type WorkspaceBudgetListProps = {
   workspaces: WorkspaceListItem[];
+  sparklines?: Record<string, WorkspaceSparkline>;
 };
 
-export function WorkspaceBudgetList({ workspaces }: WorkspaceBudgetListProps) {
+export function WorkspaceBudgetList({
+  workspaces,
+  sparklines,
+}: WorkspaceBudgetListProps) {
   const [hideZero, setHideZero] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
@@ -228,6 +243,7 @@ export function WorkspaceBudgetList({ workspaces }: WorkspaceBudgetListProps) {
             <WorkspaceBudgetRow
               key={ws.workspaceId ?? "__default__"}
               workspace={ws}
+              sparkline={sparklines?.[ws.workspaceId ?? "__default__"]}
             />
           ))}
         </div>
