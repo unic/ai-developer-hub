@@ -22,7 +22,10 @@ export function SyncStatusPill({ status, className }: SyncStatusPillProps) {
     label = `Stale · ${formatDistanceToNow(lastSyncedAt, { addSuffix: true })}`;
   } else {
     tone = "green";
-    label = `Synced ${formatDistanceToNow(lastSyncedAt, { addSuffix: true })}`;
+    // Hourly cron — surface "next in Xm" for predictability.
+    const ageMin = status.ageMinutes ?? 0;
+    const nextIn = Math.max(0, 60 - ageMin);
+    label = `Synced ${formatDistanceToNow(lastSyncedAt, { addSuffix: true })} · next in ${nextIn}m`;
   }
 
   const toneClass =

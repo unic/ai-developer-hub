@@ -79,6 +79,10 @@ export default async function ClaudePage() {
           initialMonth={currentMonth}
           orgBudgetCents={orgConfig?.billingBudgetLimitCents ?? null}
           syncStatus={syncStatus}
+          workspaceOptions={workspaceList.map((w) => ({
+            key: w.workspaceId ?? "__default__",
+            name: w.name,
+          }))}
         />
       </Suspense>
 

@@ -20,11 +20,14 @@ export function TopMoversChips({ movers }: TopMoversChipsProps) {
         <Link
           key={m.workspaceId ?? "__default__"}
           href={`/claude/workspaces/${m.workspaceId ?? "default"}`}
-          className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
+          className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
           title={`${m.name}: $${(m.priorCents / 100).toFixed(0)} → $${(m.currentCents / 100).toFixed(0)} over 6 months`}
         >
           <TrendingUp className="size-3" />
           <span className="font-medium">{m.name}</span>
+          <span className="text-muted-foreground">
+            ${(m.priorCents / 100).toFixed(0)} → ${(m.currentCents / 100).toFixed(0)}
+          </span>
           <span>+{m.deltaPct}%</span>
         </Link>
       ))}

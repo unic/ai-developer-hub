@@ -17,9 +17,64 @@ import { setWorkspaceLimit } from "@/actions/anthropic-global";
 import { Sparkline } from "@/components/ui/sparkline";
 import { toast } from "sonner";
 import type { WorkspaceListItem, WorkspaceSparkline } from "@/types";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, projectMonthEnd } from "@/lib/utils";
+import { getDaysInMonth, getDate } from "date-fns";
 
 const HIDE_ZERO_STORAGE_KEY = "claude-hide-zero-workspaces";
+
+function PaceLabel({ workspace }: { workspace: WorkspaceListItem }) {
+  if (workspace.limitCents == null || workspace.limitCents <= 0) return null;
+  const now = new Date();
+  const daysInMonth = getDaysInMonth(now);
+  const daysElapsed = Math.max(1, getDate(now));
+  const projected = projectMonthEnd(
+    workspace.currentMonthCents,
+    daysElapsed,
+    daysInMonth
+  );
+  const pacePct = Math.round((projected / workspace.limitCents) * 100);
+  const overPace = pacePct >= 100;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {workspace.utilizationPct ?? 0}% ·{" "}
+      <span className={overPace ? "text-destructive" : ""}>
+        on pace {formatCurrency(projected)} ({pacePct}%)
+      </span>
+    </p>
+  );
+}
+
+function SparklineDeltaLabel({
+  months,
+}: {
+  months: { month: string; totalCents: number }[];
+}) {
+  if (months.length < 2) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  const first = months[0].totalCents;
+  const last = months[months.length - 1].totalCents;
+  if (first === 0 && last === 0) {
+    return <span className="text-[10px] text-muted-foreground">flat</span>;
+  }
+  if (first < 500) {
+    return <span className="text-[10px] text-muted-foreground">new</span>;
+  }
+  const pct = Math.round(((last - first) / first) * 100);
+  const big = pct >= 100;
+  return (
+    <span
+      className={cn(
+        "text-[10px]",
+        big ? "text-amber-500 font-medium" : "text-muted-foreground"
+      )}
+    >
+      {big ? "▲ " : ""}
+      {pct >= 0 ? "+" : ""}
+      {pct}% 6mo
+    </span>
+  );
+}
 
 type WorkspaceBudgetRowProps = {
   workspace: WorkspaceListItem;
@@ -93,7 +148,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
           )}
           <Link
             href={`/claude/workspaces/${workspace.workspaceId ?? "default"}`}
-            className="ml-auto opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100"
+            className="ml-auto text-muted-foreground transition-colors hover:text-foreground"
             title="Drill into workspace"
             aria-label={`Drill into ${workspace.name}`}
           >
@@ -119,17 +174,19 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
                 style={{ width: `${Math.min(workspace.utilizationPct ?? 0, 100)}%` }}
               />
             </div>
+            <PaceLabel workspace={workspace} />
           </div>
         )}
       </div>
 
-      <div className="hidden shrink-0 items-center gap-3 md:flex">
+      <div className="hidden shrink-0 flex-col items-center gap-1 md:flex">
         <Sparkline
           data={(sparkline?.months ?? []).map((m) => m.totalCents / 100)}
           color={workspace.displayColor ?? "currentColor"}
           ariaLabel={`6-month trend for ${workspace.name}`}
           className="text-muted-foreground"
         />
+        <SparklineDeltaLabel months={sparkline?.months ?? []} />
       </div>
 
       <div className="flex shrink-0 items-center gap-2">

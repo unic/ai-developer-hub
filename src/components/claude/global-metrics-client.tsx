@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import {
   ChartContainer,
@@ -9,6 +10,13 @@ import {
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MonthPicker } from "@/components/profile/month-picker";
 import {
   getDailyTotalsByWorkspace,
@@ -59,6 +67,8 @@ type StackedSeries = {
   displayColor: string | null;
 };
 
+const ALL_WORKSPACES = "__all__";
+
 type GlobalMetricsClientProps = {
   initialKpis: DashboardKpis;
   initialDaily: { rows: DailyStackedRow[]; topWorkspaces: StackedSeries[] };
@@ -66,6 +76,7 @@ type GlobalMetricsClientProps = {
   initialMonth: string;
   orgBudgetCents: number | null;
   syncStatus: SyncStatus;
+  workspaceOptions: { key: string; name: string }[];
 };
 
 export function GlobalMetricsClient({
@@ -75,11 +86,25 @@ export function GlobalMetricsClient({
   initialMonth,
   orgBudgetCents,
   syncStatus,
+  workspaceOptions,
 }: GlobalMetricsClientProps) {
   const [kpis, setKpis] = useState<DashboardKpis>(initialKpis);
   const [daily, setDaily] = useState(initialDaily);
   const [selectedMonth, setSelectedMonth] = useState<string>(initialMonth);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(ALL_WORKSPACES);
   const [isPending, startTransition] = useTransition();
+
+  // Honor the ?workspace=<id> query param when returning from the
+  // workspace detail page breadcrumb. "default" → the NULL workspace.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const ws = searchParams.get("workspace");
+    if (!ws) return;
+    const key = ws === "default" ? "__default__" : ws;
+    if (workspaceOptions.some((w) => w.key === key)) {
+      setSelectedWorkspace(key);
+    }
+  }, [searchParams, workspaceOptions]);
 
   function handleMonthChange(newMonth: string) {
     setSelectedMonth(newMonth);
@@ -128,16 +153,24 @@ export function GlobalMetricsClient({
     return out;
   }, [seriesWithColors]);
 
+  const visibleSeries = useMemo(
+    () =>
+      selectedWorkspace === ALL_WORKSPACES
+        ? seriesWithColors
+        : seriesWithColors.filter((s) => s.key === selectedWorkspace),
+    [seriesWithColors, selectedWorkspace]
+  );
+
   const chartData = useMemo(
     () =>
       daily.rows.map((d) => {
         const row: Record<string, number | string> = { date: d.date };
-        for (const s of seriesWithColors) {
+        for (const s of visibleSeries) {
           row[s.key] = (d.perWorkspace[s.key] ?? 0) / 100;
         }
         return row;
       }),
-    [daily.rows, seriesWithColors]
+    [daily.rows, visibleSeries]
   );
 
   return (
@@ -149,6 +182,22 @@ export function GlobalMetricsClient({
             onChange={handleMonthChange}
             months={availableMonths}
           />
+          <Select
+            value={selectedWorkspace}
+            onValueChange={setSelectedWorkspace}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="All workspaces" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_WORKSPACES}>All workspaces</SelectItem>
+              {workspaceOptions.map((w) => (
+                <SelectItem key={w.key} value={w.key}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {isPending && (
             <span className="text-sm text-muted-foreground animate-pulse">
               Loading…
@@ -162,11 +211,16 @@ export function GlobalMetricsClient({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Daily spend by workspace</CardTitle>
+          <CardTitle className="text-base">
+            {selectedWorkspace === ALL_WORKSPACES
+              ? "Daily spend by workspace"
+              : `Daily spend · ${visibleSeries[0]?.name ?? "Workspace"}`}
+          </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Stacked · top {seriesWithColors.filter((s) => s.key !== "__other__").length}{" "}
-            workspaces
-            {seriesWithColors.some((s) => s.key === "__other__") && " + Other"} ·{" "}
+            {selectedWorkspace === ALL_WORKSPACES
+              ? `Stacked · top ${seriesWithColors.filter((s) => s.key !== "__other__").length} workspaces${seriesWithColors.some((s) => s.key === "__other__") ? " + Other" : ""}`
+              : "Single workspace · filtered view"}
+            {" · "}
             <span className="tabular-nums">{formatCurrency(kpis.totalCents)}</span>{" "}
             this period
           </p>
@@ -210,7 +264,7 @@ export function GlobalMetricsClient({
                   }
                 />
                 <Legend wrapperStyle={{ paddingTop: 8 }} />
-                {seriesWithColors.map((s) => (
+                {visibleSeries.map((s) => (
                   <Bar
                     key={s.key}
                     dataKey={s.key}
@@ -218,7 +272,7 @@ export function GlobalMetricsClient({
                     fill={s.color}
                     name={s.name}
                     radius={
-                      s.key === seriesWithColors[seriesWithColors.length - 1].key
+                      s.key === visibleSeries[visibleSeries.length - 1]?.key
                         ? [4, 4, 0, 0]
                         : [0, 0, 0, 0]
                     }
