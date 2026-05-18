@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { MonthPicker } from "@/components/profile/month-picker";
 import {
   getDailyTotalsByWorkspace,
@@ -54,10 +56,11 @@ function hashKey(key: string): number {
 function resolveSeriesColor(
   key: string,
   displayColor: string | null,
-  idx: number
+  idx: number,
+  useDbColors: boolean
 ): string {
-  if (displayColor && displayColor.trim()) return displayColor;
   if (key === "__other__") return "#71717a";
+  if (useDbColors && displayColor && displayColor.trim()) return displayColor;
   return FALLBACK_PALETTE[(hashKey(key) + idx) % FALLBACK_PALETTE.length];
 }
 
@@ -92,7 +95,22 @@ export function GlobalMetricsClient({
   const [daily, setDaily] = useState(initialDaily);
   const [selectedMonth, setSelectedMonth] = useState<string>(initialMonth);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(ALL_WORKSPACES);
+  const [useDbColors, setUseDbColors] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
+
+  // Persist the color-source preference across reloads (localStorage). The
+  // default is the theme palette — distinct hues out of the box; the DB's
+  // display_color values from the Anthropic Admin API often collide.
+  useEffect(() => {
+    const saved = localStorage.getItem("claude-dashboard:useDbColors");
+    if (saved === "true") setUseDbColors(true);
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(
+      "claude-dashboard:useDbColors",
+      String(useDbColors)
+    );
+  }, [useDbColors]);
 
   // Honor the ?workspace=<id> query param when returning from the
   // workspace detail page breadcrumb. "default" → the NULL workspace.
@@ -140,9 +158,9 @@ export function GlobalMetricsClient({
     () =>
       daily.topWorkspaces.map((s, idx) => ({
         ...s,
-        color: resolveSeriesColor(s.key, s.displayColor, idx),
+        color: resolveSeriesColor(s.key, s.displayColor, idx, useDbColors),
       })),
-    [daily.topWorkspaces]
+    [daily.topWorkspaces, useDbColors]
   );
 
   const chartConfig = useMemo<ChartConfig>(() => {
@@ -211,19 +229,36 @@ export function GlobalMetricsClient({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {selectedWorkspace === ALL_WORKSPACES
-              ? "Daily spend by workspace"
-              : `Daily spend · ${visibleSeries[0]?.name ?? "Workspace"}`}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {selectedWorkspace === ALL_WORKSPACES
-              ? `Stacked · top ${seriesWithColors.filter((s) => s.key !== "__other__").length} workspaces${seriesWithColors.some((s) => s.key === "__other__") ? " + Other" : ""}`
-              : "Single workspace · filtered view"}
-            {" · "}
-            <span className="tabular-nums">{formatCurrency(kpis.totalCents)}</span>{" "}
-            this period
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base">
+                {selectedWorkspace === ALL_WORKSPACES
+                  ? "Daily spend by workspace"
+                  : `Daily spend · ${visibleSeries[0]?.name ?? "Workspace"}`}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {selectedWorkspace === ALL_WORKSPACES
+                  ? `Stacked · top ${seriesWithColors.filter((s) => s.key !== "__other__").length} workspaces${seriesWithColors.some((s) => s.key === "__other__") ? " + Other" : ""}`
+                  : "Single workspace · filtered view"}
+                {" · "}
+                <span className="tabular-nums">{formatCurrency(kpis.totalCents)}</span>{" "}
+                this period
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="use-db-colors"
+                checked={useDbColors}
+                onCheckedChange={setUseDbColors}
+              />
+              <Label
+                htmlFor="use-db-colors"
+                className="cursor-pointer text-xs text-muted-foreground"
+              >
+                Use workspace colors
+              </Label>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
