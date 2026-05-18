@@ -54,7 +54,7 @@ export function CostDistributionHistogram({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Cost distribution</CardTitle>
         <CardDescription>
-          How many users in each bracket{total > 0 ? ` · ${total} active users total` : ""}
+          How many users in each bracket{total > 0 ? ` · ${total} users with an API key` : ""}
         </CardDescription>
       </CardHeader>
       <CardContent>

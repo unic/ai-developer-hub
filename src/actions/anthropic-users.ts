@@ -334,18 +334,22 @@ async function _getUserCostDistribution(
   const periodStart = `${month}-01`;
   const periodEnd = format(endOfMonth(parseISO(periodStart)), "yyyy-MM-dd");
 
-  // One row per user with their period total. LEFT JOIN so $0 users surface
-  // and the histogram's left-most bucket gets the right count.
+  // One row per user with their period total. Filtered to users with a
+  // resolved API key (i.e. Boost-profile users in this org) — users without
+  // a key can't generate spend, so including them inflates the $0 bucket
+  // with people who were never expected to be in the histogram.
   const rows = await db.execute(sql`
     SELECT
       u.id AS user_id,
       COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
     FROM users u
+    INNER JOIN anthropic_sync_status s ON s.user_id = u.id
     LEFT JOIN anthropic_usage_metrics m
            ON m.user_id = u.id
           AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
     WHERE u.id <> ${LOCK_USER_ID}
       AND u.status = 'active'
+      AND s.resolved_api_key_id IS NOT NULL
     GROUP BY u.id
   `);
 
