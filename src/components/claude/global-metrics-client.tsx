@@ -51,7 +51,7 @@ function resolveSeriesColor(
   idx: number,
   useDbColors: boolean
 ): string {
-  if (key === "__other__") return "#71717a";
+  if (key === OTHER_KEY) return "#71717a";
   if (useDbColors && displayColor && displayColor.trim()) return displayColor;
   // Spectral assignment by rank: top-spend workspace gets palette[0], next
   // gets palette[1], etc. Trade-off: a workspace's color follows its rank,
@@ -66,6 +66,8 @@ type StackedSeries = {
 };
 
 const ALL_WORKSPACES = "__all__";
+const OTHER_KEY = "__other__";
+const DEFAULT_KEY = "__default__";
 
 type GlobalMetricsClientProps = {
   initialKpis: DashboardKpis;
@@ -113,7 +115,7 @@ export function GlobalMetricsClient({
   useEffect(() => {
     const ws = searchParams.get("workspace");
     if (!ws) return;
-    const key = ws === "default" ? "__default__" : ws;
+    const key = ws === "default" ? DEFAULT_KEY : ws;
     if (workspaceOptions.some((w) => w.key === key)) {
       setSelectedWorkspace(key);
     }
@@ -233,7 +235,7 @@ export function GlobalMetricsClient({
               </CardTitle>
               <p className="text-sm text-muted-foreground">
                 {selectedWorkspace === ALL_WORKSPACES
-                  ? `Stacked · top ${seriesWithColors.filter((s) => s.key !== "__other__").length} workspaces${seriesWithColors.some((s) => s.key === "__other__") ? " + Other" : ""}`
+                  ? `Stacked · top ${seriesWithColors.filter((s) => s.key !== OTHER_KEY).length} workspaces${seriesWithColors.some((s) => s.key === OTHER_KEY) ? " + Other" : ""}`
                   : "Single workspace · filtered view"}
                 {" · "}
                 <span className="tabular-nums">{formatCurrency(kpis.totalCents)}</span>{" "}

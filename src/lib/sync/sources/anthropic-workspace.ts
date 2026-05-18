@@ -209,28 +209,42 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
 
   const dailyRows = aggregateDailyCosts(buckets);
 
-  let upserted = 0;
-  for (const { workspaceId, date, costCents } of dailyRows) {
-    if (workspaceId) {
-      await db.execute(sql`
-        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (${workspaceId}, ${date}, ${costCents})
-        ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
-        DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
-      `);
-    } else {
-      // Default workspace (null workspace_id)
-      await db.execute(sql`
-        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (NULL, ${date}, ${costCents})
-        ON CONFLICT (date) WHERE workspace_id IS NULL
-        DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
-      `);
-    }
-    upserted++;
+  // Batch upserts to one statement per partial-index bucket — without batching
+  // this loop would issue ~1800 round-trips on a 6-month backfill (rows × days).
+  // The two partial unique indexes (workspace_id IS NOT NULL / IS NULL) require
+  // two separate ON CONFLICT clauses, hence two batches.
+  const namedRows = dailyRows.filter((r) => r.workspaceId !== null);
+  const defaultRows = dailyRows.filter((r) => r.workspaceId === null);
+
+  if (namedRows.length > 0) {
+    const valuesSql = sql.join(
+      namedRows.map(
+        (r) => sql`(${r.workspaceId}, ${r.date}, ${r.costCents})`
+      ),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+      VALUES ${valuesSql}
+      ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+      DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = now()
+    `);
   }
 
-  return upserted;
+  if (defaultRows.length > 0) {
+    const valuesSql = sql.join(
+      defaultRows.map((r) => sql`(NULL, ${r.date}, ${r.costCents})`),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+      VALUES ${valuesSql}
+      ON CONFLICT (date) WHERE workspace_id IS NULL
+      DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = now()
+    `);
+  }
+
+  return namedRows.length + defaultRows.length;
 }
 
 // ---------------------------------------------------------------------------

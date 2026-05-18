@@ -55,20 +55,22 @@ export function CumulativePacingChart({
   const anchorDay = anchorRow?.dayOfMonth ?? null;
   const anchorCents = anchorRow?.current ?? null;
 
+  // Projection anchors at (anchorDay, anchorCents) and terminates at
+  // (daysInMonth, projectedEom). Only the two endpoints carry values; Recharts
+  // draws a straight line between them.
+  function projectionAt(dayOfMonth: number): number | null {
+    if (anchorDay == null || anchorCents == null) return null;
+    if (dayOfMonth === anchorDay) return anchorCents / 100;
+    if (dayOfMonth === daysInMonth) return projectedEomCents / 100;
+    return null;
+  }
+
   const data = rows.map((r) => {
     const isPastAnchor = anchorDay != null && r.dayOfMonth > anchorDay;
     return {
       day: r.dayOfMonth,
       current: !isPastAnchor && r.current != null ? r.current / 100 : null,
-      // Projection: anchor at (anchorDay, anchorCents); terminate at (daysInMonth, projectedEom).
-      currentProjected:
-        anchorDay != null && anchorCents != null
-          ? r.dayOfMonth === anchorDay
-            ? anchorCents / 100
-            : r.dayOfMonth === daysInMonth
-              ? projectedEomCents / 100
-              : null
-          : null,
+      currentProjected: projectionAt(r.dayOfMonth),
       m1: r.m1 != null ? r.m1 / 100 : null,
       m2: r.m2 != null ? r.m2 / 100 : null,
       m3: r.m3 != null ? r.m3 / 100 : null,
