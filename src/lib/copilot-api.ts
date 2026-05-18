@@ -199,6 +199,7 @@ export async function fetchCopilotSeats(
   let page = 1;
   let rateLimitRemaining = 5000;
   let rateLimitReset = 0;
+  let lastStatus = 200;
 
   while (true) {
     const result = await githubFetch<CopilotSeatsPage>(
@@ -209,6 +210,7 @@ export async function fetchCopilotSeats(
 
     rateLimitRemaining = result.rateLimitRemaining;
     rateLimitReset = result.rateLimitReset;
+    lastStatus = result.status;
 
     if (result.error) {
       return {
@@ -240,7 +242,7 @@ export async function fetchCopilotSeats(
   return {
     data: allSeats,
     error: null,
-    status: 200,
+    status: lastStatus,
     rateLimitRemaining,
     rateLimitReset,
   };
