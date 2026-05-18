@@ -45,14 +45,6 @@ const FALLBACK_PALETTE = [
   "#fdba74",
 ];
 
-function hashKey(key: string): number {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) {
-    h = (h * 31 + key.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
-
 function resolveSeriesColor(
   key: string,
   displayColor: string | null,
@@ -61,7 +53,10 @@ function resolveSeriesColor(
 ): string {
   if (key === "__other__") return "#71717a";
   if (useDbColors && displayColor && displayColor.trim()) return displayColor;
-  return FALLBACK_PALETTE[(hashKey(key) + idx) % FALLBACK_PALETTE.length];
+  // Spectral assignment by rank: top-spend workspace gets palette[0], next
+  // gets palette[1], etc. Trade-off: a workspace's color follows its rank,
+  // so it can shift when spend ordering changes. Worth it for the visual.
+  return FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
 }
 
 type StackedSeries = {
