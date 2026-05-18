@@ -38,7 +38,8 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { ChevronRight, ChevronsUpDown, CheckIcon, PlusCircle, ArrowUp, ArrowDown } from "lucide-react";
-import type { UserListRow } from "@/types";
+import { Sparkline } from "@/components/ui/sparkline";
+import type { UserListRow, UserSparkline } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const HIDE_ZERO_KEY = "claude-users:hide-zero";
@@ -51,9 +52,23 @@ type FilterOption = { value: string; label: string };
 
 type Props = {
   users: UserListRow[];
+  /** Optional 6-month sparkline data keyed by userId (Phase 2). */
+  sparklines?: Record<number, UserSparkline[]>;
+  /**
+   * Controlled search input — when provided, the parent owns the search state
+   * (Phase 2 wires the top-movers chip click into this). When omitted, the
+   * table manages its own search state for backwards compatibility.
+   */
+  searchValue?: string;
+  onSearchChange?: (next: string) => void;
 };
 
-export function UsersTable({ users }: Props) {
+export function UsersTable({
+  users,
+  sparklines,
+  searchValue,
+  onSearchChange,
+}: Props) {
   // Hide-$0 toggle — default ON, persisted to localStorage.
   const [hideZero, setHideZero] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -80,7 +95,16 @@ export function UsersTable({ users }: Props) {
   const [workspaceFilter, setWorkspaceFilter] = useState<Set<string>>(new Set());
   const [circleFilter, setCircleFilter] = useState<Set<string>>(new Set());
   const [profileFilter, setProfileFilter] = useState<Set<string>>(new Set());
-  const [searchInput, setSearchInput] = useState("");
+
+  // Search — controlled when the parent passes `searchValue` + `onSearchChange`
+  // (Phase 2 top-movers chip click), uncontrolled otherwise.
+  const isControlled = searchValue !== undefined;
+  const [searchInputUncontrolled, setSearchInputUncontrolled] = useState("");
+  const searchInput = isControlled ? searchValue : searchInputUncontrolled;
+  const setSearchInput = (next: string) => {
+    if (isControlled) onSearchChange?.(next);
+    else setSearchInputUncontrolled(next);
+  };
   const [search, setSearch] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim().toLowerCase()), SEARCH_DEBOUNCE_MS);
@@ -162,6 +186,17 @@ export function UsersTable({ users }: Props) {
     setSearchInput("");
   }
 
+  // Pre-compute per-user 6-month totals so the Sparkline column can sort.
+  const sparkTotals = useMemo(() => {
+    const out = new Map<number, number>();
+    if (!sparklines) return out;
+    for (const [uid, points] of Object.entries(sparklines)) {
+      const sum = points.reduce((s, p) => s + p.totalCents, 0);
+      out.set(Number(uid), sum);
+    }
+    return out;
+  }, [sparklines]);
+
   const columns = useMemo<ColumnDef<UserListRow>[]>(
     () => [
       {
@@ -230,6 +265,29 @@ export function UsersTable({ users }: Props) {
         ),
       },
       {
+        id: "sparkline",
+        header: ({ column }) => (
+          <SortHeader column={column} label="6mo trend" align="right" />
+        ),
+        // Sort by the 6-month sparkline total cents. Users with no sparkline
+        // data sort below users with any, so the Sparkline column behaves like
+        // a numeric column for ranking purposes even though the cell is SVG.
+        accessorFn: (row) => sparkTotals.get(row.userId) ?? -1,
+        cell: ({ row }) => {
+          const points = sparklines?.[row.original.userId] ?? [];
+          const data = points.map((p) => p.totalCents);
+          return (
+            <div className="flex justify-end">
+              <Sparkline
+                data={data}
+                color="var(--muted-foreground)"
+                ariaLabel={`6-month spend trend for ${row.original.name || row.original.email}`}
+              />
+            </div>
+          );
+        },
+      },
+      {
         accessorKey: "costCents",
         header: ({ column }) => (
           <SortHeader column={column} label="Cost MTD" align="right" />
@@ -271,7 +329,7 @@ export function UsersTable({ users }: Props) {
         ),
       },
     ],
-    []
+    [sparklines, sparkTotals]
   );
 
   const [sorting, setSorting] = useState<SortingState>([

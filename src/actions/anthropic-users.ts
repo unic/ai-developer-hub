@@ -11,12 +11,23 @@ import {
   topNConcentrationPct,
   activeUserDeltaPct,
   countUsersWithNoApiKey,
+  rankUserTopMovers,
+  type UserMoverInput,
 } from "@/lib/anthropic-users-utils";
+import {
+  COST_DISTRIBUTION_BUCKETS,
+  bucketCents,
+} from "@/lib/claude-users-buckets";
 import type {
   UserListRow,
   UsersDashboardKpis,
   UserProfile,
   UserStatus,
+  UserCostDistributionBucket,
+  UserSparkline,
+  UserTopMover,
+  DailyByUserResult,
+  DailyByUserRow,
 } from "@/types";
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
@@ -280,6 +291,307 @@ export async function getAvailableUserMonths(): Promise<string[]> {
   return unstable_cache(
     _getAvailableUserMonths,
     ["anthropic-available-user-months"],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// Spec 027 — Phase 2 actions
+// ---------------------------------------------------------------------------
+
+const SPARKLINE_MONTHS = 6;
+const TOP_DAILY_USERS = 5;
+const STACKED_OTHER_KEY = "__other__";
+
+// ---------------------------------------------------------------------------
+// getUserCostDistribution — T201
+// ---------------------------------------------------------------------------
+
+async function _getUserCostDistribution(
+  month: string
+): Promise<UserCostDistributionBucket[]> {
+  const periodStart = `${month}-01`;
+  const periodEnd = format(endOfMonth(parseISO(periodStart)), "yyyy-MM-dd");
+
+  // One row per user with their period total. LEFT JOIN so $0 users surface
+  // and the histogram's left-most bucket gets the right count.
+  const rows = await db.execute(sql`
+    SELECT
+      u.id AS user_id,
+      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+    FROM users u
+    LEFT JOIN anthropic_usage_metrics m
+           ON m.user_id = u.id
+          AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
+    WHERE u.id <> ${LOCK_USER_ID}
+      AND u.status = 'active'
+    GROUP BY u.id
+  `);
+
+  // Bucket in JS (rather than SQL CASE) so the boundaries live in one place.
+  // `bucketCents` mirrors the SQL boundaries exactly — see claude-users-buckets.ts.
+  const counts = new Map<UserCostDistributionBucket["key"], number>();
+  for (const def of COST_DISTRIBUTION_BUCKETS) counts.set(def.key, 0);
+  for (const r of rows.rows) {
+    const cents = Number(r.cents ?? 0);
+    const key = bucketCents(cents);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return COST_DISTRIBUTION_BUCKETS.map((def) => ({
+    key: def.key,
+    label: def.label,
+    minCents: def.minCents,
+    maxCents: def.maxCents,
+    userCount: counts.get(def.key) ?? 0,
+  }));
+}
+
+export async function getUserCostDistribution(
+  month?: string
+): Promise<UserCostDistributionBucket[]> {
+  const admin = await requireAdmin();
+  if (!admin) {
+    return COST_DISTRIBUTION_BUCKETS.map((def) => ({
+      key: def.key,
+      label: def.label,
+      minCents: def.minCents,
+      maxCents: def.maxCents,
+      userCount: 0,
+    }));
+  }
+
+  const targetMonth =
+    month && monthSchema.safeParse(month).success
+      ? month
+      : format(new Date(), "yyyy-MM");
+
+  return unstable_cache(
+    () => _getUserCostDistribution(targetMonth),
+    ["anthropic-user-cost-distribution", targetMonth],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// getUserSparklines — T202
+// ---------------------------------------------------------------------------
+
+async function _getUserSparklines(
+  monthsBack: number
+): Promise<Record<number, UserSparkline[]>> {
+  // One row per (user, month) for the trailing N months. Pivot in JS to keep
+  // the SQL identical in shape to `getWorkspaceSparklines`.
+  const rows = await db.execute(sql`
+    SELECT
+      m.user_id,
+      to_char(date_trunc('month', m.date), 'YYYY-MM') AS month,
+      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+    FROM anthropic_usage_metrics m
+    WHERE m.user_id <> ${LOCK_USER_ID}
+      AND m.date >= (date_trunc('month', current_date) - (${monthsBack - 1} || ' months')::interval)::date
+    GROUP BY m.user_id, date_trunc('month', m.date)
+    ORDER BY m.user_id, 2
+  `);
+
+  const out: Record<number, UserSparkline[]> = {};
+  for (const r of rows.rows) {
+    const userId = Number(r.user_id);
+    if (!out[userId]) out[userId] = [];
+    out[userId].push({
+      month: r.month as string,
+      totalCents: Number(r.cents ?? 0),
+    });
+  }
+  return out;
+}
+
+export async function getUserSparklines(
+  monthsBack: number = SPARKLINE_MONTHS
+): Promise<Record<number, UserSparkline[]>> {
+  const admin = await requireAdmin();
+  if (!admin) return {};
+  const n = Number.isInteger(monthsBack) && monthsBack > 0 ? monthsBack : SPARKLINE_MONTHS;
+  return unstable_cache(
+    () => _getUserSparklines(n),
+    ["anthropic-user-sparklines", String(n)],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// getUserTopMovers — T203
+// ---------------------------------------------------------------------------
+
+async function _getUserTopMovers(): Promise<UserTopMover[]> {
+  // Same 6-month window as the workspace top-movers: oldest 3 months = prior,
+  // newest 3 months = recent. Compare and rank in JS via `rankUserTopMovers`.
+  const rows = await db.execute(sql`
+    WITH window6 AS (
+      SELECT
+        m.user_id,
+        date_trunc('month', m.date) AS month,
+        SUM(m.computed_cost_cents)::bigint AS cents
+      FROM anthropic_usage_metrics m
+      WHERE m.user_id <> ${LOCK_USER_ID}
+        AND m.date >= (date_trunc('month', current_date) - interval '5 months')::date
+      GROUP BY m.user_id, date_trunc('month', m.date)
+    ),
+    classified AS (
+      SELECT
+        w6.user_id,
+        CASE
+          WHEN w6.month >= date_trunc('month', current_date) - interval '2 months' THEN 'new'
+          ELSE 'old'
+        END AS bucket,
+        w6.cents
+      FROM window6 w6
+    )
+    SELECT
+      c.user_id,
+      u.name,
+      u.email,
+      COALESCE(SUM(CASE WHEN c.bucket = 'new' THEN c.cents ELSE 0 END), 0)::bigint AS recent_cents,
+      COALESCE(SUM(CASE WHEN c.bucket = 'old' THEN c.cents ELSE 0 END), 0)::bigint AS prior_cents
+    FROM classified c
+    JOIN users u ON u.id = c.user_id
+    GROUP BY c.user_id, u.name, u.email
+  `);
+
+  const inputs: UserMoverInput[] = rows.rows.map((r) => ({
+    userId: Number(r.user_id),
+    name: (r.name as string | null) ?? "",
+    email: r.email as string,
+    priorCents: Number(r.prior_cents ?? 0),
+    recentCents: Number(r.recent_cents ?? 0),
+  }));
+
+  return rankUserTopMovers(inputs);
+}
+
+export async function getUserTopMovers(): Promise<UserTopMover[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  return unstable_cache(_getUserTopMovers, ["anthropic-user-top-movers"], {
+    tags: ["anthropic-workspace-costs"],
+  })();
+}
+
+// ---------------------------------------------------------------------------
+// getDailyTotalsByUser — T204
+// ---------------------------------------------------------------------------
+
+async function _getDailyTotalsByUser(month: string): Promise<DailyByUserResult> {
+  const periodStart = `${month}-01`;
+  const periodEnd = format(endOfMonth(parseISO(periodStart)), "yyyy-MM-dd");
+
+  // Per-user, per-day cents for the period. Join `users` once so we can label
+  // the top-5 chips in the legend without a second round-trip.
+  const rows = await db.execute(sql`
+    SELECT
+      m.date::text AS date,
+      m.user_id,
+      u.name,
+      u.email,
+      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+    FROM anthropic_usage_metrics m
+    JOIN users u ON u.id = m.user_id
+    WHERE m.user_id <> ${LOCK_USER_ID}
+      AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
+    GROUP BY m.date, m.user_id, u.name, u.email
+  `);
+
+  // First pass — period totals per user, so we know who lands in the top 5.
+  const totals = new Map<
+    number,
+    { userId: number; name: string; email: string; totalCents: number }
+  >();
+  for (const r of rows.rows) {
+    const uid = Number(r.user_id);
+    const cents = Number(r.cents ?? 0);
+    const ex = totals.get(uid);
+    if (ex) {
+      ex.totalCents += cents;
+    } else {
+      totals.set(uid, {
+        userId: uid,
+        name: (r.name as string | null) ?? "",
+        email: r.email as string,
+        totalCents: cents,
+      });
+    }
+  }
+
+  // Rank by cost DESC, tie-broken by name ASC (then email ASC for determinism).
+  const ranked = Array.from(totals.values()).sort((a, b) => {
+    if (b.totalCents !== a.totalCents) return b.totalCents - a.totalCents;
+    const an = a.name || a.email;
+    const bn = b.name || b.email;
+    if (an !== bn) return an.localeCompare(bn);
+    return a.email.localeCompare(b.email);
+  });
+  const topUserIds = new Set(ranked.slice(0, TOP_DAILY_USERS).map((u) => u.userId));
+  const hasOther = ranked.length > TOP_DAILY_USERS;
+
+  // Second pass — bucket each day-row into either its userId key or "__other__".
+  const dayMap = new Map<string, DailyByUserRow>();
+  for (const r of rows.rows) {
+    const date = r.date as string;
+    const uid = Number(r.user_id);
+    const cents = Number(r.cents ?? 0);
+    let row = dayMap.get(date);
+    if (!row) {
+      row = { date, perUser: {}, total: 0 };
+      dayMap.set(date, row);
+    }
+    const bucketKey = topUserIds.has(uid) ? String(uid) : STACKED_OTHER_KEY;
+    row.perUser[bucketKey] = (row.perUser[bucketKey] ?? 0) + cents;
+    row.total += cents;
+  }
+
+  const days = Array.from(dayMap.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
+
+  const topUsers: DailyByUserResult["topUsers"] = ranked
+    .slice(0, TOP_DAILY_USERS)
+    .map((u) => ({
+      key: String(u.userId),
+      userId: u.userId,
+      name: u.name || u.email,
+      email: u.email,
+      totalCents: u.totalCents,
+    }));
+  if (hasOther) {
+    const otherTotal = ranked
+      .slice(TOP_DAILY_USERS)
+      .reduce((s, u) => s + u.totalCents, 0);
+    topUsers.push({
+      key: STACKED_OTHER_KEY,
+      userId: null,
+      name: "Other",
+      email: null,
+      totalCents: otherTotal,
+    });
+  }
+
+  return { days, topUsers };
+}
+
+export async function getDailyTotalsByUser(
+  month?: string
+): Promise<DailyByUserResult> {
+  const admin = await requireAdmin();
+  if (!admin) return { days: [], topUsers: [] };
+
+  const targetMonth =
+    month && monthSchema.safeParse(month).success
+      ? month
+      : format(new Date(), "yyyy-MM");
+
+  return unstable_cache(
+    () => _getDailyTotalsByUser(targetMonth),
+    ["anthropic-daily-by-user", targetMonth],
     { tags: ["anthropic-workspace-costs"] }
   )();
 }

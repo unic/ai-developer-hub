@@ -52,3 +52,68 @@ export function countUsersWithNoApiKey(
   }
   return { numerator, denominator };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Floor on the prior 3-month window before a user counts as a "mover".
+ * Mirrors `TOP_MOVERS_FLOOR_CENTS` in `anthropic-global.ts` so the workspace
+ * and user surfaces filter at the same threshold ($5).
+ */
+export const USER_TOP_MOVERS_FLOOR_CENTS = 500;
+
+/** Maximum number of "fastest growing" chips rendered. */
+export const USER_TOP_MOVERS_LIMIT = 3;
+
+export interface UserMoverInput {
+  userId: number;
+  name: string;
+  email: string;
+  /** Sum of cents in the older half of the 6-month window. */
+  priorCents: number;
+  /** Sum of cents in the newer half of the 6-month window. */
+  recentCents: number;
+}
+
+export interface RankedUserMover {
+  userId: number;
+  name: string;
+  email: string;
+  priorCents: number;
+  recentCents: number;
+  deltaPct: number;
+}
+
+/**
+ * Rank user-level top movers — same rules as the workspace version:
+ *  - filter `priorCents >= $5` (suppress noise from one-off micro spenders)
+ *  - exclude non-positive deltas
+ *  - sort by deltaPct DESC, tie-broken by email ASC for determinism
+ *  - take the top N (default 3)
+ */
+export function rankUserTopMovers(
+  rows: UserMoverInput[],
+  limit: number = USER_TOP_MOVERS_LIMIT
+): RankedUserMover[] {
+  const ranked: RankedUserMover[] = [];
+  for (const r of rows) {
+    if (r.priorCents < USER_TOP_MOVERS_FLOOR_CENTS) continue;
+    const delta = r.recentCents - r.priorCents;
+    if (delta <= 0) continue;
+    ranked.push({
+      userId: r.userId,
+      name: r.name,
+      email: r.email,
+      priorCents: r.priorCents,
+      recentCents: r.recentCents,
+      deltaPct: Math.round((delta / r.priorCents) * 100),
+    });
+  }
+  ranked.sort((a, b) => {
+    if (b.deltaPct !== a.deltaPct) return b.deltaPct - a.deltaPct;
+    return a.email.localeCompare(b.email);
+  });
+  return ranked.slice(0, limit);
+}

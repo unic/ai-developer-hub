@@ -649,3 +649,60 @@ export interface UsersDashboardKpis {
   // Echo the period so the UI can render the month label
   totalCents: number;
 }
+
+// Spec 027 — Phase 2 (distribution + sparklines + daily-by-user)
+
+/** One bucket of the user cost-distribution histogram. */
+export interface UserCostDistributionBucket {
+  /** Matches `COST_DISTRIBUTION_BUCKETS[].key`. */
+  key: "zero" | "lt1" | "lt10" | "lt50" | "lt100" | "gte100";
+  label: string;
+  /** Inclusive lower bound (cents). */
+  minCents: number;
+  /** Exclusive upper bound (cents); null when unbounded ($100+). */
+  maxCents: number | null;
+  userCount: number;
+}
+
+/** Per-user 6-month sparkline data point. */
+export interface UserSparkline {
+  /** `YYYY-MM`. */
+  month: string;
+  totalCents: number;
+}
+
+/** Fastest-growing-users chip data — parallels `TopMover`. */
+export interface UserTopMover {
+  userId: number;
+  name: string;
+  email: string;
+  priorCents: number;
+  recentCents: number;
+  deltaPct: number;
+}
+
+/**
+ * One day in the stacked "Daily spend by user" chart.
+ *
+ * Keys in `perUser` are either user ids (as decimal strings) for the
+ * top-5 spenders this period, or the literal `"__other__"` for the
+ * everyone-else bucket. Values are cents.
+ */
+export interface DailyByUserRow {
+  date: string;
+  perUser: Record<string, number>;
+  total: number;
+}
+
+/** Shape returned by `getDailyTotalsByUser`. */
+export interface DailyByUserResult {
+  days: DailyByUserRow[];
+  topUsers: {
+    /** Decimal-stringified userId, or `"__other__"`. */
+    key: string;
+    userId: number | null;
+    name: string;
+    email: string | null;
+    totalCents: number;
+  }[];
+}

@@ -5,12 +5,18 @@ import {
   getUserList,
   getUsersDashboardKpis,
   getAvailableUserMonths,
+  getUserCostDistribution,
+  getUserSparklines,
+  getUserTopMovers,
+  getDailyTotalsByUser,
 } from "@/actions/anthropic-users";
 import { ClaudeTabs } from "@/components/claude/claude-tabs";
 import { SyncButton } from "@/components/claude/sync-button";
 import { UserKpiStrip } from "@/components/claude/user-kpi-strip";
 import { TopUsersBarChart } from "@/components/claude/top-users-bar-chart";
-import { UsersTable } from "@/components/claude/users-table";
+import { CostDistributionHistogram } from "@/components/claude/cost-distribution-histogram";
+import { DailyByUserChart } from "@/components/claude/daily-by-user-chart";
+import { UsersTableWithMovers } from "@/components/claude/users-table-with-movers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users as UsersIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -49,9 +55,13 @@ export default async function ClaudeUsersPage() {
     );
   }
 
-  const [kpis, list] = await Promise.all([
+  const [kpis, list, distribution, sparklines, movers, daily] = await Promise.all([
     getUsersDashboardKpis(currentMonth),
     getUserList(currentMonth),
+    getUserCostDistribution(currentMonth),
+    getUserSparklines(),
+    getUserTopMovers(),
+    getDailyTotalsByUser(currentMonth),
   ]);
 
   return (
@@ -72,6 +82,10 @@ export default async function ClaudeUsersPage() {
 
       <UserKpiStrip kpis={kpis} />
 
+      {/* Phase 2: Daily-by-user stacked chart sits directly below the KPI strip;
+          Top 10 moves below it. */}
+      <DailyByUserChart data={daily} />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Top 10 Users by Cost</CardTitle>
@@ -81,14 +95,15 @@ export default async function ClaudeUsersPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All Users</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <UsersTable users={list.users} />
-        </CardContent>
-      </Card>
+      {/* Distribution histogram + fastest growing chips share a row above the
+          table; the client wrapper owns the search state so the chips can
+          imperatively filter the table on click. */}
+      <UsersTableWithMovers
+        users={list.users}
+        sparklines={sparklines}
+        movers={movers}
+        histogram={<CostDistributionHistogram buckets={distribution} />}
+      />
     </div>
   );
 }
