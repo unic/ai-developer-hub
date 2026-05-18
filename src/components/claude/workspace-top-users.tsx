@@ -34,9 +34,7 @@ export function WorkspaceTopUsers({ users }: { users: WorkspaceUser[] }) {
             <TableRow key={u.userId}>
               <TableCell className="font-medium">
                 <Link
-                  href={`/profile?userId=${u.userId}`}
-                  target="_blank"
-                  rel="noreferrer"
+                  href={`/claude/users/${u.userId}`}
                   className="hover:underline"
                 >
                   {u.name || u.email}

@@ -19,6 +19,7 @@ import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
 import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
+import { ClaudeTabs } from "@/components/claude/claude-tabs";
 import { format, getDate, getDaysInMonth } from "date-fns";
 import { Bot } from "lucide-react";
 
@@ -73,6 +74,8 @@ export default async function ClaudePage() {
         </div>
         <SyncButton />
       </div>
+
+      <ClaudeTabs />
 
       <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
         <GlobalMetricsClient

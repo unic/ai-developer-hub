@@ -18,15 +18,22 @@ const PALETTE = [
   "#93c5fd",
 ];
 
+/**
+ * Reused by the per-user drill page with `scopeLabel="User"`. The component
+ * is otherwise identical — same palette, same reconciliation footnote, same
+ * stacked-bar+table layout.
+ */
 export function WorkspaceModelBreakdown({
   rows,
+  scopeLabel = "Workspace",
 }: {
   rows: ModelBreakdownRow[];
+  scopeLabel?: "Workspace" | "User";
 }) {
   if (rows.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        No model-level data for this workspace.
+        No model-level data for this {scopeLabel.toLowerCase()}.
       </p>
     );
   }
@@ -49,7 +56,7 @@ export function WorkspaceModelBreakdown({
                 width: `${widthPct}%`,
                 backgroundColor: PALETTE[i % PALETTE.length],
               }}
-              title={`${r.modelName} · ${formatCurrency(r.costCents)} · ${r.pctOfWorkspace}%`}
+              title={`${r.modelName} · ${formatCurrency(r.costCents)} · ${r.pct}%`}
             />
           );
         })}
@@ -62,7 +69,7 @@ export function WorkspaceModelBreakdown({
             <TableHead className="text-right">Tokens In</TableHead>
             <TableHead className="text-right">Tokens Out</TableHead>
             <TableHead className="text-right">Cost</TableHead>
-            <TableHead className="text-right">% Workspace</TableHead>
+            <TableHead className="text-right">% {scopeLabel}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -82,7 +89,7 @@ export function WorkspaceModelBreakdown({
                 {formatCurrency(r.costCents)}
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {r.pctOfWorkspace}%
+                {r.pct}%
               </TableCell>
             </TableRow>
           ))}
@@ -90,8 +97,8 @@ export function WorkspaceModelBreakdown({
       </Table>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         Model-level totals come from Anthropic&apos;s usage endpoint and may not
-        exactly match the workspace headline cost (different rounding and
-        aggregation windows).
+        exactly match the {scopeLabel.toLowerCase()} headline cost (different
+        rounding and aggregation windows).
       </p>
     </div>
   );

@@ -20,7 +20,7 @@ import { env } from "@/lib/env";
 // Constants
 // ---------------------------------------------------------------------------
 
-const LOCK_USER_ID = 0;
+export const LOCK_USER_ID = 0;
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — stale lock threshold
 const LOCK_COOLDOWN_MS = 60 * 1000; // 60 seconds — minimum between syncs
 const DEFAULT_BACKFILL_DAYS = 31;

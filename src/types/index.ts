@@ -558,7 +558,8 @@ export interface ModelBreakdownRow {
   tokensIn: number;
   tokensOut: number;
   costCents: number;
-  pctOfWorkspace: number;
+  /** Percentage of the enclosing entity's total cost (0–100). Renders as "% Workspace" or "% User" depending on the scope. */
+  pct: number;
 }
 
 export interface WorkspaceDetail {
@@ -607,3 +608,161 @@ export interface ActiveAlertsData {
 }
 
 export type OrgCreditsStatus = { available: false; reason: string };
+
+// Spec 027 — Claude Users sub-page
+
+export interface UserListRow {
+  userId: number;
+  email: string;
+  name: string;
+  circle: string | null;
+  profile: UserProfile | null;
+  status: UserStatus;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  workspaceColor: string | null;
+  hasApiKey: boolean;
+  costCents: number;
+  totalTokens: number;
+  modelsUsed: number;
+  lastActive: string | null;
+  hasUnresolvedPricing: boolean;
+}
+
+export interface UsersDashboardKpis {
+  // Active users this month + MoM delta
+  activeUsersCurrent: number;
+  activeUsersPrior: number;
+  activeUsersDeltaPct: number | null;
+  // Top spender (first row of the canonical query)
+  topSpender: {
+    userId: number;
+    name: string;
+    email: string;
+    costCents: number;
+    pctOfOrg: number;
+  } | null;
+  // Top-5 concentration % of org spend
+  topFiveConcentrationPct: number | null;
+  // Users with no API key (numerator + denominator)
+  usersWithNoApiKey: number;
+  usersWithNoApiKeyDenominator: number;
+  // Echo the period so the UI can render the month label
+  totalCents: number;
+}
+
+// Spec 027 — Phase 2 (distribution + sparklines + daily-by-user)
+
+/** One bucket of the user cost-distribution histogram. */
+export interface UserCostDistributionBucket {
+  /** Matches `COST_DISTRIBUTION_BUCKETS[].key`. */
+  key: "zero" | "lt1" | "lt10" | "lt50" | "lt100" | "gte100";
+  label: string;
+  /** Inclusive lower bound (cents). */
+  minCents: number;
+  /** Exclusive upper bound (cents); null when unbounded ($100+). */
+  maxCents: number | null;
+  userCount: number;
+}
+
+/** Per-user 6-month sparkline data point. */
+export interface UserSparkline {
+  /** `YYYY-MM`. */
+  month: string;
+  totalCents: number;
+}
+
+/** Fastest-growing-users chip data — parallels `TopMover`. */
+export interface UserTopMover {
+  userId: number;
+  name: string;
+  email: string;
+  priorCents: number;
+  recentCents: number;
+  deltaPct: number;
+}
+
+/**
+ * One day in the stacked "Daily spend by user" chart.
+ *
+ * Keys in `perUser` are either user ids (as decimal strings) for the
+ * top-5 spenders this period, or the literal `"__other__"` for the
+ * everyone-else bucket. Values are cents.
+ */
+export interface DailyByUserRow {
+  date: string;
+  perUser: Record<string, number>;
+  total: number;
+}
+
+/** Shape returned by `getDailyTotalsByUser`. */
+export interface DailyByUserResult {
+  days: DailyByUserRow[];
+  topUsers: {
+    /** Decimal-stringified userId, or `"__other__"`. */
+    key: string;
+    userId: number | null;
+    name: string;
+    email: string | null;
+    totalCents: number;
+  }[];
+}
+
+// Spec 027 — Phase 3 (per-user drill-through)
+
+/** One day in the per-user daily-cost chart. */
+export interface UserDailyRow {
+  date: string;
+  costCents: number;
+}
+
+/**
+ * One of the user's top-cost days in the selected month, with the dominant
+ * model on that day (highest-cost model contribution).
+ */
+export interface UserTopDateRow {
+  date: string;
+  costCents: number;
+  /** Model that contributed the largest share on this day, or null if unknown. */
+  dominantModel: string | null;
+}
+
+/** Detail payload for the per-user drill-through route `/claude/users/[userId]`. */
+export interface UserDetail {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    circle: string | null;
+    profile: UserProfile | null;
+    status: UserStatus;
+    role: UserRole;
+  };
+  workspace: {
+    workspaceId: string | null;
+    name: string | null;
+    displayColor: string | null;
+  };
+  /** `YYYY-MM` of the selected month. */
+  month: string;
+  /** `YYYY-MM-01`. */
+  periodStart: string;
+  /** Last day of the selected month, `YYYY-MM-DD`. */
+  periodEnd: string;
+  currentMonthCents: number;
+  priorMonthCents: number;
+  momDeltaCents: number;
+  /** Null when the prior month is below $1 (delta meaningless). */
+  momDeltaPct: number | null;
+  projectedMonthEndCents: number;
+  /** One entry per day in the period; missing days padded to 0. */
+  dailyTotals: UserDailyRow[];
+  modelBreakdown: ModelBreakdownRow[];
+  /** Up to 5 highest-cost days in the period. */
+  topDates: UserTopDateRow[];
+  /** Last 12 months including the current month. */
+  twelveMonth: { month: string; totalCents: number }[];
+  hasUnresolvedPricing: boolean;
+  /** Months with data for this user, newest first — used by the month picker. */
+  availableMonths: string[];
+}

@@ -1,0 +1,1368 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 027 — Claude Console Users sub-page · Implementation plan</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      h1, h2, h3, h4 { letter-spacing: -0.01em; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #181818; border: 1px solid var(--border-2); color: var(--muted); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #181818; border: 1px solid var(--border-2); }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      a.link:hover { color: #c9e94a; }
+      .grid-cols-fit { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      table.spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.spec-table th, table.spec-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      table.spec-table th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      table.spec-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+      .toc a { color: var(--muted); }
+      .toc a:hover { color: var(--text); }
+      .phase-pill { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+      .phase-1 { background: #0a1c10; color: #86efac; border: 1px solid #14532d; }
+      .phase-2 { background: #082f3a; color: #67e8f9; border: 1px solid #155e75; }
+      .phase-3 { background: #2a1607; color: #fcd34d; border: 1px solid #78350f; }
+      .anchor { scroll-margin-top: 24px; }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      .ac-list { padding-left: 22px; }
+      .ac-list li { margin: 6px 0; }
+      .ac-list li::marker { color: #4ade80; }
+      .risk-list li::marker { color: #f87171; }
+      .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+      details.code-detail summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      details.code-detail summary:hover { color: var(--text); }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      pre.code .k { color: #c084fc; }
+      pre.code .s { color: #86efac; }
+      pre.code .n { color: #fcd34d; }
+      pre.code .c { color: #71717a; font-style: italic; }
+      pre.code .t { color: #67e8f9; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .viz { background: #0d0d0d; border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+      .viz-label { font-size: 11px; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+
+      <header class="mb-10 pb-6 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          <span class="chip">Spec 027</span>
+          <span class="chip info">Status · Proposed</span>
+          <span class="chip">Created 2026-05-18</span>
+          <span class="chip">Owner · tobias.studer@unic.com</span>
+          <span class="chip success">3 phases · 1 PR</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Claude Console — Users sub-page</h1>
+        <p class="text-[var(--muted)] mt-2 max-w-3xl">
+          Add a second tab to the Claude Console that re-pivots the same Anthropic data from <em>workspaces</em> to <em>users</em>. The existing redesigned
+          <code class="mono text-[var(--text)]">/claude</code> page becomes the "Workspaces" tab; the new
+          <code class="mono text-[var(--text)]">/claude/users</code> page becomes the "Users" tab.
+          Everything required for per-user attribution is already in the database — no migrations, no backfill, no new sync jobs.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <a class="chip info" href="spec.md">spec.md ↗</a>
+          <a class="chip info" href="tasks.md">tasks.md ↗</a>
+          <a class="chip info" href="data-model.md">data-model.md ↗</a>
+          <a class="chip info" href="mockup.html">mockup.html (interactive) ↗</a>
+        </div>
+      </header>
+
+      <!-- TOC -->
+      <nav class="card p-5 mb-10 toc">
+        <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-3">Contents</p>
+        <ol class="text-sm space-y-1.5 list-decimal pl-5">
+          <li><a href="#context">Context</a></li>
+          <li><a href="#before-after">Before / after at a glance</a></li>
+          <li><a href="#phase-1">Phase 1 — Sub-page nav + Users MVP</a></li>
+          <li><a href="#phase-2">Phase 2 — Distribution + sparklines + Top movers</a></li>
+          <li><a href="#phase-3">Phase 3 — Per-user drill-through</a></li>
+          <li><a href="#cross">Cross-cutting concerns &amp; shared helpers</a></li>
+          <li><a href="#test-strategy">Test strategy</a></li>
+          <li><a href="#rollout">Rollout &amp; risk register</a></li>
+        </ol>
+      </nav>
+
+      <!-- ====================== CONTEXT ====================== -->
+      <section id="context" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">1. Context</h2>
+        <div class="prose prose-invert max-w-none text-[15px]">
+          <p>
+            Spec 026 made the Claude Console workspace-aware: a KPI strip, a stacked daily chart, a 12-month trend, top-movers chips,
+            per-workspace sparklines, and a drill-through route at <code class="mono">/claude/workspaces/[workspaceId]</code> that already
+            renders a per-workspace "top users" panel. Crucially, that spec also landed migration
+            <code class="mono">0018_anthropic_sync_workspace_id</code>, which added
+            <code class="mono">anthropic_sync_status.resolved_workspace_id</code> — the bridge column that makes per-user data
+            join cleanly to a workspace without touching the largest fact table in the schema (<code class="mono">anthropic_usage_metrics</code>,
+            <code class="mono">src/lib/db/schema.ts:525-564</code>).
+          </p>
+          <p>
+            With the workspace pivot solved, the operational questions left on the table are user-centric. Inspected live on 2026-05-18
+            with the production dataset — <strong>41 provisioned users</strong> across <strong>13 workspaces</strong> producing
+            <strong>$1,820.40 MTD</strong> — these questions are concretely unanswerable from the current UI without manual aggregation:
+          </p>
+          <ul class="list-disc pl-6">
+            <li><strong>Who is the most expensive user this month?</strong> The top spender today holds <strong>17%</strong> of total org spend; you have to scan every workspace's top-users panel to find them.</li>
+            <li><strong>Is spend concentrated?</strong> The <strong>top-5 concentration</strong> is currently <strong>58%</strong> of org cost — a single number that has no home in the existing UI.</li>
+            <li><strong>Which users are growing fastest?</strong> Workspace top-movers exist; user top-movers do not.</li>
+            <li><strong>Who is provisioned but unused?</strong> <strong>6 users</strong> have an active Claude license assignment but no <code class="mono">resolved_api_key_id</code> in <code class="mono">anthropic_sync_status</code>. Today this can only be found by cross-referencing <code class="mono">license_assignments</code> against the sync table by hand.</li>
+          </ul>
+          <p>
+            The schema work this requires is <strong>zero</strong>: the per-user-per-day-per-model grain in
+            <code class="mono">anthropic_usage_metrics</code> plus the user-to-workspace mapping in
+            <code class="mono">anthropic_sync_status</code> already cover every aggregation the Users page renders. The hourly Anthropic Admin API sync
+            from spec 018 already populates these tables and already calls
+            <code class="mono">revalidateTag("anthropic-workspace-costs")</code> on completion — the same cache tag the new actions will use.
+          </p>
+        </div>
+      </section>
+
+      <!-- ====================== BEFORE/AFTER ====================== -->
+      <section id="before-after" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">2. Before / after at a glance</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- BEFORE -->
+          <div class="viz">
+            <p class="viz-label">Before · today's /claude page (workspace-pivoted only)</p>
+            <svg viewBox="0 0 500 320" class="w-full h-auto">
+              <rect x="0" y="0" width="500" height="320" fill="#0d0d0d"/>
+              <!-- header -->
+              <text x="10" y="30" font-size="14" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Claude API Spending</text>
+              <text x="10" y="44" font-size="9" fill="#71717a" font-family="ui-sans-serif">Workspaces is the only pivot</text>
+              <rect x="370" y="20" width="120" height="20" rx="10" fill="#0a1c10" stroke="#14532d"/>
+              <circle cx="382" cy="30" r="3" fill="#22c55e"/>
+              <text x="390" y="33" font-size="9" fill="#86efac" font-family="ui-sans-serif">Synced 3m ago</text>
+              <!-- KPI strip (workspace-flavoured) -->
+              <g font-family="ui-sans-serif">
+                <rect x="10" y="58" width="115" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="18" y="70" font-size="7" fill="#71717a">TOTAL · MAY</text>
+                <text x="18" y="88" font-size="12" font-weight="700" fill="#fafafa">$1,820.40</text>
+                <rect x="129" y="58" width="115" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="137" y="70" font-size="7" fill="#71717a">PROJECTED</text>
+                <text x="137" y="88" font-size="12" font-weight="700" fill="#fafafa">$3,640</text>
+                <rect x="248" y="58" width="115" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="256" y="70" font-size="7" fill="#71717a">OVER 80%</text>
+                <text x="256" y="88" font-size="12" font-weight="700" fill="#fafafa">1 / 13</text>
+                <rect x="367" y="58" width="123" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="375" y="70" font-size="7" fill="#71717a">MoM</text>
+                <text x="375" y="88" font-size="12" font-weight="700" fill="#fafafa">+$199</text>
+              </g>
+              <!-- daily stacked chart -->
+              <rect x="10" y="106" width="480" height="56" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="20" y="122" font-size="8" fill="#71717a" font-family="ui-sans-serif">Daily spend by workspace · stacked</text>
+              <g>
+                <rect x="20" y="140" width="20" height="18" fill="#d4f057"/><rect x="20" y="134" width="20" height="6" fill="#86efac"/>
+                <rect x="48" y="136" width="20" height="22" fill="#d4f057"/><rect x="48" y="130" width="20" height="6" fill="#86efac"/>
+                <rect x="76" y="138" width="20" height="20" fill="#d4f057"/><rect x="76" y="132" width="20" height="6" fill="#86efac"/>
+                <rect x="104" y="132" width="20" height="26" fill="#d4f057"/><rect x="104" y="126" width="20" height="6" fill="#86efac"/>
+                <rect x="132" y="136" width="20" height="22" fill="#d4f057"/><rect x="132" y="128" width="20" height="8" fill="#86efac"/>
+              </g>
+              <!-- workspace list -->
+              <text x="10" y="180" font-size="9" fill="#fafafa" font-family="ui-sans-serif">Workspace Budgets · sorted by utilization</text>
+              <g font-family="ui-sans-serif" font-size="9">
+                <text x="10" y="196" fill="#fca5a5">▶ Automations · $52.49 · 105%</text>
+                <text x="10" y="210" fill="#fafafa">boost-expert-1 · $125.64 · 63%</text>
+                <text x="10" y="224" fill="#fafafa">boost-starter-1 · $370.72 · 62%</text>
+              </g>
+              <!-- the missing question -->
+              <rect x="10" y="240" width="480" height="70" rx="6" fill="#1c1407" stroke="#5a4607"/>
+              <text x="20" y="258" font-size="9" fill="#facc15" font-family="ui-sans-serif" font-weight="600">⚠ Questions you can't answer in five seconds:</text>
+              <text x="20" y="275" font-size="8" fill="#fde68a" font-family="ui-sans-serif">• Who is the top user across the whole org?</text>
+              <text x="20" y="288" font-size="8" fill="#fde68a" font-family="ui-sans-serif">• Is spend concentrated in a few power users?</text>
+              <text x="20" y="301" font-size="8" fill="#fde68a" font-family="ui-sans-serif">• Which 6 users have a license but no API key?</text>
+            </svg>
+          </div>
+          <!-- AFTER -->
+          <div class="viz">
+            <p class="viz-label">After · Claude Console with Workspaces + Users tabs</p>
+            <svg viewBox="0 0 500 320" class="w-full h-auto">
+              <rect x="0" y="0" width="500" height="320" fill="#0d0d0d"/>
+              <!-- header -->
+              <text x="10" y="28" font-size="14" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Claude Console</text>
+              <rect x="370" y="18" width="120" height="20" rx="10" fill="#0a1c10" stroke="#14532d"/>
+              <circle cx="382" cy="28" r="3" fill="#22c55e"/>
+              <text x="390" y="31" font-size="9" fill="#86efac" font-family="ui-sans-serif">Synced 3m ago</text>
+              <!-- tab strip -->
+              <g font-family="ui-sans-serif">
+                <line x1="10" y1="58" x2="490" y2="58" stroke="#262626" stroke-width="1"/>
+                <text x="14" y="51" font-size="10" fill="#71717a">Workspaces</text>
+                <text x="84" y="51" font-size="10" font-weight="700" fill="#fafafa">Users</text>
+                <line x1="80" y1="58" x2="118" y2="58" stroke="#d4f057" stroke-width="2"/>
+              </g>
+              <!-- KPI strip (user-flavoured) -->
+              <g font-family="ui-sans-serif">
+                <rect x="10" y="66" width="115" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="18" y="78" font-size="7" fill="#71717a">ACTIVE USERS</text>
+                <text x="18" y="96" font-size="12" font-weight="700" fill="#fafafa">27 <tspan font-size="8" fill="#71717a">/ 41</tspan></text>
+                <rect x="129" y="66" width="115" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="137" y="78" font-size="7" fill="#71717a">TOP SPENDER</text>
+                <text x="137" y="93" font-size="11" font-weight="700" fill="#fafafa">$305 · 17%</text>
+                <rect x="248" y="66" width="115" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="256" y="78" font-size="7" fill="#71717a">TOP-5 CONCENTRATION</text>
+                <text x="256" y="96" font-size="12" font-weight="700" fill="#fafafa">58%</text>
+                <rect x="367" y="66" width="123" height="40" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="375" y="78" font-size="7" fill="#71717a">NO API KEY</text>
+                <text x="375" y="96" font-size="12" font-weight="700" fill="#facc15">6</text>
+                <text x="395" y="96" font-size="7" fill="#71717a">licensed</text>
+              </g>
+              <!-- top 10 users horizontal bar chart -->
+              <rect x="10" y="116" width="240" height="120" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="20" y="130" font-size="8" fill="#71717a" font-family="ui-sans-serif">TOP 10 USERS · COST MAY</text>
+              <g font-family="ui-sans-serif" font-size="7" fill="#fafafa">
+                <rect x="80" y="138" width="150" height="7" fill="#d4f057"/><text x="20" y="144">alice@</text><text x="232" y="144" text-anchor="end" fill="#71717a">$305</text>
+                <rect x="80" y="149" width="120" height="7" fill="#d4f057"/><text x="20" y="155">bob@</text><text x="232" y="155" text-anchor="end" fill="#71717a">$244</text>
+                <rect x="80" y="160" width="95"  height="7" fill="#86efac"/><text x="20" y="166">carol@</text><text x="232" y="166" text-anchor="end" fill="#71717a">$193</text>
+                <rect x="80" y="171" width="80"  height="7" fill="#86efac"/><text x="20" y="177">dan@</text><text x="232" y="177" text-anchor="end" fill="#71717a">$162</text>
+                <rect x="80" y="182" width="65"  height="7" fill="#67e8f9"/><text x="20" y="188">eve@</text><text x="232" y="188" text-anchor="end" fill="#71717a">$132</text>
+                <rect x="80" y="193" width="50"  height="7" fill="#67e8f9"/><text x="20" y="199">frank@</text><text x="232" y="199" text-anchor="end" fill="#71717a">$101</text>
+                <rect x="80" y="204" width="40"  height="7" fill="#93c5fd"/><text x="20" y="210">grace@</text><text x="232" y="210" text-anchor="end" fill="#71717a">$82</text>
+                <rect x="80" y="215" width="32"  height="7" fill="#93c5fd"/><text x="20" y="221">helen@</text><text x="232" y="221" text-anchor="end" fill="#71717a">$65</text>
+                <rect x="80" y="226" width="22"  height="6" fill="#c4b5fd"/><text x="20" y="231">igor@</text><text x="232" y="231" text-anchor="end" fill="#71717a">$45</text>
+              </g>
+              <!-- distribution histogram -->
+              <rect x="258" y="116" width="232" height="60" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="268" y="130" font-size="8" fill="#71717a" font-family="ui-sans-serif">COST DISTRIBUTION</text>
+              <g>
+                <rect x="270" y="158" width="22" height="12" fill="#3f3f46"/>
+                <rect x="298" y="148" width="22" height="22" fill="#52525b"/>
+                <rect x="326" y="152" width="22" height="18" fill="#71717a"/>
+                <rect x="354" y="146" width="22" height="24" fill="#a1a1aa"/>
+                <rect x="382" y="155" width="22" height="15" fill="#facc15"/>
+                <rect x="410" y="160" width="22" height="10" fill="#f87171"/>
+              </g>
+              <text x="270" y="172" font-size="6" fill="#71717a" font-family="ui-sans-serif">$0</text>
+              <text x="298" y="172" font-size="6" fill="#71717a" font-family="ui-sans-serif">.01–1</text>
+              <text x="326" y="172" font-size="6" fill="#71717a" font-family="ui-sans-serif">1–10</text>
+              <text x="354" y="172" font-size="6" fill="#71717a" font-family="ui-sans-serif">10–50</text>
+              <text x="382" y="172" font-size="6" fill="#71717a" font-family="ui-sans-serif">50–100</text>
+              <text x="410" y="172" font-size="6" fill="#71717a" font-family="ui-sans-serif">100+</text>
+              <!-- fastest growing chips -->
+              <rect x="258" y="184" width="232" height="52" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="268" y="198" font-size="8" fill="#71717a" font-family="ui-sans-serif">FASTEST GROWING (6mo)</text>
+              <rect x="268" y="206" width="68" height="14" rx="3" fill="#181818" stroke="#2e2e2e"/>
+              <text x="302" y="216" font-size="7" fill="#fca5a5" text-anchor="middle" font-family="ui-sans-serif">▲ alice +312%</text>
+              <rect x="340" y="206" width="68" height="14" rx="3" fill="#181818" stroke="#2e2e2e"/>
+              <text x="374" y="216" font-size="7" fill="#fca5a5" text-anchor="middle" font-family="ui-sans-serif">▲ carol +145%</text>
+              <rect x="412" y="206" width="68" height="14" rx="3" fill="#181818" stroke="#2e2e2e"/>
+              <text x="446" y="216" font-size="7" fill="#fca5a5" text-anchor="middle" font-family="ui-sans-serif">▲ frank +98%</text>
+              <!-- users table -->
+              <text x="10" y="252" font-size="10" fill="#fafafa" font-family="ui-sans-serif">Users table · sort/filter/search · drill ▸</text>
+              <g font-family="ui-sans-serif" font-size="8">
+                <text x="10" y="270" fill="#fafafa">alice@unic.com · Automations · $305 · ▁▂▃▅▇</text>
+                <text x="10" y="284" fill="#fafafa">bob@unic.com · boost-expert-1 · $244 · ▁▁▂▃▆</text>
+                <text x="10" y="298" fill="#fafafa">carol@unic.com · boost-starter-1 · $193 · ▁▂▃▆▇</text>
+                <text x="10" y="312" fill="#71717a">… 38 more · 14 hidden ($0)</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <p class="text-xs text-[var(--muted)] mt-3">
+          The redesign reuses the spec 026 data layer almost verbatim — only the <code class="mono">GROUP BY</code> flips from
+          <code class="mono">workspace_id</code> to <code class="mono">user_id</code>. The interactive mockup with real names is at
+          <a class="link" href="mockup.html">mockup.html</a>.
+        </p>
+      </section>
+
+      <!-- ====================== PHASE 1 ====================== -->
+      <section id="phase-1" class="anchor mb-12">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="phase-pill phase-1">Phase 1 · Commit 1</span>
+          <h2 class="text-xl font-semibold">Sub-page nav + Users MVP</h2>
+        </div>
+        <p class="text-[var(--muted)] mb-5 max-w-3xl">
+          Introduce a tabbed sub-page nav on <code class="mono">/claude</code>, ship the new <code class="mono">/claude/users</code> route
+          with a 4-tile KPI strip, a Top 10 horizontal bar chart, and a filterable TanStack users table.
+          Standalone-shippable: nothing on the existing Workspaces view changes shape — it merely gains a tab strip below the header.
+        </p>
+
+        <!-- Goal + stories -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Goal</p>
+            <p class="text-sm">An admin can answer "who is the top user, and is spend concentrated?" within <strong>five seconds</strong> of clicking the Users tab.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Effort</p>
+            <p class="text-sm">~30–40 hours · 1 new route · 5 new components · 3 new server actions · 1 new types file group · 0 schema changes.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Standalone value</p>
+            <p class="text-sm">Ships independently. Phase 2 and 3 are additive cards and a new sub-route.</p>
+          </div>
+        </div>
+
+        <!-- User stories -->
+        <h3 class="text-base font-semibold mt-6 mb-2">User stories</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li>As an admin, I want a single glance to tell me how many users are active, who the top spender is, how concentrated spend is in the top 5, and how many provisioned users have no API key — so I can triage onboarding and cost without scrolling.</li>
+          <li>As an admin, I want a Top 10 chart so I instantly see the heavy hitters across the whole org without scanning every workspace.</li>
+          <li>As an admin, I want a sortable, searchable table of all users with workspace + token + cost columns, so I can answer ad-hoc questions ("show me everyone in the Boost circle over $50") without touching SQL.</li>
+          <li>As an admin, switching from Workspaces to Users should preserve my month picker — they are the same dataset under two pivots.</li>
+        </ul>
+
+        <!-- Files to change -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Files to change</h3>
+        <table class="spec-table">
+          <thead><tr><th>Path</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="file-path">src/app/claude/users/page.tsx</td><td><strong>NEW</strong> Server Component · admin gate identical to <code class="mono">src/app/claude/page.tsx:28-31</code> · parallel <code class="mono">Promise.all</code> over the three new actions plus <code class="mono">getSyncStatus</code>.</td></tr>
+            <tr><td class="file-path">src/app/claude/page.tsx</td><td>Render <code class="mono">&lt;ClaudeTabs /&gt;</code> below the existing <code class="mono">&lt;h1&gt;</code> block. No other change.</td></tr>
+            <tr><td class="file-path">src/components/claude/claude-tabs.tsx</td><td><strong>NEW</strong> · two-tab strip (Workspaces · Users). Uses <code class="mono">usePathname()</code> to mark active. <code class="mono">"use client"</code>.</td></tr>
+            <tr><td class="file-path">src/components/claude/user-kpi-strip.tsx</td><td><strong>NEW</strong> · thin wrapper around the spec 026 <code class="mono">&lt;KpiStrip /&gt;</code> primitive with the four user-flavoured tiles.</td></tr>
+            <tr><td class="file-path">src/components/claude/top-users-bar-chart.tsx</td><td><strong>NEW</strong> · Recharts horizontal BarChart, top 10 by cost. Bar fill = user's resolved-workspace <code class="mono">display_color</code> (muted grey fallback when null).</td></tr>
+            <tr><td class="file-path">src/components/claude/users-table.tsx</td><td><strong>NEW</strong> · TanStack Table 8. Columns: User · Workspace · Models used · Tokens · Cost MTD · Last active · Drill. Default sort: cost DESC, email ASC.</td></tr>
+            <tr><td class="file-path">src/components/claude/users-table-filters.tsx</td><td><strong>NEW</strong> · workspace / circle / profile multi-selects, "Hide $0" toggle (localStorage <code class="mono">claude-users:hide-zero</code>), debounced search.</td></tr>
+            <tr><td class="file-path">src/actions/anthropic-users.ts</td><td><strong>NEW</strong> · exports <code class="mono">getUserList</code>, <code class="mono">getUsersDashboardKpis</code>, <code class="mono">getAvailableUserMonths</code>. Mirrors the conventions in <code class="mono">src/actions/anthropic-global.ts</code>.</td></tr>
+            <tr><td class="file-path">src/lib/anthropic-sync.ts</td><td>Export <code class="mono">LOCK_USER_ID</code> (currently a module-local constant on line 23) so <code class="mono">anthropic-users.ts</code> can re-use the literal <code class="mono">0</code> by reference.</td></tr>
+            <tr><td class="file-path">src/types/index.ts</td><td>Export <code class="mono">UserListRow</code>, <code class="mono">UsersDashboardKpis</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <!-- New queries / signatures -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Server actions added</h3>
+        <table class="spec-table">
+          <thead><tr><th>Function</th><th>Reads from</th><th>Returns</th><th>Cache tag</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">getUserList(month?)</td>
+              <td><code class="mono">users</code> ⋈ <code class="mono">anthropic_usage_metrics</code> ⋈ <code class="mono">anthropic_sync_status</code> ⋈ <code class="mono">anthropic_workspaces</code></td>
+              <td><code class="mono">{ users: UserListRow[], totalCents, periodStart, periodEnd, hasUnresolvedPricing }</code></td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+            <tr>
+              <td class="mono">getUsersDashboardKpis(month?)</td>
+              <td>Same set + <code class="mono">license_assignments</code> for the "no API key" tile denominator</td>
+              <td><code class="mono">UsersDashboardKpis</code> (active users + MoM · top spender · top-5 concentration · no-API-key count)</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+            <tr>
+              <td class="mono">getAvailableUserMonths()</td>
+              <td><code class="mono">anthropic_usage_metrics(date)</code></td>
+              <td><code class="mono">string[]</code> of <code class="mono">YYYY-MM</code> months with at least one row</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UI components added</h3>
+        <table class="spec-table">
+          <thead><tr><th>Component path</th><th>Props</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="file-path">src/components/claude/claude-tabs.tsx</td>
+              <td><code class="mono">{ }</code> — reads route from <code class="mono">usePathname()</code></td>
+              <td>Renders below the page <code class="mono">&lt;h1&gt;</code> on both routes. Active tab gets the primary underline; inactive tab is muted.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/user-kpi-strip.tsx</td>
+              <td><code class="mono">{ kpis: UsersDashboardKpis }</code></td>
+              <td>Composes the spec 026 <code class="mono">&lt;KpiStrip /&gt;</code>. Top-spender tile is a same-page anchor to that user's row in the table below.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/top-users-bar-chart.tsx</td>
+              <td><code class="mono">{ users: UserListRow[], onSelect?: (id: number) =&gt; void }</code></td>
+              <td>Recharts horizontal BarChart, top 10. Bar fill = <code class="mono">workspace_color</code> (muted grey fallback). Click bar → <code class="mono">/profile?userId=N</code> (rewired to <code class="mono">/claude/users/N</code> in Phase 3).</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/users-table.tsx</td>
+              <td><code class="mono">{ rows: UserListRow[], hasUnresolvedPricing: boolean }</code></td>
+              <td>TanStack Table 8. Tokens column labelled <strong>Tokens</strong> (not Requests — see data-model caveat). Pricing-unresolved rows get a warn chip.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/users-table-filters.tsx</td>
+              <td><code class="mono">{ rows, value, onChange }</code></td>
+              <td>Workspace / circle / profile multi-selects feed the parent's filter state. Hide-$0 toggle defaults ON; persists to localStorage.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Canonical user-list query</h3>
+        <pre class="code mono"><span class="c">-- The one query that drives the whole Phase 1 page. KPI tiles are aggregates over it;</span>
+<span class="c">-- the Top 10 chart is the first 10 rows; the table is every row. See data-model.md.</span>
+<span class="k">SELECT</span>
+  u.id                                          <span class="k">AS</span> user_id,
+  u.email,
+  u.name,
+  u.circle,
+  u.profile,
+  u.status,
+  s.resolved_workspace_id,
+  w.name                                        <span class="k">AS</span> workspace_name,
+  w.display_color                               <span class="k">AS</span> workspace_color,
+  <span class="t">COALESCE</span>(<span class="t">SUM</span>(m.computed_cost_cents), <span class="n">0</span>)::bigint <span class="k">AS</span> cents,
+  <span class="t">COALESCE</span>(<span class="t">SUM</span>(
+    m.uncached_input_tokens
+    + m.cache_read_input_tokens
+    + m.cache_creation_input_tokens
+    + m.output_tokens
+  ), <span class="n">0</span>)::bigint                              <span class="k">AS</span> total_tokens,
+  <span class="t">COUNT</span>(<span class="k">DISTINCT</span> m.model)::int             <span class="k">AS</span> models_used,
+  <span class="t">MAX</span>(m.date)                                <span class="k">AS</span> last_active,
+  <span class="t">BOOL_OR</span>(m.pricing_resolved = <span class="k">false</span>)       <span class="k">AS</span> has_unresolved_pricing
+<span class="k">FROM</span> users u
+<span class="k">LEFT JOIN</span> anthropic_usage_metrics m
+       <span class="k">ON</span> m.user_id = u.id
+      <span class="k">AND</span> m.date <span class="k">BETWEEN</span> <span class="n">$1</span> <span class="k">AND</span> <span class="n">$2</span>
+<span class="k">LEFT JOIN</span> anthropic_sync_status s
+       <span class="k">ON</span> s.user_id = u.id
+<span class="k">LEFT JOIN</span> anthropic_workspaces w
+       <span class="k">ON</span> w.workspace_id <span class="k">IS NOT DISTINCT FROM</span> s.resolved_workspace_id
+<span class="k">WHERE</span> u.id &lt;&gt; <span class="n">0</span>                              <span class="c">-- exclude LOCK_USER_ID sentinel</span>
+<span class="k">GROUP BY</span> u.id, u.email, u.name, u.circle, u.profile, u.status,
+         s.resolved_workspace_id, w.name, w.display_color
+<span class="k">ORDER BY</span> cents <span class="k">DESC</span>, u.email <span class="k">ASC</span>;        <span class="c">-- ties broken by email</span></pre>
+
+        <p class="text-sm text-[var(--text)]/90 max-w-3xl mt-3">
+          <code class="mono">IS NOT DISTINCT FROM</code> on the workspace join is the same trick spec 026 used for the per-workspace top-users panel
+          (<code class="mono">src/actions/anthropic-global.ts</code>): it treats <code class="mono">NULL</code> as a real value so users in the default
+          workspace are not silently dropped. <code class="mono">LEFT JOIN</code> on <code class="mono">anthropic_usage_metrics</code> (not <code class="mono">INNER</code>) is
+          deliberate — users with zero spend must still appear because the "users with no API key" KPI is meaningless if those rows are pre-filtered out.
+        </p>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Type additions (<code class="mono">src/types/index.ts</code>)</h3>
+        <pre class="code mono"><span class="k">export type</span> <span class="t">UserListRow</span> = {
+  userId: <span class="t">number</span>;
+  email: <span class="t">string</span>;
+  name: <span class="t">string</span> | <span class="k">null</span>;
+  circle: <span class="t">string</span> | <span class="k">null</span>;
+  profile: <span class="t">"boost"</span> | <span class="t">"maxed"</span> | <span class="t">"indie"</span> | <span class="k">null</span>;
+  status: <span class="t">"active"</span> | <span class="t">"inactive"</span>;
+  workspaceId: <span class="t">string</span> | <span class="k">null</span>;        <span class="c">// null = default Anthropic workspace</span>
+  workspaceName: <span class="t">string</span> | <span class="k">null</span>;
+  workspaceColor: <span class="t">string</span> | <span class="k">null</span>;     <span class="c">// hex from anthropic_workspaces.display_color</span>
+  cents: <span class="t">number</span>;
+  totalTokens: <span class="t">number</span>;
+  modelsUsed: <span class="t">number</span>;
+  lastActive: <span class="t">string</span> | <span class="k">null</span>;          <span class="c">// 'YYYY-MM-DD'</span>
+  hasUnresolvedPricing: <span class="t">boolean</span>;
+};
+
+<span class="k">export type</span> <span class="t">UsersDashboardKpis</span> = {
+  activeUserCount: <span class="t">number</span>;            <span class="c">// users with cents &gt; 0 this month</span>
+  totalUserCount: <span class="t">number</span>;             <span class="c">// excluding LOCK_USER_ID, excluding status='inactive'</span>
+  activeUserMoMDelta: <span class="t">number</span>;          <span class="c">// signed integer; null when prior month was empty</span>
+  topSpender: { userId: <span class="t">number</span>; email: <span class="t">string</span>; name: <span class="t">string</span> | <span class="k">null</span>;
+                cents: <span class="t">number</span>; pctOfOrg: <span class="t">number</span> } | <span class="k">null</span>;
+  topFiveConcentrationPct: <span class="t">number</span>;     <span class="c">// 0–100; null when activeUserCount &lt; 5</span>
+  noApiKeyCount: <span class="t">number</span>;               <span class="c">// active users with active Claude license, resolved_api_key_id IS NULL</span>
+};</pre>
+
+        <!-- Phase 1 viz -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Layout</h3>
+        <div class="viz">
+          <p class="viz-label">Phase 1 wireframe — /claude/users (real proportions)</p>
+          <svg viewBox="0 0 1000 480" class="w-full h-auto">
+            <rect x="0" y="0" width="1000" height="480" fill="#0a0a0a"/>
+            <!-- header row -->
+            <text x="20" y="40" font-size="22" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Claude Console</text>
+            <text x="20" y="58" font-size="11" fill="#71717a" font-family="ui-sans-serif">Org-wide usage, budgets, and per-user spending</text>
+            <rect x="780" y="32" width="120" height="22" rx="11" fill="#0a1c10" stroke="#14532d"/>
+            <circle cx="795" cy="43" r="3.5" fill="#22c55e"/>
+            <text x="803" y="46" font-size="11" fill="#86efac" font-family="ui-sans-serif">Synced 3m ago</text>
+            <rect x="908" y="30" width="72" height="26" rx="6" fill="#d4f057"/>
+            <text x="944" y="47" font-size="11" font-weight="600" fill="#0a0a0a" text-anchor="middle" font-family="ui-sans-serif">Sync</text>
+            <!-- tab strip -->
+            <line x1="20" y1="84" x2="980" y2="84" stroke="#262626" stroke-width="1"/>
+            <text x="26" y="76" font-size="12" fill="#71717a" font-family="ui-sans-serif">Workspaces</text>
+            <text x="124" y="76" font-size="12" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Users</text>
+            <line x1="118" y1="84" x2="172" y2="84" stroke="#d4f057" stroke-width="2"/>
+            <!-- month picker -->
+            <rect x="850" y="64" width="130" height="22" rx="4" fill="#121212" stroke="#262626"/>
+            <text x="915" y="79" font-size="10" fill="#fafafa" text-anchor="middle" font-family="ui-sans-serif">May 2026 ▾</text>
+
+            <!-- KPI strip -->
+            <g font-family="ui-sans-serif">
+              <rect x="20" y="100" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="34" y="118" font-size="9" fill="#71717a">ACTIVE USERS · MAY 2026</text>
+              <text x="34" y="146" font-size="22" font-weight="700" fill="#fafafa">27 <tspan font-size="14" fill="#71717a">/ 41</tspan></text>
+              <text x="34" y="166" font-size="10" fill="#86efac">▲ +3 vs Apr</text>
+
+              <rect x="262" y="100" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="276" y="118" font-size="9" fill="#71717a">TOP SPENDER · MAY</text>
+              <text x="276" y="142" font-size="18" font-weight="700" fill="#fafafa">alice@unic.com</text>
+              <text x="276" y="166" font-size="10" fill="#f87171">$305 · 17% of org</text>
+
+              <rect x="504" y="100" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="518" y="118" font-size="9" fill="#71717a">TOP-5 CONCENTRATION</text>
+              <text x="518" y="146" font-size="22" font-weight="700" fill="#fafafa">58%</text>
+              <text x="518" y="166" font-size="10" fill="#facc15">5 users hold &gt;half of spend</text>
+
+              <rect x="746" y="100" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="760" y="118" font-size="9" fill="#71717a">USERS WITH NO API KEY</text>
+              <text x="760" y="146" font-size="22" font-weight="700" fill="#facc15">6 <tspan font-size="14" fill="#71717a">/ 41</tspan></text>
+              <text x="760" y="166" font-size="10" fill="#71717a">licensed but unused</text>
+            </g>
+
+            <!-- Top 10 horizontal bar chart -->
+            <rect x="20" y="196" width="480" height="234" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="214" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Top 10 users · cost MTD</text>
+            <text x="34" y="228" font-size="9" fill="#71717a" font-family="ui-sans-serif">Bar fill = user's resolved workspace · click row to drill</text>
+            <g font-family="ui-sans-serif" font-size="10" fill="#fafafa">
+              <rect x="140" y="242" width="320" height="14" fill="#d4f057" rx="2"/><text x="34" y="252">alice@</text><text x="466" y="252" text-anchor="end" fill="#71717a">$305.10</text>
+              <rect x="140" y="260" width="256" height="14" fill="#d4f057" rx="2"/><text x="34" y="270">bob@</text><text x="466" y="270" text-anchor="end" fill="#71717a">$244.30</text>
+              <rect x="140" y="278" width="202" height="14" fill="#86efac" rx="2"/><text x="34" y="288">carol@</text><text x="466" y="288" text-anchor="end" fill="#71717a">$193.45</text>
+              <rect x="140" y="296" width="170" height="14" fill="#86efac" rx="2"/><text x="34" y="306">dan@</text><text x="466" y="306" text-anchor="end" fill="#71717a">$162.10</text>
+              <rect x="140" y="314" width="138" height="14" fill="#67e8f9" rx="2"/><text x="34" y="324">eve@</text><text x="466" y="324" text-anchor="end" fill="#71717a">$131.55</text>
+              <rect x="140" y="332" width="106" height="14" fill="#67e8f9" rx="2"/><text x="34" y="342">frank@</text><text x="466" y="342" text-anchor="end" fill="#71717a">$101.20</text>
+              <rect x="140" y="350" width="86"  height="14" fill="#93c5fd" rx="2"/><text x="34" y="360">grace@</text><text x="466" y="360" text-anchor="end" fill="#71717a">$82.05</text>
+              <rect x="140" y="368" width="68"  height="14" fill="#93c5fd" rx="2"/><text x="34" y="378">helen@</text><text x="466" y="378" text-anchor="end" fill="#71717a">$64.92</text>
+              <rect x="140" y="386" width="48"  height="14" fill="#c4b5fd" rx="2"/><text x="34" y="396">igor@</text><text x="466" y="396" text-anchor="end" fill="#71717a">$45.30</text>
+              <rect x="140" y="404" width="32"  height="14" fill="#c4b5fd" rx="2"/><text x="34" y="414">jane@</text><text x="466" y="414" text-anchor="end" fill="#71717a">$31.18</text>
+            </g>
+
+            <!-- Users table (preview) -->
+            <rect x="520" y="196" width="460" height="234" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="534" y="214" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Users (41) · Hide $0 ON · search · circle · profile</text>
+            <!-- filter row -->
+            <rect x="534" y="226" width="80" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+            <text x="574" y="238" font-size="9" fill="#a1a1aa" text-anchor="middle" font-family="ui-sans-serif">Workspace ▾</text>
+            <rect x="620" y="226" width="60" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+            <text x="650" y="238" font-size="9" fill="#a1a1aa" text-anchor="middle" font-family="ui-sans-serif">Circle ▾</text>
+            <rect x="686" y="226" width="60" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+            <text x="716" y="238" font-size="9" fill="#a1a1aa" text-anchor="middle" font-family="ui-sans-serif">Profile ▾</text>
+            <rect x="752" y="226" width="80" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+            <text x="792" y="238" font-size="9" fill="#86efac" text-anchor="middle" font-family="ui-sans-serif">☑ Hide $0</text>
+            <rect x="838" y="226" width="130" height="18" rx="4" fill="#0d0d0d" stroke="#2e2e2e"/>
+            <text x="846" y="238" font-size="9" fill="#71717a" font-family="ui-sans-serif">🔍 Search name/email</text>
+            <!-- header -->
+            <g font-family="ui-sans-serif" font-size="8" fill="#71717a">
+              <text x="534" y="262">USER</text>
+              <text x="664" y="262">WORKSPACE</text>
+              <text x="760" y="262">MODELS</text>
+              <text x="810" y="262">TOKENS</text>
+              <text x="876" y="262" text-anchor="end">COST</text>
+              <text x="930" y="262" text-anchor="end">LAST</text>
+              <text x="966" y="262" text-anchor="end">▸</text>
+            </g>
+            <line x1="534" y1="266" x2="966" y2="266" stroke="#262626"/>
+            <g font-family="ui-sans-serif" font-size="9">
+              <text x="534" y="280" fill="#fafafa">alice@unic.com</text><text x="664" y="280" fill="#a1a1aa">Automations</text><text x="760" y="280" fill="#a1a1aa">3</text><text x="810" y="280" fill="#a1a1aa">2.1M</text><text x="876" y="280" text-anchor="end" fill="#fafafa">$305.10</text><text x="930" y="280" text-anchor="end" fill="#a1a1aa">5/17</text><text x="966" y="280" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="296" fill="#fafafa">bob@unic.com</text><text x="664" y="296" fill="#a1a1aa">boost-expert-1</text><text x="760" y="296" fill="#a1a1aa">2</text><text x="810" y="296" fill="#a1a1aa">1.6M</text><text x="876" y="296" text-anchor="end" fill="#fafafa">$244.30</text><text x="930" y="296" text-anchor="end" fill="#a1a1aa">5/17</text><text x="966" y="296" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="312" fill="#fafafa">carol@unic.com</text><text x="664" y="312" fill="#a1a1aa">boost-starter-1</text><text x="760" y="312" fill="#a1a1aa">4</text><text x="810" y="312" fill="#a1a1aa">1.3M</text><text x="876" y="312" text-anchor="end" fill="#fafafa">$193.45</text><text x="930" y="312" text-anchor="end" fill="#a1a1aa">5/16</text><text x="966" y="312" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="328" fill="#fafafa">dan@unic.com</text><text x="664" y="328" fill="#a1a1aa">boost-starter-1</text><text x="760" y="328" fill="#a1a1aa">2</text><text x="810" y="328" fill="#a1a1aa">1.1M</text><text x="876" y="328" text-anchor="end" fill="#fafafa">$162.10</text><text x="930" y="328" text-anchor="end" fill="#a1a1aa">5/16</text><text x="966" y="328" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="344" fill="#fafafa">eve@unic.com</text><text x="664" y="344" fill="#a1a1aa">boost-expert-1</text><text x="760" y="344" fill="#a1a1aa">3</text><text x="810" y="344" fill="#a1a1aa">920K</text><text x="876" y="344" text-anchor="end" fill="#fafafa">$131.55</text><text x="930" y="344" text-anchor="end" fill="#a1a1aa">5/15</text><text x="966" y="344" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="360" fill="#fafafa">frank@unic.com</text><text x="664" y="360" fill="#a1a1aa">boost-starter-2</text><text x="760" y="360" fill="#a1a1aa">2</text><text x="810" y="360" fill="#a1a1aa">730K</text><text x="876" y="360" text-anchor="end" fill="#fafafa">$101.20</text><text x="930" y="360" text-anchor="end" fill="#a1a1aa">5/16</text><text x="966" y="360" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="376" fill="#fafafa">grace@unic.com</text><text x="664" y="376" fill="#a1a1aa">indie-1</text><text x="760" y="376" fill="#a1a1aa">2</text><text x="810" y="376" fill="#a1a1aa">605K</text><text x="876" y="376" text-anchor="end" fill="#fafafa">$82.05</text><text x="930" y="376" text-anchor="end" fill="#a1a1aa">5/15</text><text x="966" y="376" text-anchor="end" fill="#71717a">▸</text>
+              <text x="534" y="392" fill="#fafafa">helen@unic.com</text><text x="664" y="392" fill="#a1a1aa">boost-starter-3</text><text x="760" y="392" fill="#a1a1aa">3</text><text x="810" y="392" fill="#a1a1aa">490K</text><text x="876" y="392" text-anchor="end" fill="#fafafa">$64.92</text><text x="930" y="392" text-anchor="end" fill="#a1a1aa">5/14</text><text x="966" y="392" text-anchor="end" fill="#71717a">▸</text>
+            </g>
+            <text x="534" y="416" font-size="9" fill="#71717a" font-family="ui-sans-serif">… 19 more rows · 14 hidden ($0)</text>
+          </svg>
+        </div>
+
+        <!-- UX details -->
+        <h3 class="text-base font-semibold mt-6 mb-2">UX details &amp; edge cases</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li><strong>Tab strip placement</strong>: sits below the page <code class="mono">&lt;h1&gt;</code> and the sync pill row, full content width. The sidebar entry stays a single "Claude Console" link — active matching is by route prefix so both tabs highlight it.</li>
+          <li><strong>Top-spender tile</strong>: clicking it scrolls (anchor link, not a route change) to that user's row in the table and briefly highlights the row. The same anchor pattern is used by Phase 2's top-movers chips.</li>
+          <li><strong>Top-5 concentration tile</strong>: renders <code class="mono">—</code> when fewer than 5 active users have any spend. The action returns <code class="mono">null</code> in that case to avoid a misleading "100%" reading.</li>
+          <li><strong>"No API key" tile</strong>: the denominator is "active users with an active Claude license assignment" — not "every user in the system". Otherwise the count would include users without a Claude license, which is meaningless. The number on the tile is the count; the caption shows the denominator.</li>
+          <li><strong>Hide $0 toggle</strong>: default ON, persisted to localStorage <code class="mono">claude-users:hide-zero</code>. A disclosure underneath the table reads "Show N hidden ($0)" and expands the rows.</li>
+          <li><strong>Tokens column label</strong>: it is intentionally <strong>Tokens</strong>, not Requests. <code class="mono">anthropic_usage_metrics</code> stores only tokens; "requests" would be a fabrication.</li>
+          <li><strong>Pricing-unresolved chip</strong>: when <code class="mono">has_unresolved_pricing</code> is true for a row, render an amber chip <code class="mono">.chip.warn</code> next to the cost value with tooltip "Pricing not yet resolved for at least one row — total may grow once the next sync runs".</li>
+          <li><strong>Empty state — no data at all</strong>: render the same <code class="mono">&lt;EmptyState /&gt;</code> the Workspaces tab uses (<code class="mono">src/app/claude/page.tsx:123-135</code>) with users-flavoured copy.</li>
+          <li><strong>Empty state — filtered</strong>: when <code class="mono">users.length === 0</code> after filtering, render a small "No matching users" panel with a "Clear filters" button.</li>
+        </ul>
+
+        <!-- Risks -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Risks</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 risk-list text-[var(--text)]/90">
+          <li>Per-user totals will not reconcile with workspace totals (separate Anthropic endpoints, separate rounding). Mitigation: do <em>not</em> claim authoritative org-spend on the Users tab — that signal lives on the Workspaces tab. Footnote on the page.</li>
+          <li>Top-5 concentration unstable when fewer than 5 active users — render <code class="mono">—</code> rather than a misleading 100%.</li>
+          <li>Forgetting to exclude <code class="mono">LOCK_USER_ID = 0</code> from a single query would silently produce a phantom row labelled "user 0". Mitigation: re-export the constant from <code class="mono">src/lib/anthropic-sync.ts</code> and lint-grep for any literal <code class="mono">user_id &lt;&gt; 0</code> outside this file.</li>
+        </ul>
+
+        <!-- Acceptance criteria -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5 ac-list">
+          <li>Navigating to <code class="mono">/claude/users</code> as an admin renders the page; non-admins are redirected to <code class="mono">/</code>.</li>
+          <li>The header tab strip renders on both <code class="mono">/claude</code> and <code class="mono">/claude/users</code> and highlights the active route.</li>
+          <li>KPI strip renders four tiles in the order: Active users · Top spender · Top-5 concentration · Users with no API key.</li>
+          <li>Top 10 chart shows up to 10 users by cost DESC; each bar is filled with the user's resolved-workspace <code class="mono">display_color</code>; users without a resolved workspace get muted grey.</li>
+          <li>Users table is sortable on every numeric column; default sort is Cost DESC with email ASC as tiebreaker.</li>
+          <li>"Hide $0 users" toggle is checked by default and persists across reloads via localStorage at key <code class="mono">claude-users:hide-zero</code>.</li>
+          <li>Pricing-unresolved rows render an amber warning chip adjacent to the cost cell.</li>
+          <li>Top-spender tile click scrolls the user's row into view and applies a brief highlight.</li>
+          <li>Filtered-to-zero state shows "No matching users" with a Clear-filters button; data-empty state reuses the Workspaces empty state copy.</li>
+          <li>Every new server action is wrapped in <code class="mono">unstable_cache</code> with tag <code class="mono">"anthropic-workspace-costs"</code>.</li>
+        </ul>
+      </section>
+
+      <!-- ====================== PHASE 2 ====================== -->
+      <section id="phase-2" class="anchor mb-12">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="phase-pill phase-2">Phase 2 · Commit 2</span>
+          <h2 class="text-xl font-semibold">Distribution + sparklines + Top movers</h2>
+        </div>
+        <p class="text-[var(--muted)] mb-5 max-w-3xl">
+          Layer additive context cards on top of the Phase 1 MVP: a cost-distribution histogram, a Fastest Growing chips strip,
+          per-user 6-month sparklines in the table, and a daily-spend-by-user stacked chart that mirrors the workspace one on <code class="mono">/claude</code>.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Goal</p>
+            <p class="text-sm">Answer "is the bell curve healthy or top-heavy?" and "who's growing fastest at the user level?" without leaving the Users tab.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Effort</p>
+            <p class="text-sm">~20–30 hours · 4 new components · 4 new server actions · 0 schema changes.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Depends on</p>
+            <p class="text-sm">Phase 1 (table + KPI plumbing). Reuses spec 026 <code class="mono">&lt;Sparkline /&gt;</code> primitive and <code class="mono">getTopMovers</code> structure.</p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">User stories</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li>As an admin, I want to see how user spend is distributed across the org so I know whether to focus on the top 1% or the whole long tail.</li>
+          <li>As an admin, I want a "Fastest growing users (6mo)" chip strip so the same signal we get for workspaces is available at the user level — and clicking a chip filters the table to that user.</li>
+          <li>As an admin, I want a 6-month sparkline next to each user so I can see growth without opening the drill page.</li>
+          <li>As an admin, I want a daily-spend chart stacked by top-5 users so I can see which user drove a given day's spike across the whole org.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Files to change</h3>
+        <table class="spec-table">
+          <thead><tr><th>Path</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="file-path">src/components/claude/cost-distribution-histogram.tsx</td><td><strong>NEW</strong> · Recharts BarChart, 6 buckets, count labels above bars, colour-graded muted→warn→danger.</td></tr>
+            <tr><td class="file-path">src/components/claude/user-top-movers-chips.tsx</td><td><strong>NEW</strong> · 3 chips with name + ▲ + delta %. Clicking a chip seeds the table's search input.</td></tr>
+            <tr><td class="file-path">src/components/claude/daily-by-user-chart.tsx</td><td><strong>NEW</strong> · stacked daily Recharts BarChart, top-5 users + Other rollup. Legend on top.</td></tr>
+            <tr><td class="file-path">src/components/claude/users-table.tsx</td><td>Add a Sparkline column between Tokens and Cost. Reuses <code class="mono">src/components/ui/sparkline.tsx</code> from spec 026.</td></tr>
+            <tr><td class="file-path">src/app/claude/users/page.tsx</td><td>Wire four new actions into <code class="mono">Promise.all</code>. Compose <code class="mono">&lt;DailyByUserChart /&gt;</code> directly below the KPI strip; <code class="mono">&lt;CostDistributionHistogram /&gt;</code> + <code class="mono">&lt;UserTopMoversChips /&gt;</code> side-by-side between Top 10 and the table.</td></tr>
+            <tr><td class="file-path">src/lib/claude-users-buckets.ts</td><td><strong>NEW</strong> · single source of truth for bucket boundaries (<code class="mono">[0, 100, 1000, 5000, 10000, Infinity]</code> in cents). Used by both the SQL and the histogram axis labels.</td></tr>
+            <tr><td class="file-path">src/actions/anthropic-users.ts</td><td>Add <code class="mono">getUserCostDistribution</code>, <code class="mono">getUserSparklines</code>, <code class="mono">getUserTopMovers</code>, <code class="mono">getDailyTotalsByUser</code>.</td></tr>
+            <tr><td class="file-path">src/types/index.ts</td><td>Export <code class="mono">UserCostDistributionBucket</code>, <code class="mono">UserSparkline</code>, <code class="mono">UserTopMover</code>, <code class="mono">DailyByUserRow</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Server actions added</h3>
+        <table class="spec-table">
+          <thead><tr><th>Function</th><th>Reads from</th><th>Returns</th><th>Cache tag</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">getUserCostDistribution(month?)</td>
+              <td>Aggregated user cents from <code class="mono">getUserList</code> SQL, bucketed via <code class="mono">width_bucket</code>.</td>
+              <td><code class="mono">UserCostDistributionBucket[]</code> · 6 rows (one per bucket).</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+            <tr>
+              <td class="mono">getUserSparklines(monthsBack = 6)</td>
+              <td><code class="mono">anthropic_usage_metrics</code> grouped by <code class="mono">user_id, date_trunc('month', date)</code>.</td>
+              <td><code class="mono">Record&lt;number, { month: string; totalCents: number }[]&gt;</code>. Pivot happens in the action.</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+            <tr>
+              <td class="mono">getUserTopMovers()</td>
+              <td>Same source; window = newest 3 months vs oldest 3 months of last 6. Floor of $5 on prior period.</td>
+              <td><code class="mono">UserTopMover[]</code> — top 3 by positive delta %, no decliners.</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+            <tr>
+              <td class="mono">getDailyTotalsByUser(month?)</td>
+              <td><code class="mono">anthropic_usage_metrics</code> + <code class="mono">users</code> for the label.</td>
+              <td><code class="mono">DailyByUserRow[]</code> — one per (date, user) for top 5 users + Other.</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UI components added</h3>
+        <table class="spec-table">
+          <thead><tr><th>Component path</th><th>Props</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="file-path">src/components/claude/cost-distribution-histogram.tsx</td>
+              <td><code class="mono">{ buckets: UserCostDistributionBucket[] }</code></td>
+              <td>Vertical Recharts BarChart with 6 fixed buckets. Count labels above bars. Colour graded muted → warn → danger.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/user-top-movers-chips.tsx</td>
+              <td><code class="mono">{ movers: UserTopMover[], onSelect: (email: string) =&gt; void }</code></td>
+              <td>Up to 3 chips with ▲ arrows. Section label "Fastest growing users (6mo)". Click seeds the table search. Phase 3 also rewires href to drill page.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/daily-by-user-chart.tsx</td>
+              <td><code class="mono">{ data: DailyByUserRow[] }</code></td>
+              <td>Recharts stacked BarChart, top-5 + Other. Spectral palette by rank (no per-user display colour exists).</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/ui/sparkline.tsx</td>
+              <td>existing</td>
+              <td>Reused — already a 120×32 inline-SVG primitive from spec 026. Renders <code class="mono">—</code> for &lt; 2 data points.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Daily-by-user query</h3>
+        <pre class="code mono"><span class="c">-- Re-pivot of getDailyTotalsByWorkspace from spec 026 — same shape, GROUP BY user_id.</span>
+<span class="c">-- Top-5 + Other rollup happens in the action, not the SQL, so PG doesn't sort all users daily.</span>
+<span class="k">SELECT</span>
+  m.date,
+  m.user_id,
+  <span class="t">COALESCE</span>(u.name, u.email)              <span class="k">AS</span> user_label,
+  <span class="t">SUM</span>(m.computed_cost_cents)::int        <span class="k">AS</span> cents
+<span class="k">FROM</span> anthropic_usage_metrics m
+<span class="k">JOIN</span> users u <span class="k">ON</span> u.id = m.user_id
+<span class="k">WHERE</span> m.date <span class="k">BETWEEN</span> <span class="n">$1</span> <span class="k">AND</span> <span class="n">$2</span>
+  <span class="k">AND</span> u.id &lt;&gt; <span class="n">0</span>                       <span class="c">-- exclude LOCK_USER_ID</span>
+<span class="k">GROUP BY</span> m.date, m.user_id, u.name, u.email
+<span class="k">ORDER BY</span> m.date, cents <span class="k">DESC</span>;</pre>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Sparklines + Top movers query</h3>
+        <pre class="code mono"><span class="c">-- Per-user 6-month sparkline source. Action pivots into Record&lt;userId, monthly rows&gt;.</span>
+<span class="k">SELECT</span>
+  m.user_id,
+  date_trunc(<span class="s">'month'</span>, m.date)::date     <span class="k">AS</span> month,
+  <span class="t">SUM</span>(m.computed_cost_cents)::int       <span class="k">AS</span> cents
+<span class="k">FROM</span> anthropic_usage_metrics m
+<span class="k">WHERE</span> m.date &gt;= date_trunc(<span class="s">'month'</span>, <span class="t">CURRENT_DATE</span> - <span class="k">INTERVAL</span> <span class="s">'5 months'</span>)
+  <span class="k">AND</span> m.user_id &lt;&gt; <span class="n">0</span>
+<span class="k">GROUP BY</span> m.user_id, date_trunc(<span class="s">'month'</span>, m.date);
+
+<span class="c">-- Top movers uses the same source, partitioned by 3-month window halves;</span>
+<span class="c">-- structure mirrors getTopMovers() from spec 026 verbatim, GROUP BY swapped to user_id.</span></pre>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Cost-distribution bucketing</h3>
+        <pre class="code mono"><span class="c">// src/lib/claude-users-buckets.ts — single source of truth (cents).</span>
+<span class="k">export const</span> COST_BUCKETS_CENTS = [<span class="n">0</span>, <span class="n">100</span>, <span class="n">1_000</span>, <span class="n">5_000</span>, <span class="n">10_000</span>, <span class="t">Infinity</span>] <span class="k">as const</span>;
+<span class="k">export const</span> COST_BUCKET_LABELS = [<span class="s">"$0"</span>, <span class="s">"$0.01–$1"</span>, <span class="s">"$1–$10"</span>,
+                                  <span class="s">"$10–$50"</span>, <span class="s">"$50–$100"</span>, <span class="s">"$100+"</span>] <span class="k">as const</span>;
+
+<span class="c">-- SQL (in getUserCostDistribution):</span>
+<span class="c">--   WITH per_user AS (&lt;the canonical user-list query, SELECT user_id, cents&gt;)</span>
+<span class="c">--   SELECT</span>
+<span class="c">--     CASE</span>
+<span class="c">--       WHEN cents = 0     THEN 0</span>
+<span class="c">--       WHEN cents &lt; 100   THEN 1</span>
+<span class="c">--       WHEN cents &lt; 1000  THEN 2</span>
+<span class="c">--       WHEN cents &lt; 5000  THEN 3</span>
+<span class="c">--       WHEN cents &lt; 10000 THEN 4</span>
+<span class="c">--       ELSE                    5</span>
+<span class="c">--     END AS bucket,</span>
+<span class="c">--     COUNT(*)::int AS user_count</span>
+<span class="c">--   FROM per_user GROUP BY 1 ORDER BY 1;</span></pre>
+
+        <!-- Phase 2 viz -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Layout</h3>
+        <div class="viz">
+          <p class="viz-label">Phase 2 — Distribution + Fastest growing + Daily-by-user</p>
+          <svg viewBox="0 0 1000 360" class="w-full h-auto">
+            <rect x="0" y="0" width="1000" height="360" fill="#0a0a0a"/>
+
+            <!-- daily by user (top of card) -->
+            <rect x="20" y="20" width="960" height="150" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="40" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Daily spend by user · Top 5 + Other · stacked</text>
+            <!-- legend -->
+            <g font-family="ui-sans-serif" font-size="9" fill="#a1a1aa">
+              <rect x="620" y="32" width="10" height="10" fill="#d4f057"/><text x="636" y="41">alice</text>
+              <rect x="680" y="32" width="10" height="10" fill="#86efac"/><text x="696" y="41">bob</text>
+              <rect x="740" y="32" width="10" height="10" fill="#67e8f9"/><text x="756" y="41">carol</text>
+              <rect x="800" y="32" width="10" height="10" fill="#93c5fd"/><text x="816" y="41">dan</text>
+              <rect x="860" y="32" width="10" height="10" fill="#c4b5fd"/><text x="876" y="41">eve</text>
+              <rect x="920" y="32" width="10" height="10" fill="#52525b"/><text x="936" y="41">Other</text>
+            </g>
+            <g transform="translate(40,52)">
+              <g>
+                <rect x="0"   y="62" width="50" height="50" fill="#d4f057"/><rect x="0"   y="42" width="50" height="20" fill="#86efac"/><rect x="0"   y="30" width="50" height="12" fill="#67e8f9"/><rect x="0"   y="22" width="50" height="8" fill="#93c5fd"/><rect x="0"   y="14" width="50" height="8" fill="#c4b5fd"/><rect x="0"   y="10" width="50" height="4" fill="#52525b"/>
+                <rect x="62"  y="58" width="50" height="54" fill="#d4f057"/><rect x="62"  y="38" width="50" height="20" fill="#86efac"/><rect x="62"  y="26" width="50" height="12" fill="#67e8f9"/><rect x="62"  y="18" width="50" height="8" fill="#93c5fd"/><rect x="62"  y="10" width="50" height="8" fill="#c4b5fd"/>
+                <rect x="124" y="64" width="50" height="48" fill="#d4f057"/><rect x="124" y="44" width="50" height="20" fill="#86efac"/><rect x="124" y="32" width="50" height="12" fill="#67e8f9"/><rect x="124" y="24" width="50" height="8" fill="#93c5fd"/><rect x="124" y="16" width="50" height="8" fill="#c4b5fd"/>
+                <rect x="186" y="50" width="50" height="62" fill="#d4f057"/><rect x="186" y="28" width="50" height="22" fill="#86efac"/><rect x="186" y="14" width="50" height="14" fill="#67e8f9"/><rect x="186" y="6"  width="50" height="8" fill="#93c5fd"/>
+                <rect x="248" y="60" width="50" height="52" fill="#d4f057"/><rect x="248" y="40" width="50" height="20" fill="#86efac"/><rect x="248" y="26" width="50" height="14" fill="#67e8f9"/><rect x="248" y="18" width="50" height="8" fill="#93c5fd"/>
+                <rect x="310" y="68" width="50" height="44" fill="#d4f057"/><rect x="310" y="52" width="50" height="16" fill="#86efac"/><rect x="310" y="40" width="50" height="12" fill="#67e8f9"/>
+                <rect x="372" y="70" width="50" height="42" fill="#d4f057"/><rect x="372" y="54" width="50" height="16" fill="#86efac"/><rect x="372" y="42" width="50" height="12" fill="#67e8f9"/>
+                <rect x="434" y="48" width="50" height="64" fill="#d4f057"/><rect x="434" y="28" width="50" height="20" fill="#86efac"/><rect x="434" y="14" width="50" height="14" fill="#67e8f9"/>
+                <rect x="496" y="56" width="50" height="56" fill="#d4f057"/><rect x="496" y="34" width="50" height="22" fill="#86efac"/><rect x="496" y="20" width="50" height="14" fill="#67e8f9"/>
+                <rect x="558" y="62" width="50" height="50" fill="#d4f057"/><rect x="558" y="42" width="50" height="20" fill="#86efac"/><rect x="558" y="30" width="50" height="12" fill="#67e8f9"/>
+                <rect x="620" y="64" width="50" height="48" fill="#d4f057"/><rect x="620" y="46" width="50" height="18" fill="#86efac"/>
+                <rect x="682" y="42" width="50" height="70" fill="#d4f057"/><rect x="682" y="22" width="50" height="20" fill="#86efac"/>
+                <rect x="744" y="34" width="50" height="78" fill="#d4f057"/><rect x="744" y="14" width="50" height="20" fill="#86efac"/>
+                <rect x="806" y="38" width="50" height="74" fill="#d4f057"/><rect x="806" y="20" width="50" height="18" fill="#86efac"/>
+              </g>
+            </g>
+
+            <!-- distribution histogram -->
+            <rect x="20" y="180" width="468" height="170" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="200" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Cost distribution · 41 users in May</text>
+            <text x="34" y="214" font-size="9" fill="#71717a" font-family="ui-sans-serif">Bucket boundaries from src/lib/claude-users-buckets.ts</text>
+            <g transform="translate(50,228)">
+              <line x1="0" y1="100" x2="420" y2="100" stroke="#262626"/>
+              <g font-family="ui-sans-serif">
+                <!-- 6 bars: $0 / .01-1 / 1-10 / 10-50 / 50-100 / 100+ -->
+                <rect x="10"  y="80" width="48" height="20" fill="#3f3f46" rx="2"/><text x="34"  y="74" font-size="9" fill="#a1a1aa" text-anchor="middle">14</text><text x="34"  y="114" font-size="8" fill="#71717a" text-anchor="middle">$0</text>
+                <rect x="78"  y="56" width="48" height="44" fill="#52525b" rx="2"/><text x="102" y="50" font-size="9" fill="#a1a1aa" text-anchor="middle">9</text><text x="102" y="114" font-size="8" fill="#71717a" text-anchor="middle">$0.01–$1</text>
+                <rect x="146" y="68" width="48" height="32" fill="#71717a" rx="2"/><text x="170" y="62" font-size="9" fill="#a1a1aa" text-anchor="middle">8</text><text x="170" y="114" font-size="8" fill="#71717a" text-anchor="middle">$1–$10</text>
+                <rect x="214" y="44" width="48" height="56" fill="#a1a1aa" rx="2"/><text x="238" y="38" font-size="9" fill="#a1a1aa" text-anchor="middle">5</text><text x="238" y="114" font-size="8" fill="#71717a" text-anchor="middle">$10–$50</text>
+                <rect x="282" y="76" width="48" height="24" fill="#facc15" rx="2"/><text x="306" y="70" font-size="9" fill="#a1a1aa" text-anchor="middle">3</text><text x="306" y="114" font-size="8" fill="#71717a" text-anchor="middle">$50–$100</text>
+                <rect x="350" y="84" width="48" height="16" fill="#f87171" rx="2"/><text x="374" y="78" font-size="9" fill="#a1a1aa" text-anchor="middle">2</text><text x="374" y="114" font-size="8" fill="#71717a" text-anchor="middle">$100+</text>
+              </g>
+            </g>
+
+            <!-- Fastest growing chips -->
+            <rect x="500" y="180" width="480" height="170" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="514" y="200" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Fastest growing users (6mo)</text>
+            <text x="514" y="214" font-size="9" fill="#71717a" font-family="ui-sans-serif">Click a chip to filter the table below to that user</text>
+            <g font-family="ui-sans-serif">
+              <rect x="514" y="232" width="148" height="32" rx="6" fill="#181818" stroke="#7f1d1d"/>
+              <text x="528" y="252" font-size="11" fill="#fafafa">alice@unic.com</text>
+              <text x="650" y="252" font-size="11" fill="#fca5a5" text-anchor="end">▲ +312%</text>
+              <text x="528" y="261" font-size="8" fill="#71717a">prior $18 → now $73</text>
+
+              <rect x="514" y="270" width="148" height="32" rx="6" fill="#181818" stroke="#7f1d1d"/>
+              <text x="528" y="290" font-size="11" fill="#fafafa">carol@unic.com</text>
+              <text x="650" y="290" font-size="11" fill="#fca5a5" text-anchor="end">▲ +145%</text>
+              <text x="528" y="299" font-size="8" fill="#71717a">prior $42 → now $103</text>
+
+              <rect x="514" y="308" width="148" height="32" rx="6" fill="#181818" stroke="#7f1d1d"/>
+              <text x="528" y="328" font-size="11" fill="#fafafa">frank@unic.com</text>
+              <text x="650" y="328" font-size="11" fill="#fca5a5" text-anchor="end">▲ +98%</text>
+              <text x="528" y="337" font-size="8" fill="#71717a">prior $30 → now $59</text>
+
+              <!-- table preview with sparkline column -->
+              <text x="688" y="232" font-size="9" fill="#71717a">users table · new Trend column</text>
+              <g font-size="9">
+                <text x="688" y="250" fill="#fafafa">alice@</text>
+                <polyline points="730,254 740,250 750,246 760,240 770,236 780,228" stroke="#86efac" stroke-width="1.2" fill="none"/>
+                <text x="788" y="250" fill="#fafafa">$305</text>
+
+                <text x="688" y="268" fill="#fafafa">bob@</text>
+                <polyline points="730,272 740,268 750,266 760,260 770,258 780,254" stroke="#86efac" stroke-width="1.2" fill="none"/>
+                <text x="788" y="268" fill="#fafafa">$244</text>
+
+                <text x="688" y="286" fill="#fafafa">carol@</text>
+                <polyline points="730,290 740,289 750,284 760,278 770,272 780,266" stroke="#86efac" stroke-width="1.2" fill="none"/>
+                <text x="788" y="286" fill="#fafafa">$193</text>
+
+                <text x="688" y="304" fill="#fafafa">dan@</text>
+                <polyline points="730,304 740,302 750,300 760,298 770,294 780,290" stroke="#a1a1aa" stroke-width="1.2" fill="none"/>
+                <text x="788" y="304" fill="#fafafa">$162</text>
+
+                <text x="688" y="322" fill="#fafafa">eve@</text>
+                <polyline points="730,322 740,321 750,318 760,316 770,312 780,310" stroke="#a1a1aa" stroke-width="1.2" fill="none"/>
+                <text x="788" y="322" fill="#fafafa">$132</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UX details &amp; edge cases</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li><strong>Distribution histogram</strong>: bars are colour-graded — first three buckets in cool greys, $50–$100 amber, $100+ red — to reinforce that the right tail is the operational concern. Empty buckets render at zero height with the count still labelled.</li>
+          <li><strong>Bucket boundary edges</strong>: half-open intervals <code class="mono">[lo, hi)</code> so a user with exactly $1.00 falls in the $1–$10 bucket; <code class="mono">$0</code> is its own bucket so empty users are not lumped in with cents-only users.</li>
+          <li><strong>Daily-by-user chart</strong>: top-5 + Other rollup happens in the action, not the SQL, so the per-day result set stays bounded even when the dataset grows. Colour by rank (no per-user display colour exists); same spectral palette the workspace chart uses for "Other".</li>
+          <li><strong>Top movers</strong>: drops are filtered (positive delta only); $5 floor on the prior 3-month window suppresses huge percentages off tiny bases — exactly the same rule as the workspace top-movers. Clicking a chip seeds the table search input rather than navigating, so the admin can see the row in context.</li>
+          <li><strong>Sparkline column</strong>: reuses the spec 026 primitive. Colour is muted grey (no per-user display colour); 6-month window; renders <code class="mono">—</code> for &lt; 2 data points; aria-label summarises the trajectory.</li>
+          <li><strong>&lt; 6 months of history</strong>: sparkline renders the months that exist; top-movers may have fewer than 3 chips; histogram still renders all 6 buckets.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Risks</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 risk-list text-[var(--text)]/90">
+          <li>Sparkline rendering cost at 41+ rows. Mitigation: reuse the existing inline-SVG primitive (no Recharts overhead per row).</li>
+          <li>Bucket boundaries drift between SQL and UI if hard-coded twice. Mitigation: single source of truth in <code class="mono">src/lib/claude-users-buckets.ts</code>; lint-grep for ad-hoc bucket arrays.</li>
+          <li>Top-5 + Other rollup in the daily chart can hide a user who is huge on one day but small overall. Acceptable trade-off (reviewers can drill into the user via the chip below).</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5 ac-list">
+          <li>Cost-distribution histogram renders 6 fixed buckets; bar counts sum to total active users.</li>
+          <li>Fastest growing users (6mo) chip strip shows up to 3 chips of positive growers only; chips filter the table when clicked.</li>
+          <li>Users table has a new "Trend" column with 6-month sparklines; fewer than 2 data points renders <code class="mono">—</code>.</li>
+          <li>Daily-by-user chart renders one stacked bar per day with top-5 users + Other; hovering a bar shows per-user breakdown.</li>
+          <li>Bucket boundaries are exported from <code class="mono">src/lib/claude-users-buckets.ts</code> and reused in both the SQL and the histogram axis labels.</li>
+          <li>All four new actions reuse the <code class="mono">"anthropic-workspace-costs"</code> cache tag.</li>
+        </ul>
+      </section>
+
+      <!-- ====================== PHASE 3 ====================== -->
+      <section id="phase-3" class="anchor mb-12">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="phase-pill phase-3">Phase 3 · Commit 3</span>
+          <h2 class="text-xl font-semibold">Per-user drill-through</h2>
+        </div>
+        <p class="text-[var(--muted)] mb-5 max-w-3xl">
+          New route <code class="mono">/claude/users/[userId]</code> mirroring the workspace drill page at
+          <code class="mono">/claude/workspaces/[workspaceId]</code>. Reachable from the Phase 1 Top 10 bar chart and users table,
+          from the Phase 2 top-movers chips, and from the existing workspace top-users panel (whose <code class="mono">target="_blank"</code> link to
+          <code class="mono">/profile</code> gets rewired in this commit).
+        </p>
+
+        <div class="callout info mb-5">
+          <p class="text-sm"><strong>Schema decision (resolved — no migration needed).</strong> Everything per-user joins through tables that already exist: <code class="mono">anthropic_usage_metrics</code> at <code class="mono">(user_id, date, model)</code> grain, plus <code class="mono">anthropic_sync_status.resolved_workspace_id</code> from spec 026 migration 0018.</p>
+          <p class="text-sm mt-2"><strong>Parallel to spec 026 Phase 3.</strong> The same patterns and components are mirrored: route parsing, admin gate, <code class="mono">notFound()</code> for invalid IDs, KPI strip composition, daily chart, model breakdown, breadcrumb back. Where spec 026 used the <code class="mono">"default"</code> URL sentinel for SQL NULL, this spec parses <code class="mono">userId</code> as an integer (rejecting <code class="mono">LOCK_USER_ID = 0</code> and non-positive values).</p>
+          <p class="text-sm mt-2">Full caveats — per-user totals not summing to workspace totals, mid-month workspace moves being retroactive, pricing-unresolved rows — are documented in <a class="link" href="data-model.md">data-model.md</a> and surfaced in the page footnote.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Goal</p>
+            <p class="text-sm">When a user is in the Top 10, in Fastest Growing, or surfaced as a workspace's top user, an admin can click in and immediately see what that user is doing — daily pattern, model mix, twelve-month history, and the 5 highest-spend days.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Effort</p>
+            <p class="text-sm">~30–40 hours · 1 new route · 5 new components · 2 new server actions · existing <code class="mono">TwelveMonthBarChart</code> and <code class="mono">KpiStrip</code> primitives reused.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Depends on</p>
+            <p class="text-sm">Phase 1 (KPI strip is composed). Phase 2 makes the top-movers chips navigable here (small follow-up edit). Spec 026 Phase 3 (parallel structure, plus the <code class="mono">WorkspaceTopUsers</code> link gets rewired).</p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">User stories</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li>As an admin, when I see a user in the Top 10 or in Fastest Growing, I want to click in and see their daily pattern, model mix, and 12-month history.</li>
+          <li>As an admin, I want to see what model each heavy user is leaning on (Sonnet vs Opus vs Haiku) so I can suggest cost-saving substitutions.</li>
+          <li>As an admin, I want the existing workspace top-users panel to navigate to the new per-user page rather than opening <code class="mono">/profile</code> in a new tab — that profile page is the user's own self-service surface.</li>
+          <li>As an admin, I want back-navigation to return me to the Users tab with my circle/workspace filter intact.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Files to change</h3>
+        <table class="spec-table">
+          <thead><tr><th>Path</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="file-path">src/app/claude/users/[userId]/page.tsx</td><td><strong>NEW</strong> Server Component · admin gate · <code class="mono">notFound()</code> on non-integer, <code class="mono">userId === 0</code>, or unknown user.</td></tr>
+            <tr><td class="file-path">src/app/claude/users/[userId]/user-detail-client.tsx</td><td><strong>NEW</strong> client wrapper · month picker · KPI strip composition.</td></tr>
+            <tr><td class="file-path">src/components/claude/user-daily-chart.tsx</td><td><strong>NEW</strong> single-series Recharts BarChart. Sub-dollar Y-axis formatter when daily max &lt; $5 (matches <code class="mono">WorkspaceDailyChart</code>).</td></tr>
+            <tr><td class="file-path">src/components/claude/user-model-breakdown.tsx</td><td><strong>NEW</strong> horizontal stacked bar + legend table (model · tokens in/out · cost · % of user). Reconciliation footnote.</td></tr>
+            <tr><td class="file-path">src/components/claude/user-twelve-month-bar-chart.tsx</td><td><strong>NEW</strong> 12-month per-user history. Reuses the spec 026 <code class="mono">TwelveMonthBarChart</code> primitive with the org-budget reference line <em>stripped</em> (per-user caps are out of scope; reference line would mislead).</td></tr>
+            <tr><td class="file-path">src/components/claude/user-top-dates.tsx</td><td><strong>NEW</strong> small table: 5 highest-spend days with date · cost · dominant model.</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-top-users.tsx</td><td>Rewire row link: replace <code class="mono">href={`/profile?userId=${u.userId}`}</code> + <code class="mono">target="_blank"</code> with <code class="mono">href={`/claude/users/${u.userId}`}</code> (no new tab — same-window nav inside the dashboard). Existing reconciliation footnote stays.</td></tr>
+            <tr><td class="file-path">src/components/claude/top-users-bar-chart.tsx</td><td>Bar onClick navigates to <code class="mono">/claude/users/N</code> (Phase 1 placeholder pointed to <code class="mono">/profile?userId=N</code>).</td></tr>
+            <tr><td class="file-path">src/components/claude/users-table.tsx</td><td>Row chevron + row click navigate to <code class="mono">/claude/users/N</code>.</td></tr>
+            <tr><td class="file-path">src/components/claude/user-top-movers-chips.tsx</td><td>Chip <code class="mono">href</code> changes from <code class="mono">/profile?userId=N</code> to <code class="mono">/claude/users/N</code>.</td></tr>
+            <tr><td class="file-path">src/actions/anthropic-users.ts</td><td>Add <code class="mono">getUserDetail(userId, month?)</code> and <code class="mono">getUserMonths(userId)</code>.</td></tr>
+            <tr><td class="file-path">src/types/index.ts</td><td>Export <code class="mono">UserDetail</code>, <code class="mono">UserModelBreakdownRow</code>, <code class="mono">UserDailyRow</code>, <code class="mono">UserTopDateRow</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Server actions added</h3>
+        <table class="spec-table">
+          <thead><tr><th>Function</th><th>Reads from</th><th>Returns</th><th>Cache tag</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">getUserDetail(userId, month?)</td>
+              <td><code class="mono">anthropic_usage_metrics</code> filtered to one user; joined to <code class="mono">users</code> and <code class="mono">anthropic_workspaces</code> via <code class="mono">anthropic_sync_status</code>.</td>
+              <td><code class="mono">UserDetail</code> — user + workspace · current/prior month cents · projected month-end · daily totals · model breakdown · top 5 dates · 12-month totals.</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+            <tr>
+              <td class="mono">getUserMonths(userId)</td>
+              <td><code class="mono">anthropic_usage_metrics(date)</code> filtered to one user.</td>
+              <td><code class="mono">string[]</code> of <code class="mono">YYYY-MM</code> months with at least one row for that user.</td>
+              <td class="mono">anthropic-workspace-costs</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UI components added</h3>
+        <table class="spec-table">
+          <thead><tr><th>Component path</th><th>Props</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="file-path">src/app/claude/users/[userId]/user-detail-client.tsx</td>
+              <td><code class="mono">{ detail: UserDetail, availableMonths: string[] }</code></td>
+              <td>Month picker · KPI strip composition · grid layout for the 4 panel cards.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/user-daily-chart.tsx</td>
+              <td><code class="mono">{ daily: UserDailyRow[] }</code></td>
+              <td>Single-series Recharts BarChart. Polish mirrors <code class="mono">WorkspaceDailyChart</code>: <code class="mono">maxBarSize=56</code>, sub-dollar Y-axis when daily max &lt; $5.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/user-model-breakdown.tsx</td>
+              <td><code class="mono">{ rows: UserModelBreakdownRow[], hasUnresolvedPricing: boolean }</code></td>
+              <td>Horizontal stacked bar + legend table. Reconciliation footnote: "per-user totals may not sum to workspace total — separate endpoints, separate rounding".</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/user-twelve-month-bar-chart.tsx</td>
+              <td><code class="mono">{ twelveMonth: { month: string; totalCents: number }[] }</code></td>
+              <td>Reuses spec 026 <code class="mono">TwelveMonthBarChart</code> primitive with the org-budget reference line removed.</td>
+            </tr>
+            <tr>
+              <td class="file-path">src/components/claude/user-top-dates.tsx</td>
+              <td><code class="mono">{ topDates: UserTopDateRow[] }</code></td>
+              <td>5 highest-spend days in the selected month. Columns: date · cost · dominant model. Dominant model = <code class="mono">argmax(cost)</code> per day.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Per-user detail query</h3>
+        <pre class="code mono"><span class="c">-- Single user, selected month. Mirrors getWorkspaceDetail() from spec 026.</span>
+<span class="c">-- Daily totals (one row per date):</span>
+<span class="k">SELECT</span>
+  m.date,
+  <span class="t">SUM</span>(m.computed_cost_cents)::int            <span class="k">AS</span> cents,
+  <span class="t">SUM</span>(
+    m.uncached_input_tokens
+    + m.cache_read_input_tokens
+    + m.cache_creation_input_tokens
+    + m.output_tokens
+  )::bigint                                     <span class="k">AS</span> tokens,
+  <span class="t">BOOL_OR</span>(m.pricing_resolved = <span class="k">false</span>)         <span class="k">AS</span> has_unresolved_pricing
+<span class="k">FROM</span> anthropic_usage_metrics m
+<span class="k">WHERE</span> m.user_id = <span class="n">$1</span>                            <span class="c">-- $1 = userId (already guarded against 0)</span>
+  <span class="k">AND</span> m.date <span class="k">BETWEEN</span> <span class="n">$2</span> <span class="k">AND</span> <span class="n">$3</span>
+<span class="k">GROUP BY</span> m.date
+<span class="k">ORDER BY</span> m.date;
+
+<span class="c">-- Model breakdown for the same period:</span>
+<span class="k">SELECT</span>
+  m.model,
+  <span class="t">SUM</span>(m.uncached_input_tokens + m.cache_read_input_tokens
+      + m.cache_creation_input_tokens)::bigint  <span class="k">AS</span> tokens_in,
+  <span class="t">SUM</span>(m.output_tokens)::bigint                 <span class="k">AS</span> tokens_out,
+  <span class="t">SUM</span>(m.computed_cost_cents)::int            <span class="k">AS</span> cents
+<span class="k">FROM</span> anthropic_usage_metrics m
+<span class="k">WHERE</span> m.user_id = <span class="n">$1</span> <span class="k">AND</span> m.date <span class="k">BETWEEN</span> <span class="n">$2</span> <span class="k">AND</span> <span class="n">$3</span>
+<span class="k">GROUP BY</span> m.model
+<span class="k">ORDER BY</span> cents <span class="k">DESC</span>;
+
+<span class="c">-- Top 5 days for the user in this period (dominant model = argmax(cost) per day):</span>
+<span class="k">WITH</span> daily_by_model <span class="k">AS</span> (
+  <span class="k">SELECT</span> m.date, m.model, <span class="t">SUM</span>(m.computed_cost_cents)::int <span class="k">AS</span> cents
+  <span class="k">FROM</span> anthropic_usage_metrics m
+  <span class="k">WHERE</span> m.user_id = <span class="n">$1</span> <span class="k">AND</span> m.date <span class="k">BETWEEN</span> <span class="n">$2</span> <span class="k">AND</span> <span class="n">$3</span>
+  <span class="k">GROUP BY</span> m.date, m.model
+),
+ranked <span class="k">AS</span> (
+  <span class="k">SELECT</span> date, model, cents,
+         <span class="t">ROW_NUMBER</span>() <span class="k">OVER</span> (<span class="k">PARTITION BY</span> date <span class="k">ORDER BY</span> cents <span class="k">DESC</span>) <span class="k">AS</span> r
+  <span class="k">FROM</span> daily_by_model
+)
+<span class="k">SELECT</span> date,
+       <span class="t">SUM</span>(cents)::int                              <span class="k">AS</span> total_cents,
+       <span class="t">MAX</span>(<span class="t">CASE WHEN</span> r = <span class="n">1</span> <span class="k">THEN</span> model <span class="k">END</span>)       <span class="k">AS</span> dominant_model
+<span class="k">FROM</span> ranked
+<span class="k">GROUP BY</span> date
+<span class="k">ORDER BY</span> total_cents <span class="k">DESC</span>
+<span class="k">LIMIT</span> <span class="n">5</span>;</pre>
+
+        <!-- Phase 3 viz -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Layout</h3>
+        <div class="viz">
+          <p class="viz-label">Phase 3 — <code class="mono">/claude/users/42</code></p>
+          <svg viewBox="0 0 1000 480" class="w-full h-auto">
+            <rect x="0" y="0" width="1000" height="480" fill="#0a0a0a"/>
+            <!-- breadcrumb -->
+            <g font-family="ui-sans-serif">
+              <text x="20" y="32" font-size="11" fill="#71717a">Claude Console</text>
+              <text x="120" y="32" font-size="11" fill="#71717a">/</text>
+              <text x="132" y="32" font-size="11" fill="#71717a">Users</text>
+              <text x="170" y="32" font-size="11" fill="#71717a">/</text>
+              <text x="184" y="32" font-size="14" font-weight="600" fill="#fafafa">alice@unic.com</text>
+              <text x="184" y="48" font-size="10" fill="#a1a1aa">Alice Müller</text>
+              <rect x="320" y="20" width="98" height="16" rx="4" fill="#082f3a" stroke="#155e75"/>
+              <text x="369" y="31" font-size="9" fill="#67e8f9" text-anchor="middle">Automations</text>
+              <rect x="424" y="20" width="60" height="16" rx="4" fill="#0a1c10" stroke="#14532d"/>
+              <text x="454" y="31" font-size="9" fill="#86efac" text-anchor="middle">boost</text>
+            </g>
+            <!-- per-user KPI strip -->
+            <g font-family="ui-sans-serif">
+              <rect x="20" y="64" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="34" y="82" font-size="9" fill="#71717a">TOTAL · MAY</text>
+              <text x="34" y="106" font-size="20" font-weight="700" fill="#fafafa">$305.10</text>
+              <text x="34" y="122" font-size="9" fill="#86efac">▲ +28% vs Apr</text>
+
+              <rect x="262" y="64" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="276" y="82" font-size="9" fill="#71717a">MoM DELTA</text>
+              <text x="276" y="106" font-size="20" font-weight="700" fill="#fafafa">+$67</text>
+              <text x="276" y="122" font-size="9" fill="#86efac">prior $238</text>
+
+              <rect x="504" y="64" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="518" y="82" font-size="9" fill="#71717a">PROJECTED MONTH-END</text>
+              <text x="518" y="106" font-size="20" font-weight="700" fill="#fafafa">$610.20</text>
+              <text x="518" y="122" font-size="9" fill="#71717a">linear extrapolation</text>
+
+              <rect x="746" y="64" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="760" y="82" font-size="9" fill="#71717a">TOP MODEL</text>
+              <text x="760" y="106" font-size="18" font-weight="700" fill="#c084fc">Opus · 58%</text>
+              <text x="760" y="122" font-size="9" fill="#71717a">$177 of $305</text>
+            </g>
+
+            <!-- daily chart -->
+            <rect x="20" y="148" width="500" height="170" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="166" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Daily spend</text>
+            <text x="34" y="180" font-size="9" fill="#71717a" font-family="ui-sans-serif">May 1 – May 17 · max bar $24.50</text>
+            <g transform="translate(36,194)">
+              <line x1="0" y1="110" x2="476" y2="110" stroke="#262626"/>
+              <rect x="0"   y="78" width="20" height="32" fill="#d4f057"/>
+              <rect x="26"  y="70" width="20" height="40" fill="#d4f057"/>
+              <rect x="52"  y="84" width="20" height="26" fill="#d4f057"/>
+              <rect x="78"  y="60" width="20" height="50" fill="#d4f057"/>
+              <rect x="104" y="56" width="20" height="54" fill="#d4f057"/>
+              <rect x="130" y="74" width="20" height="36" fill="#d4f057"/>
+              <rect x="156" y="80" width="20" height="30" fill="#d4f057"/>
+              <rect x="182" y="46" width="20" height="64" fill="#d4f057"/>
+              <rect x="208" y="40" width="20" height="70" fill="#d4f057"/>
+              <rect x="234" y="38" width="20" height="72" fill="#d4f057"/>
+              <rect x="260" y="32" width="20" height="78" fill="#d4f057"/>
+              <rect x="286" y="28" width="20" height="82" fill="#d4f057"/>
+              <rect x="312" y="22" width="20" height="88" fill="#d4f057"/>
+              <rect x="338" y="36" width="20" height="74" fill="#d4f057"/>
+              <rect x="364" y="42" width="20" height="68" fill="#d4f057"/>
+              <rect x="390" y="50" width="20" height="60" fill="#d4f057"/>
+              <rect x="416" y="14" width="20" height="96" fill="#d4f057"/>
+            </g>
+
+            <!-- model breakdown -->
+            <rect x="540" y="148" width="220" height="170" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="554" y="166" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Model breakdown</text>
+            <rect x="554" y="180" width="120" height="14" fill="#c084fc" rx="2"/>
+            <rect x="674" y="180" width="60"  height="14" fill="#67e8f9" rx="2"/>
+            <rect x="734" y="180" width="14"  height="14" fill="#86efac" rx="2"/>
+            <g font-family="ui-sans-serif" font-size="10">
+              <text x="554" y="218" fill="#c084fc">■ Opus · $177 (58%)</text>
+              <text x="554" y="236" fill="#67e8f9">■ Sonnet · $94 (31%)</text>
+              <text x="554" y="254" fill="#86efac">■ Haiku · $34 (11%)</text>
+            </g>
+            <text x="554" y="290" font-size="8" fill="#71717a" font-family="ui-sans-serif">Tokens in / out columns hidden in mini-mockup</text>
+            <text x="554" y="302" font-size="8" fill="#71717a" font-family="ui-sans-serif">Footnote: per-user totals may not sum to workspace total</text>
+
+            <!-- top dates -->
+            <rect x="780" y="148" width="200" height="170" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="794" y="166" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Top 5 days · May</text>
+            <g font-family="ui-sans-serif" font-size="10">
+              <text x="794" y="190" fill="#fafafa">May 17</text><text x="970" y="190" text-anchor="end" fill="#fafafa">$24.50</text><text x="794" y="200" fill="#71717a" font-size="8">opus</text>
+              <text x="794" y="216" fill="#fafafa">May 13</text><text x="970" y="216" text-anchor="end" fill="#fafafa">$22.00</text><text x="794" y="226" fill="#71717a" font-size="8">opus</text>
+              <text x="794" y="242" fill="#fafafa">May 12</text><text x="970" y="242" text-anchor="end" fill="#fafafa">$20.50</text><text x="794" y="252" fill="#71717a" font-size="8">opus</text>
+              <text x="794" y="268" fill="#fafafa">May 11</text><text x="970" y="268" text-anchor="end" fill="#fafafa">$19.50</text><text x="794" y="278" fill="#71717a" font-size="8">sonnet</text>
+              <text x="794" y="294" fill="#fafafa">May 10</text><text x="970" y="294" text-anchor="end" fill="#fafafa">$18.00</text><text x="794" y="304" fill="#71717a" font-size="8">opus</text>
+            </g>
+
+            <!-- 12-month bar chart -->
+            <rect x="20" y="334" width="960" height="120" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="352" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">12-month history</text>
+            <text x="34" y="366" font-size="9" fill="#71717a" font-family="ui-sans-serif">Per-user only · no org-budget reference line (per-user caps out of scope)</text>
+            <g transform="translate(50,380)">
+              <line x1="0" y1="60" x2="900" y2="60" stroke="#262626"/>
+              <rect x="10"  y="44" width="50" height="16" fill="#3f3f46" rx="2"/>
+              <rect x="80"  y="40" width="50" height="20" fill="#3f3f46" rx="2"/>
+              <rect x="150" y="38" width="50" height="22" fill="#52525b" rx="2"/>
+              <rect x="220" y="34" width="50" height="26" fill="#52525b" rx="2"/>
+              <rect x="290" y="30" width="50" height="30" fill="#52525b" rx="2"/>
+              <rect x="360" y="28" width="50" height="32" fill="#71717a" rx="2"/>
+              <rect x="430" y="22" width="50" height="38" fill="#71717a" rx="2"/>
+              <rect x="500" y="18" width="50" height="42" fill="#71717a" rx="2"/>
+              <rect x="570" y="14" width="50" height="46" fill="#a1a1aa" rx="2"/>
+              <rect x="640" y="10" width="50" height="50" fill="#a1a1aa" rx="2"/>
+              <rect x="710" y="8"  width="50" height="52" fill="#a1a1aa" rx="2"/>
+              <rect x="780" y="2"  width="50" height="58" fill="#d4f057" rx="2"/>
+              <g font-family="ui-sans-serif" font-size="8" fill="#71717a" text-anchor="middle">
+                <text x="35" y="74">Jun</text><text x="105" y="74">Jul</text><text x="175" y="74">Aug</text><text x="245" y="74">Sep</text>
+                <text x="315" y="74">Oct</text><text x="385" y="74">Nov</text><text x="455" y="74">Dec</text><text x="525" y="74">Jan</text>
+                <text x="595" y="74">Feb</text><text x="665" y="74">Mar</text><text x="735" y="74">Apr</text>
+                <text x="805" y="74" fill="#d4f057" font-weight="600">May</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UX details &amp; edge cases</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li><strong>Route guards</strong>: <code class="mono">parseInt(userId, 10)</code> returning <code class="mono">NaN</code>, <code class="mono">0</code>, or negative → <code class="mono">notFound()</code>. <code class="mono">userId === 0</code> is explicitly rejected because <code class="mono">LOCK_USER_ID = 0</code> is the sync sentinel, not a real user. Unknown user (no row in <code class="mono">users</code>) → <code class="mono">notFound()</code>.</li>
+          <li><strong>Per-user KPI tiles</strong>: 4 tiles using the spec 026 <code class="mono">&lt;KpiStrip /&gt;</code>: (1) Total MTD · (2) MoM delta · (3) Projected month-end · (4) Top model + its % of the user's cost. The 4th tile replaces the org-level "Over 80% count" tile from the workspaces page.</li>
+          <li><strong>Workspace chip in header</strong>: pulled from <code class="mono">anthropic_sync_status.resolved_workspace_id</code>. When null, render "Default workspace". When the user has no row in <code class="mono">anthropic_sync_status</code> at all, render "No API key" with an amber chip and skip all downstream queries (all zeros).</li>
+          <li><strong>Profile tier chip</strong>: pulled from <code class="mono">users.profile</code> — boost / maxed / indie. Coloured by tier.</li>
+          <li><strong>No usage data</strong>: daily chart + top dates render the same empty-state primitive as <code class="mono">/claude/workspaces/[workspaceId]</code>. KPI tiles still render with $0.</li>
+          <li><strong>Per-user totals vs workspace total</strong>: the sum of this user's cents in this workspace will <em>not</em> exactly equal the workspace-level total for this user. Same reason as spec 026: different Anthropic endpoints, different rounding. Footnote on the model breakdown card.</li>
+          <li><strong>Mid-month workspace move</strong>: the workspace chip reflects the user's <em>current</em> API key's workspace, so historical data is retroactively attributed. Footnote in the workspace chip tooltip.</li>
+          <li><strong>Pricing unresolved</strong>: when <code class="mono">getUserDetail</code> reports <code class="mono">hasUnresolvedPricing</code>, the model breakdown card renders an amber chip and the KPI tiles get a "*" superscript.</li>
+          <li><strong>Back navigation</strong>: breadcrumb uses <code class="mono">next/link</code> to <code class="mono">/claude/users</code>, preserving any <code class="mono">?circle=</code> / <code class="mono">?workspace=</code> filters that originated in the URL. Mirrors the workspace drill-page pattern.</li>
+          <li><strong>Workspace top-users rewire</strong>: the existing link in <code class="mono">src/components/claude/workspace-top-users.tsx</code> currently does <code class="mono">target="_blank"</code> to <code class="mono">/profile?userId=N</code>. After Phase 3 it navigates same-window to <code class="mono">/claude/users/N</code>. Reconciliation footnote next to the table stays as-is.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Risks</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 risk-list text-[var(--text)]/90">
+          <li>Removing the existing <code class="mono">target="_blank"</code> changes admin habit — some admins may currently open profiles in a new tab. Mitigation: changelog entry in the PR; new in-tab nav is the consistent pattern across the rest of the dashboard.</li>
+          <li>Per-user totals not reconciling with the workspace total is high-likelihood / low-impact (documented in spec 026 and again here). Mitigation: footnote on the model breakdown card.</li>
+          <li>A user with <em>no</em> <code class="mono">anthropic_sync_status</code> row would crash a naïve detail query. Mitigation: <code class="mono">getUserDetail</code> returns zeros + the no-API-key state early when the join is null.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5 ac-list">
+          <li>Navigating to <code class="mono">/claude/users/{N}</code> as an admin renders the user's name + workspace + profile, a 4-tile KPI strip, a daily chart, a model breakdown, top 5 dates, and a 12-month history chart.</li>
+          <li><code class="mono">/claude/users/0</code> and any non-integer userId render the Next.js 404 page.</li>
+          <li>Unknown but valid integer userId renders 404.</li>
+          <li>Non-admins are redirected from this route to <code class="mono">/</code>.</li>
+          <li>Clicking a row in the Phase 1 Users table navigates here (no new tab).</li>
+          <li>Clicking a bar in the Phase 1 Top 10 chart navigates here.</li>
+          <li>Clicking a Phase 2 Fastest Growing chip navigates here.</li>
+          <li>The existing workspace top-users panel (<code class="mono">workspace-top-users.tsx</code>) no longer opens <code class="mono">/profile</code> in a new tab — it navigates same-window to <code class="mono">/claude/users/N</code>.</li>
+          <li>Breadcrumb back-link returns to <code class="mono">/claude/users</code> with circle/workspace filter preserved.</li>
+          <li>When the user has no <code class="mono">resolved_api_key_id</code>, all downstream queries are short-circuited and the page renders a clear "No API key" empty state.</li>
+        </ul>
+      </section>
+
+      <!-- ====================== CROSS-CUTTING ====================== -->
+      <section id="cross" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">6. Cross-cutting concerns &amp; shared helpers</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Shared primitives reused from spec 026</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li><code class="mono">&lt;KpiStrip /&gt;</code> (<code class="mono">src/components/claude/kpi-strip.tsx</code>) — composes the user-flavoured KPI strip in Phase 1 and the per-user strip in Phase 3.</li>
+              <li><code class="mono">&lt;Sparkline /&gt;</code> (<code class="mono">src/components/ui/sparkline.tsx</code>) — drops into the Phase 2 Users table Trend column unchanged.</li>
+              <li><code class="mono">&lt;TwelveMonthBarChart /&gt;</code> — reused in Phase 3 with the org-budget reference line stripped.</li>
+              <li><code class="mono">projectMonthEnd(mtdCents, daysElapsed, daysInMonth)</code> in <code class="mono">src/lib/utils.ts</code> — used by the per-user projected-month-end tile.</li>
+              <li><code class="mono">&lt;SyncStatusPill /&gt;</code> — the same pill renders on both tabs and on the per-user page.</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Cache &amp; sync</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li>Every new server action wraps in <code class="mono">unstable_cache</code> with tag <code class="mono">"anthropic-workspace-costs"</code> — historically named, but covers every action that reads <code class="mono">anthropic_usage_metrics</code> and friends.</li>
+              <li>The hourly cron sync from spec 018 already calls <code class="mono">revalidateTag("anthropic-workspace-costs")</code> on completion — no new revalidation wiring.</li>
+              <li>No schema changes, no migrations, no backfill. The whole feature is read-only over the existing aggregate.</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">LOCK_USER_ID sentinel</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li><code class="mono">user_id = 0</code> in <code class="mono">anthropic_sync_status</code> is the global sync-lock sentinel (<code class="mono">LOCK_USER_ID</code> in <code class="mono">src/lib/anthropic-sync.ts:23</code>) — it is not a real user and the <code class="mono">users</code> table has no row for it.</li>
+              <li>Every new query in <code class="mono">anthropic-users.ts</code> includes <code class="mono">u.id &lt;&gt; 0</code> (or <code class="mono">m.user_id &lt;&gt; 0</code> when there's no <code class="mono">users</code> join).</li>
+              <li>The constant is re-exported from <code class="mono">src/lib/anthropic-sync.ts</code> in Phase 1 task T109 so both files reference the same source of truth.</li>
+              <li>The Phase 3 route additionally rejects <code class="mono">userId === 0</code> from the URL with <code class="mono">notFound()</code>.</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Default-workspace handling</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li>Anthropic's "default workspace" is represented as <code class="mono">NULL</code> in <code class="mono">anthropic_sync_status.resolved_workspace_id</code>.</li>
+              <li>Every workspace join uses <code class="mono">w.workspace_id IS NOT DISTINCT FROM s.resolved_workspace_id</code> so default-workspace users are not silently dropped.</li>
+              <li>The Users table renders a workspace cell of "Default workspace" (with no badge) when the join returns null.</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Pricing-unresolved warning chip</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li><code class="mono">anthropic_usage_metrics.pricing_resolved = false</code> means model pricing was unknown when the row was synced. <code class="mono">computed_cost_cents</code> is best-effort until the next sync resolves it.</li>
+              <li>Every aggregate action returns a <code class="mono">hasUnresolvedPricing</code> boolean alongside the cents.</li>
+              <li>UI renders an amber <code class="mono">.chip.warn</code> next to affected cost cells with tooltip "Pricing not yet resolved for at least one row — total may grow once the next sync runs".</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Authorization</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li><code class="mono">/claude/users</code>, <code class="mono">/claude/users/[userId]</code>, and every action in <code class="mono">anthropic-users.ts</code> are gated by <code class="mono">session.user.role === "admin"</code> — identical to <code class="mono">src/app/claude/page.tsx:28-31</code>.</li>
+              <li>Server actions use <code class="mono">requireAdmin()</code> from <code class="mono">src/lib/auth-helpers.ts</code>; non-admin callers receive an empty payload (existing pattern from <code class="mono">anthropic-global.ts</code>).</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout warn mt-6">
+          <p class="text-sm"><strong>Reconciliation footnote (renders on the Users tab footer and on each per-user page).</strong></p>
+          <p class="text-sm mt-1 mono">
+            Per-user totals on this page come from Anthropic's usage-report endpoint and do not exactly reconcile with the workspace-level totals on the
+            <a class="link" href="../026-claude-page-redesign/plan.html">Workspaces tab</a> — those come from the cost-report endpoint. Different
+            rounding, different aggregation windows. Surface both as separate views; do not pick a winner.
+          </p>
+        </div>
+      </section>
+
+      <!-- ====================== TESTING ====================== -->
+      <section id="test-strategy" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">7. Test strategy</h2>
+        <table class="spec-table">
+          <thead><tr><th>Layer</th><th>Phase 1</th><th>Phase 2</th><th>Phase 3</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Unit (Vitest)</strong></td>
+              <td>Top-5 concentration math (0/1/4/5+ active-user cases); MoM count math; users-with-no-API-key denominator; default-workspace null handling via <code class="mono">IS NOT DISTINCT FROM</code>.</td>
+              <td>Cost-distribution bucket boundaries (inclusive / exclusive edges); sparkline pivot integrity (6 months from <code class="mono">date_trunc</code>); top-movers ranking matches the workspace version with $5 floor.</td>
+              <td>Route param parsing (NaN / 0 / negative all → <code class="mono">notFound</code>); model %-of-user sums to 100; dominant-model argmax for top-dates; <code class="mono">getUserDetail</code> short-circuits when sync row is null.</td>
+            </tr>
+            <tr>
+              <td><strong>Integration (Vitest, real DB)</strong></td>
+              <td>Seed 2 months of usage across 5 users and 3 workspaces — verify <code class="mono">getUserList</code> shape and the canonical query result against hand-rolled SQL; <code class="mono">getUsersDashboardKpis</code> active-count and top-5 math.</td>
+              <td>Seed 6 months of usage; verify <code class="mono">getUserSparklines</code> pivot, <code class="mono">getUserTopMovers</code> ranking, <code class="mono">getDailyTotalsByUser</code> top-5+Other.</td>
+              <td>Seed one user with 3 models, 17 days — verify <code class="mono">getUserDetail</code> daily/model/topDates shape against hand-rolled SQL.</td>
+            </tr>
+            <tr>
+              <td><strong>E2E (Playwright)</strong></td>
+              <td><code class="mono">tests/e2e/claude-users-phase1.spec.ts</code> — admin lands on <code class="mono">/claude/users</code>, sees 4 KPI tiles, top 10 chart, filterable table; tab strip switches Workspaces ⇄ Users; non-admin gets redirected.</td>
+              <td><code class="mono">tests/e2e/claude-users-phase2.spec.ts</code> — distribution histogram renders with 6 bars summing to total users; sparkline column populated for users with ≥ 2 months; top-movers chip click filters the table.</td>
+              <td><code class="mono">tests/e2e/claude-users-detail.spec.ts</code> — list → row click → detail page renders → breadcrumb back returns to <code class="mono">/claude/users</code> with filters preserved; non-admin direct-nav redirects; 404 on bad userId and on userId 0.</td>
+            </tr>
+            <tr>
+              <td><strong>Manual smoke</strong></td>
+              <td>With dev DB, confirm top-spender tile matches the first table row; users-with-no-API-key count matches a hand-rolled SQL spot-check; tab strip preserves month picker state.</td>
+              <td>Top movers shows the same names as the workspace top-movers in most cases (sanity); histogram right-tail matches the known top spenders; sparkline ramps visible for fast-growing users.</td>
+              <td>Walk <code class="mono">/claude/users/{N}</code> for an admin heavy spender, an inactive user (zero), and a user with no Anthropic API key. Confirm the existing workspace top-users panel now navigates same-window.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ====================== ROLLOUT ====================== -->
+      <section id="rollout" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">8. Rollout &amp; risk register</h2>
+
+        <div class="card p-5 mb-6">
+          <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Single-PR rollout</p>
+          <p class="text-sm">All 3 phases ship in one PR, organized as 3 sequential commits so review can be staged phase-by-phase. Run <code class="mono">pnpm lint &amp;&amp; pnpm typecheck &amp;&amp; pnpm test</code> between each commit, not just at the end.</p>
+          <ol class="text-sm space-y-2 list-decimal pl-5 mt-3">
+            <li><strong>Commit 1 — Phase 1</strong>: tabbed sub-page nav, <code class="mono">/claude/users</code> route, KPI strip, Top 10 chart, Users table with filters. Standalone-functional even if commits 2 + 3 are reverted; nothing on the existing Workspaces view changes shape (only gains the tab strip).</li>
+            <li><strong>Commit 2 — Phase 2</strong>: Cost distribution, Fastest Growing chips, sparkline column, daily-by-user stacked chart. Additive — page works without it.</li>
+            <li><strong>Commit 3 — Phase 3</strong>: <code class="mono">/claude/users/[userId]</code> route + the rewire of <code class="mono">WorkspaceTopUsers</code> from <code class="mono">target="_blank"</code> to same-window. No schema migration in this commit.</li>
+          </ol>
+          <p class="text-sm mt-3">No feature flag — the page is admin-only and changes are additive. Internal-admin validation window of 1 week before announcing.</p>
+        </div>
+
+        <h3 class="text-base font-semibold mb-2">Risk register</h3>
+        <table class="spec-table">
+          <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr><td>Per-user totals don't sum to workspace totals (different Anthropic endpoints)</td><td>High (by design)</td><td>Low</td><td>Documented up front in the spec, data-model, and this plan. Footnote on every per-user page and the Users tab footer. Surface both views as separate signals.</td></tr>
+            <tr><td>Mid-month workspace moves are retroactive — historical rows get re-attributed when <code class="mono">resolved_workspace_id</code> changes</td><td>Low</td><td>Medium</td><td>Workspace cell tooltip explains the behaviour. Re-resolve on every sync (already runs hourly).</td></tr>
+            <tr><td>Pricing-unresolved rows render with best-effort cost</td><td>Medium</td><td>Low</td><td>Surface <code class="mono">hasUnresolvedPricing</code> from every aggregate. Amber chip on affected cells. Total refreshes next sync.</td></tr>
+            <tr><td>Forgetting to exclude <code class="mono">LOCK_USER_ID = 0</code> from a single query → phantom row</td><td>Low</td><td>Medium</td><td>Re-export the constant; lint-grep for literal <code class="mono">user_id &lt;&gt; 0</code> outside <code class="mono">anthropic-users.ts</code>; integration test asserts no row with <code class="mono">userId === 0</code>.</td></tr>
+            <tr><td>Bucket boundaries drift between SQL and UI</td><td>Medium</td><td>Low</td><td>Single source of truth in <code class="mono">src/lib/claude-users-buckets.ts</code>; histogram axis labels and SQL <code class="mono">CASE</code> both import from it.</td></tr>
+            <tr><td>Top-5 concentration misleading when fewer than 5 active users</td><td>Medium</td><td>Low</td><td>Action returns <code class="mono">null</code>; tile renders <code class="mono">—</code>.</td></tr>
+            <tr><td>Top movers misleading off tiny prior base</td><td>Medium</td><td>Low</td><td>$5 floor on prior 3-month window — same rule as workspace top-movers.</td></tr>
+            <tr><td>Removing <code class="mono">target="_blank"</code> from workspace top-users breaks an admin habit</td><td>Low</td><td>Low</td><td>Changelog note; the in-tab pattern matches every other dashboard link.</td></tr>
+            <tr><td>Sparkline render cost across 41+ rows</td><td>Low</td><td>Low</td><td>Reuse the inline-SVG primitive (no Recharts overhead per row).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer class="pt-6 mt-12 border-t border-[var(--border)] text-xs text-[var(--muted-2)]">
+        <p>Spec 027 · drafted 2026-05-18 · builds on <a class="link" href="../026-claude-page-redesign/plan.html">spec 026 plan</a> · companion mockup: <a class="link" href="mockup.html">mockup.html</a> · companion tasks: <a class="link" href="tasks.md">tasks.md</a></p>
+      </footer>
+
+    </div>
+  </body>
+</html>
