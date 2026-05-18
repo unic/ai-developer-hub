@@ -6,7 +6,7 @@ Schema analysis and decisions for the `/claude` page redesign. Only Phase 3 intr
 
 Phase 1 (header + sync pill + global metrics) and Phase 2 (workspace cards + drill-in) read from tables that already exist:
 
-- `anthropic_workspace_costs` — daily cost per workspace
+- `anthropic_workspace_costs` — daily cost per workspace (one row per `(workspace_id, YYYY-MM-DD)`; see "Per-day storage fix" below)
 - `anthropic_workspaces` — workspace metadata
 - `anthropic_workspace_limits` — admin-configured caps
 - `anthropic_org_config` — org-wide billing budget
@@ -14,6 +14,15 @@ Phase 1 (header + sync pill + global metrics) and Phase 2 (workspace cards + dri
 - `sync_events` — used by the sync status pill
 
 No new tables, no new columns, no migrations required for Phases 1 + 2.
+
+### Per-day storage fix (post-implementation)
+
+Although the schema for `anthropic_workspace_costs` has always declared a daily grain, the cost sync was originally writing one row per workspace per month (keyed to `YYYY-MM-01`). The 12-month and pacing visualizations exposed this immediately. Fixed in commit `e1428aa` (and refactored to batched upserts in `616c88c`):
+
+- `/v1/organizations/cost_report` is now requested with `bucket_width=1d`.
+- A pure `aggregateDailyCosts(buckets)` helper keys by `(workspace_id, YYYY-MM-DD)` derived from `bucket.starting_at` and sums the multiple per-cost-type rows Anthropic returns inside a single bucket.
+- Upserts are batched into one statement per partial-index bucket (named workspaces / default workspace) — two round-trips per sync regardless of date range.
+- Backfill of historical rows requires `scripts/backfill-anthropic-workspace-costs.ts` (TRUNCATE + re-fetch).
 
 ## User → workspace mapping (Phase 3 decision)
 
@@ -62,11 +71,12 @@ LIMIT 10;
 
 ## Backfill
 
-No backfill of historical data is needed:
+The Phase 3 mapping was originally planned without a backfill — but two backfill scripts shipped after live data exposed gaps. Both are idempotent and safe to re-run.
 
-- The new `resolved_workspace_id` column will populate naturally on the next sync run for every active user — the sync runs hourly.
-- Historical `anthropic_usage_metrics` rows do NOT need backfilling. They're attributed via the live join at query time, not a denormalized column.
-- Users with revoked / disabled API keys won't get a `workspace_id` resolved; their rows will be excluded from per-workspace queries. Acceptable — they can't be in any workspace anyway.
+- `scripts/backfill-anthropic-workspace-costs.ts` — one-off after the per-day storage fix. Operators should TRUNCATE `anthropic_workspace_costs` and run this to re-fetch historical months with `bucket_width=1d`. New syncs already write per-day rows, so no further intervention is required.
+- `scripts/backfill-anthropic-workspace-mapping.ts` — retro-populates `resolved_workspace_id` for users whose `anthropic_sync_status` row already had a `resolved_api_key_id` from spec 016 *before* migration 0018 added the column. `resolveAllMappings()` only re-resolves users whose mapping is missing or whose key changed, so existing rows would otherwise keep `resolved_workspace_id = NULL` forever. The script queries `/v1/organizations/api_keys` once, builds an `api_key_id → workspace_id` map, and updates every row in place.
+- Historical `anthropic_usage_metrics` rows still do NOT need backfilling — they're attributed via the live join at query time, not a denormalized column.
+- Users with revoked / disabled API keys still won't get a `workspace_id` resolved; their rows will be excluded from per-workspace queries.
 
 ## Out of scope
 
