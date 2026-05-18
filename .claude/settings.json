@@ -24,5 +24,29 @@
   },
   "env": {
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-lock-yml.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/format-on-edit.mjs"
+          }
+        ]
+      }
+    ]
   }
 }
