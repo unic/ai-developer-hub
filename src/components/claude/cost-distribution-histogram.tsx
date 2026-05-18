@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatInteger } from "@/lib/chart-format";
 import type { UserCostDistributionBucket } from "@/types";
 
 /**
@@ -86,7 +87,7 @@ export function CostDistributionHistogram({
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value) => `${Number(value)} users`}
+                    valueFormatter={(v) => `${formatInteger(Number(v))} users`}
                   />
                 }
               />

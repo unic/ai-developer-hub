@@ -60,7 +60,9 @@ export function EditorChart({ data }: EditorChartProps) {
               tickMargin={8}
             />
             <YAxis tickLine={false} axisLine={false} />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartTooltip
+              content={<ChartTooltipContent numberFormat="integer" />}
+            />
             <Bar
               dataKey="engagedUsers"
               fill="var(--color-engagedUsers)"

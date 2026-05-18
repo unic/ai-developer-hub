@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatCurrencyFromDollars, formatPercentRaw } from "@/lib/chart-format";
 
 interface CostUtilizationChartProps {
   data: Array<{
@@ -89,7 +90,18 @@ export function CostUtilizationChart({ data }: CostUtilizationChartProps) {
               axisLine={false}
               tickFormatter={(v: number) => `${v}%`}
             />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  indicator="line"
+                  valueFormatter={(v, item) =>
+                    item.dataKey === "utilization"
+                      ? formatPercentRaw(Number(v))
+                      : formatCurrencyFromDollars(Number(v))
+                  }
+                />
+              }
+            />
             <ChartLegend content={<ChartLegendContent />} />
             <Line
               yAxisId="left"

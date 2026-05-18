@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import type { ToolUtilization } from "@/types";
+import { formatInteger } from "@/lib/chart-format";
 
 const utilizationConfig = {
   assignedCount: { label: "Assigned", color: "var(--chart-1)" },
@@ -45,11 +46,14 @@ export function UtilizationChart({ data }: UtilizationChartProps) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value, name) => {
-                if (name === "assignedCount") return `${value} assigned`;
-                if (name === "remaining") return `${value} available`;
-                return String(value);
+              valueFormatter={(v, item) => {
+                const key = String(item.dataKey);
+                if (key === "assignedCount") return `${formatInteger(Number(v))} assigned`;
+                if (key === "remaining") return `${formatInteger(Number(v))} available`;
+                return formatInteger(Number(v));
               }}
+              showTotal
+              totalLabel="Capacity"
             />
           }
         />

@@ -69,7 +69,9 @@ export function LanguageChart({ data }: LanguageChartProps) {
               axisLine={false}
               width={100}
             />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartTooltip
+              content={<ChartTooltipContent numberFormat="integer" />}
+            />
             <ChartLegend content={<ChartLegendContent />} />
             <Bar
               dataKey="suggestions"

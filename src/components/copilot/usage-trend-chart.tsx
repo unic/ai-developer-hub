@@ -25,6 +25,7 @@ import {
 import { LineChart as LineChartIcon } from "lucide-react";
 import { isUsageTrendSparse } from "@/lib/copilot-chart-utils";
 import type { TrendDataPoint } from "@/lib/copilot-chart-utils";
+import { formatInteger } from "@/lib/chart-format";
 
 interface UsageTrendChartProps {
   data: TrendDataPoint[];
@@ -85,7 +86,19 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
                 }}
               />
               <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    indicator="line"
+                    valueFormatter={(v, item) => {
+                      const key = String(item.dataKey);
+                      if (key === "activeUsers")
+                        return `${formatInteger(Number(v))} users`;
+                      return formatInteger(Number(v));
+                    }}
+                  />
+                }
+              />
               <ChartLegend content={<ChartLegendContent />} />
               <Line
                 type="monotone"
