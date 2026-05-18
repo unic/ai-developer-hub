@@ -302,6 +302,7 @@ async function _getAvailableUserMonths(): Promise<string[]> {
   const rows = await db.execute(sql`
     SELECT DISTINCT TO_CHAR(DATE_TRUNC('month', date::date), 'YYYY-MM') AS month
     FROM anthropic_usage_metrics
+    WHERE user_id <> ${LOCK_USER_ID}
     ORDER BY 1 DESC
   `);
   return rows.rows.map((r) => r.month as string);
@@ -349,7 +350,6 @@ async function _getUserCostDistribution(
            ON m.user_id = u.id
           AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
     WHERE u.id <> ${LOCK_USER_ID}
-      AND u.status = 'active'
       AND s.resolved_api_key_id IS NOT NULL
     GROUP BY u.id
   `);

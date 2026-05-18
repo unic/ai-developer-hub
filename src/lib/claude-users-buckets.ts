@@ -9,9 +9,10 @@
  *  - All boundaries are integer **cents**, matching `computed_cost_cents`.
  *  - `minCents` is inclusive, `maxCents` is exclusive. The final "$100+"
  *    bucket has `maxCents = null` (unbounded).
- *  - The "$0" bucket is special-cased: it is the only one where `minCents`
- *    and `maxCents` are both `0` and the bucket means "exactly zero" — users
- *    who used Claude for a single cached read still fall into "$0.01–$1".
+ *  - The "$0" bucket uses `minCents: 0` and `maxCents: 1`, so the same
+ *    inclusive-lower / exclusive-upper rule that applies to every other
+ *    bucket represents "exactly zero" cleanly. Users who used Claude for a
+ *    single cached read still fall into "$0.01–$1".
  */
 
 export interface CostDistributionBucketDef {

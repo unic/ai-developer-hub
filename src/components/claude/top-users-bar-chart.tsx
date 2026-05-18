@@ -95,16 +95,14 @@ export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
           dataKey="cost"
           radius={[0, 4, 4, 0]}
           maxBarSize={28}
-          onClick={(payload: unknown) => {
-            const item = payload as { userId?: number } | undefined;
-            if (item?.userId != null) {
-              router.push(`/claude/users/${item.userId}`);
-            }
-          }}
           cursor="pointer"
         >
           {data.map((d, i) => (
-            <Cell key={`top-user-${i}`} fill={d.fill} />
+            <Cell
+              key={`top-user-${i}`}
+              fill={d.fill}
+              onClick={() => router.push(`/claude/users/${d.userId}`)}
+            />
           ))}
         </Bar>
       </BarChart>

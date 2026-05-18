@@ -107,11 +107,20 @@ Run `pnpm lint && pnpm typecheck && pnpm test` between each commit, not just at 
 
 ## Deployment notes
 
-No migrations. No backfill scripts. The hourly sync already populates everything the page needs.
+No new migrations introduced by spec 027. But the page surfaces a data
+gap inherited from spec 026: the workspace column on the Users table will
+show "Default Workspace" for every user whose `anthropic_sync_status` row
+predates migration 0018 (i.e. whose `resolved_workspace_id` was never
+populated). After deploying the PR, run the existing spec-026 backfill
+once — idempotent and safe to re-run:
 
-After deploying the PR:
+```
+pnpm tsx --env-file=.env.local scripts/backfill-anthropic-workspace-mapping.ts
+```
+
+Then verify:
 
 1. Confirm the tab strip renders on both `/claude` and `/claude/users`.
 2. Confirm the Top spender tile and the first table row agree.
-3. Confirm the workspace cell in the table matches the workspace drill page's top-users panel for at least one spot-check user.
+3. Confirm the workspace cell in the table matches the workspace drill page's top-users panel for at least one spot-check user (this is the canary for whether the backfill ran).
 4. Watch for `pricingResolved = false` warnings in the table for the first 24 hours — if any new model rolled out between deploy and verification, the warning chip should surface.

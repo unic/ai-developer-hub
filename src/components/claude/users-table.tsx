@@ -40,13 +40,16 @@ import {
 import { ChevronRight, ChevronsUpDown, CheckIcon, PlusCircle, ArrowUp, ArrowDown } from "lucide-react";
 import { Sparkline } from "@/components/ui/sparkline";
 import type { UserListRow, UserSparkline } from "@/types";
-import { cn, formatCurrency } from "@/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  NO_CIRCLE_SENTINEL,
+  NO_PROFILE_SENTINEL,
+  NO_WORKSPACE_SENTINEL,
+} from "@/lib/utils";
 
 const HIDE_ZERO_KEY = "claude-users:hide-zero";
 const SEARCH_DEBOUNCE_MS = 200;
-const NO_WORKSPACE = "__no_workspace__";
-const NO_CIRCLE = "__no_circle__";
-const NO_PROFILE = "__no_profile__";
 
 type FilterOption = { value: string; label: string };
 
@@ -96,7 +99,7 @@ export function UsersTable({ users, sparklines }: Props) {
   const workspaceOptions = useMemo<FilterOption[]>(() => {
     const map = new Map<string, string>();
     for (const u of users) {
-      const key = u.workspaceId ?? NO_WORKSPACE;
+      const key = u.workspaceId ?? NO_WORKSPACE_SENTINEL;
       const label = u.workspaceName ?? "No workspace";
       if (!map.has(key)) map.set(key, label);
     }
@@ -108,7 +111,7 @@ export function UsersTable({ users, sparklines }: Props) {
   const circleOptions = useMemo<FilterOption[]>(() => {
     const map = new Map<string, string>();
     for (const u of users) {
-      const key = u.circle ?? NO_CIRCLE;
+      const key = u.circle ?? NO_CIRCLE_SENTINEL;
       const label = u.circle ?? "No circle";
       if (!map.has(key)) map.set(key, label);
     }
@@ -120,7 +123,7 @@ export function UsersTable({ users, sparklines }: Props) {
   const profileOptions = useMemo<FilterOption[]>(() => {
     const map = new Map<string, string>();
     for (const u of users) {
-      const key = u.profile ?? NO_PROFILE;
+      const key = u.profile ?? NO_PROFILE_SENTINEL;
       const label = u.profile ?? "No profile";
       if (!map.has(key)) map.set(key, label);
     }
@@ -133,15 +136,15 @@ export function UsersTable({ users, sparklines }: Props) {
     return users.filter((u) => {
       if (hideZero && u.costCents === 0) return false;
       if (workspaceFilter.size > 0) {
-        const key = u.workspaceId ?? NO_WORKSPACE;
+        const key = u.workspaceId ?? NO_WORKSPACE_SENTINEL;
         if (!workspaceFilter.has(key)) return false;
       }
       if (circleFilter.size > 0) {
-        const key = u.circle ?? NO_CIRCLE;
+        const key = u.circle ?? NO_CIRCLE_SENTINEL;
         if (!circleFilter.has(key)) return false;
       }
       if (profileFilter.size > 0) {
-        const key = u.profile ?? NO_PROFILE;
+        const key = u.profile ?? NO_PROFILE_SENTINEL;
         if (!profileFilter.has(key)) return false;
       }
       if (search.length > 0) {
