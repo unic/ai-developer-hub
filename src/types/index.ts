@@ -607,3 +607,45 @@ export interface ActiveAlertsData {
 }
 
 export type OrgCreditsStatus = { available: false; reason: string };
+
+// Spec 027 — Claude Users sub-page
+
+export interface UserListRow {
+  userId: number;
+  email: string;
+  name: string;
+  circle: string | null;
+  profile: UserProfile | null;
+  status: UserStatus;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  workspaceColor: string | null;
+  hasApiKey: boolean;
+  costCents: number;
+  totalTokens: number;
+  modelsUsed: number;
+  lastActive: string | null;
+  hasUnresolvedPricing: boolean;
+}
+
+export interface UsersDashboardKpis {
+  // Active users this month + MoM delta
+  activeUsersCurrent: number;
+  activeUsersPrior: number;
+  activeUsersDeltaPct: number | null;
+  // Top spender (first row of the canonical query)
+  topSpender: {
+    userId: number;
+    name: string;
+    email: string;
+    costCents: number;
+    pctOfOrg: number;
+  } | null;
+  // Top-5 concentration % of org spend
+  topFiveConcentrationPct: number | null;
+  // Users with no API key (numerator + denominator)
+  usersWithNoApiKey: number;
+  usersWithNoApiKeyDenominator: number;
+  // Echo the period so the UI can render the month label
+  totalCents: number;
+}
