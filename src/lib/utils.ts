@@ -50,6 +50,19 @@ export function getCurrentMonth(): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/**
+ * Linear extrapolation of month-to-date spending to a projected month-end total.
+ * Returns 0 when daysElapsed is 0 to avoid divide-by-zero.
+ */
+export function projectMonthEnd(
+  mtdCents: number,
+  daysElapsed: number,
+  daysInMonth: number
+): number {
+  if (daysElapsed === 0) return 0;
+  return Math.round((mtdCents / daysElapsed) * daysInMonth);
+}
+
 export function formatDate(date: Date | string | null): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;

@@ -202,13 +202,21 @@ export async function resolveAllMappings(): Promise<Map<string, number>> {
         const apiKeyId = resolveApiKeyId(decrypted, orgKeys);
         if (apiKeyId) {
           mapping.set(apiKeyId, u.userId);
-          // Upsert sync status with resolved ID
+          // Look up the workspace_id of the matched org key. Anthropic returns
+          // null for keys in the default workspace — preserve that as SQL NULL.
+          const orgKey = orgKeys.find((k) => k.id === apiKeyId);
+          const workspaceId = orgKey?.workspace_id ?? null;
+          // Upsert sync status with resolved ID + workspace_id
           await db
             .insert(anthropicSyncStatus)
-            .values({ userId: u.userId, resolvedApiKeyId: apiKeyId })
+            .values({
+              userId: u.userId,
+              resolvedApiKeyId: apiKeyId,
+              resolvedWorkspaceId: workspaceId,
+            })
             .onConflictDoUpdate({
               target: [anthropicSyncStatus.userId],
-              set: { resolvedApiKeyId: apiKeyId },
+              set: { resolvedApiKeyId: apiKeyId, resolvedWorkspaceId: workspaceId },
             });
         }
       } catch (err) {

@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 026 — Claude API Spending redesign · Implementation plan</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      h1, h2, h3, h4 { letter-spacing: -0.01em; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #181818; border: 1px solid var(--border-2); color: var(--muted); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #181818; border: 1px solid var(--border-2); }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      a.link:hover { color: #c9e94a; }
+      .grid-cols-fit { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      table.spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.spec-table th, table.spec-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      table.spec-table th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      table.spec-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+      .toc a { color: var(--muted); }
+      .toc a:hover { color: var(--text); }
+      .phase-pill { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+      .phase-1 { background: #0a1c10; color: #86efac; border: 1px solid #14532d; }
+      .phase-2 { background: #082f3a; color: #67e8f9; border: 1px solid #155e75; }
+      .phase-3 { background: #2a1607; color: #fcd34d; border: 1px solid #78350f; }
+      .anchor { scroll-margin-top: 24px; }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      .ac-list { padding-left: 22px; }
+      .ac-list li { margin: 6px 0; }
+      .ac-list li::marker { color: #4ade80; }
+      .risk-list li::marker { color: #f87171; }
+      .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+      details.code-detail summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      details.code-detail summary:hover { color: var(--text); }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      pre.code .k { color: #c084fc; }
+      pre.code .s { color: #86efac; }
+      pre.code .n { color: #fcd34d; }
+      pre.code .c { color: #71717a; font-style: italic; }
+      pre.code .t { color: #67e8f9; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .viz { background: #0d0d0d; border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+      .viz-label { font-size: 11px; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+
+      <header class="mb-10 pb-6 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          <span class="chip">Spec 026</span>
+          <span class="chip info">Status · Ready for implementation</span>
+          <span class="chip">Created 2026-05-15</span>
+          <span class="chip">Owner · tobias.studer@unic.com</span>
+          <span class="chip success">3 phases · 1 PR</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Claude API Spending — page redesign</h1>
+        <p class="text-[var(--muted)] mt-2 max-w-3xl">
+          Reorient <code class="mono text-[var(--text)]">/claude</code> around three operational questions: <em>are we over budget anywhere right now? where is the run-rate going? which workspace is growing fastest?</em>
+          The redesign ships in three phases, keeps the existing schema (no migrations in Phases 1 & 2), and reuses the hourly Anthropic Admin API sync from spec 018.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <a class="chip info" href="spec.md">spec.md ↗</a>
+          <a class="chip info" href="tasks.md">tasks.md ↗</a>
+          <a class="chip info" href="mockup.html">mockup.html (interactive) ↗</a>
+        </div>
+      </header>
+
+      <!-- TOC -->
+      <nav class="card p-5 mb-10 toc">
+        <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-3">Contents</p>
+        <ol class="text-sm space-y-1.5 list-decimal pl-5">
+          <li><a href="#context">Context</a></li>
+          <li><a href="#before-after">Before / after at a glance</a></li>
+          <li><a href="#phase-1">Phase 1 — Visual reset + KPI strip</a></li>
+          <li><a href="#phase-2">Phase 2 — Historical trend + sparklines</a></li>
+          <li><a href="#phase-3">Phase 3 — Workspace drill-through</a></li>
+          <li><a href="#cross">Cross-cutting concerns &amp; shared helpers</a></li>
+          <li><a href="#test-strategy">Test strategy</a></li>
+          <li><a href="#rollout">Rollout &amp; risk register</a></li>
+        </ol>
+      </nav>
+
+      <!-- ====================== CONTEXT ====================== -->
+      <section id="context" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">1. Context</h2>
+        <div class="prose prose-invert max-w-none text-[15px]">
+          <p>
+            <code class="mono">/claude</code> is admin-only (admin role gate; non-admins redirect to <code class="mono">/</code>).
+            It aggregates Anthropic API cost data synced hourly from the Anthropic Admin API into the <code class="mono">anthropic_workspace_costs</code> table
+            (per-workspace, per-date rows; see spec 018).
+            Org billing budget lives in <code class="mono">anthropic_org_config</code>; workspace-level monthly caps in <code class="mono">anthropic_workspace_limits</code>;
+            workspace metadata in <code class="mono">anthropic_workspaces</code>. Sync state is tracked by the <code class="mono">userId = 0</code> sentinel row (per <code class="mono">LOCK_USER_ID</code> in <code class="mono">src/lib/anthropic-sync.ts:23</code>) in
+            <code class="mono">anthropicSyncStatus.workspaceSyncCompletedAt</code>.
+          </p>
+          <p>
+            The current page surfaces a grand total, a single-series daily bar chart, an org billing card paired with a "Credit Balance" placeholder
+            (the Anthropic API does not expose credit balance), and a workspace list sorted alphabetically. Inspected live on 2026-05-15 with 13 real workspaces,
+            the layout buries the operational signal: "Automations" is at <strong class="text-[var(--danger)]">105% of its $50 cap</strong> and has grown
+            <strong class="text-[var(--danger)]">+413% over six months</strong>, but neither fact is visible without scanning every row or computing it mentally.
+          </p>
+        </div>
+      </section>
+
+      <!-- ====================== BEFORE/AFTER ====================== -->
+      <section id="before-after" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">2. Before / after at a glance</h2>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- BEFORE -->
+          <div class="viz">
+            <p class="viz-label">Before · current /claude page</p>
+            <svg viewBox="0 0 500 320" class="w-full h-auto">
+              <rect x="0" y="0" width="500" height="320" fill="#0d0d0d"/>
+              <!-- alert -->
+              <rect x="10" y="10" width="480" height="22" rx="4" fill="#2a0a0a" stroke="#7f1d1d"/>
+              <text x="20" y="25" font-size="10" fill="#fca5a5" font-family="ui-sans-serif">⚠ Budget Alert: Automations is at 105%</text>
+              <!-- header -->
+              <text x="10" y="55" font-size="16" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Claude Console</text>
+              <text x="10" y="70" font-size="10" fill="#71717a" font-family="ui-sans-serif">Org-wide Claude API usage and spending</text>
+              <rect x="400" y="44" width="80" height="22" rx="4" fill="#d4f057"/>
+              <text x="440" y="59" font-size="10" font-weight="600" fill="#0a0a0a" text-anchor="middle" font-family="ui-sans-serif">Trigger Sync</text>
+              <!-- controls -->
+              <rect x="10" y="85" width="80" height="22" rx="4" fill="#141414" stroke="#2e2e2e"/>
+              <text x="50" y="100" font-size="9" fill="#fafafa" text-anchor="middle" font-family="ui-sans-serif">May 2026</text>
+              <rect x="96" y="85" width="110" height="22" rx="4" fill="#141414" stroke="#2e2e2e"/>
+              <text x="151" y="100" font-size="9" fill="#fafafa" text-anchor="middle" font-family="ui-sans-serif">All workspaces</text>
+              <text x="215" y="100" font-size="9" fill="#71717a" font-family="ui-sans-serif">Last synced 3 min ago</text>
+              <!-- single big total -->
+              <text x="10" y="135" font-size="9" fill="#71717a" font-family="ui-sans-serif">Total org spend — May 2026</text>
+              <text x="10" y="160" font-size="22" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">$1,820.40</text>
+              <!-- wall of green chart -->
+              <rect x="10" y="175" width="480" height="60" rx="4" fill="#d4f057"/>
+              <text x="250" y="208" font-size="10" fill="#0a0a0a" text-anchor="middle" font-family="ui-sans-serif" font-weight="600">single bar · only May 1 has data</text>
+              <!-- 2 col org billing -->
+              <rect x="10" y="245" width="232" height="32" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="20" y="263" font-size="10" fill="#fafafa" font-family="ui-sans-serif">Monthly Billing Budget</text>
+              <text x="20" y="274" font-size="9" fill="#71717a" font-family="ui-sans-serif">$1,820 / $3,500 · 52%</text>
+              <rect x="248" y="245" width="242" height="32" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="258" y="263" font-size="10" fill="#71717a" font-family="ui-sans-serif">Credit Balance · not exposed by API</text>
+              <text x="258" y="274" font-size="9" fill="#71717a" font-family="ui-sans-serif">→ View in Anthropic Console</text>
+              <!-- workspace list (small) -->
+              <text x="10" y="295" font-size="10" fill="#fafafa" font-family="ui-sans-serif">Workspace Budgets · alphabetical · 13 rows · $0 rows mixed in</text>
+              <text x="10" y="310" font-size="9" fill="#71717a" font-family="ui-sans-serif">over-budget workspace is buried at row 4</text>
+            </svg>
+          </div>
+          <!-- AFTER -->
+          <div class="viz">
+            <p class="viz-label">After · redesigned /claude page (Phases 1+2)</p>
+            <svg viewBox="0 0 500 320" class="w-full h-auto">
+              <rect x="0" y="0" width="500" height="320" fill="#0d0d0d"/>
+              <!-- alert -->
+              <rect x="10" y="10" width="480" height="22" rx="4" fill="#2a0a0a" stroke="#7f1d1d"/>
+              <text x="20" y="25" font-size="10" fill="#fca5a5" font-family="ui-sans-serif">⚠ Budget Alert: Automations is at 105%</text>
+              <!-- header -->
+              <text x="10" y="55" font-size="16" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Claude API Spending</text>
+              <text x="10" y="70" font-size="10" fill="#71717a" font-family="ui-sans-serif">Org-wide usage, budgets, and sync status</text>
+              <!-- sync pill -->
+              <rect x="335" y="48" width="90" height="18" rx="9" fill="#0a1c10" stroke="#14532d"/>
+              <circle cx="345" cy="57" r="3" fill="#22c55e"/>
+              <text x="350" y="60" font-size="9" fill="#86efac" font-family="ui-sans-serif">Synced 3m ago</text>
+              <rect x="430" y="44" width="60" height="22" rx="4" fill="#d4f057"/>
+              <text x="460" y="59" font-size="10" font-weight="600" fill="#0a0a0a" text-anchor="middle" font-family="ui-sans-serif">Sync</text>
+              <!-- KPI strip 4 tiles -->
+              <g font-family="ui-sans-serif">
+                <rect x="10" y="80" width="115" height="44" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="18" y="92" font-size="7" fill="#71717a">TOTAL · MAY</text>
+                <text x="18" y="108" font-size="13" font-weight="700" fill="#fafafa">$1,820.40</text>
+                <text x="18" y="120" font-size="7" fill="#86efac">▲ 12% vs Apr</text>
+
+                <rect x="129" y="80" width="115" height="44" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="137" y="92" font-size="7" fill="#71717a">PROJECTED</text>
+                <text x="137" y="108" font-size="13" font-weight="700" fill="#fafafa">$3,640</text>
+                <text x="137" y="120" font-size="7" fill="#f87171">104% of $3,500 budget</text>
+
+                <rect x="248" y="80" width="115" height="44" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="256" y="92" font-size="7" fill="#71717a">OVER 80%</text>
+                <text x="256" y="108" font-size="13" font-weight="700" fill="#fafafa">1 <tspan font-size="9" fill="#71717a">/ 13</tspan></text>
+                <text x="256" y="120" font-size="7" fill="#f87171">Automations · 105%</text>
+
+                <rect x="367" y="80" width="123" height="44" rx="6" fill="#121212" stroke="#262626"/>
+                <text x="375" y="92" font-size="7" fill="#71717a">MoM DELTA</text>
+                <text x="375" y="108" font-size="13" font-weight="700" fill="#fafafa">+$199</text>
+                <text x="375" y="120" font-size="7" fill="#86efac">+12% vs Apr</text>
+              </g>
+              <!-- stacked daily chart -->
+              <rect x="10" y="130" width="480" height="56" rx="4" fill="#121212" stroke="#262626"/>
+              <g>
+                <rect x="20" y="160" width="20" height="22" fill="#d4f057"/><rect x="20" y="152" width="20" height="8" fill="#86efac"/><rect x="20" y="146" width="20" height="6" fill="#67e8f9"/>
+                <rect x="48" y="155" width="20" height="27" fill="#d4f057"/><rect x="48" y="146" width="20" height="9" fill="#86efac"/><rect x="48" y="140" width="20" height="6" fill="#67e8f9"/>
+                <rect x="76" y="158" width="20" height="24" fill="#d4f057"/><rect x="76" y="150" width="20" height="8" fill="#86efac"/><rect x="76" y="144" width="20" height="6" fill="#67e8f9"/>
+                <rect x="104" y="152" width="20" height="30" fill="#d4f057"/><rect x="104" y="142" width="20" height="10" fill="#86efac"/><rect x="104" y="136" width="20" height="6" fill="#67e8f9"/>
+                <rect x="132" y="156" width="20" height="26" fill="#d4f057"/><rect x="132" y="146" width="20" height="10" fill="#86efac"/><rect x="132" y="140" width="20" height="6" fill="#67e8f9"/>
+                <rect x="160" y="148" width="20" height="34" fill="#d4f057"/><rect x="160" y="140" width="20" height="8" fill="#86efac"/><rect x="160" y="134" width="20" height="6" fill="#67e8f9"/>
+                <rect x="188" y="146" width="20" height="36" fill="#d4f057"/><rect x="188" y="138" width="20" height="8" fill="#86efac"/><rect x="188" y="132" width="20" height="6" fill="#67e8f9"/>
+              </g>
+              <text x="250" y="146" font-size="8" fill="#71717a" font-family="ui-sans-serif">stacked by workspace</text>
+              <!-- historical trend mini -->
+              <rect x="10" y="192" width="232" height="40" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="20" y="205" font-size="8" fill="#71717a" font-family="ui-sans-serif">12-MONTH TREND</text>
+              <g>
+                <rect x="22" y="222" width="14" height="6" fill="#3f3f46"/>
+                <rect x="38" y="220" width="14" height="8" fill="#3f3f46"/>
+                <rect x="54" y="216" width="14" height="12" fill="#52525b"/>
+                <rect x="70" y="218" width="14" height="10" fill="#52525b"/>
+                <rect x="86" y="222" width="14" height="6" fill="#52525b"/>
+                <rect x="102" y="214" width="14" height="14" fill="#71717a"/>
+                <rect x="118" y="212" width="14" height="16" fill="#71717a"/>
+                <rect x="134" y="210" width="14" height="18" fill="#71717a"/>
+                <rect x="150" y="208" width="14" height="20" fill="#a1a1aa"/>
+                <rect x="166" y="204" width="14" height="24" fill="#d4f057"/>
+                <rect x="182" y="195" width="14" height="9" fill="#d4f057" opacity="0.3"/>
+              </g>
+              <line x1="14" y1="200" x2="200" y2="200" stroke="#f87171" stroke-dasharray="2 2" stroke-width="0.5"/>
+              <rect x="248" y="192" width="242" height="40" rx="4" fill="#121212" stroke="#262626"/>
+              <text x="258" y="205" font-size="8" fill="#71717a" font-family="ui-sans-serif">CUMULATIVE PACING</text>
+              <polyline points="260,224 280,222 300,218 320,213 340,208 360,204 380,200" stroke="#a1a1aa" stroke-width="1" fill="none"/>
+              <polyline points="260,224 270,221 285,215 300,210 315,206 325,204" stroke="#d4f057" stroke-width="1.5" fill="none"/>
+              <text x="380" y="220" font-size="7" fill="#facc15" font-family="ui-sans-serif">+125% pace</text>
+              <!-- ws list reordered + sparklines -->
+              <text x="10" y="248" font-size="10" fill="#fafafa" font-family="ui-sans-serif">Workspace Budgets · sorted by utilization · sparklines · hide $0</text>
+              <g font-family="ui-sans-serif">
+                <text x="10" y="265" font-size="9" fill="#fca5a5">▶ Automations · $52.49 · 105% · 📈</text>
+                <text x="10" y="280" font-size="9" fill="#fafafa">boost-expert-1 · $125.64 · 63% · ▁▂▃▅▆▇</text>
+                <text x="10" y="295" font-size="9" fill="#fafafa">boost-starter-1 · $370.72 · 62% · ▁▂▃▄▆▇</text>
+                <text x="10" y="310" font-size="9" fill="#71717a">3 more · $0 rows collapsed</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <p class="text-xs text-[var(--muted)] mt-3">
+          The redesign reuses the same data — only the layout, sort order, and a handful of new aggregations change.
+          Live mockup with real workspace names: <a class="link" href="mockup.html">mockup.html</a>.
+        </p>
+      </section>
+
+      <!-- ====================== PHASE 1 ====================== -->
+      <section id="phase-1" class="anchor mb-12">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="phase-pill phase-1">Phase 1 · Commit 1</span>
+          <h2 class="text-xl font-semibold">Visual reset + KPI strip</h2>
+        </div>
+        <p class="text-[var(--muted)] mb-5 max-w-3xl">
+          Rename, sync pill, 4-tile KPI strip, daily chart stacked by workspace, full-width Monthly Billing Budget card,
+          and workspace list re-sorted with a "Hide $0 + no limit" toggle. Standalone-shippable.
+        </p>
+
+        <!-- Goal + stories -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Goal</p>
+            <p class="text-sm">An admin can spot over-budget workspaces and the projected month-end position within <strong>five seconds</strong> of landing on the page.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Effort</p>
+            <p class="text-sm">~30–40 hours · 4 new components · 3 new server actions · 1 shared util · 0 schema changes.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Standalone value</p>
+            <p class="text-sm">Ships independently. Subsequent phases are additive.</p>
+          </div>
+        </div>
+
+        <!-- User stories -->
+        <h3 class="text-base font-semibold mt-6 mb-2">User stories</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li>As an admin, I want a single glance to tell me total MTD, MoM change, projected month-end, and how many workspaces are over 80%, so I can triage without scrolling.</li>
+          <li>As an admin, I want the daily chart segmented by workspace so I can see which workspace drove a given day's spike.</li>
+          <li>As an admin, I want noisy zero-cost workspaces hidden by default so the workspace list shows what actually matters.</li>
+        </ul>
+
+        <!-- Files to change -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Files to change</h3>
+        <table class="spec-table">
+          <thead><tr><th>Path</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="file-path">src/app/claude/page.tsx</td><td>Rename title (L21, L55); add new parallel queries; remove Credit Balance section.</td></tr>
+            <tr><td class="file-path">src/components/claude/global-metrics-client.tsx</td><td>Render <code class="mono">&lt;KpiStrip&gt;</code> + <code class="mono">&lt;SyncStatusPill&gt;</code>. Switch chart from single-series to stacked.</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-budget-list.tsx</td><td>Apply new sort, add "Hide $0 + no limit" toggle, restructure row layout (spend big, limit small).</td></tr>
+            <tr><td class="file-path">src/components/claude/org-credits-panel.tsx</td><td>Rename to <code class="mono">OrgBillingBudgetCard</code>. Drop the dead Credit Balance card; promote to full width; add Projected column.</td></tr>
+            <tr><td class="file-path">src/components/claude/kpi-strip.tsx</td><td><strong>NEW</strong> · 4 tiles.</td></tr>
+            <tr><td class="file-path">src/components/claude/sync-status-pill.tsx</td><td><strong>NEW</strong> · green/amber/grey pill.</td></tr>
+            <tr><td class="file-path">src/actions/anthropic-global.ts</td><td>New: <code class="mono">getDashboardKpis</code>, <code class="mono">getDailyTotalsByWorkspace</code>, <code class="mono">getSyncStatus</code>. Update <code class="mono">_getWorkspaceList</code> sort.</td></tr>
+            <tr><td class="file-path">src/components/app-sidebar.tsx</td><td>Sidebar label rename.</td></tr>
+            <tr><td class="file-path">src/lib/utils.ts</td><td>New shared util <code class="mono">projectMonthEnd</code>.</td></tr>
+            <tr><td class="file-path">src/types/index.ts</td><td>Export <code class="mono">DashboardKpis</code>, <code class="mono">DailyStackedRow</code>, <code class="mono">SyncStatus</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <!-- New queries / signatures -->
+        <h3 class="text-base font-semibold mt-6 mb-2">New server actions &amp; types</h3>
+        <pre class="code mono"><span class="c">// src/actions/anthropic-global.ts — additions</span>
+<span class="k">async function</span> <span class="t">getDashboardKpis</span>(month?: <span class="t">string</span>): <span class="t">Promise</span>&lt;DashboardKpis&gt;
+<span class="k">async function</span> <span class="t">getDailyTotalsByWorkspace</span>(month?: <span class="t">string</span>): <span class="t">Promise</span>&lt;DailyStackedRow[]&gt;
+<span class="k">async function</span> <span class="t">getSyncStatus</span>(): <span class="t">Promise</span>&lt;SyncStatus&gt;
+
+<span class="c">// All admin-gated. All wrapped in unstable_cache with tag "anthropic-workspace-costs"</span>
+<span class="c">// (existing cron-triggered revalidateTag already invalidates them — no new wiring).</span>
+
+<span class="c">// src/types/index.ts — additions</span>
+<span class="k">export type</span> <span class="t">DashboardKpis</span> = {
+  totalCents: <span class="t">number</span>;
+  momDeltaCents: <span class="t">number</span>;
+  momDeltaPct: <span class="t">number</span> | <span class="k">null</span>;   <span class="c">// null when prior month &lt; $1</span>
+  projectedMonthEndCents: <span class="t">number</span>;
+  workspacesOverEightyCount: <span class="t">number</span>;
+  workspacesWithLimitCount: <span class="t">number</span>;
+};
+
+<span class="k">export type</span> <span class="t">DailyStackedRow</span> = {
+  date: <span class="t">string</span>;                       <span class="c">// 'YYYY-MM-DD'</span>
+  perWorkspace: <span class="t">Record</span>&lt;<span class="t">string</span>, <span class="t">number</span>&gt;; <span class="c">// workspaceId|"default" -> cents</span>
+  total: <span class="t">number</span>;
+};
+
+<span class="k">export type</span> <span class="t">SyncStatus</span> = {
+  lastSyncedAt: <span class="t">Date</span> | <span class="k">null</span>;
+  ageMinutes: <span class="t">number</span> | <span class="k">null</span>;
+  isStale: <span class="t">boolean</span>;                    <span class="c">// age &gt; 70 minutes</span>
+};
+
+<span class="c">// src/lib/utils.ts — shared util</span>
+<span class="k">export function</span> <span class="t">projectMonthEnd</span>(
+  mtdCents: <span class="t">number</span>,
+  daysElapsed: <span class="t">number</span>,
+  daysInMonth: <span class="t">number</span>,
+): <span class="t">number</span> {
+  <span class="k">if</span> (daysElapsed === <span class="n">0</span>) <span class="k">return</span> <span class="n">0</span>;
+  <span class="k">return</span> <span class="t">Math</span>.round((mtdCents / daysElapsed) * daysInMonth);
+}</pre>
+
+        <!-- Data flow -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Data flow</h3>
+        <p class="text-sm text-[var(--text)]/90 max-w-3xl">
+          <code class="mono">page.tsx</code> (Server Component) calls
+          <code class="mono">getGlobalCostDashboard</code>, <code class="mono">getWorkspaceList</code>, <code class="mono">getOrgConfig</code>,
+          <code class="mono">getDashboardKpis</code>, and <code class="mono">getSyncStatus</code> in parallel via <code class="mono">Promise.all</code>.
+          All five reuse the <code class="mono">"anthropic-workspace-costs"</code> cache tag.
+          Plain JSON is passed to <code class="mono">&lt;GlobalMetricsClient&gt;</code>; the client component owns workspace/month filter state and re-fetches via <code class="mono">useTransition</code> on month change.
+          The "Hide $0 + no limit" toggle is pure client-side filtering over the <code class="mono">workspaces</code> prop, with the preference persisted in
+          <code class="mono">localStorage</code> at key <code class="mono">claude-hide-zero-workspaces</code>.
+        </p>
+
+        <!-- Layout viz -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Layout</h3>
+        <div class="viz">
+          <p class="viz-label">Phase 1 wireframe (real proportions)</p>
+          <svg viewBox="0 0 1000 480" class="w-full h-auto">
+            <rect x="0" y="0" width="1000" height="480" fill="#0a0a0a"/>
+            <!-- alert -->
+            <rect x="20" y="20" width="960" height="32" rx="6" fill="#1a0a0a" stroke="#3a1212"/>
+            <text x="35" y="40" font-size="12" fill="#fca5a5" font-family="ui-sans-serif" font-weight="600">⚠ Budget Alert · Automations is at 105% of monthly budget</text>
+            <!-- header row -->
+            <text x="20" y="80" font-size="22" font-weight="700" fill="#fafafa" font-family="ui-sans-serif">Claude API Spending</text>
+            <text x="20" y="98" font-size="11" fill="#71717a" font-family="ui-sans-serif">Org-wide usage, budgets, and Anthropic sync status</text>
+            <rect x="780" y="70" width="120" height="22" rx="11" fill="#0a1c10" stroke="#14532d"/>
+            <circle cx="795" cy="81" r="3.5" fill="#22c55e"/>
+            <text x="803" y="84" font-size="11" fill="#86efac" font-family="ui-sans-serif">Synced 3m ago</text>
+            <rect x="908" y="68" width="72" height="26" rx="6" fill="#d4f057"/>
+            <text x="944" y="85" font-size="11" font-weight="600" fill="#0a0a0a" text-anchor="middle" font-family="ui-sans-serif">Sync</text>
+
+            <!-- KPI strip -->
+            <g font-family="ui-sans-serif">
+              <rect x="20" y="120" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="34" y="138" font-size="9" fill="#71717a">TOTAL ORG SPEND — MAY 2026</text>
+              <text x="34" y="166" font-size="22" font-weight="700" fill="#fafafa">$1,820.40</text>
+              <text x="34" y="186" font-size="10" fill="#86efac">▲ 12% vs Apr ($1,621.40)</text>
+
+              <rect x="262" y="120" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="276" y="138" font-size="9" fill="#71717a">PROJECTED MONTH-END</text>
+              <text x="276" y="166" font-size="22" font-weight="700" fill="#fafafa">$3,640.80</text>
+              <text x="276" y="186" font-size="10" fill="#f87171">104% of $3,500 budget</text>
+
+              <rect x="504" y="120" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="518" y="138" font-size="9" fill="#71717a">WORKSPACES OVER 80%</text>
+              <text x="518" y="166" font-size="22" font-weight="700" fill="#fafafa">1 <tspan font-size="14" fill="#71717a">/ 13</tspan></text>
+              <text x="518" y="186" font-size="10" fill="#f87171">Automations · 105% of $50 limit</text>
+
+              <rect x="746" y="120" width="234" height="76" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="760" y="138" font-size="9" fill="#71717a">MoM DELTA</text>
+              <text x="760" y="166" font-size="22" font-weight="700" fill="#fafafa">+$199</text>
+              <text x="760" y="186" font-size="10" fill="#86efac">+12% (vs Apr)</text>
+            </g>
+
+            <!-- stacked chart -->
+            <rect x="20" y="216" width="960" height="160" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="234" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Daily spend by workspace</text>
+            <text x="34" y="248" font-size="10" fill="#71717a" font-family="ui-sans-serif">Stacked · top 8 workspaces + Other</text>
+            <g>
+              <!-- 15 stacked bars -->
+              <g transform="translate(50,260)">
+                <g><rect x="0"   y="60" width="50" height="40" fill="#d4f057"/><rect x="0"   y="40" width="50" height="20" fill="#86efac"/><rect x="0"   y="28" width="50" height="12" fill="#67e8f9"/><rect x="0"   y="20" width="50" height="8"  fill="#93c5fd"/><rect x="0"   y="14" width="50" height="6"  fill="#c4b5fd"/><rect x="0"   y="11" width="50" height="3"  fill="#f9a8d4"/></g>
+                <g transform="translate(62,0)"><rect y="64" width="50" height="36" fill="#d4f057"/><rect y="44" width="50" height="20" fill="#86efac"/><rect y="30" width="50" height="14" fill="#67e8f9"/><rect y="22" width="50" height="8"  fill="#93c5fd"/><rect y="14" width="50" height="8"  fill="#c4b5fd"/><rect y="11" width="50" height="3"  fill="#f9a8d4"/></g>
+                <g transform="translate(124,0)"><rect y="66" width="50" height="34" fill="#d4f057"/><rect y="48" width="50" height="18" fill="#86efac"/><rect y="34" width="50" height="14" fill="#67e8f9"/><rect y="26" width="50" height="8"  fill="#93c5fd"/><rect y="18" width="50" height="8"  fill="#c4b5fd"/><rect y="14" width="50" height="4"  fill="#f9a8d4"/></g>
+                <g transform="translate(186,0)"><rect y="52" width="50" height="48" fill="#d4f057"/><rect y="32" width="50" height="20" fill="#86efac"/><rect y="18" width="50" height="14" fill="#67e8f9"/><rect y="10" width="50" height="8"  fill="#93c5fd"/><rect y="3"  width="50" height="7"  fill="#c4b5fd"/></g>
+                <g transform="translate(248,0)"><rect y="62" width="50" height="38" fill="#d4f057"/><rect y="44" width="50" height="18" fill="#86efac"/><rect y="30" width="50" height="14" fill="#67e8f9"/><rect y="22" width="50" height="8"  fill="#93c5fd"/><rect y="14" width="50" height="8"  fill="#c4b5fd"/></g>
+                <g transform="translate(310,0)"><rect y="70" width="50" height="30" fill="#d4f057"/><rect y="54" width="50" height="16" fill="#86efac"/><rect y="42" width="50" height="12" fill="#67e8f9"/><rect y="34" width="50" height="8"  fill="#93c5fd"/><rect y="28" width="50" height="6"  fill="#c4b5fd"/></g>
+                <g transform="translate(372,0)"><rect y="72" width="50" height="28" fill="#d4f057"/><rect y="56" width="50" height="16" fill="#86efac"/><rect y="44" width="50" height="12" fill="#67e8f9"/><rect y="36" width="50" height="8"  fill="#93c5fd"/><rect y="30" width="50" height="6"  fill="#c4b5fd"/></g>
+                <g transform="translate(434,0)"><rect y="54" width="50" height="46" fill="#d4f057"/><rect y="32" width="50" height="22" fill="#86efac"/><rect y="18" width="50" height="14" fill="#67e8f9"/><rect y="10" width="50" height="8"  fill="#93c5fd"/><rect y="2"  width="50" height="8"  fill="#c4b5fd"/></g>
+                <g transform="translate(496,0)"><rect y="58" width="50" height="42" fill="#d4f057"/><rect y="38" width="50" height="20" fill="#86efac"/><rect y="24" width="50" height="14" fill="#67e8f9"/><rect y="16" width="50" height="8"  fill="#93c5fd"/><rect y="10" width="50" height="6"  fill="#c4b5fd"/></g>
+                <g transform="translate(558,0)"><rect y="66" width="50" height="34" fill="#d4f057"/><rect y="48" width="50" height="18" fill="#86efac"/><rect y="34" width="50" height="14" fill="#67e8f9"/><rect y="26" width="50" height="8"  fill="#93c5fd"/><rect y="20" width="50" height="6"  fill="#c4b5fd"/></g>
+                <g transform="translate(620,0)"><rect y="70" width="50" height="30" fill="#d4f057"/><rect y="54" width="50" height="16" fill="#86efac"/><rect y="42" width="50" height="12" fill="#67e8f9"/><rect y="34" width="50" height="8"  fill="#93c5fd"/><rect y="28" width="50" height="6"  fill="#c4b5fd"/></g>
+                <g transform="translate(682,0)"><rect y="50" width="50" height="50" fill="#d4f057"/><rect y="30" width="50" height="20" fill="#86efac"/><rect y="16" width="50" height="14" fill="#67e8f9"/><rect y="8"  width="50" height="8"  fill="#93c5fd"/><rect y="2"  width="50" height="6"  fill="#c4b5fd"/></g>
+                <g transform="translate(744,0)"><rect y="40" width="50" height="60" fill="#d4f057"/><rect y="20" width="50" height="20" fill="#86efac"/><rect y="6"  width="50" height="14" fill="#67e8f9"/><rect y="0"  width="50" height="6"  fill="#93c5fd"/></g>
+                <g transform="translate(806,0)"><rect y="36" width="50" height="64" fill="#d4f057"/><rect y="16" width="50" height="20" fill="#86efac"/><rect y="2"  width="50" height="14" fill="#67e8f9"/></g>
+                <g transform="translate(868,0)"><rect y="48" width="50" height="52" fill="#d4f057"/><rect y="28" width="50" height="20" fill="#86efac"/><rect y="14" width="50" height="14" fill="#67e8f9"/><rect y="6"  width="50" height="8"  fill="#93c5fd"/></g>
+              </g>
+            </g>
+            <!-- Workspace list (preview) -->
+            <rect x="20" y="392" width="960" height="74" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="412" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Workspace Budgets · sorted by utilization · "Hide $0" toggle ON</text>
+            <text x="34" y="430" font-size="10" fill="#fca5a5" font-family="ui-sans-serif">▶ Automations · $52.49 · over budget</text>
+            <rect x="180" y="423" width="50" height="6" fill="#f87171" rx="3"/>
+            <text x="250" y="430" font-size="10" fill="#fafafa" font-family="ui-sans-serif">boost-expert-1 · $125.64 · 63%</text>
+            <rect x="380" y="423" width="32" height="6" fill="#d4f057" rx="3"/>
+            <text x="440" y="430" font-size="10" fill="#fafafa" font-family="ui-sans-serif">boost-starter-1 · $370.72 · 62%</text>
+            <text x="34" y="450" font-size="10" fill="#71717a" font-family="ui-sans-serif">... 8 more rows · 3 hidden ($0, no limit)</text>
+          </svg>
+        </div>
+
+        <!-- UX details -->
+        <h3 class="text-base font-semibold mt-6 mb-2">UX details &amp; edge cases</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li><strong>KPI tile 3 (projected)</strong>: if <code class="mono">projectedMonthEndCents &gt; orgBudget</code>, the tile gets a red ring + warning icon.</li>
+          <li><strong>KPI tile 4 (over 80%)</strong>: warning palette when count &gt; 0; lists the most-over workspace name underneath.</li>
+          <li><strong>Stacked chart</strong>: with more than 8 workspaces, the legend collapses to "Top 8 + Other". <strong>Top-8 rule</strong> (decided in spec review): rank by <code class="mono">SUM(cost_cents)</code> for the selected period — re-computed per render based on the month being viewed; ties broken by workspace name ASC. Tooltip shows per-workspace breakdown for the hovered day. Color comes from <code class="mono">anthropic_workspaces.displayColor</code> (verified present, varchar(20)) with a deterministic palette fallback keyed by workspace ID so the same workspace always gets the same color across renders.</li>
+          <li><strong>Workspace sort</strong>: (1) over 100% first, (2) over 80% next, (3) with-limit by utilization DESC, (4) no-limit by spend DESC, (5) $0+no-limit last.</li>
+          <li><strong>Hide $0 toggle</strong>: default ON, persisted via localStorage. A "Show N hidden workspaces" disclosure expands the collapsed rows.</li>
+          <li><strong>Empty data</strong>: existing empty state from spec 018 still renders; the KPI strip shows "$0" and the MoM tile shows "—".</li>
+          <li><strong>Single workspace</strong>: stacked chart degrades cleanly to one series. Legend hides "Other".</li>
+          <li><strong>Prior month $0</strong>: MoM delta tile renders "—" with caption "no spend last month" (avoids divide-by-zero nonsense).</li>
+          <li><strong>Stale sync (&gt;70 min)</strong>: amber pill. KPIs still render from the cached data.</li>
+        </ul>
+
+        <!-- Risks -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Risks</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 risk-list text-[var(--text)]/90">
+          <li>MoM percent unstable when prior month is near-zero. Mitigation: render <code class="mono">null</code> from the action, "—" in the UI when prior &lt; $1.</li>
+          <li>Linear extrapolation for projected month-end can mislead on lumpy workloads. Acceptable for Phase 1; Phase 2 pacing chart provides better visual baseline.</li>
+          <li>13+ workspace stack would produce an unreadable legend. Mitigation: top-8 + Other rollup is enforced server-side.</li>
+        </ul>
+
+        <!-- Acceptance criteria -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5 ac-list">
+          <li>Page title and sidebar nav read "Claude API Spending".</li>
+          <li>KPI strip renders four tiles in the order: Total MTD · MoM delta · Projected month-end · Over-80% count.</li>
+          <li>When any workspace exceeds 80% of its limit, the Over-80% tile renders in the warning palette and the workspace appears at the top of the list.</li>
+          <li>Daily chart renders one stacked bar per day with one segment per workspace; hovering a bar shows a per-workspace tooltip.</li>
+          <li>"Hide $0 + no limit" toggle is checked by default; toggling persists across reloads via localStorage.</li>
+          <li>The Credit Balance card no longer appears; the Monthly Billing Budget card spans the full content width.</li>
+          <li>Sync pill shows green ≤ 70 min, amber &gt; 70 min, grey when never synced.</li>
+        </ul>
+      </section>
+
+      <!-- ====================== PHASE 2 ====================== -->
+      <section id="phase-2" class="anchor mb-12">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="phase-pill phase-2">Phase 2 · Commit 2</span>
+          <h2 class="text-xl font-semibold">Historical trend card + per-workspace sparklines</h2>
+        </div>
+        <p class="text-[var(--muted)] mb-5 max-w-3xl">
+          Add a Historical Trend card with 12-month bars, cumulative pacing, and Top Movers chips.
+          Add a 6-month sparkline column to the workspace list so growth is visible inline.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Goal</p>
+            <p class="text-sm">Answer "are we tracking high <em>this month</em>?" before month-end, and "which workspace is the runaway?" without drilling in.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Effort</p>
+            <p class="text-sm">~25–35 hours · 5 new components · 4 new server actions · 0 schema changes.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Depends on</p>
+            <p class="text-sm">Phase 1 (reuses <code class="mono">projectMonthEnd</code> &amp; KPI plumbing).</p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">User stories</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li>As an admin, I want to see 12 months of org spend with the budget line overlaid so I know whether this month's pacing is normal or an outlier.</li>
+          <li>As an admin, I want to see whether we are tracking above or below the same day-of-month in the last three months, so I can intervene mid-month.</li>
+          <li>As an admin, I want a per-workspace sparkline so a fast-growing workspace (Automations: 4.3x in 6 months) is visible without clicking in.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Files to change</h3>
+        <table class="spec-table">
+          <thead><tr><th>Path</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="file-path">src/components/claude/historical-trend-card.tsx</td><td><strong>NEW</strong> · container with segmented control (3 views).</td></tr>
+            <tr><td class="file-path">src/components/claude/twelve-month-bar-chart.tsx</td><td><strong>NEW</strong> · Recharts BarChart + budget cap line.</td></tr>
+            <tr><td class="file-path">src/components/claude/cumulative-pacing-chart.tsx</td><td><strong>NEW</strong> · Recharts LineChart, 4 series.</td></tr>
+            <tr><td class="file-path">src/components/claude/top-movers-chips.tsx</td><td><strong>NEW</strong> · 3 chips, non-interactive until Phase 3.</td></tr>
+            <tr><td class="file-path">src/components/ui/sparkline.tsx</td><td><strong>NEW</strong> · inline-SVG primitive (no Recharts) — reusable on <code class="mono">/profile</code>.</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-budget-list.tsx</td><td>Add sparkline column between spend and progress bar.</td></tr>
+            <tr><td class="file-path">src/app/claude/page.tsx</td><td>Wire 4 new actions into <code class="mono">Promise.all</code>.</td></tr>
+            <tr><td class="file-path">src/actions/anthropic-global.ts</td><td>New: <code class="mono">getTwelveMonthTotals</code>, <code class="mono">getCumulativePacing</code>, <code class="mono">getTopMovers</code>, <code class="mono">getWorkspaceSparklines</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">New server actions</h3>
+        <pre class="code mono"><span class="k">async function</span> <span class="t">getTwelveMonthTotals</span>():
+  <span class="t">Promise</span>&lt;{ month: <span class="t">string</span>; totalCents: <span class="t">number</span>; budgetLimitCents: <span class="t">number</span> | <span class="k">null</span> }[]&gt;
+  <span class="c">// SQL:</span>
+  <span class="c">//   SELECT to_char(date_trunc('month', date), 'YYYY-MM') AS month,</span>
+  <span class="c">//          SUM(cost_cents)::int AS total_cents</span>
+  <span class="c">//   FROM anthropic_workspace_costs</span>
+  <span class="c">//   WHERE date &gt;= current_date - interval '12 months'</span>
+  <span class="c">//   GROUP BY 1 ORDER BY 1;</span>
+  <span class="c">// budgetLimitCents is the *current* org_config value (no history retained — spec 018 convention).</span>
+
+<span class="k">async function</span> <span class="t">getCumulativePacing</span>():
+  <span class="t">Promise</span>&lt;{ dayOfMonth: <span class="t">number</span>; current: <span class="t">number</span>|<span class="k">null</span>;
+              m1: <span class="t">number</span>|<span class="k">null</span>; m2: <span class="t">number</span>|<span class="k">null</span>; m3: <span class="t">number</span>|<span class="k">null</span> }[]&gt;
+  <span class="c">// Window function:</span>
+  <span class="c">//   SUM(cost_cents) OVER (</span>
+  <span class="c">//     PARTITION BY date_trunc('month', date)</span>
+  <span class="c">//     ORDER BY date</span>
+  <span class="c">//   )</span>
+  <span class="c">// then pivot per (dayOfMonth, monthOffset). Pad missing days with null.</span>
+
+<span class="k">async function</span> <span class="t">getTopMovers</span>(): <span class="t">Promise</span>&lt;TopMover[]&gt;
+  <span class="c">// Compare workspace SUM for newest 3 months vs oldest 3 months of last 6.</span>
+  <span class="c">// Filter rows where prior_period_cents &lt; 500 ($5) to suppress noise.</span>
+  <span class="c">// Top 3 by ABS(deltaPct), each tagged direction: 'up' | 'down'.</span>
+
+<span class="k">async function</span> <span class="t">getWorkspaceSparklines</span>():
+  <span class="t">Promise</span>&lt;<span class="t">Record</span>&lt;<span class="t">string</span>, { month: <span class="t">string</span>; totalCents: <span class="t">number</span> }[]&gt;&gt;
+  <span class="c">// Single query: 6 months grouped by (workspace_id, date_trunc('month', date)).</span>
+  <span class="c">// Pivoted server-side to Record&lt;workspaceId | 'default', monthly rows&gt;.</span></pre>
+
+        <!-- Phase 2 viz -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Layout</h3>
+        <div class="viz">
+          <p class="viz-label">Phase 2 — Historical Trend card</p>
+          <svg viewBox="0 0 1000 280" class="w-full h-auto">
+            <rect x="0" y="0" width="1000" height="280" fill="#0a0a0a"/>
+            <rect x="20" y="20" width="960" height="240" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="42" font-size="12" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Historical trend</text>
+            <text x="34" y="56" font-size="10" fill="#71717a" font-family="ui-sans-serif">Last 12 months · monthly totals and pacing vs. prior months</text>
+            <!-- top movers chips -->
+            <g font-family="ui-sans-serif">
+              <text x="640" y="42" font-size="10" fill="#71717a" text-anchor="end">Fastest growing (6mo):</text>
+              <rect x="650" y="30" width="100" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+              <text x="700" y="42" font-size="9" fill="#fca5a5" text-anchor="middle">▲ Automations +413%</text>
+              <rect x="758" y="30" width="100" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+              <text x="808" y="42" font-size="9" fill="#fca5a5" text-anchor="middle">▲ boost-starter-5 +150%</text>
+              <rect x="866" y="30" width="110" height="18" rx="4" fill="#181818" stroke="#2e2e2e"/>
+              <text x="921" y="42" font-size="9" fill="#fca5a5" text-anchor="middle">▲ boost-starter-3 +112%</text>
+            </g>
+            <!-- 12-month bar chart -->
+            <g transform="translate(40,80)">
+              <text x="0" y="0" font-size="9" fill="#71717a" font-family="ui-sans-serif">MONTHLY TOTALS</text>
+              <line x1="0" y1="140" x2="430" y2="140" stroke="#262626"/>
+              <line x1="0" y1="55" x2="430" y2="55" stroke="#f87171" stroke-dasharray="3 3" stroke-width="0.8"/>
+              <text x="428" y="50" font-size="8" fill="#f87171" font-family="ui-sans-serif" text-anchor="end">budget cap $3,500</text>
+              <g>
+                <rect x="10"  y="120" width="22" height="20" fill="#3f3f46" rx="2"/>
+                <rect x="40"  y="116" width="22" height="24" fill="#3f3f46" rx="2"/>
+                <rect x="70"  y="113" width="22" height="27" fill="#3f3f46" rx="2"/>
+                <rect x="100" y="110" width="22" height="30" fill="#3f3f46" rx="2"/>
+                <rect x="130" y="106" width="22" height="34" fill="#52525b" rx="2"/>
+                <rect x="160" y="108" width="22" height="32" fill="#52525b" rx="2"/>
+                <rect x="190" y="115" width="22" height="25" fill="#52525b" rx="2"/>
+                <rect x="220" y="104" width="22" height="36" fill="#71717a" rx="2"/>
+                <rect x="250" y="102" width="22" height="38" fill="#71717a" rx="2"/>
+                <rect x="280" y="100" width="22" height="40" fill="#71717a" rx="2"/>
+                <rect x="310" y="98"  width="22" height="42" fill="#a1a1aa" rx="2"/>
+                <rect x="340" y="94"  width="22" height="46" fill="#d4f057" rx="2"/>
+                <rect x="340" y="48"  width="22" height="46" fill="#d4f057" opacity="0.3" stroke="#d4f057" stroke-dasharray="3 3" stroke-width="0.8" rx="2"/>
+              </g>
+              <text x="350" y="90" font-size="8" fill="#d4f057" font-family="ui-sans-serif" text-anchor="middle" font-weight="600">$3,641</text>
+              <g font-family="ui-sans-serif" font-size="8" fill="#71717a" text-anchor="middle">
+                <text x="21"  y="152">Jun</text><text x="51"  y="152">Jul</text><text x="81"  y="152">Aug</text><text x="111" y="152">Sep</text>
+                <text x="141" y="152">Oct</text><text x="171" y="152">Nov</text><text x="201" y="152">Dec</text><text x="231" y="152">Jan</text>
+                <text x="261" y="152">Feb</text><text x="291" y="152">Mar</text><text x="321" y="152">Apr</text>
+                <text x="351" y="152" fill="#d4f057" font-weight="600">May</text>
+              </g>
+            </g>
+            <!-- pacing chart -->
+            <g transform="translate(530,80)">
+              <text x="0" y="0" font-size="9" fill="#71717a" font-family="ui-sans-serif">CUMULATIVE PACING</text>
+              <line x1="0" y1="140" x2="430" y2="140" stroke="#262626"/>
+              <line x1="0" y1="55" x2="430" y2="55" stroke="#f87171" stroke-dasharray="3 3" stroke-width="0.8"/>
+              <!-- Feb -->
+              <polyline fill="none" stroke="#52525b" stroke-width="1.5"
+                points="10,138 70,128 130,118 190,108 250,96 310,84 370,71" />
+              <!-- Mar -->
+              <polyline fill="none" stroke="#71717a" stroke-width="1.5"
+                points="10,136 70,124 150,112 230,98 310,84 390,69" />
+              <!-- Apr -->
+              <polyline fill="none" stroke="#a1a1aa" stroke-width="1.5"
+                points="10,134 70,122 150,108 230,96 310,82 410,67" />
+              <!-- May solid through today -->
+              <polyline fill="none" stroke="#d4f057" stroke-width="2.5"
+                points="10,132 40,124 70,114 130,98 190,84 220,72" />
+              <!-- May dashed projection -->
+              <polyline fill="none" stroke="#d4f057" stroke-width="2" stroke-dasharray="4 3" opacity="0.85"
+                points="220,72 290,55 360,32 420,12" />
+              <line x1="220" y1="10" x2="220" y2="140" stroke="#3f3f46" stroke-dasharray="2 3"/>
+              <text x="220" y="7" font-size="8" fill="#71717a" font-family="ui-sans-serif" text-anchor="middle">today</text>
+              <circle cx="220" cy="72" r="3" fill="#d4f057"/>
+              <text x="225" y="64" font-size="8" fill="#facc15" font-family="ui-sans-serif">+125% vs Apr</text>
+              <g font-family="ui-sans-serif" font-size="8" fill="#71717a" text-anchor="middle">
+                <text x="10" y="152">1</text><text x="70" y="152">5</text><text x="150" y="152">10</text>
+                <text x="220" y="152">15</text><text x="290" y="152">20</text><text x="360" y="152">25</text><text x="420" y="152">31</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UX details &amp; edge cases</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li><strong>12-month chart</strong>: bars exceeding the budget cap line get a red top stroke. Tooltip shows total + cap + over/under.</li>
+          <li><strong>Pacing chart</strong>: current month bold; prior 3 months in cool greys. Tooltip locks to closest day-of-month across all series. Current line terminates at <em>today</em>; prior months extend to their actual end.</li>
+          <li><strong>Fastest growing</strong> (label decided in spec review; was "Top Movers"): top 3 by <em>positive</em> % delta only — drops are filtered out. $5 floor on prior period to suppress huge percentages off tiny bases. All chips render with ▲.</li>
+          <li><strong>Sparklines</strong>: 120×32 inline SVG (no Recharts). Hand-rolled <code class="mono">&lt;polyline&gt;</code> avoids 13× component overhead. Workspaces with &lt; 2 months of data render <code class="mono">—</code>.</li>
+          <li><strong>&lt; 12 months of history</strong>: chart only renders months that exist; missing prior-month pacing series simply absent.</li>
+          <li><strong>New workspace mid-month</strong>: sparkline shows partial data with a starting dot.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Risks</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 risk-list text-[var(--text)]/90">
+          <li>Cumulative pacing query is the heaviest in this phase. Mitigation: use SQL window functions, not JS reduction.</li>
+          <li>13+ Recharts sparkline instances would hurt render time. Mitigation: hand-rolled inline-SVG primitive in <code class="mono">src/components/ui/sparkline.tsx</code>.</li>
+          <li>Top movers can mislead when prior figure is tiny — already mitigated by the $5 floor.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5 ac-list">
+          <li>Historical Trend card renders below the daily chart with three views: 12-month bars · Cumulative pacing · Fastest growing.</li>
+          <li>12-month bar chart shows a horizontal budget cap line and visually marks any month that exceeded it.</li>
+          <li>Cumulative pacing chart shows four series (current + 3 prior); current series terminates at today.</li>
+          <li>"Fastest growing" strip shows up to 3 workspaces by positive % delta (no decliners), filtering out workspaces with &lt; $5 in prior period.</li>
+          <li>Workspace list has a new "Trend" column with a 6-month sparkline per workspace; &lt; 2 data points renders "—".</li>
+          <li>All new queries reuse the existing <code class="mono">"anthropic-workspace-costs"</code> cache tag.</li>
+        </ul>
+      </section>
+
+      <!-- ====================== PHASE 3 ====================== -->
+      <section id="phase-3" class="anchor mb-12">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="phase-pill phase-3">Phase 3 · Commit 3</span>
+          <h2 class="text-xl font-semibold">Workspace drill-through</h2>
+        </div>
+        <p class="text-[var(--muted)] mb-5 max-w-3xl">
+          New route <code class="mono">/claude/workspaces/[workspaceId]</code> showing per-workspace daily chart, top users, and model breakdown.
+          Reachable from workspace rows and Top Movers chips.
+        </p>
+
+        <div class="callout info mb-5">
+  <p class="text-sm"><strong>Schema decision (resolved — no spike needed).</strong> The current <code class="mono">anthropic_usage_metrics</code> table has no workspace attribution. Anthropic's <code class="mono">/v1/organizations/api_keys</code> response includes a <code class="mono">workspace_id</code> per key, but the codebase's Zod schema (<code class="mono">src/lib/anthropic-keys.ts:5-11</code>) discards it.</p>
+  <p class="text-sm mt-2"><strong>Approach</strong>: extend <code class="mono">orgApiKeySchema</code> to capture <code class="mono">workspace_id</code>, then store it alongside <code class="mono">resolvedApiKeyId</code> via a new <code class="mono">resolved_workspace_id</code> column on <code class="mono">anthropic_sync_status</code> (1 row per user — tiny). Phase 3 queries join <code class="mono">anthropic_usage_metrics</code> → <code class="mono">anthropic_sync_status</code> → <code class="mono">resolved_workspace_id</code>. No backfill on the large usage table.</p>
+  <p class="text-sm mt-2">Full analysis and caveats in <a class="link" href="data-model.md">data-model.md</a>.</p>
+</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Goal</p>
+            <p class="text-sm">When a workspace is over budget or in Top Movers, an admin can click in and immediately see who and what is driving spend.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Effort</p>
+            <p class="text-sm">~30–50 hours · depends on schema decision · 5 new components · 1 new route · 2–3 new actions.</p>
+          </div>
+          <div class="card p-4">
+            <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Depends on</p>
+            <p class="text-sm">Phase 1 (KPI strip is reused). Phase 2 makes Top Movers chips navigable (small follow-up edit).</p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">User stories</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li>As an admin, when I see a workspace alarmingly close to its limit, I want to click into it and see who and what is driving the spend.</li>
+          <li>As an admin, I want to see model mix per workspace (Sonnet vs Opus vs Haiku) so I can suggest cost-saving substitutions.</li>
+          <li>As an admin, I want back-navigation to return me to <code class="mono">/claude</code> with my filter state intact.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Files to change</h3>
+        <table class="spec-table">
+          <thead><tr><th>Path</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="file-path">src/app/claude/workspaces/[workspaceId]/page.tsx</td><td><strong>NEW</strong> Server Component · admin gate · parses <code class="mono">"default"</code> sentinel.</td></tr>
+            <tr><td class="file-path">src/app/claude/workspaces/[workspaceId]/workspace-detail-client.tsx</td><td><strong>NEW</strong> client wrapper.</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-daily-chart.tsx</td><td><strong>NEW</strong> single-series Recharts BarChart.</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-top-users.tsx</td><td><strong>NEW</strong> table: User · Requests · Cost · row link to user profile.</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-model-breakdown.tsx</td><td><strong>NEW</strong> horizontal stacked bar + legend table (model, tokens in/out, cost, %).</td></tr>
+            <tr><td class="file-path">src/components/claude/workspace-budget-list.tsx</td><td>Make each row a <code class="mono">&lt;Link&gt;</code>; wire the drill-through icon from Phase 1.</td></tr>
+            <tr><td class="file-path">src/components/claude/top-movers-chips.tsx</td><td>Make chips navigable to the detail page.</td></tr>
+            <tr><td class="file-path">src/actions/anthropic-global.ts</td><td>New: <code class="mono">getWorkspaceDetail</code>, <code class="mono">getWorkspaceMonths</code>.</td></tr>
+            <tr><td class="file-path">src/lib/anthropic-keys.ts</td><td>Extend <code class="mono">orgApiKeySchema</code> to capture <code class="mono">workspace_id: z.string().nullable()</code> (Anthropic returns null for the default workspace).</td></tr>
+            <tr><td class="file-path">src/lib/anthropic-sync.ts</td><td>In <code class="mono">resolveAllMappings</code> (lines 143-221), persist the resolved <code class="mono">workspace_id</code> into <code class="mono">anthropic_sync_status.resolved_workspace_id</code> alongside the existing <code class="mono">resolvedApiKeyId</code>.</td></tr>
+            <tr><td class="file-path">drizzle/NNNN_anthropic_sync_workspace_id.sql</td><td><strong>NEW</strong> migration · <code class="mono">ALTER TABLE anthropic_sync_status ADD COLUMN resolved_workspace_id varchar(100);</code></td></tr>
+            <tr><td class="file-path">src/lib/db/schema.ts</td><td>Add <code class="mono">resolvedWorkspaceId</code> to the <code class="mono">anthropicSyncStatus</code> Drizzle definition.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">New server action</h3>
+        <pre class="code mono"><span class="k">async function</span> <span class="t">getWorkspaceDetail</span>(
+  workspaceId: <span class="t">string</span> | <span class="t">"default"</span>,
+  month?: <span class="t">string</span>,
+): <span class="t">Promise</span>&lt;WorkspaceDetail&gt;
+
+<span class="k">type</span> <span class="t">WorkspaceDetail</span> = {
+  workspace: { id: <span class="t">string</span>|<span class="k">null</span>; name: <span class="t">string</span>; isDefault: <span class="t">boolean</span>; displayColor?: <span class="t">string</span> };
+  currentMonthCents: <span class="t">number</span>;
+  limitCents: <span class="t">number</span> | <span class="k">null</span>;
+  utilizationPct: <span class="t">number</span> | <span class="k">null</span>;
+  dailyTotals: { date: <span class="t">string</span>; costCents: <span class="t">number</span> }[];
+  topUsers: { userId: <span class="t">number</span>; email: <span class="t">string</span>; name: <span class="t">string</span>;
+              costCents: <span class="t">number</span>; requestCount: <span class="t">number</span> }[];
+  modelBreakdown: { modelName: <span class="t">string</span>; tokensIn: <span class="t">number</span>;
+                    tokensOut: <span class="t">number</span>; costCents: <span class="t">number</span>; pctOfWorkspace: <span class="t">number</span> }[];
+};
+<span class="c">// Cache tag: "anthropic-workspace-costs".</span>
+<span class="c">// "default" URL sentinel → null workspaceId in SQL.</span></pre>
+
+        <pre class="code mono"><span class="c">// Phase 3 top-users query (uses the new resolved_workspace_id)</span>
+<span class="c">// SELECT u.id, u.email, u.name, SUM(m.computed_cost_cents) AS cents</span>
+<span class="c">//   FROM anthropic_usage_metrics m</span>
+<span class="c">//   JOIN anthropic_sync_status s ON s.user_id = m.user_id</span>
+<span class="c">//   JOIN users u                   ON u.id      = m.user_id</span>
+<span class="c">//  WHERE s.resolved_workspace_id IS NOT DISTINCT FROM $1   -- NULL = default workspace</span>
+<span class="c">//    AND m.date BETWEEN $2 AND $3</span>
+<span class="c">//  GROUP BY u.id ORDER BY cents DESC LIMIT 10;</span></pre>
+
+        <!-- Phase 3 viz -->
+        <h3 class="text-base font-semibold mt-6 mb-2">Layout</h3>
+        <div class="viz">
+          <p class="viz-label">Phase 3 — <code class="mono">/claude/workspaces/automations</code></p>
+          <svg viewBox="0 0 1000 380" class="w-full h-auto">
+            <rect x="0" y="0" width="1000" height="380" fill="#0a0a0a"/>
+            <!-- breadcrumb -->
+            <g font-family="ui-sans-serif">
+              <text x="20" y="35" font-size="11" fill="#71717a">Claude API Spending</text>
+              <text x="160" y="35" font-size="11" fill="#71717a">/</text>
+              <circle cx="180" cy="31" r="4" fill="#f87171"/>
+              <text x="190" y="35" font-size="14" font-weight="600" fill="#fafafa">Automations</text>
+              <rect x="290" y="22" width="78" height="16" rx="4" fill="#2a0a0a" stroke="#7f1d1d"/>
+              <text x="329" y="33" font-size="9" fill="#fca5a5" text-anchor="middle">over budget</text>
+            </g>
+            <!-- workspace KPI strip -->
+            <g font-family="ui-sans-serif">
+              <rect x="20" y="55" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="34" y="72" font-size="9" fill="#71717a">TOTAL · MAY</text>
+              <text x="34" y="96" font-size="20" font-weight="700" fill="#fafafa">$52.49</text>
+              <text x="34" y="114" font-size="9" fill="#86efac">▲ +28% vs Apr</text>
+
+              <rect x="262" y="55" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="276" y="72" font-size="9" fill="#71717a">PROJECTED</text>
+              <text x="276" y="96" font-size="20" font-weight="700" fill="#fafafa">$105.00</text>
+              <text x="276" y="114" font-size="9" fill="#f87171">210% of $50 limit</text>
+
+              <rect x="504" y="55" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="518" y="72" font-size="9" fill="#71717a">UTILIZATION</text>
+              <text x="518" y="96" font-size="20" font-weight="700" fill="#f87171">105%</text>
+              <text x="518" y="114" font-size="9" fill="#71717a">of $50 monthly limit</text>
+
+              <rect x="746" y="55" width="234" height="68" rx="8" fill="#121212" stroke="#262626"/>
+              <text x="760" y="72" font-size="9" fill="#71717a">REQUESTS · MAY</text>
+              <text x="760" y="96" font-size="20" font-weight="700" fill="#fafafa">3,148</text>
+              <text x="760" y="114" font-size="9" fill="#86efac">4 distinct users</text>
+            </g>
+            <!-- daily chart -->
+            <rect x="20" y="138" width="500" height="160" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="34" y="156" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Daily spend</text>
+            <g transform="translate(34,170)">
+              <rect x="0"   y="100" width="30" height="20" fill="#f87171"/>
+              <rect x="35"  y="92"  width="30" height="28" fill="#f87171"/>
+              <rect x="70"  y="86"  width="30" height="34" fill="#f87171"/>
+              <rect x="105" y="76"  width="30" height="44" fill="#f87171"/>
+              <rect x="140" y="68"  width="30" height="52" fill="#f87171"/>
+              <rect x="175" y="74"  width="30" height="46" fill="#f87171"/>
+              <rect x="210" y="84"  width="30" height="36" fill="#f87171"/>
+              <rect x="245" y="62"  width="30" height="58" fill="#f87171"/>
+              <rect x="280" y="56"  width="30" height="64" fill="#f87171"/>
+              <rect x="315" y="50"  width="30" height="70" fill="#f87171"/>
+              <rect x="350" y="44"  width="30" height="76" fill="#f87171"/>
+              <rect x="385" y="40"  width="30" height="80" fill="#f87171"/>
+              <rect x="420" y="38"  width="30" height="82" fill="#f87171"/>
+            </g>
+            <!-- top users + model breakdown -->
+            <rect x="540" y="138" width="220" height="160" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="554" y="156" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Top users this month</text>
+            <g font-family="ui-sans-serif" font-size="10" fill="#fafafa">
+              <text x="554" y="180">alice@unic.com</text><text x="746" y="180" text-anchor="end" fill="#fafafa">$24.10</text>
+              <text x="554" y="200">bob@unic.com</text>  <text x="746" y="200" text-anchor="end" fill="#fafafa">$18.55</text>
+              <text x="554" y="220">carol@unic.com</text><text x="746" y="220" text-anchor="end" fill="#fafafa">$7.41</text>
+              <text x="554" y="240">dan@unic.com</text>  <text x="746" y="240" text-anchor="end" fill="#fafafa">$2.43</text>
+            </g>
+            <rect x="780" y="138" width="200" height="160" rx="8" fill="#121212" stroke="#262626"/>
+            <text x="794" y="156" font-size="11" fill="#fafafa" font-family="ui-sans-serif" font-weight="500">Model breakdown</text>
+            <!-- horizontal stack -->
+            <rect x="794" y="172" width="100" height="16" fill="#c084fc" rx="2"/>
+            <rect x="894" y="172" width="55"  height="16" fill="#67e8f9" rx="2"/>
+            <rect x="949" y="172" width="22"  height="16" fill="#86efac" rx="2"/>
+            <g font-family="ui-sans-serif" font-size="9">
+              <text x="794" y="208" fill="#c084fc">■ Opus · $30.20 (58%)</text>
+              <text x="794" y="226" fill="#67e8f9">■ Sonnet · $16.42 (31%)</text>
+              <text x="794" y="244" fill="#86efac">■ Haiku · $5.87 (11%)</text>
+            </g>
+            <!-- back link -->
+            <text x="20" y="345" font-size="11" fill="#d4f057" font-family="ui-sans-serif">← Back to Claude API Spending</text>
+          </svg>
+        </div>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">UX details &amp; edge cases</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+          <li><strong>Default workspace</strong>: reachable via <code class="mono">/claude/workspaces/default</code> (URL sentinel for SQL NULL). Page renders "Default Workspace" with no badge.</li>
+          <li><strong>Not found</strong>: unknown workspace ID → <code class="mono">notFound()</code> from Next.js → 404 page.</li>
+          <li><strong>Per-workspace KPI tiles</strong> (decided in spec review): reuse the Phase 1 <code class="mono">&lt;KpiStrip&gt;</code> with workspace-scoped props rendering (1) Total MTD · (2) MoM delta · (3) Projected month-end · (4) <strong>Utilization %</strong> (replaces the org-level "Over 80% count" tile). Mockup screenshot showed a Requests-count tile — that's overridden by this spec decision; the canonical 4 tiles are listed here.</li>
+          <li><strong>No limit set</strong>: 4th KPI tile shows "No limit set" with an inline action to set one (reuses <code class="mono">setWorkspaceLimit</code> from Phase 1).</li>
+          <li><strong>No usage data</strong>: daily chart + top users render empty states; KPI strip still renders ($0).</li>
+          <li><strong>Per-user totals vs workspace total</strong>: the sum of per-user costs in this workspace will <em>not</em> exactly match the headline workspace cost. They come from different Anthropic endpoints (usage report vs cost report) with different rounding. Surface both as separate signals; do not try to reconcile them.</li>
+          <li><strong>Mid-month workspace move</strong>: <code class="mono">resolved_workspace_id</code> reflects the user's <em>current</em> API key's workspace. If a user is moved to a different workspace mid-month, historical usage gets attributed to the new workspace. Footnote in the UI.</li>
+          <li><strong>Back navigation</strong>: breadcrumb uses <code class="mono">next/link</code> to <code class="mono">/claude?workspace={id}</code>; parent <code class="mono">&lt;GlobalMetricsClient&gt;</code> reads the query param on mount.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Risks</h3>
+        <ul class="text-sm space-y-1.5 list-disc pl-5 risk-list text-[var(--text)]/90">
+          <li>Per-user → workspace attribution is derived via the Anthropic API key's <code class="mono">workspace_id</code>; reliable because Anthropic enforces 1 key = 1 workspace. The risk is that admin imports might leave stale <code class="mono">resolved_workspace_id</code> values — mitigation: re-resolve on every sync (cheap, sync already calls <code class="mono">fetchOrgApiKeys</code>).</li>
+          <li>The <code class="mono">"default"</code> URL sentinel needs round-trip testing. Mitigation: explicit unit test on the route parser.</li>
+          <li><code class="mono">anthropic_usage_metrics.model</code> column is <code class="mono">NOT NULL</code> per <code class="mono">src/lib/db/schema.ts:534</code> — no nullability mitigation needed (earlier draft worry retracted during spec review).</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-6 mb-2">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5 ac-list">
+          <li>As admin, navigating to <code class="mono">/claude/workspaces/{id}</code> renders the workspace name, KPI strip, daily chart, top users, and model breakdown.</li>
+          <li>Clicking a workspace row in Phase 1 list navigates here.</li>
+          <li>Clicking a Phase 2 Top Movers chip navigates here.</li>
+          <li>The default workspace is reachable via <code class="mono">/claude/workspaces/default</code> and renders without error.</li>
+          <li>Non-admins are redirected from this route.</li>
+          <li>Breadcrumb back-link pre-selects the workspace in the parent filter.</li>
+        </ul>
+      </section>
+
+      <!-- ====================== CROSS-CUTTING ====================== -->
+      <section id="cross" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">6. Cross-cutting concerns &amp; shared helpers</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Shared helpers (introduced in Phase 1, reused after)</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li><code class="mono">projectMonthEnd(mtdCents, daysElapsed, daysInMonth)</code> in <code class="file-path">src/lib/utils.ts</code> — reused by org billing card &amp; per-workspace KPI strip.</li>
+              <li><code class="mono">&lt;SyncStatusPill /&gt;</code> — reusable wherever sync status is surfaced.</li>
+              <li><code class="mono">&lt;KpiStrip /&gt;</code> — the same component renders both the org-level (Phase 1) and per-workspace (Phase 3) strips with different prop sets.</li>
+              <li><code class="mono">&lt;Sparkline /&gt;</code> — Phase 2; should also replace any equivalent sparkline on <code class="mono">/profile</code> (existing user view).</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Cache &amp; sync</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li>Every new server action wraps in <code class="mono">unstable_cache</code> with tag <code class="mono">"anthropic-workspace-costs"</code>.</li>
+              <li>The existing hourly cron sync (spec 018) already calls <code class="mono">revalidateTag("anthropic-workspace-costs")</code> on completion — no new wiring needed.</li>
+              <li><code class="mono">getSyncStatus()</code> bypasses the cache; it reads the sentinel row directly (sub-millisecond).</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Authorization</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li><code class="mono">/claude</code> + all subroutes gated by <code class="mono">session.user.role === "admin"</code>.</li>
+              <li>Phase 3 route guard mirrors the parent page guard (redirect to <code class="mono">/</code> for non-admins).</li>
+              <li>Server actions use <code class="mono">requireAdmin()</code> from <code class="mono">src/lib/auth-helpers.ts</code>; non-admin callers receive an empty payload (existing pattern).</li>
+            </ul>
+          </div>
+          <div class="card p-4">
+            <h4 class="text-sm font-semibold mb-2">Accessibility</h4>
+            <ul class="text-sm space-y-1.5 list-disc pl-5 text-[var(--text)]/90">
+              <li>All charts retain Recharts <code class="mono">accessibilityLayer</code>; sparkline primitive uses <code class="mono">role="img"</code> + <code class="mono">aria-label</code> with a textual summary.</li>
+              <li>KPI tiles use <code class="mono">aria-describedby</code> linking the value to its caption for screen readers.</li>
+              <li>Sync pill uses <code class="mono">aria-live="polite"</code> when the staleness state changes.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================== TESTING ====================== -->
+      <section id="test-strategy" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">7. Test strategy</h2>
+        <table class="spec-table">
+          <thead><tr><th>Layer</th><th>Phase 1</th><th>Phase 2</th><th>Phase 3</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Unit (Vitest)</strong></td>
+              <td>MoM math (zero/missing prior); projection at days-elapsed 1 / mid / end; over-80% counting; staleness boundary at 70 min.</td>
+              <td>Cumulative pacing math; top-movers ranking + $5 floor; 12-month bucketing across year boundary.</td>
+              <td>Route param parsing inc. <code class="mono">"default"</code> sentinel; model % math sums to 100; top-user tie ordering.</td>
+            </tr>
+            <tr>
+              <td><strong>Integration (Vitest, real DB)</strong></td>
+              <td>Seed 2 months → verify <code class="mono">getDashboardKpis</code> shape end-to-end.</td>
+              <td>Seed 6 months across multiple workspaces → verify <code class="mono">getWorkspaceSparklines</code> &amp; <code class="mono">getTopMovers</code>.</td>
+              <td>Seed workspace + users + models → verify <code class="mono">getWorkspaceDetail</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>E2E (Playwright)</strong></td>
+              <td>Admin lands on <code class="mono">/claude</code>, sees title, 4 KPI tiles, stacked chart, toggle persists across reload, non-admin redirected.</td>
+              <td>Trend card renders, tabs switch views, sparkline column populated.</td>
+              <td>List row click → detail page → breadcrumb back restores filter; non-admin direct-nav redirects; 404 on bad ID.</td>
+            </tr>
+            <tr>
+              <td><strong>Manual smoke</strong></td>
+              <td>Confirm Automations row 1 + tile 4 warning + projected tile red ring with current dev DB.</td>
+              <td>Automations sparkline ramps up; Top Movers contains expected workspaces.</td>
+              <td>Walk <code class="mono">/claude/workspaces/default</code>, real ID, unknown ID.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ====================== ROLLOUT ====================== -->
+      <section id="rollout" class="anchor mb-12">
+        <h2 class="text-xl font-semibold mb-3">8. Rollout &amp; risk register</h2>
+
+        <div class="card p-5 mb-6">
+  <p class="text-xs uppercase tracking-wider text-[var(--muted-2)] mb-2">Single-PR rollout</p>
+  <p class="text-sm">All 3 phases ship in one PR, organized as 3 sequential commits so review can be staged phase-by-phase:</p>
+  <ol class="text-sm space-y-2 list-decimal pl-5 mt-3">
+    <li><strong>Commit 1 — Phase 1</strong>: visual reset, KPI strip, stacked daily chart, sync pill, full-width billing card, workspace re-sort. Standalone-functional even if commits 2 + 3 are reverted.</li>
+    <li><strong>Commit 2 — Phase 2</strong>: Historical Trend card + sparklines. Includes a perf assertion (cumulative pacing query &lt; 200ms on dev DB).</li>
+    <li><strong>Commit 3 — Phase 3</strong>: schema migration (<code class="mono">resolved_workspace_id</code>) + sync extension + drill-through route. Migration runs first; ships before the UI that depends on it within the same commit so review sees the full vertical slice.</li>
+  </ol>
+  <p class="text-sm mt-3">Gated rollout (feature flag) is not used: the page is admin-only and changes are additive. Internal-admin validation period of 1 week before announcing.</p>
+</div>
+
+        <h3 class="text-base font-semibold mb-2">Risk register</h3>
+        <table class="spec-table">
+          <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr><td>Stale <code class="mono">resolved_workspace_id</code> after admin moves a key between workspaces</td><td>Low</td><td>Medium</td><td>Re-resolve on every sync (already runs every hour); document the mid-month edge case in UI.</td></tr>
+            <tr><td>Per-user totals don't sum to workspace total</td><td>High (by design)</td><td>Low</td><td>Document upfront — separate Anthropic endpoints, different rounding. Surface both signals separately.</td></tr>
+            <tr><td>Cumulative pacing query slow on large dataset</td><td>Low</td><td>Medium</td><td>SQL window function; integration test asserts &lt;200ms.</td></tr>
+            <tr><td>MoM% misleading near zero</td><td>High</td><td>Low</td><td>Return <code class="mono">null</code> below $1 floor; render "—".</td></tr>
+            <tr><td>Stacked chart legend unreadable with 13+ workspaces</td><td>High</td><td>Low</td><td>Top-8 + Other rollup; documented in T112.</td></tr>
+            <tr><td>Top movers misleading off tiny prior base</td><td>Medium</td><td>Low</td><td>$5 floor on prior-period spend.</td></tr>
+            <tr><td>"default" URL sentinel collisions with a real workspace named "default"</td><td>Very Low</td><td>Medium</td><td>Document the reserved name; unit-test the parser.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer class="pt-6 mt-12 border-t border-[var(--border)] text-xs text-[var(--muted-2)]">
+        <p>Spec 026 · drafted 2026-05-15 · companion analysis: <code class="mono">C:\Users\stude\.claude\plans\claude-page-analysis.md</code> · companion mockup: <a class="link" href="mockup.html">mockup.html</a></p>
+      </footer>
+
+    </div>
+  </body>
+</html>

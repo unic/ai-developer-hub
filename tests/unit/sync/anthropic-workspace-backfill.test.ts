@@ -7,16 +7,23 @@ vi.mock("@/lib/sync/framework", () => ({
   retryWithBackoff: (fn: () => Promise<unknown>) => fn(),
 }));
 
-// Mock database
+// Mock database — also stub the drizzle insert chain used to stamp the sync
+// sentinel row at the end of a successful run.
 vi.mock("@/lib/db", () => ({
   db: {
     execute: vi.fn().mockResolvedValue(undefined),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
   },
 }));
 
 // Mock schema (imported but only used for type reference in raw SQL)
 vi.mock("@/lib/db/schema", () => ({
   anthropicWorkspaceCosts: {},
+  anthropicSyncStatus: { userId: {} },
 }));
 
 // Mock constants

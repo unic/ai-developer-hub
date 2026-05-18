@@ -1,0 +1,1 @@
+ALTER TABLE "anthropic_sync_status" ADD COLUMN "resolved_workspace_id" varchar(100);

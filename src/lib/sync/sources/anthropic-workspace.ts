@@ -1,6 +1,6 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
-import { anthropicWorkspaceCosts } from "@/lib/db/schema";
+import { anthropicWorkspaceCosts, anthropicSyncStatus } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
@@ -91,6 +91,7 @@ async function fetchCostReport(
     const query = [
       `starting_at=${encodeURIComponent(startingAt)}`,
       `ending_at=${encodeURIComponent(endingAt)}`,
+      "bucket_width=1d",
       "group_by[]=workspace_id",
       ...(page ? [`page=${encodeURIComponent(page)}`] : []),
     ].join("&");
@@ -147,6 +148,41 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
   return response.data.length;
 }
 
+/**
+ * Aggregate a cost_report response into one entry per (workspace_id, day).
+ *
+ * Anthropic returns daily buckets (with `bucket_width=1d`) where each bucket's
+ * `results[]` is grouped by `workspace_id`. A single workspace may appear in
+ * multiple result rows of the same bucket (e.g., split by `cost_type`), which
+ * must be summed into a single per-day cost.
+ */
+export function aggregateDailyCosts(
+  buckets: z.infer<typeof costReportBucketSchema>[]
+): { workspaceId: string | null; date: string; costCents: number }[] {
+  // key: `${workspaceId ?? "__default__"}|${YYYY-MM-DD}`
+  const byKey = new Map<
+    string,
+    { workspaceId: string | null; date: string; costCents: number }
+  >();
+
+  for (const bucket of buckets) {
+    const date = bucket.starting_at.slice(0, 10); // "YYYY-MM-DDTHH:..." → "YYYY-MM-DD"
+    for (const r of bucket.results) {
+      const wsId = r.workspace_id ?? null;
+      const key = `${wsId ?? "__default__"}|${date}`;
+      const cents = Math.round(parseFloat(r.amount));
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.costCents += cents;
+      } else {
+        byKey.set(key, { workspaceId: wsId, date, costCents: cents });
+      }
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
 async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   // month format: YYYY-MM
   const startDate = `${month}-01T00:00:00Z`;
@@ -171,39 +207,44 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
     fetchCostReport(startDate, endDate)
   );
 
-  // Flatten all results across time buckets and aggregate per workspace
-  const allResults = buckets.flatMap(bucket => bucket.results);
-  const costByWorkspace = new Map<string | null, number>();
-  for (const r of allResults) {
-    const wsId = r.workspace_id ?? null;
-    const amountCents = Math.round(parseFloat(r.amount));
-    costByWorkspace.set(wsId, (costByWorkspace.get(wsId) ?? 0) + amountCents);
+  const dailyRows = aggregateDailyCosts(buckets);
+
+  // Batch upserts to one statement per partial-index bucket — without batching
+  // this loop would issue ~1800 round-trips on a 6-month backfill (rows × days).
+  // The two partial unique indexes (workspace_id IS NOT NULL / IS NULL) require
+  // two separate ON CONFLICT clauses, hence two batches.
+  const namedRows = dailyRows.filter((r) => r.workspaceId !== null);
+  const defaultRows = dailyRows.filter((r) => r.workspaceId === null);
+
+  if (namedRows.length > 0) {
+    const valuesSql = sql.join(
+      namedRows.map(
+        (r) => sql`(${r.workspaceId}, ${r.date}, ${r.costCents})`
+      ),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+      VALUES ${valuesSql}
+      ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+      DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = now()
+    `);
   }
 
-  let upserted = 0;
-  const dateStr = `${month}-01`;
-
-  for (const [wsId, costCents] of costByWorkspace) {
-    if (wsId) {
-      await db.execute(sql`
-        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (${wsId}, ${dateStr}, ${costCents})
-        ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
-        DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
-      `);
-    } else {
-      // Default workspace (null workspace_id)
-      await db.execute(sql`
-        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (NULL, ${dateStr}, ${costCents})
-        ON CONFLICT (date) WHERE workspace_id IS NULL
-        DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
-      `);
-    }
-    upserted++;
+  if (defaultRows.length > 0) {
+    const valuesSql = sql.join(
+      defaultRows.map((r) => sql`(NULL, ${r.date}, ${r.costCents})`),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+      VALUES ${valuesSql}
+      ON CONFLICT (date) WHERE workspace_id IS NULL
+      DO UPDATE SET cost_cents = EXCLUDED.cost_cents, updated_at = now()
+    `);
   }
 
-  return upserted;
+  return namedRows.length + defaultRows.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +319,19 @@ export async function run(
         } catch (err) {
           appendError(counts, `Cost sync failed: ${err instanceof Error ? err.message : String(err)}`);
         }
+      }
+
+      // Stamp the sentinel row so getSyncStatus() (the dashboard's sync pill)
+      // reflects this workspace-cost sync. The user-keyed `lastSyncCompletedAt`
+      // is owned by the per-user usage sync; this column tracks the cost path.
+      if (counts.errorCount === 0) {
+        await db
+          .insert(anthropicSyncStatus)
+          .values({ userId: 0, workspaceSyncCompletedAt: new Date() })
+          .onConflictDoUpdate({
+            target: [anthropicSyncStatus.userId],
+            set: { workspaceSyncCompletedAt: new Date() },
+          });
       }
 
       return counts;

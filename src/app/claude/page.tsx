@@ -3,22 +3,26 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import {
-  getGlobalCostDashboard,
   getAvailableWorkspaceCostMonths,
   getWorkspaceList,
   getOrgConfig,
+  getDashboardKpis,
+  getDailyTotalsByWorkspace,
+  getSyncStatus,
+  getTwelveMonthTotals,
+  getCumulativePacing,
+  getTopMovers,
+  getWorkspaceSparklines,
 } from "@/actions/anthropic-global";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
-import { OrgCreditsPanel } from "@/components/claude/org-credits-panel";
+import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
+import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
-import { db } from "@/lib/db";
-import { syncEvents } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { format } from "date-fns";
+import { format, getDate, getDaysInMonth } from "date-fns";
 import { Bot } from "lucide-react";
 
-export const metadata: Metadata = { title: "Claude Console" };
+export const metadata: Metadata = { title: "Claude API Spending" };
 
 export default async function ClaudePage() {
   const session = await auth();
@@ -26,59 +30,91 @@ export default async function ClaudePage() {
     redirect("/");
   }
 
-  const currentMonth = format(new Date(), "yyyy-MM");
+  const now = new Date();
+  const currentMonth = format(now, "yyyy-MM");
+  const todayDayOfMonth = getDate(now);
+  const daysInMonth = getDaysInMonth(now);
   const availableMonths = await getAvailableWorkspaceCostMonths();
 
-  // Check for last sync time
-  const lastEvent = await db.query.syncEvents.findFirst({
-    where: eq(syncEvents.sourceType, "anthropic_api_costs"),
-    orderBy: desc(syncEvents.startedAt),
-  });
-  const lastSyncedAt = lastEvent?.completedAt ?? lastEvent?.startedAt ?? null;
-
-  // Empty state if no data yet
   if (availableMonths.length === 0) {
     return <EmptyState />;
   }
 
-  const creditsStatus = { available: false as const, reason: "not_exposed_by_api" as const };
-  const [dashboardData, workspaceList, orgConfig] = await Promise.all([
-    getGlobalCostDashboard(currentMonth),
+  const [
+    kpis,
+    daily,
+    workspaceList,
+    orgConfig,
+    syncStatus,
+    twelveMonth,
+    pacing,
+    movers,
+    sparklines,
+  ] = await Promise.all([
+    getDashboardKpis(currentMonth),
+    getDailyTotalsByWorkspace(currentMonth),
     getWorkspaceList(),
     getOrgConfig(),
+    getSyncStatus(),
+    getTwelveMonthTotals(),
+    getCumulativePacing(),
+    getTopMovers(),
+    getWorkspaceSparklines(),
   ]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Claude Console</h1>
-          <p className="text-muted-foreground">Org-wide Claude API usage and spending</p>
+          <h1 className="text-2xl font-bold tracking-tight">Claude API Spending</h1>
+          <p className="text-muted-foreground">
+            Org-wide usage, budgets, and Anthropic sync status.
+          </p>
         </div>
         <SyncButton />
       </div>
 
       <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
         <GlobalMetricsClient
-          initialData={dashboardData}
+          initialKpis={kpis}
+          initialDaily={daily}
           availableMonths={availableMonths}
           initialMonth={currentMonth}
-          lastSyncedAt={lastSyncedAt}
+          orgBudgetCents={orgConfig?.billingBudgetLimitCents ?? null}
+          syncStatus={syncStatus}
+          workspaceOptions={workspaceList.map((w) => ({
+            key: w.workspaceId ?? "__default__",
+            name: w.name,
+          }))}
         />
       </Suspense>
 
+      <HistoricalTrendCard
+        twelveMonth={twelveMonth}
+        pacing={pacing}
+        movers={movers}
+        currentMonth={currentMonth}
+        projectedMonthEndCents={kpis.projectedMonthEndCents}
+        budgetLimitCents={orgConfig?.billingBudgetLimitCents ?? null}
+        todayDayOfMonth={todayDayOfMonth}
+        daysInMonth={daysInMonth}
+      />
+
       <section aria-label="Organization billing">
         <h2 className="mb-4 text-lg font-semibold">Organization Billing</h2>
-        <OrgCreditsPanel
+        <OrgBillingBudgetCard
           orgConfig={orgConfig}
-          currentMonthTotalCents={dashboardData.grandTotalCents}
-          creditsStatus={creditsStatus}
+          currentMonthTotalCents={kpis.totalCents}
+          projectedMonthEndCents={kpis.projectedMonthEndCents}
         />
       </section>
 
       <section aria-label="Workspace budgets">
         <h2 className="mb-4 text-lg font-semibold">Workspace Budgets</h2>
-        <WorkspaceBudgetList workspaces={workspaceList} />
+        <WorkspaceBudgetList
+          workspaces={workspaceList}
+          sparklines={sparklines}
+        />
       </section>
     </div>
   );

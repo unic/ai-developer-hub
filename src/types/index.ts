@@ -481,6 +481,107 @@ export interface GlobalCostDashboardData {
   }[];
 }
 
+// Spec 026 — Claude page redesign
+
+export interface DashboardKpis {
+  totalCents: number;
+  momDeltaCents: number;
+  momDeltaPct: number | null;
+  projectedMonthEndCents: number;
+  workspacesOverEightyCount: number;
+  workspacesWithLimitCount: number;
+  topOverWorkspaceName: string | null;
+  topOverWorkspaceUtilizationPct: number | null;
+  priorMonthCents: number;
+}
+
+export interface DailyStackedRow {
+  date: string;
+  perWorkspace: Record<string, number>;
+  total: number;
+}
+
+export interface StackedSeries {
+  key: string;
+  name: string;
+  color: string;
+  isOther: boolean;
+}
+
+export interface SyncStatus {
+  lastSyncedAt: Date | null;
+  ageMinutes: number | null;
+  isStale: boolean;
+}
+
+export interface TwelveMonthRow {
+  month: string;
+  totalCents: number;
+  budgetLimitCents: number | null;
+}
+
+export interface PacingRow {
+  dayOfMonth: number;
+  current: number | null;
+  m1: number | null;
+  m2: number | null;
+  m3: number | null;
+}
+
+export interface TopMover {
+  workspaceId: string | null;
+  name: string;
+  priorCents: number;
+  currentCents: number;
+  deltaCents: number;
+  deltaPct: number;
+  direction: "up";
+}
+
+export interface WorkspaceSparkline {
+  workspaceKey: string;
+  months: { month: string; totalCents: number }[];
+}
+
+// Spec 026 — Phase 3 (workspace drill-through)
+
+export interface WorkspaceUser {
+  userId: number;
+  email: string;
+  name: string;
+  costCents: number;
+  requestCount: number;
+}
+
+export interface ModelBreakdownRow {
+  modelName: string;
+  tokensIn: number;
+  tokensOut: number;
+  costCents: number;
+  pctOfWorkspace: number;
+}
+
+export interface WorkspaceDetail {
+  workspace: {
+    id: string | null;
+    name: string;
+    isDefault: boolean;
+    displayColor: string | null;
+  };
+  month: string;
+  currentMonthCents: number;
+  priorMonthCents: number;
+  limitCents: number | null;
+  utilizationPct: number | null;
+  projectedMonthEndCents: number;
+  momDeltaCents: number;
+  momDeltaPct: number | null;
+  dailyTotals: { date: string; costCents: number }[];
+  topUsers: WorkspaceUser[];
+  modelBreakdown: ModelBreakdownRow[];
+  availableMonths: string[];
+}
+
 export interface WorkspaceListItem {
   workspaceId: string | null;
   name: string;
@@ -489,6 +590,7 @@ export interface WorkspaceListItem {
   currentMonthCents: number;
   limitCents: number | null;
   utilizationPct: number | null;
+  displayColor: string | null;
 }
 
 export interface WorkspaceAlert {

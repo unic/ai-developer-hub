@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claude API Spending — redesign mock</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --ring: #d4f057;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .tabular { font-variant-numeric: tabular-nums; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 1.6; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+      .row:hover { background: rgba(255,255,255,0.02); }
+      .progress { height: 6px; border-radius: 999px; background: #262626; overflow: hidden; }
+      .progress > div { height: 100%; border-radius: 999px; }
+      .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid var(--border-2); background: transparent; color: var(--text); cursor: pointer; }
+      .btn:hover { background: #1f1f1f; }
+      .btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+      .btn-primary:hover { background: #c9e94a; }
+      .btn-ghost { border-color: transparent; color: var(--muted); }
+      .select { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-2); background: #141414; color: var(--text); font-size: 13px; }
+      .select svg { color: var(--muted); }
+      .kpi-tile { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); }
+      .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .kpi-value { font-size: 28px; font-weight: 600; }
+      .kpi-sub { font-size: 12px; color: var(--muted); }
+      .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); }
+      .ws-row { display: grid; grid-template-columns: minmax(0,1.3fr) 1fr 96px minmax(200px,1.2fr) auto; gap: 20px; align-items: center; padding: 14px 0; }
+      .ws-row.simple { grid-template-columns: minmax(0,1.3fr) 1fr 1fr auto; }
+      .sparkline { display: block; }
+      .sparkline-label { font-size: 10px; color: var(--muted-2); text-align: center; margin-top: 2px; letter-spacing: 0.02em; }
+      .mover-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px; font-size: 12px; background: #181818; border: 1px solid var(--border-2); color: var(--text); }
+      .mover-chip .arrow { color: var(--danger); font-weight: 600; }
+      .ws-name { font-weight: 500; }
+      .ws-spend { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .ws-limit { font-size: 13px; color: var(--muted); }
+      .ws-over { color: var(--danger); }
+      .ws-warn { color: var(--warn); }
+      .divider { border-top: 1px solid var(--border); }
+      .skel { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent); }
+      .tooltip { position: absolute; background: #0a0a0a; border: 1px solid var(--border-2); border-radius: 8px; padding: 8px 10px; font-size: 12px; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+      details > summary { list-style: none; cursor: pointer; }
+      details > summary::-webkit-details-marker { display: none; }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-56 shrink-0 border-r border-[var(--border)] bg-[var(--panel)] p-4 hidden lg:block">
+        <h2 class="text-sm font-semibold mb-4">AI Developer Hub</h2>
+        <div class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] mb-2">Navigation</div>
+        <nav class="text-sm space-y-1">
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Dashboard</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Tools</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Users</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Assignments</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Budget</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Reports</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Copilot</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded bg-white/5 text-white font-medium">Claude</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Invoices</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Settings</a>
+        </nav>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 min-w-0">
+        <div class="mx-auto max-w-[1200px] px-6 py-5 space-y-6">
+
+          <!-- Budget alert (kept) -->
+          <div class="card border-[#3a1212] bg-[#1a0a0a] px-4 py-3 flex items-start gap-3">
+            <span class="mt-0.5 text-[var(--danger)]" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+            </span>
+            <div class="flex-1 text-sm">
+              <p class="font-semibold text-[var(--danger)]">Budget Alert</p>
+              <p class="text-[var(--text)]/90"><span class="font-medium">Automations</span> is at <span class="font-semibold">105%</span> of monthly budget — limit exceeded.</p>
+            </div>
+            <button class="btn btn-ghost" aria-label="Dismiss alert">×</button>
+          </div>
+
+          <!-- Header with renamed title (P7) + sync status pill (P5) -->
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 class="text-2xl font-bold tracking-tight">Claude API Spending</h1>
+              <p class="text-[var(--muted)] text-sm">Org-wide usage, budgets, and Anthropic sync status</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="pill" style="background:#0f1d12; color:#86efac; border:1px solid #14532d">
+                <span class="dot" style="background:#22c55e"></span>
+                Synced 3m ago · next in 57m
+              </span>
+              <button class="btn btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14"/></svg>
+                Trigger Sync
+              </button>
+            </div>
+          </div>
+
+          <!-- Controls row -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="select w-[160px]">
+              <span class="flex items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> May 2026</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="select w-[220px]">
+              <span class="flex items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> All workspaces</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="ml-auto flex items-center gap-2 text-sm text-[var(--muted)]">
+              <button class="btn btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI strip (P1: total + MoM delta + run-rate) -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="kpi-tile">
+              <div class="kpi-label">Total org spend — May 2026</div>
+              <div class="kpi-value tabular">$1,820.40</div>
+              <div class="kpi-sub mt-1 flex items-center gap-1">
+                <span class="text-[var(--success)]">▲ 12%</span> vs Apr ($1,621.40)
+              </div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Projected month-end</div>
+              <div class="kpi-value tabular">$3,640<span class="text-[var(--muted)] text-base font-normal">.80</span></div>
+              <div class="kpi-sub mt-1"><span class="text-[var(--danger)]">104%</span> of $3,500 budget · linear pace from day 15</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Workspaces over 80%</div>
+              <div class="kpi-value tabular">1 <span class="text-[var(--muted)] text-base font-normal">/ 13</span></div>
+              <div class="kpi-sub mt-1"><span class="text-[var(--danger)]">Automations</span> · 105% of $50 limit</div>
+            </div>
+          </div>
+
+          <!-- Chart card: stacked by workspace -->
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+              <div>
+                <h3 class="text-sm font-medium">Daily spend by workspace</h3>
+                <p class="text-xs text-[var(--muted)]">Stacked · top 6 workspaces + Other</p>
+              </div>
+              <div class="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
+                <span><span class="legend-swatch" style="background:#d4f057"></span>boost-starter-5</span>
+                <span><span class="legend-swatch" style="background:#86efac"></span>boost-starter-1</span>
+                <span><span class="legend-swatch" style="background:#67e8f9"></span>boost-starter-2</span>
+                <span><span class="legend-swatch" style="background:#93c5fd"></span>boost-starter-3</span>
+                <span><span class="legend-swatch" style="background:#c4b5fd"></span>boost-expert-1</span>
+                <span><span class="legend-swatch" style="background:#f9a8d4"></span>Automations</span>
+                <span><span class="legend-swatch" style="background:#52525b"></span>Other</span>
+              </div>
+            </div>
+
+            <!-- Chart: pure SVG, stacked bars over 15 days with synthetic data totaling ~$1,820.40 -->
+            <div class="relative">
+              <svg viewBox="0 0 1100 280" preserveAspectRatio="none" class="w-full h-[300px]" role="img" aria-label="Daily spend by workspace">
+                <!-- Y axis lines -->
+                <g stroke="#262626" stroke-width="1">
+                  <line x1="50" y1="20"  x2="1080" y2="20"  stroke-dasharray="3 3"/>
+                  <line x1="50" y1="80"  x2="1080" y2="80"  stroke-dasharray="3 3"/>
+                  <line x1="50" y1="140" x2="1080" y2="140" stroke-dasharray="3 3"/>
+                  <line x1="50" y1="200" x2="1080" y2="200" stroke-dasharray="3 3"/>
+                  <line x1="50" y1="240" x2="1080" y2="240"/>
+                </g>
+                <!-- Y labels (max $200/day) -->
+                <g fill="#71717a" font-size="11" font-family="ui-sans-serif">
+                  <text x="44" y="24"  text-anchor="end">$200</text>
+                  <text x="44" y="84"  text-anchor="end">$150</text>
+                  <text x="44" y="144" text-anchor="end">$100</text>
+                  <text x="44" y="204" text-anchor="end">$50</text>
+                  <text x="44" y="244" text-anchor="end">$0</text>
+                </g>
+                <!--
+                  X scale: 15 days, bar width 50, gap 18, starting at 60
+                  Y scale: $200/day = 220px (240 - 20)
+                -->
+                <g font-family="ui-sans-serif" font-size="11" fill="#71717a">
+                  <!-- Each <g> = one day, stacked bottom-up: starter-5, starter-1, starter-2, starter-3, expert-1, automations, other -->
+                  <!-- day 1 -->
+                  <g transform="translate(60,0)">
+                    <rect x="0" y="124" width="50" height="116" fill="#d4f057"/>
+                    <rect x="0" y="84"  width="50" height="40"  fill="#86efac"/>
+                    <rect x="0" y="60"  width="50" height="24"  fill="#67e8f9"/>
+                    <rect x="0" y="44"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="32"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="26"  width="50" height="6"   fill="#f9a8d4"/>
+                    <rect x="0" y="20"  width="50" height="6"   fill="#52525b"/>
+                    <text x="25" y="258" text-anchor="middle">May 1</text>
+                  </g>
+                  <!-- day 2 -->
+                  <g transform="translate(128,0)">
+                    <rect x="0" y="146" width="50" height="94"  fill="#d4f057"/>
+                    <rect x="0" y="118" width="50" height="28"  fill="#86efac"/>
+                    <rect x="0" y="100" width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="86"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="72"  width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="64"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="58"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(196,0)">
+                    <rect x="0" y="160" width="50" height="80"  fill="#d4f057"/>
+                    <rect x="0" y="132" width="50" height="28"  fill="#86efac"/>
+                    <rect x="0" y="116" width="50" height="16"  fill="#67e8f9"/>
+                    <rect x="0" y="100" width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="84"  width="50" height="16"  fill="#c4b5fd"/>
+                    <rect x="0" y="76"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="70"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(264,0)">
+                    <rect x="0" y="116" width="50" height="124" fill="#d4f057"/>
+                    <rect x="0" y="78"  width="50" height="38"  fill="#86efac"/>
+                    <rect x="0" y="56"  width="50" height="22"  fill="#67e8f9"/>
+                    <rect x="0" y="40"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="24"  width="50" height="16"  fill="#c4b5fd"/>
+                    <rect x="0" y="16"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="10"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(332,0)">
+                    <rect x="0" y="150" width="50" height="90"  fill="#d4f057"/>
+                    <rect x="0" y="124" width="50" height="26"  fill="#86efac"/>
+                    <rect x="0" y="106" width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="92"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="78"  width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="70"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="64"  width="50" height="6"   fill="#52525b"/>
+                    <text x="25" y="258" text-anchor="middle">May 5</text>
+                  </g>
+                  <g transform="translate(400,0)">
+                    <rect x="0" y="180" width="50" height="60"  fill="#d4f057"/>
+                    <rect x="0" y="160" width="50" height="20"  fill="#86efac"/>
+                    <rect x="0" y="148" width="50" height="12"  fill="#67e8f9"/>
+                    <rect x="0" y="136" width="50" height="12"  fill="#93c5fd"/>
+                    <rect x="0" y="124" width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="118" width="50" height="6"   fill="#f9a8d4"/>
+                    <rect x="0" y="114" width="50" height="4"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(468,0)">
+                    <rect x="0" y="186" width="50" height="54"  fill="#d4f057"/>
+                    <rect x="0" y="168" width="50" height="18"  fill="#86efac"/>
+                    <rect x="0" y="156" width="50" height="12"  fill="#67e8f9"/>
+                    <rect x="0" y="144" width="50" height="12"  fill="#93c5fd"/>
+                    <rect x="0" y="132" width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="126" width="50" height="6"   fill="#f9a8d4"/>
+                    <rect x="0" y="122" width="50" height="4"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(536,0)">
+                    <rect x="0" y="130" width="50" height="110" fill="#d4f057"/>
+                    <rect x="0" y="96"  width="50" height="34"  fill="#86efac"/>
+                    <rect x="0" y="76"  width="50" height="20"  fill="#67e8f9"/>
+                    <rect x="0" y="60"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="46"  width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="38"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="32"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(604,0)">
+                    <rect x="0" y="142" width="50" height="98"  fill="#d4f057"/>
+                    <rect x="0" y="112" width="50" height="30"  fill="#86efac"/>
+                    <rect x="0" y="92"  width="50" height="20"  fill="#67e8f9"/>
+                    <rect x="0" y="78"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="62"  width="50" height="16"  fill="#c4b5fd"/>
+                    <rect x="0" y="54"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="48"  width="50" height="6"   fill="#52525b"/>
+                    <text x="25" y="258" text-anchor="middle">May 10</text>
+                  </g>
+                  <g transform="translate(672,0)">
+                    <rect x="0" y="156" width="50" height="84"  fill="#d4f057"/>
+                    <rect x="0" y="128" width="50" height="28"  fill="#86efac"/>
+                    <rect x="0" y="112" width="50" height="16"  fill="#67e8f9"/>
+                    <rect x="0" y="98"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="86"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="78"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="72"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(740,0)">
+                    <rect x="0" y="168" width="50" height="72"  fill="#d4f057"/>
+                    <rect x="0" y="142" width="50" height="26"  fill="#86efac"/>
+                    <rect x="0" y="126" width="50" height="16"  fill="#67e8f9"/>
+                    <rect x="0" y="114" width="50" height="12"  fill="#93c5fd"/>
+                    <rect x="0" y="100" width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="92"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="86"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(808,0)">
+                    <rect x="0" y="120" width="50" height="120" fill="#d4f057"/>
+                    <rect x="0" y="82"  width="50" height="38"  fill="#86efac"/>
+                    <rect x="0" y="60"  width="50" height="22"  fill="#67e8f9"/>
+                    <rect x="0" y="44"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="28"  width="50" height="16"  fill="#c4b5fd"/>
+                    <rect x="0" y="20"  width="50" height="8"   fill="#f9a8d4"/>
+                    <rect x="0" y="14"  width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <g transform="translate(876,0)">
+                    <rect x="0" y="100" width="50" height="140" fill="#d4f057"/>
+                    <rect x="0" y="66"  width="50" height="34"  fill="#86efac"/>
+                    <rect x="0" y="44"  width="50" height="22"  fill="#67e8f9"/>
+                    <rect x="0" y="28"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="12"  width="50" height="16"  fill="#c4b5fd"/>
+                    <rect x="0" y="4"   width="50" height="8"   fill="#f9a8d4"/>
+                  </g>
+                  <g transform="translate(944,0)">
+                    <rect x="0" y="92"  width="50" height="148" fill="#d4f057"/>
+                    <rect x="0" y="58"  width="50" height="34"  fill="#86efac"/>
+                    <rect x="0" y="36"  width="50" height="22"  fill="#67e8f9"/>
+                    <rect x="0" y="20"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="4"   width="50" height="16"  fill="#c4b5fd"/>
+                  </g>
+                  <g transform="translate(1012,0)">
+                    <rect x="0" y="106" width="50" height="134" fill="#d4f057"/>
+                    <rect x="0" y="74"  width="50" height="32"  fill="#86efac"/>
+                    <rect x="0" y="52"  width="50" height="22"  fill="#67e8f9"/>
+                    <rect x="0" y="36"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="20"  width="50" height="16"  fill="#c4b5fd"/>
+                    <text x="25" y="258" text-anchor="middle">May 15</text>
+                  </g>
+                </g>
+
+                <!-- Run-rate forecast: dashed line from end of bars to projected total at day 31 -->
+                <g>
+                  <line x1="1062" y1="20" x2="1080" y2="20" stroke="#f87171" stroke-width="1.5" stroke-dasharray="4 3"/>
+                  <text x="1075" y="14" text-anchor="end" font-size="10" fill="#f87171" font-family="ui-sans-serif">budget cap</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Historical trend card (NEW) -->
+          <section aria-label="Historical trend">
+            <div class="card p-5 space-y-5">
+              <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 class="text-sm font-medium">Historical trend</h3>
+                  <p class="text-xs text-[var(--muted)]">Last 12 months · monthly totals and pacing vs. prior months</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-[var(--muted)] mr-1">Top movers (6mo):</span>
+                  <span class="mover-chip"><span class="arrow">▲</span><span class="font-medium">Automations</span><span class="text-[var(--muted)]">$8 → $41 · +413%</span></span>
+                  <span class="mover-chip"><span class="arrow">▲</span><span class="font-medium">boost-starter-5</span><span class="text-[var(--muted)]">$160 → $400 · +150%</span></span>
+                  <span class="mover-chip"><span class="arrow">▲</span><span class="font-medium">boost-starter-3</span><span class="text-[var(--muted)]">$85 → $180 · +112%</span></span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- LEFT: 12-month bar chart -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs uppercase tracking-wider text-[var(--muted-2)]">Monthly totals</h4>
+                    <span class="text-xs text-[var(--muted)]">Jun 2025 → May 2026 (projected)</span>
+                  </div>
+                  <svg viewBox="0 0 540 260" class="w-full h-[240px]" role="img" aria-label="12-month spend bar chart">
+                    <!-- grid -->
+                    <g stroke="#262626" stroke-dasharray="3 3"><line x1="40" y1="20"  x2="530" y2="20"/><line x1="40" y1="70"  x2="530" y2="70"/><line x1="40" y1="120" x2="530" y2="120"/><line x1="40" y1="170" x2="530" y2="170"/></g>
+                    <line x1="40" y1="220" x2="530" y2="220" stroke="#262626"/>
+                    <!-- y labels (max $4k) -->
+                    <g fill="#71717a" font-size="10" font-family="ui-sans-serif">
+                      <text x="36" y="23"  text-anchor="end">$4k</text>
+                      <text x="36" y="73"  text-anchor="end">$3k</text>
+                      <text x="36" y="123" text-anchor="end">$2k</text>
+                      <text x="36" y="173" text-anchor="end">$1k</text>
+                      <text x="36" y="223" text-anchor="end">$0</text>
+                    </g>
+                    <!-- budget cap line ($3,500 → y=45) -->
+                    <g>
+                      <line x1="40" y1="45" x2="530" y2="45" stroke="#f87171" stroke-width="1" stroke-dasharray="4 3"/>
+                      <text x="528" y="40" text-anchor="end" font-size="10" fill="#f87171">budget cap $3,500</text>
+                    </g>
+                    <!-- bars (width 28, gap 12, start x=50) -->
+                    <g>
+                      <!-- Jun $820 -->   <rect x="50"  y="179" width="28" height="41" fill="#3f3f46" rx="2"/>
+                      <!-- Jul $940 -->   <rect x="90"  y="173" width="28" height="47" fill="#3f3f46" rx="2"/>
+                      <!-- Aug $1050 -->  <rect x="130" y="167" width="28" height="53" fill="#3f3f46" rx="2"/>
+                      <!-- Sep $1180 -->  <rect x="170" y="161" width="28" height="59" fill="#3f3f46" rx="2"/>
+                      <!-- Oct $1310 -->  <rect x="210" y="154" width="28" height="66" fill="#52525b" rx="2"/>
+                      <!-- Nov $1240 -->  <rect x="250" y="158" width="28" height="62" fill="#52525b" rx="2"/>
+                      <!-- Dec $980 -->   <rect x="290" y="171" width="28" height="49" fill="#52525b" rx="2"/>
+                      <!-- Jan $1420 -->  <rect x="330" y="149" width="28" height="71" fill="#71717a" rx="2"/>
+                      <!-- Feb $1490 -->  <rect x="370" y="145" width="28" height="75" fill="#71717a" rx="2"/>
+                      <!-- Mar $1560 -->  <rect x="410" y="142" width="28" height="78" fill="#71717a" rx="2"/>
+                      <!-- Apr $1621 -->  <rect x="450" y="139" width="28" height="81" fill="#a1a1aa" rx="2"/>
+                      <!-- May actual $1820 -->     <rect x="490" y="129" width="28" height="91" fill="#d4f057" rx="2"/>
+                      <!-- May projected (top) +$1821 -->  <rect x="490" y="38"  width="28" height="91" fill="#d4f057" fill-opacity="0.28" rx="2" stroke="#d4f057" stroke-dasharray="3 3" stroke-width="1"/>
+                    </g>
+                    <!-- x labels -->
+                    <g fill="#71717a" font-size="10" font-family="ui-sans-serif" text-anchor="middle">
+                      <text x="64"  y="238">Jun</text>
+                      <text x="104" y="238">Jul</text>
+                      <text x="144" y="238">Aug</text>
+                      <text x="184" y="238">Sep</text>
+                      <text x="224" y="238">Oct</text>
+                      <text x="264" y="238">Nov</text>
+                      <text x="304" y="238">Dec</text>
+                      <text x="344" y="238">Jan</text>
+                      <text x="384" y="238">Feb</text>
+                      <text x="424" y="238">Mar</text>
+                      <text x="464" y="238">Apr</text>
+                      <text x="504" y="238" fill="#d4f057" font-weight="600">May</text>
+                    </g>
+                    <!-- annotation: this month -->
+                    <g font-family="ui-sans-serif">
+                      <text x="504" y="124" font-size="9" fill="#d4f057" text-anchor="middle">$1,820</text>
+                      <text x="504" y="32"  font-size="9" fill="#d4f057" text-anchor="middle" font-weight="600">$3,641</text>
+                    </g>
+                  </svg>
+                  <div class="flex items-center gap-4 text-xs text-[var(--muted)] mt-1 pl-10">
+                    <span class="inline-flex items-center gap-1.5"><span class="legend-swatch" style="background:#d4f057"></span>this month</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="legend-swatch" style="background:#d4f057;opacity:0.4"></span>projected</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="legend-swatch" style="background:#a1a1aa"></span>prior month</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="legend-swatch" style="background:#3f3f46"></span>older</span>
+                  </div>
+                </div>
+
+                <!-- RIGHT: cumulative pacing chart -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs uppercase tracking-wider text-[var(--muted-2)]">Cumulative pacing</h4>
+                    <span class="text-xs text-[var(--muted)]">By day-of-month · this month vs. prior 3</span>
+                  </div>
+                  <svg viewBox="0 0 540 260" class="w-full h-[240px]" role="img" aria-label="Cumulative spend by day-of-month, current vs prior 3 months">
+                    <!-- grid -->
+                    <g stroke="#262626" stroke-dasharray="3 3"><line x1="40" y1="20"  x2="510" y2="20"/><line x1="40" y1="70"  x2="510" y2="70"/><line x1="40" y1="120" x2="510" y2="120"/><line x1="40" y1="170" x2="510" y2="170"/></g>
+                    <line x1="40" y1="220" x2="510" y2="220" stroke="#262626"/>
+                    <!-- y labels (max $4k) -->
+                    <g fill="#71717a" font-size="10" font-family="ui-sans-serif">
+                      <text x="36" y="23"  text-anchor="end">$4k</text>
+                      <text x="36" y="73"  text-anchor="end">$3k</text>
+                      <text x="36" y="123" text-anchor="end">$2k</text>
+                      <text x="36" y="173" text-anchor="end">$1k</text>
+                      <text x="36" y="223" text-anchor="end">$0</text>
+                    </g>
+                    <!-- budget cap -->
+                    <g>
+                      <line x1="40" y1="45" x2="510" y2="45" stroke="#f87171" stroke-width="1" stroke-dasharray="4 3"/>
+                      <text x="508" y="40" text-anchor="end" font-size="10" fill="#f87171">budget cap</text>
+                    </g>
+                    <!-- February ($1,490 at day 28) -->
+                    <polyline fill="none" stroke="#52525b" stroke-width="1.5"
+                      points="40,219 100,210 160,200 220,190 280,178 340,165 400,151 460,139" />
+                    <!-- March ($1,560 at day 31) -->
+                    <polyline fill="none" stroke="#71717a" stroke-width="1.5"
+                      points="40,217 100,208 175,194 250,181 325,168 400,155 490,142" />
+                    <!-- April ($1,621 at day 30) -->
+                    <polyline fill="none" stroke="#a1a1aa" stroke-width="1.5"
+                      points="40,218 100,207 175,194 250,180 325,166 400,152 475,139" />
+                    <!-- This month — solid through day 15 -->
+                    <polyline fill="none" stroke="#d4f057" stroke-width="2.5"
+                      points="40,213 70,202 100,190 130,179 175,161 205,149 250,129" />
+                    <!-- This month — dashed projection day 15 → 31 -->
+                    <polyline fill="none" stroke="#d4f057" stroke-width="2" stroke-dasharray="5 3" opacity="0.85"
+                      points="250,129 325,100 400,70 490,38" />
+                    <!-- Day 15 marker -->
+                    <line x1="250" y1="20" x2="250" y2="220" stroke="#3f3f46" stroke-dasharray="2 3"/>
+                    <text x="250" y="16" font-size="10" fill="#71717a" font-family="ui-sans-serif" text-anchor="middle">today</text>
+                    <circle cx="250" cy="129" r="3.5" fill="#d4f057"/>
+                    <!-- x axis labels -->
+                    <g fill="#71717a" font-size="10" font-family="ui-sans-serif" text-anchor="middle">
+                      <text x="40"  y="238">1</text>
+                      <text x="100" y="238">5</text>
+                      <text x="175" y="238">10</text>
+                      <text x="250" y="238">15</text>
+                      <text x="325" y="238">20</text>
+                      <text x="400" y="238">25</text>
+                      <text x="490" y="238">31</text>
+                    </g>
+                  </svg>
+                  <div class="flex items-center gap-4 text-xs text-[var(--muted)] mt-1 pl-10 flex-wrap">
+                    <span class="inline-flex items-center gap-1.5"><span style="display:inline-block;width:12px;height:2px;background:#d4f057;border-radius:2px"></span>May 2026</span>
+                    <span class="inline-flex items-center gap-1.5"><span style="display:inline-block;width:12px;height:2px;background:#a1a1aa;border-radius:2px"></span>Apr</span>
+                    <span class="inline-flex items-center gap-1.5"><span style="display:inline-block;width:12px;height:2px;background:#71717a;border-radius:2px"></span>Mar</span>
+                    <span class="inline-flex items-center gap-1.5"><span style="display:inline-block;width:12px;height:2px;background:#52525b;border-radius:2px"></span>Feb</span>
+                    <span class="ml-auto text-[var(--text)]">Day 15: tracking <span class="font-medium" style="color:#facc15">+125% vs Apr</span> at same day</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Organization Billing — single full-width card (P3 option A) -->
+          <section aria-label="Organization billing">
+            <h2 class="text-lg font-semibold mb-3">Organization Billing</h2>
+            <div class="card p-5">
+              <div class="flex flex-wrap items-start justify-between gap-6">
+                <div class="min-w-[260px]">
+                  <p class="text-sm text-[var(--muted)]">Monthly billing budget</p>
+                  <p class="text-2xl font-semibold tabular mt-1">$1,820.40 <span class="text-base text-[var(--muted)] font-normal">/ $3,500.00</span></p>
+                  <div class="mt-3 w-[340px] max-w-full">
+                    <div class="progress"><div style="width:52%; background:#d4f057"></div></div>
+                    <p class="text-xs text-[var(--muted)] mt-1">52% used · 16 days left in May</p>
+                  </div>
+                </div>
+                <div class="min-w-[200px]">
+                  <p class="text-sm text-[var(--muted)]">Projected month-end</p>
+                  <p class="text-2xl font-semibold tabular mt-1 ws-over">$3,640.80</p>
+                  <p class="text-xs text-[var(--muted)] mt-3">104% of budget · over by $140.80</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="btn">Edit budget</button>
+                </div>
+              </div>
+              <p class="text-xs text-[var(--muted)] mt-4">
+                Credit balance isn't exposed by the Anthropic API —
+                <a href="https://console.anthropic.com" class="underline underline-offset-4 hover:text-white">view in Anthropic Console ↗</a>.
+              </p>
+            </div>
+          </section>
+
+          <!-- Workspace Budgets — re-sorted by utilization (P2) + hide-zero toggle -->
+          <section aria-label="Workspace budgets">
+            <div class="flex items-center justify-between mb-3 gap-4 flex-wrap">
+              <h2 class="text-lg font-semibold">Workspace Budgets</h2>
+              <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 text-sm text-[var(--muted)] cursor-pointer">
+                  <input type="checkbox" checked class="rounded border-[var(--border-2)] bg-transparent text-[var(--primary)]" />
+                  Hide $0 + no limit
+                </label>
+                <div class="flex items-center gap-1 text-xs text-[var(--muted)]">
+                  Sort:
+                  <button class="chip" style="background:#1f1f1f; color:#fafafa; border-color:var(--border-2)">Utilization</button>
+                  <button class="chip">Spend</button>
+                  <button class="chip">Name</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card divide-y divide-[var(--border)] px-5">
+
+              <!-- Row: Automations (over) -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="ws-name">Automations</span>
+                    <span class="pill" style="background:#2a0a0a; color:#fca5a5; border:1px solid #7f1d1d">
+                      <span class="dot" style="background:#f87171"></span> over budget
+                    </span>
+                  </div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_at1234… · 4 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend ws-over">$52.49</div>
+                  <p class="text-xs text-[var(--muted)]">limit $50.00 · over by $2.49</p>
+                </div>
+                <div class="sparkline" title="Nov $8 → Apr $41 · +413%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="19.4" width="12" height="4.6"  fill="#f87171" rx="1.5"/>
+                    <rect x="16" y="17.0" width="12" height="7.0"  fill="#f87171" rx="1.5"/>
+                    <rect x="30" y="13.5" width="12" height="10.5" fill="#f87171" rx="1.5"/>
+                    <rect x="44" y="10.0" width="12" height="14.0" fill="#f87171" rx="1.5"/>
+                    <rect x="58" y="5.3"  width="12" height="18.7" fill="#f87171" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#f87171" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#f87171">▲ 6mo</span></div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:100%; background:#f87171"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1"><span class="ws-over font-medium">105%</span> · projected $105 month-end</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-expert-1 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-expert-1</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_be0001… · 8 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$125.64</div>
+                  <p class="text-xs text-[var(--muted)]">limit $200.00</p>
+                </div>
+                <div class="sparkline" title="Nov $88 → Apr $118 · +34%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="6.1" width="12" height="17.9" fill="#86efac" rx="1.5"/>
+                    <rect x="16" y="4.6" width="12" height="19.3" fill="#86efac" rx="1.5"/>
+                    <rect x="30" y="3.2" width="12" height="20.7" fill="#86efac" rx="1.5"/>
+                    <rect x="44" y="2.0" width="12" height="21.9" fill="#86efac" rx="1.5"/>
+                    <rect x="58" y="0.6" width="12" height="23.4" fill="#86efac" rx="1.5"/>
+                    <rect x="72" y="0"   width="12" height="24"   fill="#86efac" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label">+34% 6mo</div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:63%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">63% · on pace $251 (126%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-1 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-1</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0001… · 12 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$370.72</div>
+                  <p class="text-xs text-[var(--muted)]">limit $600.00</p>
+                </div>
+                <div class="sparkline" title="Nov $200 → Apr $360 · +80%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="10.7" width="12" height="13.3" fill="#86efac" rx="1.5"/>
+                    <rect x="16" y="8.7"  width="12" height="15.3" fill="#86efac" rx="1.5"/>
+                    <rect x="30" y="5.3"  width="12" height="18.7" fill="#86efac" rx="1.5"/>
+                    <rect x="44" y="3.3"  width="12" height="20.7" fill="#86efac" rx="1.5"/>
+                    <rect x="58" y="1.3"  width="12" height="22.7" fill="#86efac" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#86efac" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label">+80% 6mo</div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:62%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">62% · on pace $741 (124%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-5 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-5</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0005… · 9 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$415.47</div>
+                  <p class="text-xs text-[var(--muted)]">limit $700.00</p>
+                </div>
+                <div class="sparkline" title="Nov $160 → Apr $400 · +150%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="14.4" width="12" height="9.6"  fill="#facc15" rx="1.5"/>
+                    <rect x="16" y="12.0" width="12" height="12.0" fill="#facc15" rx="1.5"/>
+                    <rect x="30" y="8.4"  width="12" height="15.6" fill="#facc15" rx="1.5"/>
+                    <rect x="44" y="5.4"  width="12" height="18.6" fill="#facc15" rx="1.5"/>
+                    <rect x="58" y="2.4"  width="12" height="21.6" fill="#facc15" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#facc15" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#facc15">▲ 150% 6mo</span></div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:59%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">59% · on pace $830 (119%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-7 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-7</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0007… · 3 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$103.41</div>
+                  <p class="text-xs text-[var(--muted)]">limit $200.00</p>
+                </div>
+                <div class="sparkline" title="Nov $50 → Apr $95 · +90%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="11.4" width="12" height="12.6" fill="#86efac" rx="1.5"/>
+                    <rect x="16" y="8.8"  width="12" height="15.2" fill="#86efac" rx="1.5"/>
+                    <rect x="30" y="4.9"  width="12" height="19.1" fill="#86efac" rx="1.5"/>
+                    <rect x="44" y="2.9"  width="12" height="21.1" fill="#86efac" rx="1.5"/>
+                    <rect x="58" y="1.3"  width="12" height="22.7" fill="#86efac" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#86efac" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label">+90% 6mo</div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:52%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">52% · on pace $207 (103%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-6 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-6</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0006… · 5 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$187.02</div>
+                  <p class="text-xs text-[var(--muted)]">limit $450.00</p>
+                </div>
+                <div class="sparkline" title="Nov $90 → Apr $175 · +94%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="11.6" width="12" height="12.4" fill="#86efac" rx="1.5"/>
+                    <rect x="16" y="9.6"  width="12" height="14.4" fill="#86efac" rx="1.5"/>
+                    <rect x="30" y="6.1"  width="12" height="17.9" fill="#86efac" rx="1.5"/>
+                    <rect x="44" y="4.1"  width="12" height="19.9" fill="#86efac" rx="1.5"/>
+                    <rect x="58" y="2.1"  width="12" height="21.9" fill="#86efac" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#86efac" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label">+94% 6mo</div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:42%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">42% · on pace $374 (83%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-2 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-2</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0002… · 11 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$208.88</div>
+                  <p class="text-xs text-[var(--muted)]">limit $600.00</p>
+                </div>
+                <div class="sparkline" title="Nov $110 → Apr $200 · +82%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="10.8" width="12" height="13.2" fill="#86efac" rx="1.5"/>
+                    <rect x="16" y="8.4"  width="12" height="15.6" fill="#86efac" rx="1.5"/>
+                    <rect x="30" y="4.8"  width="12" height="19.2" fill="#86efac" rx="1.5"/>
+                    <rect x="44" y="3.0"  width="12" height="21.0" fill="#86efac" rx="1.5"/>
+                    <rect x="58" y="1.4"  width="12" height="22.6" fill="#86efac" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#86efac" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label">+82% 6mo</div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:35%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">35% · on pace $418 (70%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-3 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-3</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0003… · 7 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$190.62</div>
+                  <p class="text-xs text-[var(--muted)]">limit $550.00</p>
+                </div>
+                <div class="sparkline" title="Nov $85 → Apr $180 · +112%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="12.7" width="12" height="11.3" fill="#facc15" rx="1.5"/>
+                    <rect x="16" y="11.0" width="12" height="13.0" fill="#facc15" rx="1.5"/>
+                    <rect x="30" y="7.3"  width="12" height="16.7" fill="#facc15" rx="1.5"/>
+                    <rect x="44" y="5.1"  width="12" height="18.9" fill="#facc15" rx="1.5"/>
+                    <rect x="58" y="2.0"  width="12" height="22.0" fill="#facc15" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#facc15" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#facc15">▲ 112% 6mo</span></div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:35%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">35% · on pace $381 (69%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-4 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-4</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0004… · 6 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$125.82</div>
+                  <p class="text-xs text-[var(--muted)]">limit $450.00</p>
+                </div>
+                <div class="sparkline" title="Nov $60 → Apr $122 · +103%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="12.2" width="12" height="11.8" fill="#facc15" rx="1.5"/>
+                    <rect x="16" y="9.3"  width="12" height="14.7" fill="#facc15" rx="1.5"/>
+                    <rect x="30" y="5.3"  width="12" height="18.7" fill="#facc15" rx="1.5"/>
+                    <rect x="44" y="3.4"  width="12" height="20.6" fill="#facc15" rx="1.5"/>
+                    <rect x="58" y="1.4"  width="12" height="22.6" fill="#facc15" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#facc15" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#facc15">▲ 103% 6mo</span></div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:28%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">28% · on pace $252 (56%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- boost-starter-8 -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2"><span class="ws-name">boost-starter-8</span></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">ws_bs0008… · 2 users</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$39.52</div>
+                  <p class="text-xs text-[var(--muted)]">limit $300.00</p>
+                </div>
+                <div class="sparkline" title="Nov $18 → Apr $70 · +289%">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="17.8" width="12" height="6.2"  fill="#facc15" rx="1.5"/>
+                    <rect x="16" y="15.4" width="12" height="8.6"  fill="#facc15" rx="1.5"/>
+                    <rect x="30" y="12.0" width="12" height="12.0" fill="#facc15" rx="1.5"/>
+                    <rect x="44" y="9.6"  width="12" height="14.4" fill="#facc15" rx="1.5"/>
+                    <rect x="58" y="5.1"  width="12" height="18.9" fill="#facc15" rx="1.5"/>
+                    <rect x="72" y="0"    width="12" height="24"   fill="#facc15" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#facc15">▲ 6mo</span></div>
+                </div>
+                <div>
+                  <div class="progress"><div style="width:13%; background:#d4f057"></div></div>
+                  <p class="text-xs text-[var(--muted)] mt-1">13% · on pace $79 (26%)</p>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Edit</button>
+                  <button class="btn btn-ghost" title="View workspace">↗</button>
+                </div>
+              </div>
+
+              <!-- Default Workspace (has spend but no limit) -->
+              <div class="ws-row row">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="ws-name">Default Workspace</span>
+                    <span class="chip">Default</span>
+                  </div>
+                  <p class="text-xs text-[var(--muted)] mt-1">— · 1 user</p>
+                </div>
+                <div>
+                  <div class="ws-spend">$0.81</div>
+                  <p class="text-xs text-[var(--muted)]">no limit configured</p>
+                </div>
+                <div class="sparkline" title="Stable, near-zero usage">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <rect x="2"  y="20" width="12" height="4" fill="#52525b" rx="1.5"/>
+                    <rect x="16" y="21" width="12" height="3" fill="#52525b" rx="1.5"/>
+                    <rect x="30" y="20" width="12" height="4" fill="#52525b" rx="1.5"/>
+                    <rect x="44" y="22" width="12" height="2" fill="#52525b" rx="1.5"/>
+                    <rect x="58" y="21" width="12" height="3" fill="#52525b" rx="1.5"/>
+                    <rect x="72" y="22" width="12" height="2" fill="#52525b" rx="1.5"/>
+                  </svg>
+                  <div class="sparkline-label">flat</div>
+                </div>
+                <div></div>
+                <div class="flex items-center gap-1">
+                  <button class="btn">Set limit</button>
+                </div>
+              </div>
+
+            </div>
+
+            <details class="mt-3">
+              <summary class="text-sm text-[var(--muted)] hover:text-white inline-flex items-center gap-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                Show 3 hidden workspaces ($0, no limit)
+              </summary>
+              <div class="card divide-y divide-[var(--border)] px-5 mt-2 opacity-70">
+                <div class="ws-row row">
+                  <div><span class="ws-name">boost-expert-2</span></div>
+                  <div><div class="ws-spend">$0.00</div><p class="text-xs text-[var(--muted)]">no limit</p></div>
+                  <div></div>
+                  <div><button class="btn">Set limit</button></div>
+                </div>
+                <div class="ws-row row">
+                  <div><span class="ws-name">boost-expert-3</span></div>
+                  <div><div class="ws-spend">$0.00</div><p class="text-xs text-[var(--muted)]">no limit</p></div>
+                  <div></div>
+                  <div><button class="btn">Set limit</button></div>
+                </div>
+                <div class="ws-row row">
+                  <div><span class="ws-name">boost-starter-9</span></div>
+                  <div><div class="ws-spend">$0.00</div><p class="text-xs text-[var(--muted)]">no limit</p></div>
+                  <div></div>
+                  <div><button class="btn">Set limit</button></div>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <p class="text-xs text-[var(--muted)] pt-2 pb-8">
+            Mockup · uses real workspace names + month-to-date values from your dev DB on 2026-05-15. Daily values in the chart are synthesized for visualization.
+          </p>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
