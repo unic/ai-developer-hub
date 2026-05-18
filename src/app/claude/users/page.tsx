@@ -10,8 +10,11 @@ import {
   getUserTopMovers,
   getDailyTotalsByUser,
 } from "@/actions/anthropic-users";
+import { getSyncStatus } from "@/actions/anthropic-global";
 import { ClaudeTabs } from "@/components/claude/claude-tabs";
 import { SyncButton } from "@/components/claude/sync-button";
+import { SyncStatusPill } from "@/components/claude/sync-status-pill";
+import { UsersMonthPicker } from "@/components/claude/users-month-picker";
 import { UserKpiStrip } from "@/components/claude/user-kpi-strip";
 import { TopUsersBarChart } from "@/components/claude/top-users-bar-chart";
 import { CostDistributionHistogram } from "@/components/claude/cost-distribution-histogram";
@@ -23,13 +26,29 @@ import { format } from "date-fns";
 
 export const metadata: Metadata = { title: "Claude Console · Users" };
 
-export default async function ClaudeUsersPage() {
+// Mirrors the canonical month regex used by every server action that takes a
+// `month?: string` parameter. Pages reuse it so an invalid URL param falls
+// back to the current month cleanly instead of being silently passed through.
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+type SearchParamsPromise = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function ClaudeUsersPage({
+  searchParams,
+}: {
+  searchParams: SearchParamsPromise;
+}) {
   const session = await auth();
   if (!session?.user || session.user.role !== "admin") {
     redirect("/");
   }
 
+  const params = await searchParams;
+  const rawMonth = typeof params.month === "string" ? params.month : undefined;
   const currentMonth = format(new Date(), "yyyy-MM");
+  const selectedMonth =
+    rawMonth && MONTH_PATTERN.test(rawMonth) ? rawMonth : currentMonth;
+
   const availableMonths = await getAvailableUserMonths();
 
   // No data at all → friendly empty state with a manual sync button. Mirrors
@@ -55,18 +74,20 @@ export default async function ClaudeUsersPage() {
     );
   }
 
-  const [kpis, list, distribution, sparklines, movers, daily] = await Promise.all([
-    getUsersDashboardKpis(currentMonth),
-    getUserList(currentMonth),
-    getUserCostDistribution(currentMonth),
-    getUserSparklines(),
-    getUserTopMovers(),
-    getDailyTotalsByUser(currentMonth),
-  ]);
+  const [kpis, list, distribution, sparklines, movers, daily, syncStatus] =
+    await Promise.all([
+      getUsersDashboardKpis(selectedMonth),
+      getUserList(selectedMonth),
+      getUserCostDistribution(selectedMonth),
+      getUserSparklines(),
+      getUserTopMovers(),
+      getDailyTotalsByUser(selectedMonth),
+      getSyncStatus(),
+    ]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Claude API Spending
@@ -75,7 +96,11 @@ export default async function ClaudeUsersPage() {
             Per-user breakdown of Anthropic usage and cost.
           </p>
         </div>
-        <SyncButton />
+        <div className="flex flex-wrap items-center gap-3">
+          <UsersMonthPicker value={selectedMonth} months={availableMonths} />
+          <SyncStatusPill status={syncStatus} />
+          <SyncButton />
+        </div>
       </div>
 
       <ClaudeTabs />
