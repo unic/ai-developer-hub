@@ -88,6 +88,11 @@ export function WorkspaceModelBreakdown({
           ))}
         </TableBody>
       </Table>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Model-level totals come from Anthropic&apos;s usage endpoint and may not
+        exactly match the workspace headline cost (different rounding and
+        aggregation windows).
+      </p>
     </div>
   );
 }

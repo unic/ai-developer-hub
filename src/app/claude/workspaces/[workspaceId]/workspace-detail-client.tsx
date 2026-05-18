@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { MonthPicker } from "@/components/profile/month-picker";
 import { KpiStrip, type KpiTile } from "@/components/claude/kpi-strip";
 import { WorkspaceDailyChart } from "@/components/claude/workspace-daily-chart";
@@ -18,6 +17,7 @@ import { toast } from "sonner";
 import type { WorkspaceDetail } from "@/types";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { getDaysInMonth, parseISO } from "date-fns";
 
 type Props = {
   workspaceIdParam: string;
@@ -172,23 +172,30 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           )}
         </div>
         {editing ? (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">$</span>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              className="w-28"
-              value={limitInput}
-              onChange={(e) => setLimitInput(e.target.value)}
-              autoFocus
-            />
-            <Button size="sm" onClick={handleSaveLimit} disabled={savingLimit}>
-              {savingLimit ? "Saving…" : "Save"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={savingLimit}>
-              Cancel
-            </Button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">$</span>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-28"
+                value={limitInput}
+                onChange={(e) => setLimitInput(e.target.value)}
+                autoFocus
+              />
+              <Button size="sm" onClick={handleSaveLimit} disabled={savingLimit}>
+                {savingLimit ? "Saving…" : "Save"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={savingLimit}>
+                Cancel
+              </Button>
+            </div>
+            {detail.workspace.isDefault && (
+              <p className="text-xs text-muted-foreground">
+                Applies to all API usage not assigned to a named workspace.
+              </p>
+            )}
           </div>
         ) : (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
@@ -196,10 +203,6 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           </Button>
         )}
       </div>
-
-      {detail.utilizationPct != null && detail.utilizationPct >= 100 && (
-        <Badge variant="destructive">Over budget</Badge>
-      )}
 
       <KpiStrip tiles={tiles} />
 
@@ -211,6 +214,8 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           <WorkspaceDailyChart
             dailyTotals={detail.dailyTotals}
             color={detail.workspace.displayColor}
+            limitCents={detail.limitCents}
+            daysInMonth={getDaysInMonth(parseISO(`${month}-01`))}
           />
         </CardContent>
       </Card>
