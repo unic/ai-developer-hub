@@ -41,7 +41,7 @@ import type {
   DailyByUserResult,
   DailyByUserRow,
   UserDetail,
-  UserModelBreakdownRow,
+  ModelBreakdownRow,
   UserDailyRow,
   UserTopDateRow,
 } from "@/types";
@@ -655,47 +655,54 @@ async function _getUserDetail(
   userId: number,
   month: string
 ): Promise<UserDetail | null> {
-  // User + workspace meta. Use LEFT JOINs so a user without a resolved
-  // workspace (or with no sync_status row) still surfaces.
-  const userMetaRows = await db.execute(sql`
-    SELECT
-      u.id, u.name, u.email, u.circle, u.profile, u.status, u.role,
-      s.resolved_workspace_id,
-      w.name          AS workspace_name,
-      w.display_color AS workspace_color
-    FROM users u
-    LEFT JOIN anthropic_sync_status s ON s.user_id = u.id
-    LEFT JOIN anthropic_workspaces w
-      ON w.workspace_id IS NOT DISTINCT FROM s.resolved_workspace_id
-    WHERE u.id = ${userId}
-    LIMIT 1
-  `);
-  const userRow = userMetaRows.rows[0];
-  if (!userRow) return null;
-
   const periodStart = `${month}-01`;
   const periodEnd = format(endOfMonth(parseISO(periodStart)), "yyyy-MM-dd");
-  const priorMonthDate = subMonths(parseISO(periodStart), 1);
-  const priorStart = format(startOfMonth(priorMonthDate), "yyyy-MM-dd");
-  const priorEnd = format(endOfMonth(priorMonthDate), "yyyy-MM-dd");
 
-  // Per-day, per-model rows for the selected month. Used to build daily
-  // totals, model breakdown, top dates, and the unresolved-pricing flag in
-  // a single round-trip.
-  const monthRows = await db.execute(sql`
-    SELECT
-      m.date::text AS date,
-      m.model,
-      m.uncached_input_tokens,
-      m.cache_read_input_tokens,
-      m.cache_creation_input_tokens,
-      m.output_tokens,
-      m.computed_cost_cents,
-      m.pricing_resolved
-    FROM anthropic_usage_metrics m
-    WHERE m.user_id = ${userId}
-      AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
-  `);
+  // Fire all four reads in parallel; queries 2-4 don't depend on the user
+  // meta result, so we don't need to gate them on it.
+  const [userMetaRows, monthRows, twelveRows, availableMonths] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        u.id, u.name, u.email, u.circle, u.profile, u.status, u.role,
+        s.resolved_workspace_id,
+        w.name          AS workspace_name,
+        w.display_color AS workspace_color
+      FROM users u
+      LEFT JOIN anthropic_sync_status s ON s.user_id = u.id
+      LEFT JOIN anthropic_workspaces w
+        ON w.workspace_id IS NOT DISTINCT FROM s.resolved_workspace_id
+      WHERE u.id = ${userId}
+      LIMIT 1
+    `),
+    db.execute(sql`
+      SELECT
+        m.date::text AS date,
+        m.model,
+        m.uncached_input_tokens,
+        m.cache_read_input_tokens,
+        m.cache_creation_input_tokens,
+        m.output_tokens,
+        m.computed_cost_cents,
+        m.pricing_resolved
+      FROM anthropic_usage_metrics m
+      WHERE m.user_id = ${userId}
+        AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
+    `),
+    db.execute(sql`
+      SELECT
+        to_char(date_trunc('month', date), 'YYYY-MM') AS month,
+        COALESCE(SUM(computed_cost_cents), 0)::bigint AS cents
+      FROM anthropic_usage_metrics
+      WHERE user_id = ${userId}
+        AND date >= (date_trunc('month', ${periodStart}::date) - interval '11 months')::date
+        AND date <= ${periodEnd}::date
+      GROUP BY 1
+      ORDER BY 1
+    `),
+    _getUserMonths(userId),
+  ]);
+  const userRow = userMetaRows.rows[0];
+  if (!userRow) return null;
 
   // Daily totals — pad missing days so charts/top-dates can iterate cleanly.
   const dailyMap = new Map<string, number>();
@@ -748,16 +755,13 @@ async function _getUserDetail(
     (s, m) => s + m.cents,
     0
   );
-  const modelBreakdown: UserModelBreakdownRow[] = Array.from(
-    modelTotals.entries()
-  )
+  const modelBreakdown: ModelBreakdownRow[] = Array.from(modelTotals.entries())
     .map(([modelName, v]) => ({
       modelName,
       tokensIn: v.tokensIn,
       tokensOut: v.tokensOut,
       costCents: v.cents,
-      pctOfUser:
-        userVisibleTotal === 0 ? 0 : Math.round((v.cents / userVisibleTotal) * 100),
+      pct: userVisibleTotal === 0 ? 0 : Math.round((v.cents / userVisibleTotal) * 100),
     }))
     .sort((a, b) => b.costCents - a.costCents);
 
@@ -774,14 +778,21 @@ async function _getUserDetail(
       dominantModel: dominantMap.get(d.date) ?? null,
     }));
 
-  // Prior month total for MoM delta.
-  const priorRows = await db.execute(sql`
-    SELECT COALESCE(SUM(computed_cost_cents), 0)::bigint AS cents
-    FROM anthropic_usage_metrics
-    WHERE user_id = ${userId}
-      AND date BETWEEN ${priorStart}::date AND ${priorEnd}::date
-  `);
-  const priorMonthCents = Number(priorRows.rows[0]?.cents ?? 0);
+  // Twelve-month trend (current month included). Pad missing months with 0
+  // so the bar chart has a consistent x-axis when the user only has spotty
+  // history.
+  const twelveMap = new Map<string, number>();
+  for (const r of twelveRows.rows) {
+    twelveMap.set(r.month as string, Number(r.cents ?? 0));
+  }
+
+  // Prior month total is the row in twelveMap one month before periodStart —
+  // covered by the same query above, so no separate round-trip needed.
+  const priorMonthKey = format(
+    subMonths(parseISO(periodStart), 1),
+    "yyyy-MM"
+  );
+  const priorMonthCents = twelveMap.get(priorMonthKey) ?? 0;
   const momDeltaCents = currentMonthCents - priorMonthCents;
   // Mirror the workspace rule: suppress the % when the prior period is < $1.
   const momDeltaPct =
@@ -800,32 +811,13 @@ async function _getUserDetail(
     daysInMonth
   );
 
-  // Twelve-month trend (current month included). Pad missing months with 0
-  // so the bar chart has a consistent x-axis when the user only has spotty
-  // history.
-  const twelveRows = await db.execute(sql`
-    SELECT
-      to_char(date_trunc('month', date), 'YYYY-MM') AS month,
-      COALESCE(SUM(computed_cost_cents), 0)::bigint AS cents
-    FROM anthropic_usage_metrics
-    WHERE user_id = ${userId}
-      AND date >= (date_trunc('month', ${periodStart}::date) - interval '11 months')::date
-      AND date <= ${periodEnd}::date
-    GROUP BY 1
-    ORDER BY 1
-  `);
-  const twelveMap = new Map<string, number>();
-  for (const r of twelveRows.rows) {
-    twelveMap.set(r.month as string, Number(r.cents ?? 0));
-  }
+  // Pad missing months from twelveMap so the bar chart has a consistent x-axis.
   const twelveMonth: { month: string; totalCents: number }[] = [];
   for (let i = 11; i >= 0; i--) {
     const m = subMonths(parseISO(periodStart), i);
     const key = format(m, "yyyy-MM");
     twelveMonth.push({ month: key, totalCents: twelveMap.get(key) ?? 0 });
   }
-
-  const availableMonths = await _getUserMonths(userId);
 
   return {
     user: {

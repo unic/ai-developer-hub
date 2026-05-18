@@ -19,7 +19,8 @@ import { UserKpiStrip } from "@/components/claude/user-kpi-strip";
 import { TopUsersBarChart } from "@/components/claude/top-users-bar-chart";
 import { CostDistributionHistogram } from "@/components/claude/cost-distribution-histogram";
 import { DailyByUserChart } from "@/components/claude/daily-by-user-chart";
-import { UsersTableWithMovers } from "@/components/claude/users-table-with-movers";
+import { UsersTable } from "@/components/claude/users-table";
+import { UserTopMoversChips } from "@/components/claude/user-top-movers-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users as UsersIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -49,11 +50,28 @@ export default async function ClaudeUsersPage({
   const selectedMonth =
     rawMonth && MONTH_PATTERN.test(rawMonth) ? rawMonth : currentMonth;
 
-  const availableMonths = await getAvailableUserMonths();
+  const [
+    kpis,
+    list,
+    distribution,
+    sparklines,
+    movers,
+    daily,
+    syncStatus,
+    availableMonths,
+  ] = await Promise.all([
+    getUsersDashboardKpis(selectedMonth),
+    getUserList(selectedMonth),
+    getUserCostDistribution(selectedMonth),
+    getUserSparklines(),
+    getUserTopMovers(),
+    getDailyTotalsByUser(selectedMonth),
+    getSyncStatus(),
+    getAvailableUserMonths(),
+  ]);
 
-  // No data at all → friendly empty state with a manual sync button. Mirrors
-  // the EmptyState pattern on `/claude` (src/app/claude/page.tsx:123-135),
-  // adapted for user-level copy.
+  // No data at all → friendly empty state. Mirrors `/claude`'s EmptyState
+  // pattern, with user-level copy.
   if (availableMonths.length === 0) {
     return (
       <div className="space-y-6">
@@ -73,17 +91,6 @@ export default async function ClaudeUsersPage({
       </div>
     );
   }
-
-  const [kpis, list, distribution, sparklines, movers, daily, syncStatus] =
-    await Promise.all([
-      getUsersDashboardKpis(selectedMonth),
-      getUserList(selectedMonth),
-      getUserCostDistribution(selectedMonth),
-      getUserSparklines(),
-      getUserTopMovers(),
-      getDailyTotalsByUser(selectedMonth),
-      getSyncStatus(),
-    ]);
 
   return (
     <div className="space-y-6">
@@ -120,15 +127,19 @@ export default async function ClaudeUsersPage({
         </CardContent>
       </Card>
 
-      {/* Distribution histogram + fastest growing chips share a row above the
-          table; the client wrapper owns the search state so the chips can
-          imperatively filter the table on click. */}
-      <UsersTableWithMovers
-        users={list.users}
-        sparklines={sparklines}
-        movers={movers}
-        histogram={<CostDistributionHistogram key="histogram" buckets={distribution} />}
-      />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CostDistributionHistogram buckets={distribution} />
+        <UserTopMoversChips movers={movers} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">All Users</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UsersTable users={list.users} sparklines={sparklines} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

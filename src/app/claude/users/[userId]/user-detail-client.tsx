@@ -4,8 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonthPicker } from "@/components/profile/month-picker";
 import { KpiStrip, type KpiTile } from "@/components/claude/kpi-strip";
-import { UserDailyChart } from "@/components/claude/user-daily-chart";
-import { UserModelBreakdown } from "@/components/claude/user-model-breakdown";
+import { WorkspaceDailyChart } from "@/components/claude/workspace-daily-chart";
+import { WorkspaceModelBreakdown } from "@/components/claude/workspace-model-breakdown";
 import { UserTwelveMonthBarChart } from "@/components/claude/user-twelve-month-bar-chart";
 import { UserTopDates } from "@/components/claude/user-top-dates";
 import { getUserDetail } from "@/actions/anthropic-users";
@@ -93,7 +93,7 @@ export function UserDetailClient({ userId, initial }: Props) {
           <span className="text-muted-foreground">—</span>
         ),
         caption: topModel
-          ? `${topModel.pctOfUser}% of this user's cost`
+          ? `${topModel.pct}% of this user's cost`
           : "No usage this month",
       },
     ];
@@ -136,9 +136,10 @@ export function UserDetailClient({ userId, initial }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <UserDailyChart
+          <WorkspaceDailyChart
             dailyTotals={detail.dailyTotals}
             color={detail.workspace.displayColor}
+            limitCents={null}
           />
         </CardContent>
       </Card>
@@ -149,7 +150,7 @@ export function UserDetailClient({ userId, initial }: Props) {
             <CardTitle className="text-base">Model breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <UserModelBreakdown rows={detail.modelBreakdown} />
+            <WorkspaceModelBreakdown rows={detail.modelBreakdown} scopeLabel="User" />
           </CardContent>
         </Card>
         <Card>

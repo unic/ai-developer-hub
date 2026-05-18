@@ -1037,8 +1037,7 @@ async function _getWorkspaceDetail(
       tokensIn: Number(r.tokens_in ?? 0),
       tokensOut: Number(r.tokens_out ?? 0),
       costCents: cents,
-      pctOfWorkspace:
-        userVisibleTotal === 0 ? 0 : Math.round((cents / userVisibleTotal) * 100),
+      pct: userVisibleTotal === 0 ? 0 : Math.round((cents / userVisibleTotal) * 100),
     };
   });
 

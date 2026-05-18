@@ -54,21 +54,9 @@ type Props = {
   users: UserListRow[];
   /** Optional 6-month sparkline data keyed by userId (Phase 2). */
   sparklines?: Record<number, UserSparkline[]>;
-  /**
-   * Controlled search input — when provided, the parent owns the search state
-   * (Phase 2 wires the top-movers chip click into this). When omitted, the
-   * table manages its own search state for backwards compatibility.
-   */
-  searchValue?: string;
-  onSearchChange?: (next: string) => void;
 };
 
-export function UsersTable({
-  users,
-  sparklines,
-  searchValue,
-  onSearchChange,
-}: Props) {
+export function UsersTable({ users, sparklines }: Props) {
   // Hide-$0 toggle — default ON, persisted to localStorage.
   const [hideZero, setHideZero] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -96,15 +84,7 @@ export function UsersTable({
   const [circleFilter, setCircleFilter] = useState<Set<string>>(new Set());
   const [profileFilter, setProfileFilter] = useState<Set<string>>(new Set());
 
-  // Search — controlled when the parent passes `searchValue` + `onSearchChange`
-  // (Phase 2 top-movers chip click), uncontrolled otherwise.
-  const isControlled = searchValue !== undefined;
-  const [searchInputUncontrolled, setSearchInputUncontrolled] = useState("");
-  const searchInput = isControlled ? searchValue : searchInputUncontrolled;
-  const setSearchInput = (next: string) => {
-    if (isControlled) onSearchChange?.(next);
-    else setSearchInputUncontrolled(next);
-  };
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim().toLowerCase()), SEARCH_DEBOUNCE_MS);

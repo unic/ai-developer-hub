@@ -21,7 +21,7 @@ describe("Model breakdown percent math", () => {
     const total = rows.reduce((s, r) => s + r.costCents, 0);
     return rows.map((r) => ({
       ...r,
-      pctOfWorkspace: total === 0 ? 0 : Math.round((r.costCents / total) * 100),
+      pct: total === 0 ? 0 : Math.round((r.costCents / total) * 100),
     }));
   }
   it("sums to approximately 100 (rounding-tolerant)", () => {
@@ -30,7 +30,7 @@ describe("Model breakdown percent math", () => {
       { modelName: "sonnet", costCents: 1642 },
       { modelName: "haiku", costCents: 587 },
     ]);
-    const total = rows.reduce((s, r) => s + r.pctOfWorkspace, 0);
+    const total = rows.reduce((s, r) => s + r.pct, 0);
     expect(total).toBeGreaterThanOrEqual(99);
     expect(total).toBeLessThanOrEqual(101);
   });
@@ -39,7 +39,7 @@ describe("Model breakdown percent math", () => {
       { modelName: "opus", costCents: 0 },
       { modelName: "sonnet", costCents: 0 },
     ]);
-    expect(rows.every((r) => r.pctOfWorkspace === 0)).toBe(true);
+    expect(rows.every((r) => r.pct === 0)).toBe(true);
   });
 });
 

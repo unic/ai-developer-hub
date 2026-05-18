@@ -558,7 +558,8 @@ export interface ModelBreakdownRow {
   tokensIn: number;
   tokensOut: number;
   costCents: number;
-  pctOfWorkspace: number;
+  /** Percentage of the enclosing entity's total cost (0–100). Renders as "% Workspace" or "% User" depending on the scope. */
+  pct: number;
 }
 
 export interface WorkspaceDetail {
@@ -709,16 +710,6 @@ export interface DailyByUserResult {
 
 // Spec 027 — Phase 3 (per-user drill-through)
 
-/** One model row in the per-user model breakdown table. */
-export interface UserModelBreakdownRow {
-  modelName: string;
-  tokensIn: number;
-  tokensOut: number;
-  costCents: number;
-  /** Percentage of the user's own cost (0–100). */
-  pctOfUser: number;
-}
-
 /** One day in the per-user daily-cost chart. */
 export interface UserDailyRow {
   date: string;
@@ -766,7 +757,7 @@ export interface UserDetail {
   projectedMonthEndCents: number;
   /** One entry per day in the period; missing days padded to 0. */
   dailyTotals: UserDailyRow[];
-  modelBreakdown: UserModelBreakdownRow[];
+  modelBreakdown: ModelBreakdownRow[];
   /** Up to 5 highest-cost days in the period. */
   topDates: UserTopDateRow[];
   /** Last 12 months including the current month. */

@@ -6,23 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { UserTopMover } from "@/types";
 
 /**
- * "Fastest growing users (6mo)" chips.
- *
- * Mirrors `TopMoversChips` (workspace-level). Phase 3 rewires the chip to
- * navigate to the per-user drill page at `/claude/users/{userId}` — the chip
- * now drills in (Phase 2's table-filter trick is superseded by the dedicated
- * per-user route). `onSelect` is preserved as an optional escape hatch for
- * any caller that still wants the filter side-effect (it fires before the
- * Next.js Link's navigation).
+ * "Fastest growing users (6mo)" chips. Mirrors workspace-level `TopMoversChips`;
+ * each chip is a `<Link>` to the per-user drill page.
  */
-export function UserTopMoversChips({
-  movers,
-  onSelect,
-}: {
-  movers: UserTopMover[];
-  /** Optional: fires before navigation; preserved for backwards compatibility. */
-  onSelect?: (email: string) => void;
-}) {
+export function UserTopMoversChips({ movers }: { movers: UserTopMover[] }) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -41,7 +28,6 @@ export function UserTopMoversChips({
                 <Link
                   key={m.userId}
                   href={`/claude/users/${m.userId}`}
-                  onClick={() => onSelect?.(m.email)}
                   className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
                   title={`${label}: $${(m.priorCents / 100).toFixed(0)} → $${(m.recentCents / 100).toFixed(0)} over 6 months`}
                   data-testid={`user-mover-chip-${m.userId}`}
