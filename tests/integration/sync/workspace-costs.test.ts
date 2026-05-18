@@ -6,6 +6,8 @@ describe("Workspace cost sync idempotency", () => {
   const testWorkspaceId = "test-ws-idempotent-" + Date.now();
   const testDate = "2020-01-01"; // Far past to avoid conflicts
   const testDateNull = "2020-01-02"; // Separate date for null workspace tests
+  const perDayWorkspaceId = "test-ws-per-day-" + Date.now();
+  const perDayDates = ["2020-02-01", "2020-02-02", "2020-02-03"];
 
   afterAll(async () => {
     // Cleanup test data
@@ -14,6 +16,9 @@ describe("Workspace cost sync idempotency", () => {
     );
     await db.execute(
       sql`DELETE FROM anthropic_workspace_costs WHERE workspace_id IS NULL AND date = ${testDateNull}`
+    );
+    await db.execute(
+      sql`DELETE FROM anthropic_workspace_costs WHERE workspace_id = ${perDayWorkspaceId}`
     );
   });
 
@@ -65,6 +70,47 @@ describe("Workspace cost sync idempotency", () => {
     );
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].cost_cents).toBe(500); // Last write wins
+  });
+
+  it("stores one row per (workspace_id, date) for a multi-day sync", async () => {
+    // Simulate the fixed sync writing per-day rows for the same workspace
+    // across three consecutive days.
+    for (const [i, date] of perDayDates.entries()) {
+      const cents = (i + 1) * 100; // 100, 200, 300
+      await db.execute(sql`
+        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+        VALUES (${perDayWorkspaceId}, ${date}, ${cents})
+        ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+        DO UPDATE SET cost_cents = ${cents}, updated_at = now()
+      `);
+    }
+
+    const rows = await db.execute(
+      sql`SELECT date::text AS date, cost_cents FROM anthropic_workspace_costs
+          WHERE workspace_id = ${perDayWorkspaceId}
+          ORDER BY date ASC`
+    );
+
+    expect(rows.rows).toHaveLength(3);
+    expect(rows.rows.map((r) => r.date)).toEqual(perDayDates);
+    expect(rows.rows.map((r) => Number(r.cost_cents))).toEqual([100, 200, 300]);
+
+    // Re-running the same upserts must not produce duplicates or change values.
+    for (const [i, date] of perDayDates.entries()) {
+      const cents = (i + 1) * 100;
+      await db.execute(sql`
+        INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
+        VALUES (${perDayWorkspaceId}, ${date}, ${cents})
+        ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
+        DO UPDATE SET cost_cents = ${cents}, updated_at = now()
+      `);
+    }
+
+    const rerunRows = await db.execute(
+      sql`SELECT COUNT(*)::int AS count FROM anthropic_workspace_costs
+          WHERE workspace_id = ${perDayWorkspaceId}`
+    );
+    expect(Number(rerunRows.rows[0].count)).toBe(3);
   });
 
   it("handles default workspace (null workspace_id) upsert correctly", async () => {

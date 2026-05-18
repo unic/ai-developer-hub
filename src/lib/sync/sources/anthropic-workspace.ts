@@ -91,6 +91,7 @@ async function fetchCostReport(
     const query = [
       `starting_at=${encodeURIComponent(startingAt)}`,
       `ending_at=${encodeURIComponent(endingAt)}`,
+      "bucket_width=1d",
       "group_by[]=workspace_id",
       ...(page ? [`page=${encodeURIComponent(page)}`] : []),
     ].join("&");
@@ -147,6 +148,41 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
   return response.data.length;
 }
 
+/**
+ * Aggregate a cost_report response into one entry per (workspace_id, day).
+ *
+ * Anthropic returns daily buckets (with `bucket_width=1d`) where each bucket's
+ * `results[]` is grouped by `workspace_id`. A single workspace may appear in
+ * multiple result rows of the same bucket (e.g., split by `cost_type`), which
+ * must be summed into a single per-day cost.
+ */
+export function aggregateDailyCosts(
+  buckets: z.infer<typeof costReportBucketSchema>[]
+): { workspaceId: string | null; date: string; costCents: number }[] {
+  // key: `${workspaceId ?? "__default__"}|${YYYY-MM-DD}`
+  const byKey = new Map<
+    string,
+    { workspaceId: string | null; date: string; costCents: number }
+  >();
+
+  for (const bucket of buckets) {
+    const date = bucket.starting_at.slice(0, 10); // "YYYY-MM-DDTHH:..." → "YYYY-MM-DD"
+    for (const r of bucket.results) {
+      const wsId = r.workspace_id ?? null;
+      const key = `${wsId ?? "__default__"}|${date}`;
+      const cents = Math.round(parseFloat(r.amount));
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.costCents += cents;
+      } else {
+        byKey.set(key, { workspaceId: wsId, date, costCents: cents });
+      }
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
 async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   // month format: YYYY-MM
   const startDate = `${month}-01T00:00:00Z`;
@@ -171,23 +207,14 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
     fetchCostReport(startDate, endDate)
   );
 
-  // Flatten all results across time buckets and aggregate per workspace
-  const allResults = buckets.flatMap(bucket => bucket.results);
-  const costByWorkspace = new Map<string | null, number>();
-  for (const r of allResults) {
-    const wsId = r.workspace_id ?? null;
-    const amountCents = Math.round(parseFloat(r.amount));
-    costByWorkspace.set(wsId, (costByWorkspace.get(wsId) ?? 0) + amountCents);
-  }
+  const dailyRows = aggregateDailyCosts(buckets);
 
   let upserted = 0;
-  const dateStr = `${month}-01`;
-
-  for (const [wsId, costCents] of costByWorkspace) {
-    if (wsId) {
+  for (const { workspaceId, date, costCents } of dailyRows) {
+    if (workspaceId) {
       await db.execute(sql`
         INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (${wsId}, ${dateStr}, ${costCents})
+        VALUES (${workspaceId}, ${date}, ${costCents})
         ON CONFLICT (workspace_id, date) WHERE workspace_id IS NOT NULL
         DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
       `);
@@ -195,7 +222,7 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
       // Default workspace (null workspace_id)
       await db.execute(sql`
         INSERT INTO anthropic_workspace_costs (workspace_id, date, cost_cents)
-        VALUES (NULL, ${dateStr}, ${costCents})
+        VALUES (NULL, ${date}, ${costCents})
         ON CONFLICT (date) WHERE workspace_id IS NULL
         DO UPDATE SET cost_cents = ${costCents}, updated_at = now()
       `);
