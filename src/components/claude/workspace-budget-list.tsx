@@ -44,16 +44,34 @@ function PaceLabel({ workspace }: { workspace: WorkspaceListItem }) {
   );
 }
 
+/**
+ * Inclusive calendar-month distance between two "YYYY-MM" strings.
+ * `"2026-03"` → `"2026-05"` returns 3 (Mar, Apr, May).
+ */
+function calendarMonthsCovered(firstMonth: string, lastMonth: string): number {
+  const [fy, fm] = firstMonth.split("-").map(Number);
+  const [ly, lm] = lastMonth.split("-").map(Number);
+  return (ly - fy) * 12 + (lm - fm) + 1;
+}
+
 function SparklineDeltaLabel({
   months,
 }: {
   months: { month: string; totalCents: number }[];
 }) {
   if (months.length < 2) {
-    return <span className="text-[10px] text-muted-foreground">—</span>;
+    return <span className="text-[10px] text-muted-foreground">new</span>;
   }
+  // The window number reflects the *calendar distance* between the two data
+  // points being compared (first ↔ last), not the count of entries — that
+  // keeps the label in lockstep with the percentage. E.g., a workspace with
+  // data only in Jan + May renders "Nmo" where N is 5 calendar months apart.
   const first = months[0].totalCents;
   const last = months[months.length - 1].totalCents;
+  const windowMonths = calendarMonthsCovered(
+    months[0].month,
+    months[months.length - 1].month
+  );
   if (first === 0 && last === 0) {
     return <span className="text-[10px] text-muted-foreground">flat</span>;
   }
@@ -71,7 +89,7 @@ function SparklineDeltaLabel({
     >
       {big ? "▲ " : ""}
       {pct >= 0 ? "+" : ""}
-      {pct}% 6mo
+      {pct}% {windowMonths}mo
     </span>
   );
 }
@@ -127,7 +145,12 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
             style={{ backgroundColor: workspace.displayColor ?? "#a1a1aa" }}
             aria-hidden
           />
-          <span className="truncate font-medium">{workspace.name}</span>
+          <Link
+            href={`/claude/workspaces/${workspace.workspaceId ?? "default"}`}
+            className="truncate font-medium underline-offset-4 transition-colors hover:text-primary hover:underline"
+          >
+            {workspace.name}
+          </Link>
           {workspace.isDefault && (
             <Badge variant="secondary" className="shrink-0 text-xs">
               Default
