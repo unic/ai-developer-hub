@@ -127,7 +127,7 @@ export default async function ClaudeUsersPage({
         users={list.users}
         sparklines={sparklines}
         movers={movers}
-        histogram={<CostDistributionHistogram buckets={distribution} />}
+        histogram={<CostDistributionHistogram key="histogram" buckets={distribution} />}
       />
     </div>
   );
