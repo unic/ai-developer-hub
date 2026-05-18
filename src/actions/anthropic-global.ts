@@ -682,7 +682,9 @@ export async function getTwelveMonthTotals(): Promise<TwelveMonthRow[]> {
   return unstable_cache(
     _getTwelveMonthTotals,
     ["anthropic-twelve-month"],
-    { tags: ["anthropic-workspace-costs"] }
+    // "alerts" so org-budget edits revalidate the cap line on the 12-month chart;
+    // "anthropic-workspace-costs" so a sync revalidates the totals themselves.
+    { tags: ["anthropic-workspace-costs", "alerts"] }
   )();
 }
 
@@ -705,17 +707,24 @@ async function _getCumulativePacing(): Promise<PacingRow[]> {
     ORDER BY month, day_of_month
   `);
 
-  // Pivot per (dayOfMonth, monthOffset 0=current, 1=prev, 2=2-back, 3=3-back).
-  const months = new Set<string>();
-  for (const r of rows.rows) months.add(r.month as string);
-  const sortedMonths = Array.from(months).sort().reverse(); // newest first
+  // Build expected month keys from current_date (newest → 3-back) so empty
+  // months stay null instead of shifting labels — a current month with no
+  // data must not mislabel the prior month as "current".
+  const now = new Date();
+  const expectedMonths: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    expectedMonths.push(key);
+  }
 
   const dayMap = new Map<number, PacingRow>();
   for (const r of rows.rows) {
     const dom = r.day_of_month as number;
     const month = r.month as string;
     const cents = Number(r.cumulative_cents ?? 0);
-    const offset = sortedMonths.indexOf(month);
+    const offset = expectedMonths.indexOf(month);
+    if (offset < 0 || offset > 3) continue;
     let row = dayMap.get(dom);
     if (!row) {
       row = { dayOfMonth: dom, current: null, m1: null, m2: null, m3: null };
@@ -991,7 +1000,7 @@ async function _getWorkspaceDetail(
       AND m.date >= ${monthStart}::date
       AND m.date <= ${monthEnd}::date
     GROUP BY u.id, u.email, u.name
-    ORDER BY cents DESC
+    ORDER BY cents DESC, u.email ASC
     LIMIT 10
   `);
   const topUsers: WorkspaceUser[] = usersResult.rows.map((r) => ({

@@ -1,6 +1,6 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
 import { db } from "@/lib/db";
-import { anthropicWorkspaceCosts } from "@/lib/db/schema";
+import { anthropicWorkspaceCosts, anthropicSyncStatus } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
@@ -319,6 +319,19 @@ export async function run(
         } catch (err) {
           appendError(counts, `Cost sync failed: ${err instanceof Error ? err.message : String(err)}`);
         }
+      }
+
+      // Stamp the sentinel row so getSyncStatus() (the dashboard's sync pill)
+      // reflects this workspace-cost sync. The user-keyed `lastSyncCompletedAt`
+      // is owned by the per-user usage sync; this column tracks the cost path.
+      if (counts.errorCount === 0) {
+        await db
+          .insert(anthropicSyncStatus)
+          .values({ userId: 0, workspaceSyncCompletedAt: new Date() })
+          .onConflictDoUpdate({
+            target: [anthropicSyncStatus.userId],
+            set: { workspaceSyncCompletedAt: new Date() },
+          });
       }
 
       return counts;

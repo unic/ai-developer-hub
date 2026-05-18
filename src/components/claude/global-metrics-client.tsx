@@ -168,6 +168,30 @@ export function GlobalMetricsClient({
     return out;
   }, [seriesWithColors]);
 
+  // The daily chart's series come from `topWorkspaces` (top 8 + "Other"), so
+  // restrict the dropdown to keys that actually have a series — otherwise
+  // selecting a non-top workspace renders an empty chart. Workspaces outside
+  // the top 8 still show up in the workspace budget list and sparklines below.
+  const seriesKeys = useMemo(
+    () => new Set(seriesWithColors.map((s) => s.key)),
+    [seriesWithColors]
+  );
+  const filterableOptions = useMemo(
+    () => workspaceOptions.filter((w) => seriesKeys.has(w.key)),
+    [workspaceOptions, seriesKeys]
+  );
+
+  // Fall back to "All workspaces" if a previously-selected workspace dropped
+  // out of the top 8 between renders (e.g., a month switch reshuffles ranks).
+  useEffect(() => {
+    if (
+      selectedWorkspace !== ALL_WORKSPACES &&
+      !seriesKeys.has(selectedWorkspace)
+    ) {
+      setSelectedWorkspace(ALL_WORKSPACES);
+    }
+  }, [selectedWorkspace, seriesKeys]);
+
   const visibleSeries = useMemo(
     () =>
       selectedWorkspace === ALL_WORKSPACES
@@ -206,7 +230,7 @@ export function GlobalMetricsClient({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_WORKSPACES}>All workspaces</SelectItem>
-              {workspaceOptions.map((w) => (
+              {filterableOptions.map((w) => (
                 <SelectItem key={w.key} value={w.key}>
                   {w.name}
                 </SelectItem>
