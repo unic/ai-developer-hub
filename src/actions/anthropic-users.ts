@@ -92,11 +92,12 @@ async function _getUserList(month: string): Promise<UserListResult> {
       MAX(m.date)     AS last_active,
       COALESCE(bool_or(NOT m.pricing_resolved), false) AS has_unresolved_pricing
     FROM users u
+    INNER JOIN anthropic_sync_status s
+           ON s.user_id = u.id
+          AND s.resolved_api_key_id IS NOT NULL
     LEFT JOIN anthropic_usage_metrics m
            ON m.user_id = u.id
           AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
-    LEFT JOIN anthropic_sync_status s
-           ON s.user_id = u.id
     LEFT JOIN anthropic_workspaces w
            ON w.workspace_id IS NOT DISTINCT FROM s.resolved_workspace_id
     WHERE u.id <> ${LOCK_USER_ID}
