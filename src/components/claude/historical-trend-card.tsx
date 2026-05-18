@@ -21,12 +21,22 @@ type HistoricalTrendCardProps = {
   twelveMonth: TwelveMonthRow[];
   pacing: PacingRow[];
   movers: TopMover[];
+  currentMonth: string;
+  projectedMonthEndCents: number;
+  budgetLimitCents: number | null;
+  todayDayOfMonth: number;
+  daysInMonth: number;
 };
 
 export function HistoricalTrendCard({
   twelveMonth,
   pacing,
   movers,
+  currentMonth,
+  projectedMonthEndCents,
+  budgetLimitCents,
+  todayDayOfMonth,
+  daysInMonth,
 }: HistoricalTrendCardProps) {
   const [view, setView] = useState<View>("monthly");
 
@@ -59,8 +69,22 @@ export function HistoricalTrendCard({
         </div>
       </CardHeader>
       <CardContent>
-        {view === "monthly" && <TwelveMonthBarChart rows={twelveMonth} />}
-        {view === "pacing" && <CumulativePacingChart rows={pacing} />}
+        {view === "monthly" && (
+          <TwelveMonthBarChart
+            rows={twelveMonth}
+            currentMonth={currentMonth}
+            projectedMonthEndCents={projectedMonthEndCents}
+          />
+        )}
+        {view === "pacing" && (
+          <CumulativePacingChart
+            rows={pacing}
+            budgetLimitCents={budgetLimitCents}
+            projectedEomCents={projectedMonthEndCents}
+            todayDayOfMonth={todayDayOfMonth}
+            daysInMonth={daysInMonth}
+          />
+        )}
         {view === "growing" && (
           <div className="py-2">
             <p className="text-sm text-muted-foreground">

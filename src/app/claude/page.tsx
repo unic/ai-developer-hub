@@ -19,7 +19,7 @@ import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
 import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
-import { format } from "date-fns";
+import { format, getDate, getDaysInMonth } from "date-fns";
 import { Bot } from "lucide-react";
 
 export const metadata: Metadata = { title: "Claude API Spending" };
@@ -30,7 +30,10 @@ export default async function ClaudePage() {
     redirect("/");
   }
 
-  const currentMonth = format(new Date(), "yyyy-MM");
+  const now = new Date();
+  const currentMonth = format(now, "yyyy-MM");
+  const todayDayOfMonth = getDate(now);
+  const daysInMonth = getDaysInMonth(now);
   const availableMonths = await getAvailableWorkspaceCostMonths();
 
   if (availableMonths.length === 0) {
@@ -90,6 +93,11 @@ export default async function ClaudePage() {
         twelveMonth={twelveMonth}
         pacing={pacing}
         movers={movers}
+        currentMonth={currentMonth}
+        projectedMonthEndCents={kpis.projectedMonthEndCents}
+        budgetLimitCents={orgConfig?.billingBudgetLimitCents ?? null}
+        todayDayOfMonth={todayDayOfMonth}
+        daysInMonth={daysInMonth}
       />
 
       <section aria-label="Organization billing">
