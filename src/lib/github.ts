@@ -10,6 +10,7 @@ const GITHUB_API_BASE = "https://api.github.com";
 export interface GitHubApiResponse<T> {
   data: T | null;
   error: string | null;
+  status: number;
   scopes: string[];
   rateLimitRemaining: number;
   rateLimitReset: number;
@@ -22,19 +23,16 @@ function parseHeaders(headers: Headers) {
     .filter(Boolean);
   const rateLimitRemaining = parseInt(
     headers.get("x-ratelimit-remaining") || "0",
-    10
+    10,
   );
-  const rateLimitReset = parseInt(
-    headers.get("x-ratelimit-reset") || "0",
-    10
-  );
+  const rateLimitReset = parseInt(headers.get("x-ratelimit-reset") || "0", 10);
   return { scopes, rateLimitRemaining, rateLimitReset };
 }
 
 export async function githubFetch<T>(
   path: string,
   token: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
 ): Promise<GitHubApiResponse<T>> {
   const url = new URL(`${GITHUB_API_BASE}${path}`);
   if (params) {
@@ -53,7 +51,7 @@ export async function githubFetch<T>(
   });
 
   const { scopes, rateLimitRemaining, rateLimitReset } = parseHeaders(
-    response.headers
+    response.headers,
   );
 
   if (!response.ok) {
@@ -64,6 +62,7 @@ export async function githubFetch<T>(
     return {
       data: null,
       error: message,
+      status: response.status,
       scopes,
       rateLimitRemaining,
       rateLimitReset,
@@ -71,7 +70,14 @@ export async function githubFetch<T>(
   }
 
   const data = (await response.json()) as T;
-  return { data, error: null, scopes, rateLimitRemaining, rateLimitReset };
+  return {
+    data,
+    error: null,
+    status: response.status,
+    scopes,
+    rateLimitRemaining,
+    rateLimitReset,
+  };
 }
 
 // Types for GitHub API responses
@@ -109,7 +115,7 @@ export async function validateTokenAndListOrgs(token: string) {
   // Check required scopes
   const requiredScopes = ["read:org", "read:user"];
   const missingScopes = requiredScopes.filter(
-    (s) => !result.scopes.includes(s)
+    (s) => !result.scopes.includes(s),
   );
 
   if (missingScopes.length > 0) {
@@ -133,7 +139,7 @@ export async function validateTokenAndListOrgs(token: string) {
 export async function fetchOrgMembers(
   token: string,
   orgLogin: string,
-  onProgress?: (fetched: number) => void
+  onProgress?: (fetched: number) => void,
 ) {
   const allMembers: GitHubOrgMember[] = [];
   let page = 1;
@@ -144,7 +150,7 @@ export async function fetchOrgMembers(
     const result = await githubFetch<GitHubOrgMember[]>(
       `/orgs/${encodeURIComponent(orgLogin)}/members`,
       token,
-      { per_page: "100", page: String(page) }
+      { per_page: "100", page: String(page) },
     );
 
     rateLimitRemaining = result.rateLimitRemaining;
@@ -187,7 +193,7 @@ export async function fetchOrgMembers(
 export async function fetchUserProfile(token: string, username: string) {
   const result = await githubFetch<GitHubUserProfile>(
     `/users/${encodeURIComponent(username)}`,
-    token
+    token,
   );
 
   if (result.error || !result.data) {
@@ -242,7 +248,7 @@ export function matchMembersToUsers(
     email: string;
     githubUsername: string | null;
     status: "active" | "inactive";
-  }>
+  }>,
 ): {
   matched: SyncMatchedMember[];
   unmatched: SyncUnmatchedMember[];
@@ -280,7 +286,7 @@ export function matchMembersToUsers(
   // Emit conflicts for duplicate githubUsername values
   for (const dupKey of duplicateUsernames) {
     const dupes = systemUsers.filter(
-      (u) => u.githubUsername?.toLowerCase() === dupKey
+      (u) => u.githubUsername?.toLowerCase() === dupKey,
     );
     usernameMap.delete(dupKey);
     conflicts.push({

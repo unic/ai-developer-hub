@@ -161,6 +161,7 @@ function stripScopes<T>(result: GitHubApiResponse<T>): CopilotApiResponse<T> {
   return {
     data: result.data,
     error: result.error,
+    status: result.status,
     rateLimitRemaining: result.rateLimitRemaining,
     rateLimitReset: result.rateLimitReset,
   };
@@ -176,13 +177,13 @@ function stripScopes<T>(result: GitHubApiResponse<T>): CopilotApiResponse<T> {
  */
 export async function fetchCopilotBilling(
   token: string,
-  org: string
+  org: string,
 ): Promise<CopilotApiResponse<CopilotBillingData>> {
   return stripScopes(
     await githubFetch<CopilotBillingData>(
       `/orgs/${encodeURIComponent(org)}/copilot/billing`,
-      token
-    )
+      token,
+    ),
   );
 }
 
@@ -192,25 +193,33 @@ export async function fetchCopilotBilling(
  */
 export async function fetchCopilotSeats(
   token: string,
-  org: string
+  org: string,
 ): Promise<CopilotApiResponse<CopilotSeat[]>> {
   const allSeats: CopilotSeat[] = [];
   let page = 1;
   let rateLimitRemaining = 5000;
   let rateLimitReset = 0;
+  let lastStatus = 200;
 
   while (true) {
     const result = await githubFetch<CopilotSeatsPage>(
       `/orgs/${encodeURIComponent(org)}/copilot/billing/seats`,
       token,
-      { per_page: "100", page: String(page) }
+      { per_page: "100", page: String(page) },
     );
 
     rateLimitRemaining = result.rateLimitRemaining;
     rateLimitReset = result.rateLimitReset;
+    lastStatus = result.status;
 
     if (result.error) {
-      return { data: null, error: result.error, rateLimitRemaining, rateLimitReset };
+      return {
+        data: null,
+        error: result.error,
+        status: result.status,
+        rateLimitRemaining,
+        rateLimitReset,
+      };
     }
 
     const seats = result.data?.seats || [];
@@ -223,13 +232,20 @@ export async function fetchCopilotSeats(
       return {
         data: null,
         error: `Rate limit approaching (${rateLimitRemaining} remaining). Reset at ${new Date(rateLimitReset * 1000).toISOString()}`,
+        status: result.status,
         rateLimitRemaining,
         rateLimitReset,
       };
     }
   }
 
-  return { data: allSeats, error: null, rateLimitRemaining, rateLimitReset };
+  return {
+    data: allSeats,
+    error: null,
+    status: lastStatus,
+    rateLimitRemaining,
+    rateLimitReset,
+  };
 }
 
 /**
@@ -240,7 +256,7 @@ export async function fetchCopilotMetrics(
   token: string,
   org: string,
   since?: string,
-  until?: string
+  until?: string,
 ): Promise<CopilotApiResponse<CopilotDailyMetrics[]>> {
   const params: Record<string, string> = {};
   if (since) params.since = since;
@@ -250,8 +266,8 @@ export async function fetchCopilotMetrics(
     await githubFetch<CopilotDailyMetrics[]>(
       `/orgs/${encodeURIComponent(org)}/copilot/metrics`,
       token,
-      Object.keys(params).length > 0 ? params : undefined
-    )
+      Object.keys(params).length > 0 ? params : undefined,
+    ),
   );
 }
 
@@ -260,21 +276,20 @@ export async function fetchCopilotMetrics(
  * by making a lightweight request and inspecting the `x-oauth-scopes` header.
  */
 export async function validateCopilotScopes(
-  token: string
+  token: string,
 ): Promise<CopilotApiResponse<{ valid: boolean; scopes: string[] }>> {
   const result = await githubFetch<unknown>("/user", token);
 
   const scopes = result.scopes;
   const hasScope = scopes.some(
-    (s) =>
-      s === "manage_billing:copilot" ||
-      s === "admin:org"
+    (s) => s === "manage_billing:copilot" || s === "admin:org",
   );
 
   if (result.error) {
     return {
       data: null,
       error: result.error,
+      status: result.status,
       rateLimitRemaining: result.rateLimitRemaining,
       rateLimitReset: result.rateLimitReset,
     };
@@ -284,6 +299,7 @@ export async function validateCopilotScopes(
     return {
       data: { valid: false, scopes },
       error: `Token missing required scope: manage_billing:copilot. Current scopes: ${scopes.join(", ")}`,
+      status: result.status,
       rateLimitRemaining: result.rateLimitRemaining,
       rateLimitReset: result.rateLimitReset,
     };
@@ -292,6 +308,7 @@ export async function validateCopilotScopes(
   return {
     data: { valid: true, scopes },
     error: null,
+    status: result.status,
     rateLimitRemaining: result.rateLimitRemaining,
     rateLimitReset: result.rateLimitReset,
   };
