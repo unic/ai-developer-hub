@@ -241,8 +241,11 @@ function ChartTooltipContent({
       ? [...visiblePayload].sort((a, b) => {
           const av = Number(a.value)
           const bv = Number(b.value)
-          if (!Number.isFinite(av)) return 1
-          if (!Number.isFinite(bv)) return -1
+          const aFinite = Number.isFinite(av)
+          const bFinite = Number.isFinite(bv)
+          if (!aFinite && !bFinite) return 0
+          if (!aFinite) return 1
+          if (!bFinite) return -1
           return sort === "desc" ? bv - av : av - bv
         })
       : visiblePayload
@@ -359,18 +362,23 @@ function ChartTooltipContent({
                   {nestLabel ? tooltipLabel : null}
                   <span className="text-muted-foreground">{seriesLabel}</span>
                 </div>
-                {item.value !== undefined && item.value !== null && (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="font-mono font-medium text-foreground tabular-nums">
-                      {renderValue(item)}
-                    </span>
-                    {secondaryFormatter && (
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
-                        {secondaryFormatter(item.value, item, numericTotal)}
+                {item.value !== undefined && item.value !== null && (() => {
+                  const secondary = secondaryFormatter
+                    ? secondaryFormatter(item.value, item, numericTotal)
+                    : null
+                  return (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="font-mono font-medium text-foreground tabular-nums">
+                        {renderValue(item)}
                       </span>
-                    )}
-                  </div>
-                )}
+                      {secondary != null && (
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {secondary}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )

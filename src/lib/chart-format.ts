@@ -18,10 +18,11 @@ export function formatCurrencyFromDollars(dollars: number): string {
 export function formatUSDCompact(cents: number): string {
   const dollars = cents / 100;
   const abs = Math.abs(dollars);
-  if (abs >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `$${(dollars / 1_000).toFixed(1)}k`;
-  if (abs >= 100) return `$${dollars.toFixed(0)}`;
-  return `$${dollars.toFixed(2)}`;
+  const sign = dollars < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}k`;
+  if (abs >= 100) return `${sign}$${abs.toFixed(0)}`;
+  return `${sign}$${abs.toFixed(2)}`;
 }
 
 /** Accepts a fraction 0..1 — e.g. 0.42 → "42%". */
@@ -79,8 +80,9 @@ export function shareOfTotalFormatter(
   suffix: string,
 ): (value: number | string, _item: unknown, total: number) => string | null {
   return (value, _item, total) => {
-    if (total <= 0) return null;
-    const pct = Math.round((Number(value) / total) * 100);
+    const n = Number(value);
+    if (!Number.isFinite(n) || total <= 0) return null;
+    const pct = Math.round((n / total) * 100);
     return `${pct}% ${suffix}`;
   };
 }
