@@ -1,4 +1,4 @@
-import type { UserStatus } from "@/types";
+import type { UserProfile, UserStatus } from "@/types";
 
 /**
  * Pure helper functions used by `src/actions/anthropic-users.ts`.
@@ -39,14 +39,23 @@ export function activeUserDeltaPct(
   return Math.round(((currentCount - priorCount) / priorCount) * 100);
 }
 
-/** Counts active users with no resolved API key. */
+/**
+ * Counts active Boost-profile users with no resolved API key.
+ *
+ * Only `profile = 'boost'` users are intended to hold an Anthropic API key in
+ * this org — `maxed`, `indie`, and null profiles intentionally don't get one,
+ * so including them inflated the tile to "100/141" when in reality 100% of
+ * the Boost cohort was already linked. Both numerator and denominator filter
+ * to status='active' AND profile='boost'.
+ */
 export function countUsersWithNoApiKey(
-  rows: { status: UserStatus; hasApiKey: boolean }[]
+  rows: { status: UserStatus; profile: UserProfile | null; hasApiKey: boolean }[]
 ): { numerator: number; denominator: number } {
   let numerator = 0;
   let denominator = 0;
   for (const r of rows) {
     if (r.status !== "active") continue;
+    if (r.profile !== "boost") continue;
     denominator += 1;
     if (!r.hasApiKey) numerator += 1;
   }

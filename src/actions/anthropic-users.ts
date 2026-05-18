@@ -227,22 +227,27 @@ async function _getUsersDashboardKpis(month: string): Promise<UsersDashboardKpis
     5
   );
 
-  // Users with no API key — bound to active users only, using the canonical
-  // sentinel filter. Pulls the denominator (all active users excluding the lock)
-  // in the same query for the "N / M" tile caption.
+  // Users with no API key — scoped to the Boost-profile cohort. Only Boost
+  // users are intended to hold an Anthropic API key in this org; counting
+  // every active user inflated the tile because maxed/indie/null profiles
+  // legitimately don't have one. Filter is applied in SQL so the denominator
+  // we report matches reality.
   const keyRows = await db.execute(sql`
     SELECT
       u.status,
+      u.profile,
       s.resolved_api_key_id
     FROM users u
     LEFT JOIN anthropic_sync_status s ON s.user_id = u.id
     WHERE u.id <> ${LOCK_USER_ID}
       AND u.status = 'active'
+      AND u.profile = 'boost'
   `);
   const { numerator: usersWithNoApiKey, denominator: usersWithNoApiKeyDenominator } =
     countUsersWithNoApiKey(
       keyRows.rows.map((r) => ({
         status: r.status as UserStatus,
+        profile: (r.profile as UserProfile | null) ?? null,
         hasApiKey: r.resolved_api_key_id != null,
       }))
     );

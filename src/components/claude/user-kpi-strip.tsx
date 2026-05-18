@@ -81,9 +81,11 @@ export function UserKpiStrip({ kpis }: { kpis: UsersDashboardKpis }) {
         </span>
       ),
       caption:
-        kpis.usersWithNoApiKey === 0
-          ? "All active users provisioned"
-          : `${kpis.usersWithNoApiKey} active user${kpis.usersWithNoApiKey === 1 ? "" : "s"} not yet linked to a key`,
+        kpis.usersWithNoApiKeyDenominator === 0
+          ? "No Boost users to provision"
+          : kpis.usersWithNoApiKey === 0
+          ? "All Boost users have an API key"
+          : `${kpis.usersWithNoApiKey} Boost user${kpis.usersWithNoApiKey === 1 ? "" : "s"} without an API key`,
       tone: kpis.usersWithNoApiKey > 0 ? "warn" : "default",
       icon: <KeyRound className="size-3 text-muted-foreground" aria-hidden />,
     },

@@ -58,34 +58,50 @@ describe("activeUserDeltaPct (MoM user count math)", () => {
 });
 
 describe("countUsersWithNoApiKey (denominator math)", () => {
-  it("counts only active users (status filter)", () => {
+  it("counts only active Boost-profile users (status + profile filter)", () => {
     const rows = [
-      { status: "active" as const, hasApiKey: false },
-      { status: "inactive" as const, hasApiKey: false },
-      { status: "active" as const, hasApiKey: true },
+      { status: "active" as const, profile: "boost" as const, hasApiKey: false },
+      { status: "inactive" as const, profile: "boost" as const, hasApiKey: false },
+      { status: "active" as const, profile: "boost" as const, hasApiKey: true },
     ];
     const { numerator, denominator } = countUsersWithNoApiKey(rows);
-    expect(denominator).toBe(2); // 2 active users
-    expect(numerator).toBe(1); // 1 active user without an API key
+    expect(denominator).toBe(2); // 2 active Boost users
+    expect(numerator).toBe(1); // 1 active Boost user without an API key
+  });
+
+  it("excludes non-Boost profiles from both numerator and denominator", () => {
+    // Only Boost users are intended to hold an API key — maxed, indie, and
+    // null profiles must not bloat the cohort.
+    const rows = [
+      { status: "active" as const, profile: "boost" as const, hasApiKey: true },
+      { status: "active" as const, profile: "maxed" as const, hasApiKey: false },
+      { status: "active" as const, profile: "indie" as const, hasApiKey: false },
+      { status: "active" as const, profile: null, hasApiKey: false },
+    ];
+    expect(countUsersWithNoApiKey(rows)).toEqual({
+      numerator: 0,
+      denominator: 1, // only the one Boost user counts
+    });
   });
 
   it("returns 0/0 for an empty input", () => {
     expect(countUsersWithNoApiKey([])).toEqual({ numerator: 0, denominator: 0 });
   });
 
-  it("returns 0/N when all active users have an API key", () => {
+  it("returns 0/N when all active Boost users have an API key", () => {
     const rows = [
-      { status: "active" as const, hasApiKey: true },
-      { status: "active" as const, hasApiKey: true },
+      { status: "active" as const, profile: "boost" as const, hasApiKey: true },
+      { status: "active" as const, profile: "boost" as const, hasApiKey: true },
     ];
     expect(countUsersWithNoApiKey(rows)).toEqual({ numerator: 0, denominator: 2 });
   });
 
-  it("returns N/N when no active user has an API key", () => {
+  it("returns N/N when no active Boost user has an API key", () => {
     const rows = [
-      { status: "active" as const, hasApiKey: false },
-      { status: "active" as const, hasApiKey: false },
-      { status: "inactive" as const, hasApiKey: false }, // excluded from both
+      { status: "active" as const, profile: "boost" as const, hasApiKey: false },
+      { status: "active" as const, profile: "boost" as const, hasApiKey: false },
+      { status: "inactive" as const, profile: "boost" as const, hasApiKey: false }, // excluded
+      { status: "active" as const, profile: "maxed" as const, hasApiKey: false }, // excluded
     ];
     expect(countUsersWithNoApiKey(rows)).toEqual({ numerator: 2, denominator: 2 });
   });
