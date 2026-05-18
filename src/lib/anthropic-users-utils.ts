@@ -117,3 +117,51 @@ export function rankUserTopMovers(
   });
   return ranked.slice(0, limit);
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3 helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Picks the dominant model on each calendar day from a flat list of
+ * `(date, model, cents)` rows. Returns one entry per distinct date with the
+ * model that had the largest cost contribution that day, or `null` when the
+ * day has no positive-cost rows.
+ *
+ * Ties broken alphabetically by model name for determinism.
+ */
+export function dominantModelPerDay(
+  rows: { date: string; model: string; cents: number }[]
+): Map<string, string | null> {
+  const perDay = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    let inner = perDay.get(r.date);
+    if (!inner) {
+      inner = new Map();
+      perDay.set(r.date, inner);
+    }
+    inner.set(r.model, (inner.get(r.model) ?? 0) + r.cents);
+  }
+  const out = new Map<string, string | null>();
+  for (const [date, models] of perDay.entries()) {
+    let best: { model: string; cents: number } | null = null;
+    for (const [model, cents] of models.entries()) {
+      if (cents <= 0) continue;
+      if (
+        best === null ||
+        cents > best.cents ||
+        (cents === best.cents && model.localeCompare(best.model) < 0)
+      ) {
+        best = { model, cents };
+      }
+    }
+    out.set(date, best?.model ?? null);
+  }
+  return out;
+}
+
+/**
+ * Number of available daily-cost entries to surface in the "Top dates" table.
+ * Centralised so the action and the UI agree on the constant.
+ */
+export const USER_TOP_DATES_LIMIT = 5;

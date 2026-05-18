@@ -320,7 +320,7 @@ export function UsersTable({
         enableSorting: false,
         cell: ({ row }) => (
           <Link
-            href={`/profile?userId=${row.original.userId}`}
+            href={`/claude/users/${row.original.userId}`}
             className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
             aria-label={`Drill into ${row.original.name || row.original.email}`}
           >

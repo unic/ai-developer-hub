@@ -706,3 +706,72 @@ export interface DailyByUserResult {
     totalCents: number;
   }[];
 }
+
+// Spec 027 — Phase 3 (per-user drill-through)
+
+/** One model row in the per-user model breakdown table. */
+export interface UserModelBreakdownRow {
+  modelName: string;
+  tokensIn: number;
+  tokensOut: number;
+  costCents: number;
+  /** Percentage of the user's own cost (0–100). */
+  pctOfUser: number;
+}
+
+/** One day in the per-user daily-cost chart. */
+export interface UserDailyRow {
+  date: string;
+  costCents: number;
+}
+
+/**
+ * One of the user's top-cost days in the selected month, with the dominant
+ * model on that day (highest-cost model contribution).
+ */
+export interface UserTopDateRow {
+  date: string;
+  costCents: number;
+  /** Model that contributed the largest share on this day, or null if unknown. */
+  dominantModel: string | null;
+}
+
+/** Detail payload for the per-user drill-through route `/claude/users/[userId]`. */
+export interface UserDetail {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    circle: string | null;
+    profile: UserProfile | null;
+    status: UserStatus;
+    role: UserRole;
+  };
+  workspace: {
+    workspaceId: string | null;
+    name: string | null;
+    displayColor: string | null;
+  };
+  /** `YYYY-MM` of the selected month. */
+  month: string;
+  /** `YYYY-MM-01`. */
+  periodStart: string;
+  /** Last day of the selected month, `YYYY-MM-DD`. */
+  periodEnd: string;
+  currentMonthCents: number;
+  priorMonthCents: number;
+  momDeltaCents: number;
+  /** Null when the prior month is below $1 (delta meaningless). */
+  momDeltaPct: number | null;
+  projectedMonthEndCents: number;
+  /** One entry per day in the period; missing days padded to 0. */
+  dailyTotals: UserDailyRow[];
+  modelBreakdown: UserModelBreakdownRow[];
+  /** Up to 5 highest-cost days in the period. */
+  topDates: UserTopDateRow[];
+  /** Last 12 months including the current month. */
+  twelveMonth: { month: string; totalCents: number }[];
+  hasUnresolvedPricing: boolean;
+  /** Months with data for this user, newest first — used by the month picker. */
+  availableMonths: string[];
+}

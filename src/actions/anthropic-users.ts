@@ -5,29 +5,45 @@ import { db } from "@/lib/db";
 import { unstable_cache } from "next/cache";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { format, endOfMonth, parseISO, subMonths, startOfMonth } from "date-fns";
+import {
+  format,
+  endOfMonth,
+  parseISO,
+  subMonths,
+  startOfMonth,
+  getDate,
+  getDaysInMonth,
+} from "date-fns";
 import { LOCK_USER_ID } from "@/lib/anthropic-sync";
 import {
   topNConcentrationPct,
   activeUserDeltaPct,
   countUsersWithNoApiKey,
   rankUserTopMovers,
+  dominantModelPerDay,
+  USER_TOP_DATES_LIMIT,
   type UserMoverInput,
 } from "@/lib/anthropic-users-utils";
 import {
   COST_DISTRIBUTION_BUCKETS,
   bucketCents,
 } from "@/lib/claude-users-buckets";
+import { projectMonthEnd } from "@/lib/utils";
 import type {
   UserListRow,
   UsersDashboardKpis,
   UserProfile,
   UserStatus,
+  UserRole,
   UserCostDistributionBucket,
   UserSparkline,
   UserTopMover,
   DailyByUserResult,
   DailyByUserRow,
+  UserDetail,
+  UserModelBreakdownRow,
+  UserDailyRow,
+  UserTopDateRow,
 } from "@/types";
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
@@ -592,6 +608,265 @@ export async function getDailyTotalsByUser(
   return unstable_cache(
     () => _getDailyTotalsByUser(targetMonth),
     ["anthropic-daily-by-user", targetMonth],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+// ---------------------------------------------------------------------------
+// Spec 027 — Phase 3 actions (per-user drill-through)
+// ---------------------------------------------------------------------------
+
+const userIdSchema = z.number().int().positive();
+
+async function _getUserMonths(userId: number): Promise<string[]> {
+  const rows = await db.execute(sql`
+    SELECT DISTINCT to_char(date_trunc('month', date::date), 'YYYY-MM') AS month
+    FROM anthropic_usage_metrics
+    WHERE user_id = ${userId}
+    ORDER BY 1 DESC
+  `);
+  return rows.rows.map((r) => r.month as string);
+}
+
+export async function getUserMonths(userId: number): Promise<string[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+  const parsed = userIdSchema.safeParse(userId);
+  if (!parsed.success) return [];
+  if (parsed.data === LOCK_USER_ID) return [];
+  return unstable_cache(
+    () => _getUserMonths(parsed.data),
+    ["anthropic-user-months", String(parsed.data)],
+    { tags: ["anthropic-workspace-costs"] }
+  )();
+}
+
+async function _getUserDetail(
+  userId: number,
+  month: string
+): Promise<UserDetail | null> {
+  // User + workspace meta. Use LEFT JOINs so a user without a resolved
+  // workspace (or with no sync_status row) still surfaces.
+  const userMetaRows = await db.execute(sql`
+    SELECT
+      u.id, u.name, u.email, u.circle, u.profile, u.status, u.role,
+      s.resolved_workspace_id,
+      w.name          AS workspace_name,
+      w.display_color AS workspace_color
+    FROM users u
+    LEFT JOIN anthropic_sync_status s ON s.user_id = u.id
+    LEFT JOIN anthropic_workspaces w
+      ON w.workspace_id IS NOT DISTINCT FROM s.resolved_workspace_id
+    WHERE u.id = ${userId}
+    LIMIT 1
+  `);
+  const userRow = userMetaRows.rows[0];
+  if (!userRow) return null;
+
+  const periodStart = `${month}-01`;
+  const periodEnd = format(endOfMonth(parseISO(periodStart)), "yyyy-MM-dd");
+  const priorMonthDate = subMonths(parseISO(periodStart), 1);
+  const priorStart = format(startOfMonth(priorMonthDate), "yyyy-MM-dd");
+  const priorEnd = format(endOfMonth(priorMonthDate), "yyyy-MM-dd");
+
+  // Per-day, per-model rows for the selected month. Used to build daily
+  // totals, model breakdown, top dates, and the unresolved-pricing flag in
+  // a single round-trip.
+  const monthRows = await db.execute(sql`
+    SELECT
+      m.date::text AS date,
+      m.model,
+      m.uncached_input_tokens,
+      m.cache_read_input_tokens,
+      m.cache_creation_input_tokens,
+      m.output_tokens,
+      m.computed_cost_cents,
+      m.pricing_resolved
+    FROM anthropic_usage_metrics m
+    WHERE m.user_id = ${userId}
+      AND m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
+  `);
+
+  // Daily totals — pad missing days so charts/top-dates can iterate cleanly.
+  const dailyMap = new Map<string, number>();
+  const dominantInput: { date: string; model: string; cents: number }[] = [];
+  const modelTotals = new Map<
+    string,
+    { tokensIn: number; tokensOut: number; cents: number }
+  >();
+  let hasUnresolvedPricing = false;
+
+  for (const r of monthRows.rows) {
+    const date = r.date as string;
+    const model = r.model as string;
+    const cents = Number(r.computed_cost_cents ?? 0);
+    const tokIn =
+      Number(r.uncached_input_tokens ?? 0) +
+      Number(r.cache_read_input_tokens ?? 0) +
+      Number(r.cache_creation_input_tokens ?? 0);
+    const tokOut = Number(r.output_tokens ?? 0);
+    if (r.pricing_resolved === false) hasUnresolvedPricing = true;
+
+    dailyMap.set(date, (dailyMap.get(date) ?? 0) + cents);
+    dominantInput.push({ date, model, cents });
+
+    const ex = modelTotals.get(model);
+    if (ex) {
+      ex.tokensIn += tokIn;
+      ex.tokensOut += tokOut;
+      ex.cents += cents;
+    } else {
+      modelTotals.set(model, { tokensIn: tokIn, tokensOut: tokOut, cents });
+    }
+  }
+
+  // Pad missing days so the chart x-axis stays continuous.
+  const daysInMonth = getDaysInMonth(parseISO(periodStart));
+  const dailyTotals: UserDailyRow[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateKey = `${month}-${String(d).padStart(2, "0")}`;
+    dailyTotals.push({
+      date: dateKey,
+      costCents: dailyMap.get(dateKey) ?? 0,
+    });
+  }
+  const currentMonthCents = dailyTotals.reduce((s, d) => s + d.costCents, 0);
+
+  // Model breakdown — sort by cost DESC. Percentages are of the user's own
+  // total (consistent with the workspace pattern).
+  const userVisibleTotal = Array.from(modelTotals.values()).reduce(
+    (s, m) => s + m.cents,
+    0
+  );
+  const modelBreakdown: UserModelBreakdownRow[] = Array.from(
+    modelTotals.entries()
+  )
+    .map(([modelName, v]) => ({
+      modelName,
+      tokensIn: v.tokensIn,
+      tokensOut: v.tokensOut,
+      costCents: v.cents,
+      pctOfUser:
+        userVisibleTotal === 0 ? 0 : Math.round((v.cents / userVisibleTotal) * 100),
+    }))
+    .sort((a, b) => b.costCents - a.costCents);
+
+  // Top dates — 5 highest-cost days, with the dominant model from the
+  // (date, model) breakdown we already have in memory.
+  const dominantMap = dominantModelPerDay(dominantInput);
+  const topDates: UserTopDateRow[] = dailyTotals
+    .filter((d) => d.costCents > 0)
+    .sort((a, b) => b.costCents - a.costCents || a.date.localeCompare(b.date))
+    .slice(0, USER_TOP_DATES_LIMIT)
+    .map((d) => ({
+      date: d.date,
+      costCents: d.costCents,
+      dominantModel: dominantMap.get(d.date) ?? null,
+    }));
+
+  // Prior month total for MoM delta.
+  const priorRows = await db.execute(sql`
+    SELECT COALESCE(SUM(computed_cost_cents), 0)::bigint AS cents
+    FROM anthropic_usage_metrics
+    WHERE user_id = ${userId}
+      AND date BETWEEN ${priorStart}::date AND ${priorEnd}::date
+  `);
+  const priorMonthCents = Number(priorRows.rows[0]?.cents ?? 0);
+  const momDeltaCents = currentMonthCents - priorMonthCents;
+  // Mirror the workspace rule: suppress the % when the prior period is < $1.
+  const momDeltaPct =
+    priorMonthCents < 100
+      ? null
+      : Math.round((momDeltaCents / priorMonthCents) * 100);
+
+  // Linear projection — for non-current months we treat the full month as
+  // elapsed so the projection equals the actual total.
+  const nowMonth = format(new Date(), "yyyy-MM");
+  const daysElapsed =
+    month === nowMonth ? Math.max(1, getDate(new Date())) : daysInMonth;
+  const projectedMonthEndCents = projectMonthEnd(
+    currentMonthCents,
+    daysElapsed,
+    daysInMonth
+  );
+
+  // Twelve-month trend (current month included). Pad missing months with 0
+  // so the bar chart has a consistent x-axis when the user only has spotty
+  // history.
+  const twelveRows = await db.execute(sql`
+    SELECT
+      to_char(date_trunc('month', date), 'YYYY-MM') AS month,
+      COALESCE(SUM(computed_cost_cents), 0)::bigint AS cents
+    FROM anthropic_usage_metrics
+    WHERE user_id = ${userId}
+      AND date >= (date_trunc('month', ${periodStart}::date) - interval '11 months')::date
+      AND date <= ${periodEnd}::date
+    GROUP BY 1
+    ORDER BY 1
+  `);
+  const twelveMap = new Map<string, number>();
+  for (const r of twelveRows.rows) {
+    twelveMap.set(r.month as string, Number(r.cents ?? 0));
+  }
+  const twelveMonth: { month: string; totalCents: number }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = subMonths(parseISO(periodStart), i);
+    const key = format(m, "yyyy-MM");
+    twelveMonth.push({ month: key, totalCents: twelveMap.get(key) ?? 0 });
+  }
+
+  const availableMonths = await _getUserMonths(userId);
+
+  return {
+    user: {
+      id: Number(userRow.id),
+      name: (userRow.name as string | null) ?? "",
+      email: userRow.email as string,
+      circle: (userRow.circle as string | null) ?? null,
+      profile: (userRow.profile as UserProfile | null) ?? null,
+      status: userRow.status as UserStatus,
+      role: userRow.role as UserRole,
+    },
+    workspace: {
+      workspaceId: (userRow.resolved_workspace_id as string | null) ?? null,
+      name: (userRow.workspace_name as string | null) ?? null,
+      displayColor: (userRow.workspace_color as string | null) ?? null,
+    },
+    month,
+    periodStart,
+    periodEnd,
+    currentMonthCents,
+    priorMonthCents,
+    momDeltaCents,
+    momDeltaPct,
+    projectedMonthEndCents,
+    dailyTotals,
+    modelBreakdown,
+    topDates,
+    twelveMonth,
+    hasUnresolvedPricing,
+    availableMonths,
+  };
+}
+
+export async function getUserDetail(
+  userId: number,
+  month?: string
+): Promise<UserDetail | null> {
+  const admin = await requireAdmin();
+  if (!admin) return null;
+  const parsed = userIdSchema.safeParse(userId);
+  if (!parsed.success) return null;
+  if (parsed.data === LOCK_USER_ID) return null;
+
+  const targetMonth =
+    month && monthSchema.safeParse(month).success
+      ? month
+      : format(new Date(), "yyyy-MM");
+
+  return unstable_cache(
+    () => _getUserDetail(parsed.data, targetMonth),
+    ["anthropic-user-detail", String(parsed.data), targetMonth],
     { tags: ["anthropic-workspace-costs"] }
   )();
 }

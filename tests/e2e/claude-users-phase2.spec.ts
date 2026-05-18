@@ -59,7 +59,7 @@ test.describe("Claude Console — Users sub-page (Phase 2)", () => {
     ).toBeVisible();
   });
 
-  test("fastest growing users chip click filters the users table", async ({
+  test("fastest growing users chip click navigates to the per-user drill page", async ({
     page,
   }) => {
     await page.goto("/claude/users");
@@ -73,11 +73,13 @@ test.describe("Claude Console — Users sub-page (Phase 2)", () => {
     const chipCount = await chip.count();
     test.skip(chipCount === 0, "No top-movers in this dev DB snapshot.");
 
-    await chip.click();
+    // Phase 3 rewires the chip to drill into `/claude/users/{userId}` — the
+    // testid carries the userId, so we can predict the destination URL.
+    const testId = await chip.getAttribute("data-testid");
+    const userId = testId?.replace("user-mover-chip-", "");
+    expect(userId).toMatch(/^\d+$/);
 
-    const search = page.getByPlaceholder(/Search users by name or email/i);
-    const value = await search.inputValue();
-    expect(value.length).toBeGreaterThan(0);
-    expect(value).toContain("@");
+    await chip.click();
+    await page.waitForURL(new RegExp(`/claude/users/${userId}$`));
   });
 });

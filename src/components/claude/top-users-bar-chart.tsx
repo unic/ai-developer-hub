@@ -36,8 +36,7 @@ const config: ChartConfig = {
  * - Bar colour: user's resolved workspace `display_color` when available,
  *   otherwise a spectral palette colour indexed by rank, otherwise muted grey
  *   for users without a workspace at all.
- * - Click navigates to `/profile?userId=N` for Phase 1 — Phase 3 will rewire
- *   this to `/claude/users/N`.
+ * - Click navigates to the per-user drill page at `/claude/users/N`.
  */
 export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
   const router = useRouter();
@@ -99,7 +98,7 @@ export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
           onClick={(payload: unknown) => {
             const item = payload as { userId?: number } | undefined;
             if (item?.userId != null) {
-              router.push(`/profile?userId=${item.userId}`);
+              router.push(`/claude/users/${item.userId}`);
             }
           }}
           cursor="pointer"
