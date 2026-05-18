@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import type { ForecastChartPoint } from "@/types";
+import { formatCurrency } from "@/lib/chart-format";
 
 const forecastConfig = {
   historical: { label: "Actual", color: "var(--chart-1)" },
@@ -34,9 +35,12 @@ export function ForecastChart({ data, monthlyBudgetCents }: ForecastChartProps) 
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) =>
-                value == null ? null : `$${((value as number) / 100).toFixed(2)}`
-              }
+              valueFormatter={(v) => formatCurrency(Number(v))}
+              indicator="line"
+              footer={{
+                label: "Monthly budget",
+                value: formatCurrency(monthlyBudgetCents),
+              }}
             />
           }
         />

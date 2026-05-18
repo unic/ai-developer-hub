@@ -9,6 +9,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import type { TwelveMonthRow } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { formatMonthLong } from "@/lib/chart-format";
 
 const config: ChartConfig = {
   total: { label: "Spend", color: "var(--chart-1)" },
@@ -124,8 +125,13 @@ export function TwelveMonthBarChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value) =>
-                  value == null ? "—" : `$${Number(value).toFixed(2)}`
+                numberFormat="currency"
+                labelFormatter={(label) => formatMonthLong(String(label))}
+                showTotal
+                footer={
+                  cap != null
+                    ? { label: "Budget cap", value: formatCurrency(cap) }
+                    : undefined
                 }
               />
             }

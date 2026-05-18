@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatMonthLong } from "@/lib/chart-format";
 
 interface BillingTrendChartProps {
   data: Array<{
@@ -73,9 +74,8 @@ export function BillingTrendChart({ data }: BillingTrendChartProps) {
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  formatter={(value) =>
-                    `$${(value as number).toFixed(2)}`
-                  }
+                  numberFormat="currency"
+                  labelFormatter={(label) => formatMonthLong(String(label))}
                 />
               }
             />

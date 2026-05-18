@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { shareOfTotalFormatter } from "@/lib/chart-format";
 
 interface ActivityDistributionProps {
   data: {
@@ -85,7 +86,13 @@ export function ActivityDistribution({ data }: ActivityDistributionProps) {
         >
           <PieChart accessibilityLayer>
             <ChartTooltip
-              content={<ChartTooltipContent nameKey="name" />}
+              content={
+                <ChartTooltipContent
+                  nameKey="name"
+                  numberFormat="integer"
+                  secondaryFormatter={shareOfTotalFormatter("of seats")}
+                />
+              }
             />
             <ChartLegend
               content={<ChartLegendContent nameKey="name" />}

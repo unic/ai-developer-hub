@@ -30,6 +30,7 @@ import type {
   SyncStatus,
 } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { formatDateLong, shareOfTotalFormatter } from "@/lib/chart-format";
 import { KpiStrip, buildOrgKpiTiles } from "@/components/claude/kpi-strip";
 import { SyncStatusPill } from "@/components/claude/sync-status-pill";
 
@@ -312,10 +313,11 @@ export function GlobalMetricsClient({
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value, name) => [
-                        `$${Number(value).toFixed(2)}`,
-                        chartConfig[name as string]?.label ?? name,
-                      ]}
+                      numberFormat="currency"
+                      labelFormatter={(label) => formatDateLong(String(label))}
+                      showTotal
+                      secondaryFormatter={shareOfTotalFormatter("of day")}
+                      sort="desc"
                     />
                   }
                 />

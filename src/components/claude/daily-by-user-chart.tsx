@@ -10,6 +10,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
+import { formatDateLong, shareOfTotalFormatter } from "@/lib/chart-format";
 import type { DailyByUserResult } from "@/types";
 
 const OTHER_KEY = "__other__";
@@ -116,10 +117,11 @@ export function DailyByUserChart({ data }: { data: DailyByUserResult }) {
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value, name) => [
-                      `$${Number(value).toFixed(2)}`,
-                      chartConfig[name as string]?.label ?? name,
-                    ]}
+                    numberFormat="currency"
+                    labelFormatter={(label) => formatDateLong(String(label))}
+                    showTotal
+                    secondaryFormatter={shareOfTotalFormatter("of day")}
+                    sort="desc"
                   />
                 }
               />

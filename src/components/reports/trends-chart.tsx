@@ -13,6 +13,7 @@ import type { ChartConfig } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import type { PeriodSpendPoint } from "@/types";
 import { parseMonthLabel } from "@/lib/forecast";
+import { formatCurrency } from "@/lib/chart-format";
 
 const trendsConfig = {
   billedCents: { label: "Billed", color: "var(--chart-1)" },
@@ -96,9 +97,8 @@ export function TrendsChart({ data }: TrendsChartProps) {
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value) =>
-                  `$${((value as number) / 100).toFixed(2)}`
-                }
+                valueFormatter={(v) => formatCurrency(Number(v))}
+                indicator="line"
               />
             }
           />

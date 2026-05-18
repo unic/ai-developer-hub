@@ -87,7 +87,7 @@ export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) => `$${Number(value).toFixed(2)}`}
+              numberFormat="currency"
             />
           }
         />

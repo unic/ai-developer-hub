@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import type { DailyBreakdown } from "@/types";
+import { formatDateLong } from "@/lib/chart-format";
 
 // Color palette for models
 const MODEL_COLORS = [
@@ -96,7 +97,11 @@ export function CostChart({ dailyBreakdown }: CostChartProps) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) => `$${Number(value).toFixed(2)}`}
+              numberFormat="currency"
+              labelFormatter={(label) => formatDateLong(String(label))}
+              showTotal
+              totalLabel="Day total"
+              sort="desc"
             />
           }
         />

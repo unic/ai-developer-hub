@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import { formatCurrency } from "@/lib/utils";
+import { formatCurrencyFromDollars, formatDateLong } from "@/lib/chart-format";
 
 const config: ChartConfig = {
   cost: { label: "Daily spend", color: "var(--chart-1)" },
@@ -93,7 +94,16 @@ export function WorkspaceDailyChart({
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) => `$${Number(value).toFixed(2)}`}
+              numberFormat="currency"
+              labelFormatter={(label) => formatDateLong(String(label))}
+              footer={
+                dailyCapDollars != null
+                  ? {
+                      label: "Daily cap",
+                      value: formatCurrencyFromDollars(dailyCapDollars),
+                    }
+                  : undefined
+              }
             />
           }
         />

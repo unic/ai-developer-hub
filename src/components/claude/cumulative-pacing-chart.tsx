@@ -37,6 +37,8 @@ export function CumulativePacingChart({
   todayDayOfMonth: number;
   daysInMonth: number;
 }) {
+  const monthName = new Date().toLocaleString("en-US", { month: "long" });
+
   if (rows.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
@@ -186,10 +188,14 @@ export function CumulativePacingChart({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value, name) => [
-                  value == null ? "—" : `$${Number(value).toFixed(2)}`,
-                  config[name as string]?.label ?? name,
-                ]}
+                numberFormat="currency"
+                indicator="line"
+                labelFormatter={(label) => `Day ${label} of ${monthName}`}
+                footer={
+                  budgetLimitCents != null
+                    ? { label: "Budget cap", value: formatCurrency(budgetLimitCents) }
+                    : undefined
+                }
               />
             }
           />
