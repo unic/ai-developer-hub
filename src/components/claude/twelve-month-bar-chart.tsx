@@ -19,7 +19,7 @@ const config: ChartConfig = {
 const GREY_RAMP = ["#a1a1aa", "#71717a", "#52525b", "#3f3f46"] as const;
 
 function fillForAge(monthsBack: number, overCap: boolean): string {
-  if (overCap) return "hsl(var(--destructive))";
+  if (overCap) return "var(--destructive)";
   if (monthsBack === 0) return "var(--chart-1)";
   if (monthsBack <= 2) return GREY_RAMP[0];
   if (monthsBack <= 5) return GREY_RAMP[1];
@@ -116,9 +116,9 @@ export function TwelveMonthBarChart({
           {cap != null && (
             <ReferenceLine
               y={cap / 100}
-              stroke="hsl(var(--destructive))"
+              stroke="var(--destructive)"
               strokeDasharray="3 3"
-              label={{ value: `Budget ${formatCurrency(cap)}`, position: "insideTopRight", fill: "hsl(var(--destructive))", fontSize: 10 }}
+              label={{ value: `Budget ${formatCurrency(cap)}`, position: "insideTopRight", fill: "var(--destructive)", fontSize: 10 }}
             />
           )}
           <ChartTooltip

@@ -160,24 +160,24 @@ export function CumulativePacingChart({
           {budgetLimitCents != null && (
             <ReferenceLine
               y={budgetLimitCents / 100}
-              stroke="hsl(var(--destructive))"
+              stroke="var(--destructive)"
               strokeDasharray="3 3"
               label={{
                 value: `Budget ${formatCurrency(budgetLimitCents)}`,
                 position: "insideTopRight",
-                fill: "hsl(var(--destructive))",
+                fill: "var(--destructive)",
                 fontSize: 10,
               }}
             />
           )}
           <ReferenceLine
             x={todayDayOfMonth}
-            stroke="hsl(var(--muted-foreground))"
+            stroke="var(--muted-foreground)"
             strokeDasharray="2 4"
             label={{
               value: "today",
               position: "insideTopLeft",
-              fill: "hsl(var(--muted-foreground))",
+              fill: "var(--muted-foreground)",
               fontSize: 10,
             }}
           />

@@ -55,7 +55,7 @@ const navItems: NavItem[] = [
   { title: "Budget", href: "/budget", icon: DollarSign, roles: ["admin"] },
   { title: "Reports", href: "/reports", icon: BarChart3, roles: ["admin"] },
   { title: "Copilot", href: "/copilot", icon: Bot, roles: ["admin"] },
-  { title: "Claude API Spending", href: "/claude", icon: Bot, roles: ["admin"] },
+  { title: "Claude Console", href: "/claude", icon: Bot, roles: ["admin"] },
   { title: "Invoices", href: "/invoices", icon: FileText, roles: ["admin"] },
   { title: "Settings", href: "/settings/appearance", icon: Settings, roles: ["admin", "viewer"] },
 ];
