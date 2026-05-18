@@ -45,16 +45,13 @@ interface MetricsSyncResult {
 
 export async function syncBillingData(
   connection: SyncConnection,
-  token: string
+  token: string,
 ): Promise<BillingSyncResult> {
-  const billingResponse = await fetchCopilotBilling(
-    token,
-    connection.orgLogin
-  );
+  const billingResponse = await fetchCopilotBilling(token, connection.orgLogin);
 
   if (billingResponse.error || !billingResponse.data) {
     throw new Error(
-      billingResponse.error ?? "Failed to fetch Copilot billing data"
+      billingResponse.error ?? "Failed to fetch Copilot billing data",
     );
   }
 
@@ -93,7 +90,7 @@ export async function syncBillingData(
     const tier = await db.query.accessTiers.findFirst({
       where: and(
         eq(accessTiers.toolId, tool.id),
-        eq(accessTiers.name, tierName)
+        eq(accessTiers.name, tierName),
       ),
     });
 
@@ -155,13 +152,13 @@ export async function syncBillingData(
 
 export async function syncSeatAssignments(
   connection: SyncConnection,
-  token: string
+  token: string,
 ): Promise<SeatSyncResult> {
   const seatsResponse = await fetchCopilotSeats(token, connection.orgLogin);
 
   if (seatsResponse.error || !seatsResponse.data) {
     throw new Error(
-      seatsResponse.error ?? "Failed to fetch Copilot seat assignments"
+      seatsResponse.error ?? "Failed to fetch Copilot seat assignments",
     );
   }
 
@@ -174,7 +171,7 @@ export async function syncSeatAssignments(
 
   if (!tool) {
     throw new Error(
-      "GitHub Copilot tool not found. Run syncBillingData first."
+      "GitHub Copilot tool not found. Run syncBillingData first.",
     );
   }
 
@@ -189,7 +186,7 @@ export async function syncSeatAssignments(
   const tiers = await db.query.accessTiers.findMany({
     where: eq(accessTiers.toolId, tool.id),
   });
-  const tierByName = new Map<string, typeof tiers[number]>();
+  const tierByName = new Map<string, (typeof tiers)[number]>();
   for (const tier of tiers) {
     tierByName.set(tier.name, tier);
   }
@@ -198,11 +195,17 @@ export async function syncSeatAssignments(
   const allToolAssignments = await db.query.licenseAssignments.findMany({
     where: eq(licenseAssignments.toolId, tool.id),
   });
-  const assignmentByUserId = new Map<number, typeof allToolAssignments[number]>();
+  const assignmentByUserId = new Map<
+    number,
+    (typeof allToolAssignments)[number]
+  >();
   for (const a of allToolAssignments) {
     // Prefer copilot-sync over manual if both somehow exist
     const existing = assignmentByUserId.get(a.userId);
-    if (!existing || (existing.source === "manual" && a.source === "copilot-sync")) {
+    if (
+      !existing ||
+      (existing.source === "manual" && a.source === "copilot-sync")
+    ) {
       assignmentByUserId.set(a.userId, a);
     }
   }
@@ -289,7 +292,7 @@ export async function syncSeatAssignments(
 
 export async function syncUsageMetrics(
   connection: SyncConnection,
-  token: string
+  token: string,
 ): Promise<MetricsSyncResult> {
   // Find latest metric date for this connection
   const latestRow = await db.query.copilotUsageMetrics.findFirst({
@@ -308,12 +311,22 @@ export async function syncUsageMetrics(
   const metricsResponse = await fetchCopilotMetrics(
     token,
     connection.orgLogin,
-    since
+    since,
   );
 
   if (metricsResponse.error || !metricsResponse.data) {
+    // GitHub returns 404 when the org has the Copilot Metrics API policy
+    // disabled, or when fewer than 5 members have generated telemetry in the
+    // window. The admin has to flip that on GitHub's side — there's nothing
+    // we can do from here, so don't fail the whole sync over it.
+    if (metricsResponse.status === 404) {
+      console.warn(
+        `[copilot-sync] Copilot metrics not available for org "${connection.orgLogin}" (404). The "Copilot Metrics API access" policy may be disabled, or the org has fewer than 5 users emitting telemetry. See https://docs.github.com/en/copilot/managing-copilot/managing-policies-and-features-for-copilot-in-your-organization`,
+      );
+      return { metricsProcessed: 0 };
+    }
     throw new Error(
-      metricsResponse.error ?? "Failed to fetch Copilot usage metrics"
+      metricsResponse.error ?? "Failed to fetch Copilot usage metrics",
     );
   }
 
@@ -326,7 +339,12 @@ export async function syncUsageMetrics(
     // (the top-level languages[] only has name + engaged_users, no counts)
     const langTotals = new Map<
       string,
-      { suggestions: number; acceptances: number; linesSuggested: number; linesAccepted: number }
+      {
+        suggestions: number;
+        acceptances: number;
+        linesSuggested: number;
+        linesAccepted: number;
+      }
     >();
 
     let totalSuggestions = 0;
@@ -364,7 +382,7 @@ export async function syncUsageMetrics(
       ([language, totals]) => ({
         language,
         ...totals,
-      })
+      }),
     );
 
     // Build editor breakdown by summing across models[].languages[]
@@ -435,10 +453,7 @@ export async function syncUsageMetrics(
         editorBreakdown,
       })
       .onConflictDoUpdate({
-        target: [
-          copilotUsageMetrics.connectionId,
-          copilotUsageMetrics.date,
-        ],
+        target: [copilotUsageMetrics.connectionId, copilotUsageMetrics.date],
         set: {
           totalActiveUsers: day.total_active_users,
           totalEngagedUsers: day.total_engaged_users,
@@ -465,7 +480,7 @@ export async function syncUsageMetrics(
 
 export async function runCopilotSync(
   connectionId: number,
-  syncEventId: number
+  syncEventId: number,
 ): Promise<void> {
   // Get the triggering admin from the sync event for audit attribution
   const syncEvent = await db.query.githubSyncEvents.findFirst({
@@ -520,7 +535,7 @@ export async function runCopilotSync(
     billingResult = await syncBillingData(syncConnection, token);
   } catch (err) {
     errors.push(
-      `Billing sync failed: ${err instanceof Error ? err.message : String(err)}`
+      `Billing sync failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
@@ -529,7 +544,7 @@ export async function runCopilotSync(
     seatResult = await syncSeatAssignments(syncConnection, token);
   } catch (err) {
     errors.push(
-      `Seat sync failed: ${err instanceof Error ? err.message : String(err)}`
+      `Seat sync failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
@@ -538,13 +553,13 @@ export async function runCopilotSync(
     metricsResult = await syncUsageMetrics(syncConnection, token);
   } catch (err) {
     errors.push(
-      `Metrics sync failed: ${err instanceof Error ? err.message : String(err)}`
+      `Metrics sync failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
   // Determine final status
   const successCount = [billingResult, seatResult, metricsResult].filter(
-    (r) => r !== null
+    (r) => r !== null,
   ).length;
 
   let finalStatus: "completed" | "partial" | "failed";
