@@ -26,7 +26,7 @@ export function ClaudeTabs() {
   return (
     <nav
       aria-label="Claude Console sections"
-      className="-mb-px flex items-center gap-1 border-b"
+      className="flex gap-2 border-b"
     >
       {TABS.map((tab) => {
         // Workspaces tab must NOT match `/claude/users` — exact match for
@@ -43,10 +43,10 @@ export function ClaudeTabs() {
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "relative -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               isActive
-                ? "border-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
             )}
           >
             {tab.label}
