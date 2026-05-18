@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claude Console · Users — mockup</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --ring: #d4f057;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .tabular { font-variant-numeric: tabular-nums; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 1.6; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+      .row:hover { background: rgba(255,255,255,0.02); }
+      .progress { height: 6px; border-radius: 999px; background: #262626; overflow: hidden; }
+      .progress > div { height: 100%; border-radius: 999px; }
+      .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid var(--border-2); background: transparent; color: var(--text); cursor: pointer; }
+      .btn:hover { background: #1f1f1f; }
+      .btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+      .btn-primary:hover { background: #c9e94a; }
+      .btn-ghost { border-color: transparent; color: var(--muted); }
+      .select { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-2); background: #141414; color: var(--text); font-size: 13px; }
+      .select svg { color: var(--muted); }
+      .kpi-tile { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); }
+      .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .kpi-value { font-size: 28px; font-weight: 600; }
+      .kpi-value-sm { font-size: 22px; font-weight: 600; }
+      .kpi-sub { font-size: 12px; color: var(--muted); }
+      .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); }
+      .chip-warn { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #2a1a04; color: #fde68a; border: 1px solid #78350f; }
+      .ws-row { display: grid; grid-template-columns: minmax(0,1.3fr) 1fr 96px minmax(200px,1.2fr) auto; gap: 20px; align-items: center; padding: 14px 0; }
+      .ws-row.simple { grid-template-columns: minmax(0,1.3fr) 1fr 1fr auto; }
+      .sparkline { display: block; }
+      .sparkline-label { font-size: 10px; color: var(--muted-2); text-align: center; margin-top: 2px; letter-spacing: 0.02em; }
+      .mover-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px; font-size: 12px; background: #181818; border: 1px solid var(--border-2); color: var(--text); }
+      .mover-chip .arrow { color: var(--success); font-weight: 600; }
+      .ws-name { font-weight: 500; }
+      .ws-spend { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .ws-limit { font-size: 13px; color: var(--muted); }
+      .ws-over { color: var(--danger); }
+      .ws-warn { color: var(--warn); }
+      .divider { border-top: 1px solid var(--border); }
+      .skel { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent); }
+      .tooltip { position: absolute; background: #0a0a0a; border: 1px solid var(--border-2); border-radius: 8px; padding: 8px 10px; font-size: 12px; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+      details > summary { list-style: none; cursor: pointer; }
+      details > summary::-webkit-details-marker { display: none; }
+      /* Tabs */
+      .tabs { display: inline-flex; gap: 4px; border-bottom: 1px solid var(--border); width: 100%; }
+      .tab { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 14px; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+      .tab:hover { color: var(--text); }
+      .tab.active { color: var(--text); border-bottom-color: var(--primary); }
+      .tab .count { font-size: 11px; color: var(--muted-2); background: #1f1f1f; border: 1px solid var(--border-2); padding: 1px 7px; border-radius: 999px; font-weight: 500; }
+      /* Users table */
+      .u-row { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(0,1.1fr) 64px 96px 110px 110px 110px 36px; gap: 16px; align-items: center; padding: 12px 0; }
+      .u-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-2); padding: 10px 0; border-bottom: 1px solid var(--border); }
+      .u-head .sort-active { color: var(--text); }
+      .avatar { width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #0a0a0a; flex-shrink: 0; }
+      .ws-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+      .link-arrow { color: var(--muted); }
+      .link-arrow:hover { color: var(--text); }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-56 shrink-0 border-r border-[var(--border)] bg-[var(--panel)] p-4 hidden lg:block">
+        <h2 class="text-sm font-semibold mb-4">AI Developer Hub</h2>
+        <div class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] mb-2">Navigation</div>
+        <nav class="text-sm space-y-1">
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Dashboard</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Tools</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Users</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Assignments</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Budget</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Reports</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Copilot</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded bg-white/5 text-white font-medium">Claude Console</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Invoices</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Settings</a>
+        </nav>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 min-w-0">
+        <div class="mx-auto max-w-[1200px] px-6 py-5 space-y-6">
+
+          <!-- Budget alert (verbatim from /claude — same alert on both tabs) -->
+          <div class="card border-[#3a1212] bg-[#1a0a0a] px-4 py-3 flex items-start gap-3">
+            <span class="mt-0.5 text-[var(--danger)]" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+            </span>
+            <div class="flex-1 text-sm">
+              <p class="font-semibold text-[var(--danger)]">Budget Alert</p>
+              <p class="text-[var(--text)]/90"><span class="font-medium">Automations</span> is at <span class="font-semibold">105%</span> of monthly budget — limit exceeded.</p>
+            </div>
+            <button class="btn btn-ghost" aria-label="Dismiss alert">×</button>
+          </div>
+
+          <!-- Header with sync pill + Trigger Sync (verbatim layout from /claude) -->
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 class="text-2xl font-bold tracking-tight">Claude Console</h1>
+              <p class="text-[var(--muted)] text-sm">Top spenders, model mix, and per-user cost trends.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="pill" style="background:#0f1d12; color:#86efac; border:1px solid #14532d">
+                <span class="dot" style="background:#22c55e"></span>
+                Synced 3m ago · next in 57m
+              </span>
+              <button class="btn btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14"/></svg>
+                Trigger Sync
+              </button>
+            </div>
+          </div>
+
+          <!-- Tabs row (new for spec 027) -->
+          <div class="tabs" role="tablist" aria-label="Claude Console views">
+            <a class="tab" role="tab" aria-selected="false" href="/claude">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              Workspaces
+              <span class="count tabular">13</span>
+            </a>
+            <a class="tab active" role="tab" aria-selected="true" href="/claude/users">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Users
+              <span class="count tabular">41</span>
+            </a>
+          </div>
+
+          <!-- Controls row -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="select w-[160px]">
+              <span class="flex items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> May 2026</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="select w-[200px]">
+              <span class="flex items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> All workspaces</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="select w-[160px]">
+              <span class="flex items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> All teams</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="select w-[160px]">
+              <span class="flex items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> All profiles</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <label class="flex items-center gap-2 text-sm text-[var(--muted)] cursor-pointer ml-2 select-none">
+              <input type="checkbox" checked class="rounded border-[var(--border-2)] bg-transparent text-[var(--primary)]" />
+              Hide $0 users
+            </label>
+            <div class="ml-auto flex items-center gap-2 text-sm text-[var(--muted)]">
+              <button class="btn btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI strip — 4 tiles -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="kpi-tile">
+              <div class="kpi-label">Active users · May 2026</div>
+              <div class="kpi-value tabular">27 <span class="text-[var(--muted)] text-base font-normal">/ 41</span></div>
+              <div class="kpi-sub mt-1 flex items-center gap-1">
+                <span class="text-[var(--success)]">▲ 4</span> vs Apr (23)
+              </div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Top spender</div>
+              <div class="kpi-value-sm">Sarah Chen</div>
+              <div class="kpi-sub mt-1 tabular">$312.40 · 17% of org</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Top-5 concentration</div>
+              <div class="kpi-value tabular">58%</div>
+              <div class="kpi-sub mt-1"><span class="text-[var(--warn)]">●</span> Sarah Chen + 4 others account for <span class="tabular">$1,055</span> of <span class="tabular">$1,820</span> MTD</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Users with no API key</div>
+              <div class="kpi-value tabular">6 <span class="text-[var(--muted)] text-base font-normal">/ 33 provisioned</span></div>
+              <div class="kpi-sub mt-1"><a class="underline underline-offset-4 hover:text-white" href="#">Click to view list →</a></div>
+            </div>
+          </div>
+
+          <!-- Top 10 users — horizontal bar chart -->
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+              <div>
+                <h3 class="text-sm font-medium">Top 10 users · click to drill in</h3>
+                <p class="text-xs text-[var(--muted)]">May 2026 · sorted by cost MTD · bar colour reflects user's resolved workspace</p>
+              </div>
+              <div class="flex items-center gap-1 text-xs text-[var(--muted)]">
+                <span class="mr-1">Sort:</span>
+                <button class="chip" style="background:#1f1f1f; color:#fafafa; border-color:var(--border-2)">Cost</button>
+                <button class="chip">Tokens</button>
+              </div>
+            </div>
+
+            <svg viewBox="0 0 1100 380" class="w-full h-[400px]" role="img" aria-label="Top 10 users by MTD cost">
+              <!-- vertical grid lines + x labels -->
+              <g stroke="#262626" stroke-dasharray="3 3">
+                <line x1="240" y1="10"  x2="240" y2="350"/>
+                <line x1="420" y1="10"  x2="420" y2="350"/>
+                <line x1="600" y1="10"  x2="600" y2="350"/>
+                <line x1="780" y1="10"  x2="780" y2="350"/>
+                <line x1="960" y1="10"  x2="960" y2="350"/>
+              </g>
+              <line x1="240" y1="10" x2="240" y2="350" stroke="#3f3f46"/>
+              <g fill="#71717a" font-size="11" font-family="ui-sans-serif" text-anchor="middle">
+                <text x="240" y="370">$0</text>
+                <text x="420" y="370">$75</text>
+                <text x="600" y="370">$150</text>
+                <text x="780" y="370">$225</text>
+                <text x="960" y="370">$300</text>
+              </g>
+
+              <!--
+                Scale: $300 = 720px (240..960). 1 dollar = 2.4px.
+                Bars: x=240, width = cost * 2.4
+                Rows: y starts at 18, height 24, vertical gap 8 (32 per row).
+              -->
+              <g font-family="ui-sans-serif" font-size="12">
+                <!-- 1 Sarah Chen $312 (boost-expert-1 violet) -->
+                <text x="232" y="34" text-anchor="end" fill="#fafafa" font-weight="500">Sarah Chen</text>
+                <rect x="240" y="18" width="748.8" height="24" fill="#c4b5fd" rx="3"/>
+                <text x="996" y="34" fill="#a1a1aa" font-size="11" class="tabular">$312.40 · 4.2M tok</text>
+
+                <!-- 2 Marcus Webb $278 (boost-starter-1 light green) -->
+                <text x="232" y="66" text-anchor="end" fill="#fafafa" font-weight="500">Marcus Webb</text>
+                <rect x="240" y="50" width="667.2" height="24" fill="#86efac" rx="3"/>
+                <text x="914" y="66" fill="#a1a1aa" font-size="11" class="tabular">$278.10 · 3.6M tok</text>
+
+                <!-- 3 Priya Patel $195 (boost-starter-5 lime) -->
+                <text x="232" y="98" text-anchor="end" fill="#fafafa" font-weight="500">Priya Patel</text>
+                <rect x="240" y="82" width="468" height="24" fill="#d4f057" rx="3"/>
+                <text x="715" y="98" fill="#a1a1aa" font-size="11" class="tabular">$195.30 · 2.7M tok</text>
+
+                <!-- 4 Daniel Roth $160 (boost-starter-2 cyan) -->
+                <text x="232" y="130" text-anchor="end" fill="#fafafa" font-weight="500">Daniel Roth</text>
+                <rect x="240" y="114" width="384" height="24" fill="#67e8f9" rx="3"/>
+                <text x="631" y="130" fill="#a1a1aa" font-size="11" class="tabular">$160.05 · 2.2M tok</text>
+
+                <!-- 5 Jasmin Keller $142 (boost-starter-3 blue) -->
+                <text x="232" y="162" text-anchor="end" fill="#fafafa" font-weight="500">Jasmin Keller</text>
+                <rect x="240" y="146" width="340.8" height="24" fill="#93c5fd" rx="3"/>
+                <text x="588" y="162" fill="#a1a1aa" font-size="11" class="tabular">$141.85 · 1.9M tok</text>
+
+                <!-- 6 Tobias Studer $118 (boost-expert-1 violet) -->
+                <text x="232" y="194" text-anchor="end" fill="#fafafa" font-weight="500">Tobias Studer</text>
+                <rect x="240" y="178" width="283.2" height="24" fill="#c4b5fd" rx="3"/>
+                <text x="530" y="194" fill="#a1a1aa" font-size="11" class="tabular">$118.20 · 1.6M tok</text>
+
+                <!-- 7 Lena Hoffmann $88 (boost-starter-1 light green) -->
+                <text x="232" y="226" text-anchor="end" fill="#fafafa" font-weight="500">Lena Hoffmann</text>
+                <rect x="240" y="210" width="211.2" height="24" fill="#86efac" rx="3"/>
+                <text x="458" y="226" fill="#a1a1aa" font-size="11" class="tabular">$87.95 · 1.2M tok</text>
+
+                <!-- 8 Ravi Mehta $72 (boost-starter-5 lime) -->
+                <text x="232" y="258" text-anchor="end" fill="#fafafa" font-weight="500">Ravi Mehta</text>
+                <rect x="240" y="242" width="172.8" height="24" fill="#d4f057" rx="3"/>
+                <text x="419" y="258" fill="#a1a1aa" font-size="11" class="tabular">$72.40 · 980k tok</text>
+
+                <!-- 9 Anja Brunner $61 (Automations pink) -->
+                <text x="232" y="290" text-anchor="end" fill="#fafafa" font-weight="500">Anja Brunner</text>
+                <rect x="240" y="274" width="146.4" height="24" fill="#f9a8d4" rx="3"/>
+                <text x="393" y="290" fill="#a1a1aa" font-size="11" class="tabular">$61.05 · 830k tok</text>
+
+                <!-- 10 Felix Walder $54 (boost-starter-3 blue) -->
+                <text x="232" y="322" text-anchor="end" fill="#fafafa" font-weight="500">Felix Walder</text>
+                <rect x="240" y="306" width="129.6" height="24" fill="#93c5fd" rx="3"/>
+                <text x="376" y="322" fill="#a1a1aa" font-size="11" class="tabular">$53.95 · 740k tok</text>
+              </g>
+            </svg>
+
+            <div class="flex flex-wrap gap-3 text-xs text-[var(--muted)] mt-3">
+              <span><span class="legend-swatch" style="background:#d4f057"></span>boost-starter-5</span>
+              <span><span class="legend-swatch" style="background:#86efac"></span>boost-starter-1</span>
+              <span><span class="legend-swatch" style="background:#67e8f9"></span>boost-starter-2</span>
+              <span><span class="legend-swatch" style="background:#93c5fd"></span>boost-starter-3</span>
+              <span><span class="legend-swatch" style="background:#c4b5fd"></span>boost-expert-1</span>
+              <span><span class="legend-swatch" style="background:#f9a8d4"></span>Automations</span>
+              <span><span class="legend-swatch" style="background:#52525b"></span>no workspace</span>
+            </div>
+          </div>
+
+          <!-- Daily spend by user (top 5 stacked) — full-width card -->
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+              <div>
+                <h3 class="text-sm font-medium">Daily spend by user</h3>
+                <p class="text-xs text-[var(--muted)]">Stacked · top 5 users + Other</p>
+              </div>
+              <div class="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
+                <span><span class="legend-swatch" style="background:#d4f057"></span>Sarah Chen</span>
+                <span><span class="legend-swatch" style="background:#86efac"></span>Marcus Webb</span>
+                <span><span class="legend-swatch" style="background:#67e8f9"></span>Priya Patel</span>
+                <span><span class="legend-swatch" style="background:#93c5fd"></span>Daniel Roth</span>
+                <span><span class="legend-swatch" style="background:#c4b5fd"></span>Jasmin Keller</span>
+                <span><span class="legend-swatch" style="background:#52525b"></span>Other</span>
+              </div>
+            </div>
+
+            <div class="relative">
+              <svg viewBox="0 0 1100 280" preserveAspectRatio="none" class="w-full h-[300px]" role="img" aria-label="Daily spend by user, top 5 stacked">
+                <!-- Y axis lines -->
+                <g stroke="#262626" stroke-width="1">
+                  <line x1="50" y1="20"  x2="1080" y2="20"  stroke-dasharray="3 3"/>
+                  <line x1="50" y1="80"  x2="1080" y2="80"  stroke-dasharray="3 3"/>
+                  <line x1="50" y1="140" x2="1080" y2="140" stroke-dasharray="3 3"/>
+                  <line x1="50" y1="200" x2="1080" y2="200" stroke-dasharray="3 3"/>
+                  <line x1="50" y1="240" x2="1080" y2="240"/>
+                </g>
+                <!-- Y labels (max $200/day) -->
+                <g fill="#71717a" font-size="11" font-family="ui-sans-serif">
+                  <text x="44" y="24"  text-anchor="end">$200</text>
+                  <text x="44" y="84"  text-anchor="end">$150</text>
+                  <text x="44" y="144" text-anchor="end">$100</text>
+                  <text x="44" y="204" text-anchor="end">$50</text>
+                  <text x="44" y="244" text-anchor="end">$0</text>
+                </g>
+                <!--
+                  X scale: 15 days, bar width 50, gap 18, starting at 60
+                  Y scale: $200/day = 220px (240 - 20)
+                  Stack bottom-up: Sarah, Marcus, Priya, Daniel, Jasmin, Other
+                -->
+                <g font-family="ui-sans-serif" font-size="11" fill="#71717a">
+                  <!-- day 1 — total ~$118 -->
+                  <g transform="translate(60,0)">
+                    <rect x="0" y="116" width="50" height="124" fill="#d4f057"/>
+                    <rect x="0" y="86"  width="50" height="30"  fill="#86efac"/>
+                    <rect x="0" y="68"  width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="56"  width="50" height="12"  fill="#93c5fd"/>
+                    <rect x="0" y="46"  width="50" height="10"  fill="#c4b5fd"/>
+                    <rect x="0" y="38"  width="50" height="8"   fill="#52525b"/>
+                    <text x="25" y="258" text-anchor="middle">May 1</text>
+                  </g>
+                  <!-- day 2 — total ~$96 -->
+                  <g transform="translate(128,0)">
+                    <rect x="0" y="138" width="50" height="102" fill="#d4f057"/>
+                    <rect x="0" y="114" width="50" height="24"  fill="#86efac"/>
+                    <rect x="0" y="100" width="50" height="14"  fill="#67e8f9"/>
+                    <rect x="0" y="90"  width="50" height="10"  fill="#93c5fd"/>
+                    <rect x="0" y="80"  width="50" height="10"  fill="#c4b5fd"/>
+                    <rect x="0" y="72"  width="50" height="8"   fill="#52525b"/>
+                  </g>
+                  <!-- day 3 -->
+                  <g transform="translate(196,0)">
+                    <rect x="0" y="148" width="50" height="92"  fill="#d4f057"/>
+                    <rect x="0" y="126" width="50" height="22"  fill="#86efac"/>
+                    <rect x="0" y="112" width="50" height="14"  fill="#67e8f9"/>
+                    <rect x="0" y="102" width="50" height="10"  fill="#93c5fd"/>
+                    <rect x="0" y="92"  width="50" height="10"  fill="#c4b5fd"/>
+                    <rect x="0" y="84"  width="50" height="8"   fill="#52525b"/>
+                  </g>
+                  <!-- day 4 -->
+                  <g transform="translate(264,0)">
+                    <rect x="0" y="108" width="50" height="132" fill="#d4f057"/>
+                    <rect x="0" y="76"  width="50" height="32"  fill="#86efac"/>
+                    <rect x="0" y="58"  width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="44"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="32"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="22"  width="50" height="10"  fill="#52525b"/>
+                  </g>
+                  <!-- day 5 -->
+                  <g transform="translate(332,0)">
+                    <rect x="0" y="146" width="50" height="94"  fill="#d4f057"/>
+                    <rect x="0" y="120" width="50" height="26"  fill="#86efac"/>
+                    <rect x="0" y="104" width="50" height="16"  fill="#67e8f9"/>
+                    <rect x="0" y="92"  width="50" height="12"  fill="#93c5fd"/>
+                    <rect x="0" y="80"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="72"  width="50" height="8"   fill="#52525b"/>
+                    <text x="25" y="258" text-anchor="middle">May 5</text>
+                  </g>
+                  <!-- day 6 — weekend dip -->
+                  <g transform="translate(400,0)">
+                    <rect x="0" y="184" width="50" height="56"  fill="#d4f057"/>
+                    <rect x="0" y="164" width="50" height="20"  fill="#86efac"/>
+                    <rect x="0" y="152" width="50" height="12"  fill="#67e8f9"/>
+                    <rect x="0" y="142" width="50" height="10"  fill="#93c5fd"/>
+                    <rect x="0" y="134" width="50" height="8"   fill="#c4b5fd"/>
+                    <rect x="0" y="128" width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <!-- day 7 — weekend dip -->
+                  <g transform="translate(468,0)">
+                    <rect x="0" y="190" width="50" height="50"  fill="#d4f057"/>
+                    <rect x="0" y="170" width="50" height="20"  fill="#86efac"/>
+                    <rect x="0" y="158" width="50" height="12"  fill="#67e8f9"/>
+                    <rect x="0" y="148" width="50" height="10"  fill="#93c5fd"/>
+                    <rect x="0" y="140" width="50" height="8"   fill="#c4b5fd"/>
+                    <rect x="0" y="134" width="50" height="6"   fill="#52525b"/>
+                  </g>
+                  <!-- day 8 -->
+                  <g transform="translate(536,0)">
+                    <rect x="0" y="122" width="50" height="118" fill="#d4f057"/>
+                    <rect x="0" y="92"  width="50" height="30"  fill="#86efac"/>
+                    <rect x="0" y="74"  width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="60"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="48"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="38"  width="50" height="10"  fill="#52525b"/>
+                  </g>
+                  <!-- day 9 -->
+                  <g transform="translate(604,0)">
+                    <rect x="0" y="134" width="50" height="106" fill="#d4f057"/>
+                    <rect x="0" y="108" width="50" height="26"  fill="#86efac"/>
+                    <rect x="0" y="90"  width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="76"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="62"  width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="54"  width="50" height="8"   fill="#52525b"/>
+                    <text x="25" y="258" text-anchor="middle">May 10</text>
+                  </g>
+                  <!-- day 10 -->
+                  <g transform="translate(672,0)">
+                    <rect x="0" y="150" width="50" height="90"  fill="#d4f057"/>
+                    <rect x="0" y="124" width="50" height="26"  fill="#86efac"/>
+                    <rect x="0" y="108" width="50" height="16"  fill="#67e8f9"/>
+                    <rect x="0" y="94"  width="50" height="14"  fill="#93c5fd"/>
+                    <rect x="0" y="82"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="74"  width="50" height="8"   fill="#52525b"/>
+                  </g>
+                  <!-- day 11 -->
+                  <g transform="translate(740,0)">
+                    <rect x="0" y="158" width="50" height="82"  fill="#d4f057"/>
+                    <rect x="0" y="132" width="50" height="26"  fill="#86efac"/>
+                    <rect x="0" y="116" width="50" height="16"  fill="#67e8f9"/>
+                    <rect x="0" y="104" width="50" height="12"  fill="#93c5fd"/>
+                    <rect x="0" y="92"  width="50" height="12"  fill="#c4b5fd"/>
+                    <rect x="0" y="84"  width="50" height="8"   fill="#52525b"/>
+                  </g>
+                  <!-- day 12 -->
+                  <g transform="translate(808,0)">
+                    <rect x="0" y="112" width="50" height="128" fill="#d4f057"/>
+                    <rect x="0" y="80"  width="50" height="32"  fill="#86efac"/>
+                    <rect x="0" y="62"  width="50" height="18"  fill="#67e8f9"/>
+                    <rect x="0" y="46"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="32"  width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="22"  width="50" height="10"  fill="#52525b"/>
+                  </g>
+                  <!-- day 13 -->
+                  <g transform="translate(876,0)">
+                    <rect x="0" y="94"  width="50" height="146" fill="#d4f057"/>
+                    <rect x="0" y="62"  width="50" height="32"  fill="#86efac"/>
+                    <rect x="0" y="42"  width="50" height="20"  fill="#67e8f9"/>
+                    <rect x="0" y="26"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="12"  width="50" height="14"  fill="#c4b5fd"/>
+                    <rect x="0" y="4"   width="50" height="8"   fill="#52525b"/>
+                  </g>
+                  <!-- day 14 -->
+                  <g transform="translate(944,0)">
+                    <rect x="0" y="86"  width="50" height="154" fill="#d4f057"/>
+                    <rect x="0" y="54"  width="50" height="32"  fill="#86efac"/>
+                    <rect x="0" y="34"  width="50" height="20"  fill="#67e8f9"/>
+                    <rect x="0" y="18"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="4"   width="50" height="14"  fill="#c4b5fd"/>
+                  </g>
+                  <!-- day 15 -->
+                  <g transform="translate(1012,0)">
+                    <rect x="0" y="100" width="50" height="140" fill="#d4f057"/>
+                    <rect x="0" y="70"  width="50" height="30"  fill="#86efac"/>
+                    <rect x="0" y="50"  width="50" height="20"  fill="#67e8f9"/>
+                    <rect x="0" y="34"  width="50" height="16"  fill="#93c5fd"/>
+                    <rect x="0" y="20"  width="50" height="14"  fill="#c4b5fd"/>
+                    <text x="25" y="258" text-anchor="middle">May 15</text>
+                  </g>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Two-up row: distribution histogram + fastest growing users -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- LEFT: Cost distribution histogram -->
+            <div class="card p-5">
+              <div class="mb-4">
+                <h3 class="text-sm font-medium">Cost distribution · how many users in each bracket</h3>
+                <p class="text-xs text-[var(--muted)]">May 2026 · 41 provisioned users across 6 buckets</p>
+              </div>
+
+              <svg viewBox="0 0 540 280" class="w-full h-[280px]" role="img" aria-label="Cost distribution histogram, six buckets">
+                <!-- horizontal grid -->
+                <g stroke="#262626" stroke-dasharray="3 3">
+                  <line x1="40" y1="40"  x2="520" y2="40"/>
+                  <line x1="40" y1="90"  x2="520" y2="90"/>
+                  <line x1="40" y1="140" x2="520" y2="140"/>
+                  <line x1="40" y1="190" x2="520" y2="190"/>
+                </g>
+                <line x1="40" y1="240" x2="520" y2="240" stroke="#3f3f46"/>
+                <!-- y labels (max ~16 users) -->
+                <g fill="#71717a" font-size="10" font-family="ui-sans-serif">
+                  <text x="36" y="43"  text-anchor="end">16</text>
+                  <text x="36" y="93"  text-anchor="end">12</text>
+                  <text x="36" y="143" text-anchor="end">8</text>
+                  <text x="36" y="193" text-anchor="end">4</text>
+                  <text x="36" y="243" text-anchor="end">0</text>
+                </g>
+                <!--
+                  6 buckets, bar width 60, gap 16, start x=60. Each user worth ~12.5px.
+                  $0           14 → 175px tall → y=65
+                  $0.01–$1      3 →  37.5px   → y=202.5 → 203
+                  $1–$10        5 →  62.5px   → y=177.5 → 178
+                  $10–$50       8 → 100px     → y=140
+                  $50–$100      6 →  75px     → y=165
+                  $100+         5 →  62.5px   → y=177.5 → 178
+                -->
+                <g font-family="ui-sans-serif">
+                  <!-- $0 (muted) -->
+                  <rect x="60"  y="65"  width="60" height="175" fill="#52525b" rx="3"/>
+                  <text x="90"  y="58"  text-anchor="middle" font-size="12" fill="#fafafa" font-weight="500" class="tabular">14</text>
+                  <text x="90"  y="260" text-anchor="middle" font-size="11" fill="#a1a1aa">$0</text>
+
+                  <!-- $0.01–$1 (muted-2) -->
+                  <rect x="136" y="203" width="60" height="37"  fill="#71717a" rx="3"/>
+                  <text x="166" y="196" text-anchor="middle" font-size="12" fill="#fafafa" font-weight="500" class="tabular">3</text>
+                  <text x="166" y="260" text-anchor="middle" font-size="11" fill="#a1a1aa">$0.01–$1</text>
+
+                  <!-- $1–$10 (muted-warm) -->
+                  <rect x="212" y="178" width="60" height="62"  fill="#a1a1aa" rx="3"/>
+                  <text x="242" y="171" text-anchor="middle" font-size="12" fill="#fafafa" font-weight="500" class="tabular">5</text>
+                  <text x="242" y="260" text-anchor="middle" font-size="11" fill="#a1a1aa">$1–$10</text>
+
+                  <!-- $10–$50 (warn dim) -->
+                  <rect x="288" y="140" width="60" height="100" fill="#ca8a04" rx="3"/>
+                  <text x="318" y="133" text-anchor="middle" font-size="12" fill="#fafafa" font-weight="500" class="tabular">8</text>
+                  <text x="318" y="260" text-anchor="middle" font-size="11" fill="#a1a1aa">$10–$50</text>
+
+                  <!-- $50–$100 (warn) -->
+                  <rect x="364" y="165" width="60" height="75"  fill="#facc15" rx="3"/>
+                  <text x="394" y="158" text-anchor="middle" font-size="12" fill="#fafafa" font-weight="500" class="tabular">6</text>
+                  <text x="394" y="260" text-anchor="middle" font-size="11" fill="#a1a1aa">$50–$100</text>
+
+                  <!-- $100+ (danger) -->
+                  <rect x="440" y="178" width="60" height="62"  fill="#f87171" rx="3"/>
+                  <text x="470" y="171" text-anchor="middle" font-size="12" fill="#fafafa" font-weight="500" class="tabular">5</text>
+                  <text x="470" y="260" text-anchor="middle" font-size="11" fill="#fca5a5">$100+</text>
+                </g>
+              </svg>
+
+              <p class="text-xs text-[var(--muted)] mt-2">
+                <span class="text-[var(--danger)]">●</span> Right tail dominates: 5 users (<span class="tabular">$100+</span>) spent <span class="tabular">$1,005</span> = 55% of org MTD.
+              </p>
+            </div>
+
+            <!-- RIGHT: Fastest growing users (6mo) -->
+            <div class="card p-5">
+              <div class="mb-4">
+                <h3 class="text-sm font-medium">Fastest growing users (6mo)</h3>
+                <p class="text-xs text-[var(--muted)]">Top 3 by positive % delta · prior 3-month avg vs. recent 3-month avg · $5 floor</p>
+              </div>
+
+              <div class="flex flex-wrap gap-2 mb-5">
+                <span class="mover-chip">
+                  <span class="arrow">▲</span>
+                  <span class="font-medium">Sarah Chen</span>
+                  <span class="text-[var(--muted)] tabular">$48 → $312 · +550%</span>
+                </span>
+                <span class="mover-chip">
+                  <span class="arrow">▲</span>
+                  <span class="font-medium">Marcus Webb</span>
+                  <span class="text-[var(--muted)] tabular">$61 → $278 · +355%</span>
+                </span>
+                <span class="mover-chip">
+                  <span class="arrow">▲</span>
+                  <span class="font-medium">Lena Hoffmann</span>
+                  <span class="text-[var(--muted)] tabular">$22 → $88 · +300%</span>
+                </span>
+              </div>
+
+              <div class="space-y-3 pt-3 border-t border-[var(--border)]">
+                <div class="flex items-center gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">Sarah Chen</p>
+                    <p class="text-xs text-[var(--muted)] truncate">sarah.chen@unic.com</p>
+                  </div>
+                  <div class="sparkline" title="Dec $32 → May $312 · +875%">
+                    <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                      <rect x="2"  y="20.4" width="12" height="3.6"  fill="#4ade80" rx="1.5"/>
+                      <rect x="16" y="18.8" width="12" height="5.2"  fill="#4ade80" rx="1.5"/>
+                      <rect x="30" y="14.6" width="12" height="9.4"  fill="#4ade80" rx="1.5"/>
+                      <rect x="44" y="10.2" width="12" height="13.8" fill="#4ade80" rx="1.5"/>
+                      <rect x="58" y="5.6"  width="12" height="18.4" fill="#4ade80" rx="1.5"/>
+                      <rect x="72" y="0"    width="12" height="24"   fill="#4ade80" rx="1.5"/>
+                    </svg>
+                    <div class="sparkline-label"><span style="color:#4ade80">▲ +875%</span></div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">Marcus Webb</p>
+                    <p class="text-xs text-[var(--muted)] truncate">marcus.webb@unic.com</p>
+                  </div>
+                  <div class="sparkline" title="Dec $51 → May $278 · +445%">
+                    <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                      <rect x="2"  y="19.6" width="12" height="4.4"  fill="#4ade80" rx="1.5"/>
+                      <rect x="16" y="17.0" width="12" height="7.0"  fill="#4ade80" rx="1.5"/>
+                      <rect x="30" y="13.0" width="12" height="11.0" fill="#4ade80" rx="1.5"/>
+                      <rect x="44" y="9.0"  width="12" height="15.0" fill="#4ade80" rx="1.5"/>
+                      <rect x="58" y="4.4"  width="12" height="19.6" fill="#4ade80" rx="1.5"/>
+                      <rect x="72" y="0"    width="12" height="24"   fill="#4ade80" rx="1.5"/>
+                    </svg>
+                    <div class="sparkline-label"><span style="color:#4ade80">▲ +445%</span></div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">Lena Hoffmann</p>
+                    <p class="text-xs text-[var(--muted)] truncate">lena.hoffmann@unic.com</p>
+                  </div>
+                  <div class="sparkline" title="Dec $18 → May $88 · +389%">
+                    <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                      <rect x="2"  y="20.0" width="12" height="4.0"  fill="#4ade80" rx="1.5"/>
+                      <rect x="16" y="17.6" width="12" height="6.4"  fill="#4ade80" rx="1.5"/>
+                      <rect x="30" y="14.0" width="12" height="10.0" fill="#4ade80" rx="1.5"/>
+                      <rect x="44" y="10.0" width="12" height="14.0" fill="#4ade80" rx="1.5"/>
+                      <rect x="58" y="4.8"  width="12" height="19.2" fill="#4ade80" rx="1.5"/>
+                      <rect x="72" y="0"    width="12" height="24"   fill="#4ade80" rx="1.5"/>
+                    </svg>
+                    <div class="sparkline-label"><span style="color:#4ade80">▲ +389%</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Users table — centerpiece -->
+          <section aria-label="Users">
+            <div class="flex items-center justify-between mb-3 gap-4 flex-wrap">
+              <h2 class="text-lg font-semibold">Users · May 2026</h2>
+              <div class="flex items-center gap-3">
+                <div class="relative">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input class="select pl-9 pr-3 w-[220px]" placeholder="Search name or email…" />
+                </div>
+                <div class="flex items-center gap-1 text-xs text-[var(--muted)]">
+                  Sort:
+                  <button class="chip" style="background:#1f1f1f; color:#fafafa; border-color:var(--border-2)">Cost MTD ↓</button>
+                  <button class="chip">Tokens</button>
+                  <button class="chip">Last active</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card px-5">
+              <!-- Table header -->
+              <div class="u-row u-head">
+                <div>User</div>
+                <div>Workspace</div>
+                <div class="text-right">Models</div>
+                <div class="text-right">Tokens</div>
+                <div>Sparkline (6mo)</div>
+                <div class="text-right sort-active">MTD spend <span aria-hidden="true">↓</span></div>
+                <div>Last active</div>
+                <div></div>
+              </div>
+
+              <!-- Row 1 — Sarah Chen -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#c4b5fd">SC</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Sarah Chen</p>
+                    <p class="text-xs text-[var(--muted)] truncate">sarah.chen@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#c4b5fd"></span>
+                  <span class="text-sm truncate">boost-expert-1</span>
+                </div>
+                <div class="text-right text-sm tabular">3</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">4.2M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#4ade80" stroke-width="1.5" points="2,20 16,18 30,14 44,10 58,5 72,1" />
+                    <circle cx="72" cy="1" r="1.6" fill="#4ade80"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#4ade80">▲ 6mo</span></div>
+                </div>
+                <div class="text-right ws-spend">$312.40</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow" aria-label="Drill into Sarah Chen">→</a>
+                </div>
+              </div>
+
+              <!-- Row 2 — Marcus Webb -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#86efac">MW</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Marcus Webb</p>
+                    <p class="text-xs text-[var(--muted)] truncate">marcus.webb@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#86efac"></span>
+                  <span class="text-sm truncate">boost-starter-1</span>
+                </div>
+                <div class="text-right text-sm tabular">4</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">3.6M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#4ade80" stroke-width="1.5" points="2,19 16,17 30,13 44,9 58,4 72,2" />
+                    <circle cx="72" cy="2" r="1.6" fill="#4ade80"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#4ade80">▲ 6mo</span></div>
+                </div>
+                <div class="text-right ws-spend">$278.10</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 3 — Priya Patel — pricing-unresolved chip example -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#d4f057">PP</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Priya Patel</p>
+                    <p class="text-xs text-[var(--muted)] truncate">priya.patel@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#d4f057"></span>
+                  <span class="text-sm truncate">boost-starter-5</span>
+                </div>
+                <div class="text-right text-sm tabular">3</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">2.7M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#86efac" stroke-width="1.5" points="2,17 16,14 30,12 44,9 58,7 72,4" />
+                    <circle cx="72" cy="4" r="1.6" fill="#86efac"/>
+                  </svg>
+                  <div class="sparkline-label">+128% 6mo</div>
+                </div>
+                <div class="text-right">
+                  <div class="ws-spend">$195.30</div>
+                  <span class="chip-warn mt-1 inline-block" title="One or more rows had unresolved pricing at sync time">pricing-unresolved</span>
+                </div>
+                <div class="text-sm text-[var(--muted)]">yesterday</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 4 — Daniel Roth -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#67e8f9">DR</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Daniel Roth</p>
+                    <p class="text-xs text-[var(--muted)] truncate">daniel.roth@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#67e8f9"></span>
+                  <span class="text-sm truncate">boost-starter-2</span>
+                </div>
+                <div class="text-right text-sm tabular">2</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">2.2M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#86efac" stroke-width="1.5" points="2,15 16,13 30,11 44,10 58,7 72,5" />
+                    <circle cx="72" cy="5" r="1.6" fill="#86efac"/>
+                  </svg>
+                  <div class="sparkline-label">+74% 6mo</div>
+                </div>
+                <div class="text-right ws-spend">$160.05</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 5 — Jasmin Keller -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#93c5fd">JK</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Jasmin Keller</p>
+                    <p class="text-xs text-[var(--muted)] truncate">jasmin.keller@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#93c5fd"></span>
+                  <span class="text-sm truncate">boost-starter-3</span>
+                </div>
+                <div class="text-right text-sm tabular">3</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">1.9M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#86efac" stroke-width="1.5" points="2,14 16,12 30,11 44,10 58,8 72,6" />
+                    <circle cx="72" cy="6" r="1.6" fill="#86efac"/>
+                  </svg>
+                  <div class="sparkline-label">+62% 6mo</div>
+                </div>
+                <div class="text-right ws-spend">$141.85</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 6 — Tobias Studer -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#c4b5fd">TS</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Tobias Studer</p>
+                    <p class="text-xs text-[var(--muted)] truncate">tobias.studer@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#c4b5fd"></span>
+                  <span class="text-sm truncate">boost-expert-1</span>
+                </div>
+                <div class="text-right text-sm tabular">3</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">1.6M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#facc15" stroke-width="1.5" points="2,12 16,11 30,11 44,12 58,9 72,8" />
+                    <circle cx="72" cy="8" r="1.6" fill="#facc15"/>
+                  </svg>
+                  <div class="sparkline-label">+22% 6mo</div>
+                </div>
+                <div class="text-right ws-spend">$118.20</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 7 — Lena Hoffmann -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#86efac">LH</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Lena Hoffmann</p>
+                    <p class="text-xs text-[var(--muted)] truncate">lena.hoffmann@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#86efac"></span>
+                  <span class="text-sm truncate">boost-starter-1</span>
+                </div>
+                <div class="text-right text-sm tabular">2</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">1.2M</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#4ade80" stroke-width="1.5" points="2,20 16,18 30,14 44,10 58,5 72,3" />
+                    <circle cx="72" cy="3" r="1.6" fill="#4ade80"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#4ade80">▲ +300%</span></div>
+                </div>
+                <div class="text-right ws-spend">$87.95</div>
+                <div class="text-sm text-[var(--muted)]">2d ago</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 8 — Ravi Mehta -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#d4f057">RM</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Ravi Mehta</p>
+                    <p class="text-xs text-[var(--muted)] truncate">ravi.mehta@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#d4f057"></span>
+                  <span class="text-sm truncate">boost-starter-5</span>
+                </div>
+                <div class="text-right text-sm tabular">2</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">980k</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#86efac" stroke-width="1.5" points="2,16 16,14 30,12 44,11 58,9 72,8" />
+                    <circle cx="72" cy="8" r="1.6" fill="#86efac"/>
+                  </svg>
+                  <div class="sparkline-label">+58% 6mo</div>
+                </div>
+                <div class="text-right ws-spend">$72.40</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 9 — Anja Brunner (Automations) -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#f9a8d4">AB</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Anja Brunner</p>
+                    <p class="text-xs text-[var(--muted)] truncate">anja.brunner@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#f9a8d4"></span>
+                  <span class="text-sm truncate">Automations</span>
+                </div>
+                <div class="text-right text-sm tabular">1</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">830k</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#f87171" stroke-width="1.5" points="2,20 16,18 30,14 44,10 58,5 72,1" />
+                    <circle cx="72" cy="1" r="1.6" fill="#f87171"/>
+                  </svg>
+                  <div class="sparkline-label"><span style="color:#f87171">▲ +413%</span></div>
+                </div>
+                <div class="text-right ws-spend">$61.05</div>
+                <div class="text-sm text-[var(--muted)]">today</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 10 — Felix Walder -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#93c5fd">FW</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Felix Walder</p>
+                    <p class="text-xs text-[var(--muted)] truncate">felix.walder@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#93c5fd"></span>
+                  <span class="text-sm truncate">boost-starter-3</span>
+                </div>
+                <div class="text-right text-sm tabular">2</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">740k</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#86efac" stroke-width="1.5" points="2,16 16,15 30,13 44,11 58,10 72,9" />
+                    <circle cx="72" cy="9" r="1.6" fill="#86efac"/>
+                  </svg>
+                  <div class="sparkline-label">+42% 6mo</div>
+                </div>
+                <div class="text-right ws-spend">$53.95</div>
+                <div class="text-sm text-[var(--muted)]">3d ago</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 11 — small spender -->
+              <div class="u-row row border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#86efac">KS</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">Klara Schmid</p>
+                    <p class="text-xs text-[var(--muted)] truncate">klara.schmid@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="ws-dot" style="background:#86efac"></span>
+                  <span class="text-sm truncate">boost-starter-1</span>
+                </div>
+                <div class="text-right text-sm tabular">1</div>
+                <div class="text-right text-sm tabular text-[var(--muted)]">62k</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <polyline fill="none" stroke="#71717a" stroke-width="1.5" points="2,20 16,19 30,19 44,20 58,18 72,17" />
+                    <circle cx="72" cy="17" r="1.6" fill="#71717a"/>
+                  </svg>
+                  <div class="sparkline-label">flat</div>
+                </div>
+                <div class="text-right ws-spend">$4.20</div>
+                <div class="text-sm text-[var(--muted)]">May 11</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+
+              <!-- Row 12 — zero spend, no workspace (empty state row visible) -->
+              <div class="u-row row">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="avatar" style="background:#3f3f46; color:#a1a1aa">NM</span>
+                  <div class="min-w-0">
+                    <p class="font-medium truncate text-[var(--muted)]">Noah Mueller</p>
+                    <p class="text-xs text-[var(--muted-2)] truncate">noah.mueller@unic.com</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-sm text-[var(--muted-2)] italic">— no workspace</span>
+                </div>
+                <div class="text-right text-sm tabular text-[var(--muted-2)]">0</div>
+                <div class="text-right text-sm tabular text-[var(--muted-2)]">—</div>
+                <div class="sparkline">
+                  <svg viewBox="0 0 86 24" width="86" height="24" aria-hidden="true">
+                    <line x1="2" y1="22" x2="84" y2="22" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="2 3"/>
+                  </svg>
+                  <div class="sparkline-label text-[var(--muted-2)]">no data</div>
+                </div>
+                <div class="text-right ws-spend text-[var(--muted-2)]">$0.00</div>
+                <div class="text-sm text-[var(--muted-2)]">—</div>
+                <div class="text-right">
+                  <a href="#" class="btn btn-ghost link-arrow">→</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table footer -->
+            <div class="flex items-center justify-between mt-3 text-xs text-[var(--muted)] flex-wrap gap-3">
+              <p>Showing <span class="text-[var(--text)]">12</span> of <span class="text-[var(--text)]">41</span> users · <span class="text-[var(--text)]">27</span> active this month</p>
+              <div class="flex items-center gap-1">
+                <button class="btn btn-ghost">Prev</button>
+                <span class="px-2">1 / 4</span>
+                <button class="btn btn-ghost">Next</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Footer note -->
+          <p class="text-xs text-[var(--muted)] pt-2 pb-8">
+            Per-user totals come from Anthropic's usage endpoint and will not exactly match the workspace headline cost (different rounding and aggregation windows). Mid-month workspace moves attribute historical usage to the user's current workspace.
+          </p>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
