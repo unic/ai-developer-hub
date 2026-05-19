@@ -74,6 +74,8 @@ export async function createBudget(
   await recordCreation("annual_budget", budgetId!, Number(admin.id));
 
   revalidatePath("/budget");
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: { id: budgetId! } };
 }
 
@@ -200,6 +202,8 @@ export async function updateBudgetAllocations(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -252,6 +256,8 @@ export async function updateBudgetTotal(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -283,6 +289,8 @@ export async function archiveBudget(input: {
   );
 
   revalidatePath("/budget");
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -382,6 +390,8 @@ export async function createBilledCost(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${period.budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: { id: billedCost.id } };
 }
 
@@ -444,6 +454,8 @@ export async function updateBilledCost(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${existing.period.budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -492,6 +504,8 @@ export async function deleteBilledCost(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${existing.period.budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 

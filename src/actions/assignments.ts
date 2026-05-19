@@ -135,6 +135,7 @@ export async function assignLicense(
   revalidatePath("/assignments");
   revalidatePath(`/users/${userId}`);
   revalidatePath(`/tools/${toolId}`);
+  revalidatePath("/reports");
   return { success: true, data: { id: newAssignmentId! } };
 }
 
@@ -169,6 +170,7 @@ export async function revokeLicense(input: {
   revalidatePath("/assignments");
   revalidatePath(`/users/${assignment.userId}`);
   revalidatePath(`/tools/${assignment.toolId}`);
+  revalidatePath("/reports");
   return { success: true, data: undefined };
 }
 
@@ -307,6 +309,7 @@ export async function updateAssignment(
 
   revalidatePath("/assignments");
   revalidatePath(`/users/${assignment.userId}`);
+  revalidatePath("/reports");
 
   return { success: true, data: undefined, warning };
 }
@@ -346,6 +349,7 @@ export async function bulkImportAssignments(input: {
 
   if (validatedRows.length === 0) {
     revalidatePath("/assignments");
+    revalidatePath("/reports");
     return { success: true, data: { imported: 0, failed: errors.length, errors } };
   }
 
@@ -464,6 +468,7 @@ export async function bulkImportAssignments(input: {
   }
 
   revalidatePath("/assignments");
+  revalidatePath("/reports");
   return {
     success: true,
     data: { imported, failed: errors.length, errors },
