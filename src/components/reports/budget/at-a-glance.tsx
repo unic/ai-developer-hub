@@ -155,9 +155,14 @@ function ProgressBar({
   projectedAnnualTotal: number;
 }) {
   if (ceiling === 0) return null;
-  const actualPct = Math.min((actualYtd / ceiling) * 100, 100);
-  const projectedPct = Math.min((projectedAnnualTotal / ceiling) * 100, 200);
-  const over = projectedPct > 100;
+  // When projected exceeds the ceiling, scale the bar to fit the projected
+  // total instead of the ceiling so the overage stays inside the card. The
+  // ceiling becomes a tick mark inside the bar.
+  const scale = Math.max(ceiling, projectedAnnualTotal);
+  const actualPct = (actualYtd / scale) * 100;
+  const projectedPct = (projectedAnnualTotal / scale) * 100;
+  const ceilingPct = (ceiling / scale) * 100;
+  const over = projectedAnnualTotal > ceiling;
 
   return (
     <div>
@@ -165,25 +170,30 @@ function ProgressBar({
         <span>$0</span>
         <span>
           <span className="font-medium text-foreground">
-            {formatCurrency(ceiling)}
+            {formatCurrency(scale)}
           </span>{" "}
-          ceiling
+          {over ? "projected" : "ceiling"}
         </span>
       </div>
-      <div className="relative mt-2 h-3 rounded-full bg-muted">
+      <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-muted">
+        {over && (
+          <div
+            className="absolute inset-y-0 left-0 bg-destructive/40"
+            style={{ width: `${projectedPct}%` }}
+            aria-hidden
+          />
+        )}
         <div
-          className="h-full rounded-full bg-primary"
+          className="absolute inset-y-0 left-0 rounded-full bg-primary"
           style={{ width: `${actualPct}%` }}
-          aria-label={`Actual ${actualPct.toFixed(1)}% of ceiling`}
+          aria-label={`Actual ${((actualYtd / ceiling) * 100).toFixed(1)}% of ceiling`}
         />
         {over && (
           <div
-            className="absolute top-0 h-full rounded-r-full bg-destructive/60"
-            style={{
-              left: "100%",
-              width: `${Math.min(projectedPct - 100, 25)}%`,
-            }}
+            className="absolute inset-y-0 w-px bg-foreground/60"
+            style={{ left: `${ceilingPct}%` }}
             aria-hidden
+            title={`Ceiling ${formatCurrency(ceiling)}`}
           />
         )}
       </div>

@@ -1,3 +1,6 @@
+"use client";
+
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Card,
@@ -6,13 +9,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { AtAGlance } from "./at-a-glance";
 import { PastMonthSpotlight } from "./past-month-spotlight";
-import { PlanVsActualChart } from "./plan-vs-actual-chart";
-import { ForecastCumulativeChart } from "./forecast-cumulative-chart";
 import { PerToolBreakdown } from "./per-tool-breakdown";
 import type { BudgetReportData } from "@/types";
+
+const PlanVsActualChart = dynamic(
+  () => import("./plan-vs-actual-chart").then((m) => m.PlanVsActualChart),
+  { ssr: false, loading: () => <Skeleton className="h-[340px] w-full" /> }
+);
+const ForecastCumulativeChart = dynamic(
+  () =>
+    import("./forecast-cumulative-chart").then(
+      (m) => m.ForecastCumulativeChart
+    ),
+  { ssr: false, loading: () => <Skeleton className="h-[300px] w-full" /> }
+);
 
 interface BudgetReportProps {
   data: BudgetReportData;

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { aiTools, licenseAssignments } from "@/lib/db/schema";
-import { and, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { getActiveBudget, getBudgetWithCosts } from "@/actions/budget";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import { buildBudgetForecast } from "@/lib/forecast";
@@ -134,7 +134,7 @@ async function fetchPerToolByPeriod(
         lte(licenseAssignments.assignedAt, new Date(overallEnd)),
         or(
           isNull(licenseAssignments.revokedAt),
-          gte(licenseAssignments.revokedAt, new Date(overallStart))
+          gt(licenseAssignments.revokedAt, new Date(overallStart))
         )
       )
     );
@@ -146,7 +146,7 @@ async function fetchPerToolByPeriod(
     for (const r of rows) {
       if (
         r.assignedAt <= periodEnd &&
-        (r.revokedAt === null || r.revokedAt >= periodStart)
+        (r.revokedAt === null || r.revokedAt > periodStart)
       ) {
         const existing = bucket.get(r.toolId);
         if (existing) {

@@ -6,8 +6,13 @@ export function classifyPeriod(
   period: { startDate: string; endDate: string },
   now: Date = new Date()
 ): PeriodPhase {
-  if (new Date(period.endDate) < now) return "past";
-  if (new Date(period.startDate) <= now) return "current";
+  // `budget_periods.end_date` is a DATE (no time) representing the last
+  // calendar day of the period. Treat it as inclusive end-of-day so a period
+  // doesn't flip to "past" the moment its final day starts.
+  const endExclusive = new Date(period.endDate + "T00:00:00Z");
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  if (now >= endExclusive) return "past";
+  if (new Date(period.startDate + "T00:00:00Z") <= now) return "current";
   return "future";
 }
 

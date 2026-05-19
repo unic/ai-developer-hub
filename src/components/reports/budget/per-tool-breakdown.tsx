@@ -156,7 +156,10 @@ export function PerToolBreakdown({ rows }: PerToolBreakdownProps) {
           License-based tools are derived from active assignments × tier cost.
           Anthropic API spend is the sum of live workspace usage. Invoiced
           billed_costs without a tool tag are included in the org Actual total
-          but do not appear here.
+          but do not appear here. If an Anthropic invoice is later entered
+          into <code>billed_costs</code> for a period that already shows
+          running API costs, both contributions count toward Actual until the
+          duplicate is reconciled manually.
         </p>
       </CardContent>
     </Card>

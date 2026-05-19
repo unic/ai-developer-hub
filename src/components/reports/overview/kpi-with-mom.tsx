@@ -1,6 +1,13 @@
+"use client";
+
+import dynamic from "next/dynamic";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkline } from "@/components/reports/sparkline";
+
+const Sparkline = dynamic(
+  () => import("@/components/reports/sparkline").then((m) => m.Sparkline),
+  { ssr: false, loading: () => <div className="h-8 w-20" /> }
+);
 
 interface KpiWithMomProps {
   label: string;

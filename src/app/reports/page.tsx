@@ -9,68 +9,26 @@ import {
   getBilledCostsTimeSeries,
   getBudgetForecast,
 } from "@/actions/budget";
-import { getBudgetReportData } from "@/actions/reports";
-import { AuthGuard } from "@/components/auth-guard";
-import { ReportsTabBar } from "./reports-tab-bar";
+import { OverviewPanel } from "@/components/reports/reports-charts-panel";
 import { buildCircleReport } from "@/lib/reports/circle-report";
 import { getLastMonthEnd } from "@/lib/utils";
 import type {
-  BudgetReportData,
   ReportOverviewData,
   SparklinePoint,
   ToolSummaryItem,
 } from "@/types";
 
-const VALID_TABS = ["overview", "budget"] as const;
-type Tab = (typeof VALID_TABS)[number];
-
-function parseTab(raw: string | undefined): Tab {
-  if (raw && (VALID_TABS as readonly string[]).includes(raw)) {
-    return raw as Tab;
-  }
-  return "overview";
-}
-
-function computeSpendTrend(historicalPeriods: { billedCents: number }[]): {
-  spendTrend: ReportOverviewData["spendTrend"];
-  spendTrendPct: number;
-} {
-  const lastTwo = historicalPeriods.slice(-2);
-  if (lastTwo.length < 2 || lastTwo[0].billedCents === 0) {
-    return { spendTrend: "flat", spendTrendPct: 0 };
-  }
-  const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
-  const pct = (diff / lastTwo[0].billedCents) * 100;
-  if (Math.abs(pct) < 1) return { spendTrend: "flat", spendTrendPct: pct };
-  return { spendTrend: diff > 0 ? "up" : "down", spendTrendPct: pct };
-}
-
-export default async function ReportsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab: rawTab } = await searchParams;
-  const activeTab = parseTab(rawTab);
+export default async function ReportsOverviewPage() {
   const lastMonthEnd = getLastMonthEnd();
 
-  const [
-    assignments,
-    tools,
-    userList,
-    activeBudget,
-    priorMonthSnapshot,
-    budgetData,
-  ] = await Promise.all([
-    getAssignments(),
-    getTools(),
-    getUsers(),
-    getActiveBudget(),
-    getAssignmentSnapshotAt(lastMonthEnd),
-    activeTab === "budget"
-      ? getBudgetReportData()
-      : Promise.resolve(null as BudgetReportData | null),
-  ]);
+  const [assignments, tools, userList, activeBudget, priorMonthSnapshot] =
+    await Promise.all([
+      getAssignments(),
+      getTools(),
+      getUsers(),
+      getActiveBudget(),
+      getAssignmentSnapshotAt(lastMonthEnd),
+    ]);
 
   const [trendsData, forecastResult] = activeBudget
     ? await Promise.all([
@@ -146,7 +104,7 @@ export default async function ReportsPage({
 
   const sparkSeries: SparklinePoint[] = trendsData
     .slice(-5)
-    .map((p) => ({ label: p.month, value: p.billedCents }))
+    .map((p) => ({ label: p.month, value: p.expectedCents }))
     .concat({ label: "Now", value: totalMonthlySpend });
 
   const overviewData: ReportOverviewData = {
@@ -182,24 +140,25 @@ export default async function ReportsPage({
   };
 
   return (
-    <AuthGuard requiredRole="admin">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Reports</h1>
-          <p className="text-muted-foreground">
-            Tool adoption, license utilization, and spending insights
-          </p>
-        </div>
-
-        <ReportsTabBar
-          activeTab={activeTab}
-          overviewData={overviewData}
-          toolSummary={toolSummary}
-          circleReport={circleReport}
-          expectedMonthlySparkline={sparkSeries}
-          budgetData={budgetData}
-        />
-      </div>
-    </AuthGuard>
+    <OverviewPanel
+      overviewData={overviewData}
+      toolSummary={toolSummary}
+      circleReport={circleReport}
+      expectedMonthlySparkline={sparkSeries}
+    />
   );
+}
+
+function computeSpendTrend(historicalPeriods: { billedCents: number }[]): {
+  spendTrend: ReportOverviewData["spendTrend"];
+  spendTrendPct: number;
+} {
+  const lastTwo = historicalPeriods.slice(-2);
+  if (lastTwo.length < 2 || lastTwo[0].billedCents === 0) {
+    return { spendTrend: "flat", spendTrendPct: 0 };
+  }
+  const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
+  const pct = (diff / lastTwo[0].billedCents) * 100;
+  if (Math.abs(pct) < 1) return { spendTrend: "flat", spendTrendPct: pct };
+  return { spendTrend: diff > 0 ? "up" : "down", spendTrendPct: pct };
 }

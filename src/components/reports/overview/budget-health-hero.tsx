@@ -85,7 +85,7 @@ export function BudgetHealthHero({
           </div>
           <div className="lg:text-right">
             <Button asChild>
-              <Link href="/reports?tab=budget">
+              <Link href="/reports/budget">
                 Open Budget report
                 <ArrowRight className="ml-2 size-4" />
               </Link>
