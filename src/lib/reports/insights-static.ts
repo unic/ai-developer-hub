@@ -1,11 +1,8 @@
 /**
- * Spec 028 — Reports v2 · static-rule insight generator for the Overview tab.
- *
- * Pure function: given the current month vs the prior month and an optional
- * budget-forecast summary, return up to four `Insight` cards in priority order.
- * Each rule returns null when it has nothing useful to say.
- *
- * Rules are intentionally simple — the full rules engine is a follow-up (G-5).
+ * Static-rule insight generator for the Overview tab. Pure function: given
+ * the current month vs the prior month and an optional budget-forecast
+ * summary, returns up to four `Insight` cards in priority order. Each rule
+ * returns null when it has nothing useful to say.
  */
 
 export type InsightSeverity = "info" | "warn" | "danger";
@@ -60,21 +57,19 @@ function dollarsFromCents(cents: number): string {
 
 function topLicenseMover(input: InsightInput, direction: "up" | "down"): Insight | null {
   if (!input.previous) return null;
+  const isBetter = (delta: number, best: number) =>
+    direction === "up" ? delta > best : delta < best;
+
   let bestToolId: number | null = null;
   let bestDelta = 0;
   let bestName = "";
   let bestPrior = 0;
   let bestCurrent = 0;
+
   for (const [toolId, { name, count }] of input.current.licensesByTool) {
     const prior = input.previous.licensesByTool.get(toolId)?.count ?? 0;
     const delta = count - prior;
-    if (direction === "up" && delta > bestDelta) {
-      bestDelta = delta;
-      bestToolId = toolId;
-      bestName = name;
-      bestPrior = prior;
-      bestCurrent = count;
-    } else if (direction === "down" && delta < bestDelta) {
+    if (isBetter(delta, bestDelta)) {
       bestDelta = delta;
       bestToolId = toolId;
       bestName = name;
@@ -82,12 +77,11 @@ function topLicenseMover(input: InsightInput, direction: "up" | "down"): Insight
       bestCurrent = count;
     }
   }
-  // Also check tools that existed in prior but not current (full off-boarding).
-  if (direction === "down" && input.previous) {
+  if (direction === "down") {
     for (const [toolId, { name, count }] of input.previous.licensesByTool) {
       if (input.current.licensesByTool.has(toolId)) continue;
-      const delta = 0 - count;
-      if (delta < bestDelta) {
+      const delta = -count;
+      if (isBetter(delta, bestDelta)) {
         bestDelta = delta;
         bestToolId = toolId;
         bestName = name;

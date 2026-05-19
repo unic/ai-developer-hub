@@ -20,8 +20,8 @@ import {
   updateBilledCostSchema,
   deleteBilledCostSchema,
 } from "@/lib/validators";
-import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast, MonthlySpend } from "@/types";
-import { forecastBudget } from "@/lib/forecast";
+import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast } from "@/types";
+import { buildBudgetForecast } from "@/lib/forecast";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import { recordCreation, recordUpdate, recordStatusChange } from "@/actions/history";
 
@@ -602,49 +602,37 @@ export async function getBudgetForecast(
 ): Promise<ActionResult<BudgetForecast>> {
   const budget = await getBudgetWithCosts(budgetId);
   if (!budget) return { success: false, error: "Budget not found" };
-
   const today = new Date();
+  const actualByPeriod = await fetchActualByPeriod(budget, today);
+  return { success: true, data: buildBudgetForecast(budget, actualByPeriod, today) };
+}
 
-  // Layer in running Anthropic API costs per period so the forecast reflects Actual.
+/**
+ * Layer running Anthropic API costs onto each period's billed amount.
+ * Skips future periods — they have no running data and the lookup is wasted.
+ * Exposed so the reports orchestrator can share one fetch with the forecast.
+ */
+export async function fetchActualByPeriod(
+  budget: BudgetWithCosts,
+  today: Date = new Date()
+): Promise<Map<number, number>> {
+  const pastOrCurrent = budget.periods.filter(
+    (p) => new Date(p.startDate) <= today
+  );
   const runningResults = await Promise.all(
-    budget.periods.map((p) => getRunningCostsForPeriod(p.id))
+    pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id))
   );
   const actualByPeriod = new Map<number, number>();
-  budget.periods.forEach((p, i) => {
+  for (const p of budget.periods) {
+    actualByPeriod.set(p.id, p.billedTotalCents);
+  }
+  pastOrCurrent.forEach((p, i) => {
     const running = runningResults[i]?.runningCostCents ?? 0;
     actualByPeriod.set(p.id, p.billedTotalCents + running);
   });
-
-  const completedPeriods = budget.periods.filter(
-    (p) => new Date(p.endDate) < today && (actualByPeriod.get(p.id) ?? 0) > 0
-  );
-
-  const history: MonthlySpend[] = completedPeriods.map((p) => ({
-    month: p.periodLabel,
-    amountCents: actualByPeriod.get(p.id) ?? 0,
-  }));
-
-  const actualSpendToDateCents = completedPeriods.reduce(
-    (s, p) => s + (actualByPeriod.get(p.id) ?? 0),
-    0
-  );
-
-  const remainingPeriods = budget.periods.filter(
-    (p) => new Date(p.startDate) >= today
-  );
-  const monthsToProject = Math.min(Math.max(remainingPeriods.length, 3), 6);
-
-  const forecastResult = forecastBudget({
-    history,
-    monthsToProject,
-    totalPeriodsRemaining: remainingPeriods.length,
-    actualSpendToDateCents,
-    budgetCeilingCents: budget.totalAmountCents,
-    today,
-  });
-
-  return { success: true, data: forecastResult };
+  return actualByPeriod;
 }
+
 
 // US5: Per-tool spending breakdown for a period
 export async function getPerToolSpend(startDate: string, endDate: string) {

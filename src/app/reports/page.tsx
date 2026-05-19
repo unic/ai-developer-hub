@@ -13,6 +13,7 @@ import { getBudgetReportData } from "@/actions/reports";
 import { AuthGuard } from "@/components/auth-guard";
 import { ReportsTabBar } from "./reports-tab-bar";
 import { buildCircleReport } from "@/lib/reports/circle-report";
+import { getLastMonthEnd } from "@/lib/utils";
 import type {
   BudgetReportData,
   ReportOverviewData,
@@ -30,11 +31,18 @@ function parseTab(raw: string | undefined): Tab {
   return "overview";
 }
 
-/** End of the previous calendar month, 23:59:59.999 in local time. */
-function getLastMonthEnd(): Date {
-  const now = new Date();
-  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  return new Date(firstOfThisMonth.getTime() - 1);
+function computeSpendTrend(historicalPeriods: { billedCents: number }[]): {
+  spendTrend: ReportOverviewData["spendTrend"];
+  spendTrendPct: number;
+} {
+  const lastTwo = historicalPeriods.slice(-2);
+  if (lastTwo.length < 2 || lastTwo[0].billedCents === 0) {
+    return { spendTrend: "flat", spendTrendPct: 0 };
+  }
+  const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
+  const pct = (diff / lastTwo[0].billedCents) * 100;
+  if (Math.abs(pct) < 1) return { spendTrend: "flat", spendTrendPct: pct };
+  return { spendTrend: diff > 0 ? "up" : "down", spendTrendPct: pct };
 }
 
 export default async function ReportsPage({
@@ -109,19 +117,9 @@ export default async function ReportsPage({
   const utilizationPct =
     budgetCeilingCents > 0 ? (billedYtdCents / budgetCeilingCents) * 100 : 0;
 
-  // Spend trend across the last two completed periods.
   const historicalPeriods = trendsData.filter((p) => p.billedCents > 0);
-  const lastTwo = historicalPeriods.slice(-2);
-  let spendTrend: "up" | "down" | "flat" = "flat";
-  let spendTrendPct = 0;
-  if (lastTwo.length === 2 && lastTwo[0].billedCents > 0) {
-    const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
-    spendTrendPct = (diff / lastTwo[0].billedCents) * 100;
-    spendTrend =
-      Math.abs(spendTrendPct) < 1 ? "flat" : diff > 0 ? "up" : "down";
-  }
+  const { spendTrend, spendTrendPct } = computeSpendTrend(historicalPeriods);
 
-  // Prior-month snapshot derivations.
   const previousActiveLicenses = priorMonthSnapshot.length;
   const previousExpectedMonthlyCents = priorMonthSnapshot.reduce(
     (s, a) => s + a.costAtAssignmentCents,
@@ -137,20 +135,15 @@ export default async function ReportsPage({
   }
   const hasPriorMonthData = priorMonthSnapshot.length > 0;
 
-  // Most recently completed period's variance (Actual vs Planned).
-  let lastCompletedMonthLabel: string | null = null;
-  let lastCompletedMonthVariancePct: number | null = null;
-  if (historicalPeriods.length > 0) {
-    const last = historicalPeriods[historicalPeriods.length - 1];
-    lastCompletedMonthLabel = last.month;
-    if (last.plannedCents > 0) {
-      lastCompletedMonthVariancePct =
-        ((last.billedCents - last.plannedCents) / last.plannedCents) * 100;
-    }
-  }
+  const lastCompleted = historicalPeriods.at(-1) ?? null;
+  const lastCompletedMonthLabel = lastCompleted?.month ?? null;
+  const lastCompletedMonthVariancePct =
+    lastCompleted && lastCompleted.plannedCents > 0
+      ? ((lastCompleted.billedCents - lastCompleted.plannedCents) /
+          lastCompleted.plannedCents) *
+        100
+      : null;
 
-  // Expected-monthly sparkline: last six completed periods' billed totals,
-  // anchored with the current expected spend at the end.
   const sparkSeries: SparklinePoint[] = trendsData
     .slice(-5)
     .map((p) => ({ label: p.month, value: p.billedCents }))

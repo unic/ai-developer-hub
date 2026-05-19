@@ -43,7 +43,6 @@ export function OverviewPanel({
 }: OverviewPanelProps) {
   const previous = overviewData.previousMonth;
 
-  // Build inputs for the static-rule insights engine.
   const currentLicensesByTool = new Map<number, { name: string; count: number }>();
   for (const t of toolSummary) {
     if (t.activeUsers > 0) {

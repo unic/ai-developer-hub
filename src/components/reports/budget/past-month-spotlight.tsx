@@ -64,29 +64,7 @@ export function PastMonthSpotlight({ pastMonth }: PastMonthSpotlightProps) {
 
         <PlanVsActualBar pastMonth={pastMonth} />
 
-        {pastMonth.drivers.length > 0 && (
-          <div>
-            <p className="mb-2 text-sm font-medium">Top variance drivers</p>
-            <p className="mb-3 text-xs text-muted-foreground">
-              MoM diff vs prior period (license-derived). Invoiced costs without
-              a tool tag aren&apos;t attributed.
-            </p>
-            <ul className="space-y-2">
-              {pastMonth.drivers.map((d, i) => (
-                <DriverRow
-                  key={`${d.toolId ?? "anth"}-${i}`}
-                  rank={i + 1}
-                  toolName={d.toolName}
-                  deltaCents={d.deltaCents}
-                  deltaPct={d.deltaPct}
-                  maxAbs={Math.max(
-                    ...pastMonth.drivers.map((dd) => Math.abs(dd.deltaCents))
-                  )}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
+        {pastMonth.drivers.length > 0 && <DriversSection drivers={pastMonth.drivers} />}
       </CardContent>
     </Card>
   );
@@ -208,6 +186,35 @@ function Row({
       >
         {amount}
       </span>
+    </div>
+  );
+}
+
+function DriversSection({
+  drivers,
+}: {
+  drivers: BudgetReportPastMonth["drivers"];
+}) {
+  const maxAbs = Math.max(...drivers.map((d) => Math.abs(d.deltaCents)));
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium">Top variance drivers</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        MoM diff vs prior period (license-derived). Invoiced costs without a
+        tool tag aren&apos;t attributed.
+      </p>
+      <ul className="space-y-2">
+        {drivers.map((d, i) => (
+          <DriverRow
+            key={`${d.toolId ?? "anth"}-${i}`}
+            rank={i + 1}
+            toolName={d.toolName}
+            deltaCents={d.deltaCents}
+            deltaPct={d.deltaPct}
+            maxAbs={maxAbs}
+          />
+        ))}
+      </ul>
     </div>
   );
 }

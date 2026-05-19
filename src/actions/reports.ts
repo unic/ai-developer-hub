@@ -3,16 +3,15 @@
 import { db } from "@/lib/db";
 import { aiTools, licenseAssignments } from "@/lib/db/schema";
 import { and, eq, gte, isNull, lte, or } from "drizzle-orm";
-import {
-  getActiveBudget,
-  getBudgetForecast,
-  getBudgetWithCosts,
-} from "@/actions/budget";
+import { getActiveBudget, getBudgetWithCosts } from "@/actions/budget";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
+import { buildBudgetForecast } from "@/lib/forecast";
+import { classifyPeriod } from "@/lib/reports/period-helpers";
 import type {
   BudgetPerToolRow,
   BudgetReportData,
   BudgetReportPastMonth,
+  BudgetWithCosts,
   PeriodWithActual,
 } from "@/types";
 
@@ -24,23 +23,23 @@ import type {
  */
 export async function getBudgetReportData(): Promise<BudgetReportData> {
   const active = await getActiveBudget();
-  if (!active) {
-    return { kind: "empty", reason: "no_active_budget" };
-  }
+  if (!active) return { kind: "empty", reason: "no_active_budget" };
 
   const budget = await getBudgetWithCosts(active.id);
-  if (!budget) {
-    return { kind: "empty", reason: "no_active_budget" };
-  }
+  if (!budget) return { kind: "empty", reason: "no_active_budget" };
 
-  // Run independent fetches in parallel.
-  const [runningResults, forecastResult] = await Promise.all([
-    Promise.all(budget.periods.map((p) => getRunningCostsForPeriod(p.id))),
-    getBudgetForecast(budget.id),
+  const today = new Date();
+  const pastOrCurrent = budget.periods.filter(
+    (p) => new Date(p.startDate) <= today
+  );
+
+  const [runningResults, perToolByPeriod] = await Promise.all([
+    Promise.all(pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id))),
+    fetchPerToolByPeriod(budget),
   ]);
 
-  const runningByPeriod = new Map<number, ReturnType<typeof toRunningSlice>>();
-  budget.periods.forEach((p, i) => {
+  const runningByPeriod = new Map<number, RunningSlice>();
+  pastOrCurrent.forEach((p, i) => {
     const r = runningResults[i];
     if (r) runningByPeriod.set(p.id, toRunningSlice(r));
   });
@@ -54,22 +53,17 @@ export async function getBudgetReportData(): Promise<BudgetReportData> {
     };
   });
 
-  const forecast =
-    forecastResult.success && forecastResult.data
-      ? forecastResult.data
-      : null;
+  const actualByPeriod = new Map(
+    periodsWithActual.map((p) => [p.id, p.actualCents])
+  );
+  const forecast = buildBudgetForecast(budget, actualByPeriod, today);
 
-  // Forecast is required for the Budget tab; getBudgetForecast only fails when the
-  // budget was deleted between the two queries above (effectively unreachable).
-  if (!forecast) {
-    return { kind: "empty", reason: "no_active_budget" };
-  }
-
-  const pastMonth = await buildPastMonth(periodsWithActual);
-
-  const perTool = await buildPerToolBreakdown(
+  const pastMonth = buildPastMonth(periodsWithActual, perToolByPeriod);
+  const perTool = buildPerToolBreakdown(
     periodsWithActual,
-    runningByPeriod
+    runningByPeriod,
+    perToolByPeriod,
+    today
   );
 
   return {
@@ -100,9 +94,79 @@ function toRunningSlice(
   };
 }
 
-async function buildPastMonth(
-  periods: PeriodWithActual[]
-): Promise<BudgetReportPastMonth | null> {
+type PerToolEntry = { toolName: string; cents: number };
+type PerToolByPeriod = Map<number, Map<number, PerToolEntry>>;
+
+/**
+ * One DB round-trip per Budget tab render: load every assignment that overlaps
+ * the full fiscal year, then bucket each into the periods it spans. Returns a
+ * Map<periodId, Map<toolId, { toolName, cents }>>.
+ */
+async function fetchPerToolByPeriod(
+  budget: BudgetWithCosts
+): Promise<PerToolByPeriod> {
+  const empty: PerToolByPeriod = new Map(
+    budget.periods.map((p) => [p.id, new Map()])
+  );
+  if (budget.periods.length === 0) return empty;
+
+  const overallStart = budget.periods.reduce(
+    (min, p) => (p.startDate < min ? p.startDate : min),
+    budget.periods[0].startDate
+  );
+  const overallEnd = budget.periods.reduce(
+    (max, p) => (p.endDate > max ? p.endDate : max),
+    budget.periods[0].endDate
+  );
+
+  const rows = await db
+    .select({
+      toolId: aiTools.id,
+      toolName: aiTools.name,
+      assignedAt: licenseAssignments.assignedAt,
+      revokedAt: licenseAssignments.revokedAt,
+      costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+    })
+    .from(licenseAssignments)
+    .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
+    .where(
+      and(
+        lte(licenseAssignments.assignedAt, new Date(overallEnd)),
+        or(
+          isNull(licenseAssignments.revokedAt),
+          gte(licenseAssignments.revokedAt, new Date(overallStart))
+        )
+      )
+    );
+
+  for (const p of budget.periods) {
+    const periodStart = new Date(p.startDate);
+    const periodEnd = new Date(p.endDate);
+    const bucket = empty.get(p.id)!;
+    for (const r of rows) {
+      if (
+        r.assignedAt <= periodEnd &&
+        (r.revokedAt === null || r.revokedAt >= periodStart)
+      ) {
+        const existing = bucket.get(r.toolId);
+        if (existing) {
+          existing.cents += r.costAtAssignmentCents;
+        } else {
+          bucket.set(r.toolId, {
+            toolName: r.toolName,
+            cents: r.costAtAssignmentCents,
+          });
+        }
+      }
+    }
+  }
+  return empty;
+}
+
+function buildPastMonth(
+  periods: PeriodWithActual[],
+  perToolByPeriod: PerToolByPeriod
+): BudgetReportPastMonth | null {
   const today = new Date();
   const past = periods
     .filter((p) => new Date(p.endDate) < today && p.actualCents > 0)
@@ -113,12 +177,9 @@ async function buildPastMonth(
   const prior = priorIndex >= 0 ? periods[priorIndex] : null;
 
   const variance = past.actualCents - past.plannedAmountCents;
-  const variancePct =
-    past.plannedAmountCents > 0
-      ? (variance / past.plannedAmountCents) * 100
-      : null;
+  const variancePct = pctChange(past.actualCents, past.plannedAmountCents);
 
-  const drivers = await buildVarianceDrivers(past, prior);
+  const drivers = buildVarianceDrivers(past, prior, perToolByPeriod);
 
   return {
     periodId: past.id,
@@ -133,41 +194,35 @@ async function buildPastMonth(
   };
 }
 
-async function buildVarianceDrivers(
+function pctChange(value: number, base: number): number | null {
+  return base > 0 ? ((value - base) / base) * 100 : null;
+}
+
+function buildVarianceDrivers(
   past: PeriodWithActual,
-  prior: PeriodWithActual | null
-): Promise<BudgetReportPastMonth["drivers"]> {
+  prior: PeriodWithActual | null,
+  perToolByPeriod: PerToolByPeriod
+): BudgetReportPastMonth["drivers"] {
   if (!prior) return [];
+  const pastTools = perToolByPeriod.get(past.id) ?? new Map<number, PerToolEntry>();
+  const priorTools =
+    perToolByPeriod.get(prior.id) ?? new Map<number, PerToolEntry>();
 
-  const [pastTools, priorTools] = await Promise.all([
-    perToolForPeriod(past.startDate, past.endDate),
-    perToolForPeriod(prior.startDate, prior.endDate),
-  ]);
-
-  const priorByTool = new Map(priorTools.map((t) => [t.toolId, t]));
   const deltas: BudgetReportPastMonth["drivers"] = [];
-
-  for (const t of pastTools) {
-    const priorCents = priorByTool.get(t.toolId)?.totalCents ?? 0;
-    const delta = t.totalCents - priorCents;
+  for (const [toolId, { toolName, cents }] of pastTools) {
+    const priorCents = priorTools.get(toolId)?.cents ?? 0;
+    const delta = cents - priorCents;
     if (Math.abs(delta) < 1) continue;
     deltas.push({
-      toolId: t.toolId,
-      toolName: t.toolName,
+      toolId,
+      toolName,
       deltaCents: delta,
-      deltaPct: priorCents > 0 ? (delta / priorCents) * 100 : null,
+      deltaPct: pctChange(cents, priorCents),
     });
   }
-
-  // Tools that existed prior but not in past — full off-boarding.
-  for (const t of priorTools) {
-    if (pastTools.some((p) => p.toolId === t.toolId)) continue;
-    deltas.push({
-      toolId: t.toolId,
-      toolName: t.toolName,
-      deltaCents: -t.totalCents,
-      deltaPct: -100,
-    });
+  for (const [toolId, { toolName, cents }] of priorTools) {
+    if (pastTools.has(toolId)) continue;
+    deltas.push({ toolId, toolName, deltaCents: -cents, deltaPct: -100 });
   }
 
   return deltas
@@ -175,92 +230,38 @@ async function buildVarianceDrivers(
     .slice(0, 5);
 }
 
-async function perToolForPeriod(
-  startDate: string,
-  endDate: string
-): Promise<Array<{ toolId: number; toolName: string; totalCents: number }>> {
-  const rows = await db
-    .select({
-      toolId: aiTools.id,
-      toolName: aiTools.name,
-      assignedAt: licenseAssignments.assignedAt,
-      revokedAt: licenseAssignments.revokedAt,
-      costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
-    })
-    .from(licenseAssignments)
-    .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
-    .where(
-      and(
-        lte(licenseAssignments.assignedAt, new Date(endDate)),
-        or(
-          isNull(licenseAssignments.revokedAt),
-          gte(licenseAssignments.revokedAt, new Date(startDate))
-        )
-      )
-    );
-
-  const tally = new Map<number, { toolName: string; cents: number }>();
-  for (const r of rows) {
-    const existing = tally.get(r.toolId);
-    if (existing) {
-      existing.cents += r.costAtAssignmentCents;
-    } else {
-      tally.set(r.toolId, {
-        toolName: r.toolName,
-        cents: r.costAtAssignmentCents,
-      });
-    }
-  }
-  return Array.from(tally.entries()).map(([toolId, { toolName, cents }]) => ({
-    toolId,
-    toolName,
-    totalCents: cents,
-  }));
-}
-
-async function buildPerToolBreakdown(
+function buildPerToolBreakdown(
   periods: PeriodWithActual[],
-  runningByPeriod: Map<number, RunningSlice>
-): Promise<BudgetPerToolRow[]> {
-  const today = new Date();
-  const completedPeriods = periods.filter(
-    (p) => new Date(p.endDate) < today
-  );
-  const currentPeriod = periods.find(
-    (p) => new Date(p.startDate) <= today && new Date(p.endDate) >= today
-  );
-
-  // YTD per-tool (license-derived).
-  const ytdByTool = new Map<number, { toolName: string; cents: number }>();
-  for (const p of completedPeriods) {
-    const rows = await perToolForPeriod(p.startDate, p.endDate);
-    for (const r of rows) {
-      const existing = ytdByTool.get(r.toolId);
-      if (existing) {
-        existing.cents += r.totalCents;
-      } else {
-        ytdByTool.set(r.toolId, { toolName: r.toolName, cents: r.totalCents });
-      }
-    }
-  }
-
-  // Current monthly per tool (used for projection).
-  const currentRows = currentPeriod
-    ? await perToolForPeriod(currentPeriod.startDate, currentPeriod.endDate)
-    : [];
-  const currentByTool = new Map(
-    currentRows.map((r) => [r.toolId, r.totalCents])
-  );
-
+  runningByPeriod: Map<number, RunningSlice>,
+  perToolByPeriod: PerToolByPeriod,
+  today: Date
+): BudgetPerToolRow[] {
+  const completedPeriods = periods.filter((p) => classifyPeriod(p, today) === "past");
+  const currentPeriod = periods.find((p) => classifyPeriod(p, today) === "current");
   const remainingPeriods = periods.filter(
-    (p) => new Date(p.startDate) > today
+    (p) => classifyPeriod(p, today) === "future"
   ).length;
 
-  const rows: BudgetPerToolRow[] = [];
+  const ytdByTool = new Map<number, PerToolEntry>();
+  for (const p of completedPeriods) {
+    const bucket = perToolByPeriod.get(p.id);
+    if (!bucket) continue;
+    for (const [toolId, { toolName, cents }] of bucket) {
+      const existing = ytdByTool.get(toolId);
+      if (existing) existing.cents += cents;
+      else ytdByTool.set(toolId, { toolName, cents });
+    }
+  }
 
-  // License-based tools.
+  const currentByTool = currentPeriod
+    ? perToolByPeriod.get(currentPeriod.id) ?? new Map<number, PerToolEntry>()
+    : new Map<number, PerToolEntry>();
+
+  const rows: BudgetPerToolRow[] = [];
+  const seen = new Set<number>();
+
   for (const [toolId, { toolName, cents: ytd }] of ytdByTool) {
-    const current = currentByTool.get(toolId) ?? 0;
+    const current = currentByTool.get(toolId)?.cents ?? 0;
     rows.push({
       toolId,
       toolName,
@@ -269,11 +270,10 @@ async function buildPerToolBreakdown(
       currentMonthlyCents: current,
       projectedEoyCents: ytd + current * (remainingPeriods + 1),
     });
+    seen.add(toolId);
   }
-  // Tools active only this month (not in any completed period yet).
-  for (const [toolId, current] of currentByTool) {
-    if (ytdByTool.has(toolId)) continue;
-    const toolName = currentRows.find((r) => r.toolId === toolId)?.toolName ?? "—";
+  for (const [toolId, { toolName, cents: current }] of currentByTool) {
+    if (seen.has(toolId)) continue;
     rows.push({
       toolId,
       toolName,
@@ -284,7 +284,6 @@ async function buildPerToolBreakdown(
     });
   }
 
-  // Anthropic API — aggregate running costs across completed periods + workspace breakdown of the current period.
   const ytdRunning = completedPeriods.reduce(
     (s, p) => s + (runningByPeriod.get(p.id)?.totalCents ?? 0),
     0

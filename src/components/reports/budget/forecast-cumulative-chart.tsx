@@ -17,6 +17,11 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { formatCurrency } from "@/lib/utils";
+import {
+  buildProjectionLookup,
+  classifyPeriod,
+  shortMonth,
+} from "@/lib/reports/period-helpers";
 import type { BudgetForecast, PeriodWithActual } from "@/types";
 
 interface ForecastCumulativeChartProps {
@@ -34,53 +39,24 @@ export function ForecastCumulativeChart({
   forecast,
 }: ForecastCumulativeChartProps) {
   const today = new Date();
+  const projection = buildProjectionLookup(forecast);
+
   let runningActual = 0;
   let runningForecast = 0;
-
-  const projectionsByMonth = new Map(
-    forecast.projections.map((p) => [p.month, p.projectedAmountCents])
-  );
-  // `getBudgetForecast` only projects up to 6 months. For any future month
-  // without an explicit projection, fall back to the average projected month
-  // so the cumulative line keeps climbing through year-end.
-  const avgProjectedMonthly =
-    forecast.projections.length > 0
-      ? forecast.projections.reduce(
-          (s, p) => s + p.projectedAmountCents,
-          0
-        ) / forecast.projections.length
-      : 0;
-
-  const data: Array<{
-    month: string;
-    actual: number | null;
-    forecast: number | null;
-  }> = [];
-
-  for (const p of periods) {
-    const isPast = new Date(p.endDate) < today;
-    const isCurrent =
-      new Date(p.startDate) <= today && new Date(p.endDate) >= today;
-
-    if (isPast || isCurrent) {
-      runningActual += p.actualCents;
-      runningForecast = runningActual;
-      data.push({
-        month: shortMonth(p.periodLabel),
-        actual: runningActual,
-        forecast: isCurrent ? runningForecast : null,
-      });
-    } else {
-      const projected =
-        projectionsByMonth.get(p.periodLabel) ?? avgProjectedMonthly;
-      runningForecast += projected;
-      data.push({
-        month: shortMonth(p.periodLabel),
-        actual: null,
-        forecast: runningForecast,
-      });
+  const data = periods.map((p) => {
+    const phase = classifyPeriod(p, today);
+    if (phase === "future") {
+      runningForecast += projection.for(p.periodLabel);
+      return { month: shortMonth(p.periodLabel), actual: null, forecast: runningForecast };
     }
-  }
+    runningActual += p.actualCents;
+    runningForecast = runningActual;
+    return {
+      month: shortMonth(p.periodLabel),
+      actual: runningActual,
+      forecast: phase === "current" ? runningForecast : null,
+    };
+  });
 
   return (
     <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -152,8 +128,4 @@ export function ForecastCumulativeChart({
       </ComposedChart>
     </ChartContainer>
   );
-}
-
-function shortMonth(label: string): string {
-  return label.split(" ")[0];
 }

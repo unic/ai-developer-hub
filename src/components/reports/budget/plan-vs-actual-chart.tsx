@@ -18,6 +18,11 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { formatCurrency } from "@/lib/utils";
+import {
+  buildProjectionLookup,
+  classifyPeriod,
+  shortMonth,
+} from "@/lib/reports/period-helpers";
 import type { BudgetForecast, PeriodWithActual } from "@/types";
 
 interface PlanVsActualChartProps {
@@ -34,33 +39,17 @@ const chartConfig: ChartConfig = {
 
 export function PlanVsActualChart({ periods, forecast }: PlanVsActualChartProps) {
   const today = new Date();
-  const projectionsByMonth = new Map(
-    forecast.projections.map((p) => [p.month, p.projectedAmountCents])
-  );
-  // `getBudgetForecast` only projects ~6 months. Use the average to fill the
-  // remainder so every future month has a forecast bar.
-  const avgProjectedMonthly =
-    forecast.projections.length > 0
-      ? forecast.projections.reduce(
-          (s, p) => s + p.projectedAmountCents,
-          0
-        ) / forecast.projections.length
-      : 0;
+  const projection = buildProjectionLookup(forecast);
 
   const data = periods.map((p) => {
-    const isPast = new Date(p.endDate) < today;
-    const isCurrent =
-      new Date(p.startDate) <= today && new Date(p.endDate) >= today;
+    const phase = classifyPeriod(p, today);
+    const showActual = phase !== "future";
     return {
       month: shortMonth(p.periodLabel),
       planned: p.plannedAmountCents,
-      // Past + current: show actual (billed + running). Future: empty.
-      billed: isPast || isCurrent ? p.billedTotalCents : 0,
-      running: isPast || isCurrent ? p.runningCostCents : 0,
-      forecast:
-        !isPast && !isCurrent
-          ? projectionsByMonth.get(p.periodLabel) ?? avgProjectedMonthly
-          : 0,
+      billed: showActual ? p.billedTotalCents : 0,
+      running: showActual ? p.runningCostCents : 0,
+      forecast: phase === "future" ? projection.for(p.periodLabel) : 0,
     };
   });
 
@@ -102,13 +91,8 @@ export function PlanVsActualChart({ periods, forecast }: PlanVsActualChartProps)
                 const cents = Number(value);
                 if (cents === 0) return null;
                 const label =
-                  name === "planned"
-                    ? "Planned"
-                    : name === "billed"
-                      ? "Billed"
-                      : name === "running"
-                        ? "API (running)"
-                        : "Forecast";
+                  chartConfig[name as keyof typeof chartConfig]?.label ??
+                  String(name);
                 return (
                   <div className="flex w-full items-center justify-between gap-4">
                     <span className="text-muted-foreground">{label}</span>
@@ -154,9 +138,4 @@ export function PlanVsActualChart({ periods, forecast }: PlanVsActualChartProps)
       </BarChart>
     </ChartContainer>
   );
-}
-
-function shortMonth(label: string): string {
-  // "Apr 2026" → "Apr" / "Q1 2026" → "Q1"
-  return label.split(" ")[0];
 }
