@@ -1,4 +1,7 @@
-import { getAssignments } from "@/actions/assignments";
+import {
+  getAssignments,
+  getAssignmentSnapshotAt,
+} from "@/actions/assignments";
 import { getTools } from "@/actions/tools";
 import { getUsers } from "@/actions/users";
 import {
@@ -6,16 +9,18 @@ import {
   getBilledCostsTimeSeries,
   getBudgetForecast,
 } from "@/actions/budget";
-import { getLicenseUtilizationByTool } from "@/actions/assignments";
+import { getBudgetReportData } from "@/actions/reports";
 import { AuthGuard } from "@/components/auth-guard";
 import { ReportsTabBar } from "./reports-tab-bar";
 import { buildCircleReport } from "@/lib/reports/circle-report";
 import type {
+  BudgetReportData,
   ReportOverviewData,
+  SparklinePoint,
   ToolSummaryItem,
 } from "@/types";
 
-const VALID_TABS = ["overview", "trends", "usage", "forecast"] as const;
+const VALID_TABS = ["overview", "budget"] as const;
 type Tab = (typeof VALID_TABS)[number];
 
 function parseTab(raw: string | undefined): Tab {
@@ -25,6 +30,13 @@ function parseTab(raw: string | undefined): Tab {
   return "overview";
 }
 
+/** End of the previous calendar month, 23:59:59.999 in local time. */
+function getLastMonthEnd(): Date {
+  const now = new Date();
+  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  return new Date(firstOfThisMonth.getTime() - 1);
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -32,19 +44,32 @@ export default async function ReportsPage({
 }) {
   const { tab: rawTab } = await searchParams;
   const activeTab = parseTab(rawTab);
+  const lastMonthEnd = getLastMonthEnd();
 
-  const [assignments, tools, userList, activeBudget] = await Promise.all([
+  const [
+    assignments,
+    tools,
+    userList,
+    activeBudget,
+    priorMonthSnapshot,
+    budgetData,
+  ] = await Promise.all([
     getAssignments(),
     getTools(),
     getUsers(),
     getActiveBudget(),
+    getAssignmentSnapshotAt(lastMonthEnd),
+    activeTab === "budget"
+      ? getBudgetReportData()
+      : Promise.resolve(null as BudgetReportData | null),
   ]);
 
-  const [trendsData, usageData, forecastResult] = await Promise.all([
-    activeBudget ? getBilledCostsTimeSeries(activeBudget.id) : Promise.resolve([]),
-    getLicenseUtilizationByTool(),
-    activeBudget ? getBudgetForecast(activeBudget.id) : Promise.resolve(null),
-  ]);
+  const [trendsData, forecastResult] = activeBudget
+    ? await Promise.all([
+        getBilledCostsTimeSeries(activeBudget.id),
+        getBudgetForecast(activeBudget.id),
+      ])
+    : [[], null];
 
   const forecastData =
     forecastResult && "success" in forecastResult && forecastResult.success
@@ -82,11 +107,9 @@ export default async function ReportsPage({
   const budgetCeilingCents = activeBudget?.totalAmountCents ?? 0;
   const budgetRemainingCents = budgetCeilingCents - billedYtdCents;
   const utilizationPct =
-    budgetCeilingCents > 0
-      ? (billedYtdCents / budgetCeilingCents) * 100
-      : 0;
+    budgetCeilingCents > 0 ? (billedYtdCents / budgetCeilingCents) * 100 : 0;
 
-  // Compute spend trend from last two periods with actual spend
+  // Spend trend across the last two completed periods.
   const historicalPeriods = trendsData.filter((p) => p.billedCents > 0);
   const lastTwo = historicalPeriods.slice(-2);
   let spendTrend: "up" | "down" | "flat" = "flat";
@@ -95,12 +118,43 @@ export default async function ReportsPage({
     const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
     spendTrendPct = (diff / lastTwo[0].billedCents) * 100;
     spendTrend =
-      Math.abs(spendTrendPct) < 1
-        ? "flat"
-        : diff > 0
-          ? "up"
-          : "down";
+      Math.abs(spendTrendPct) < 1 ? "flat" : diff > 0 ? "up" : "down";
   }
+
+  // Prior-month snapshot derivations.
+  const previousActiveLicenses = priorMonthSnapshot.length;
+  const previousExpectedMonthlyCents = priorMonthSnapshot.reduce(
+    (s, a) => s + a.costAtAssignmentCents,
+    0
+  );
+  const previousAssignmentsByTool: Record<number, number> = {};
+  const previousSpendByTool: Record<number, number> = {};
+  for (const a of priorMonthSnapshot) {
+    previousAssignmentsByTool[a.toolId] =
+      (previousAssignmentsByTool[a.toolId] ?? 0) + 1;
+    previousSpendByTool[a.toolId] =
+      (previousSpendByTool[a.toolId] ?? 0) + a.costAtAssignmentCents;
+  }
+  const hasPriorMonthData = priorMonthSnapshot.length > 0;
+
+  // Most recently completed period's variance (Actual vs Planned).
+  let lastCompletedMonthLabel: string | null = null;
+  let lastCompletedMonthVariancePct: number | null = null;
+  if (historicalPeriods.length > 0) {
+    const last = historicalPeriods[historicalPeriods.length - 1];
+    lastCompletedMonthLabel = last.month;
+    if (last.plannedCents > 0) {
+      lastCompletedMonthVariancePct =
+        ((last.billedCents - last.plannedCents) / last.plannedCents) * 100;
+    }
+  }
+
+  // Expected-monthly sparkline: last six completed periods' billed totals,
+  // anchored with the current expected spend at the end.
+  const sparkSeries: SparklinePoint[] = trendsData
+    .slice(-5)
+    .map((p) => ({ label: p.month, value: p.billedCents }))
+    .concat({ label: "Now", value: totalMonthlySpend });
 
   const overviewData: ReportOverviewData = {
     totalActiveUsers,
@@ -113,6 +167,25 @@ export default async function ReportsPage({
     utilizationPct,
     spendTrend,
     spendTrendPct,
+    previousMonth: hasPriorMonthData
+      ? {
+          activeLicenses: previousActiveLicenses,
+          expectedMonthlyCents: previousExpectedMonthlyCents,
+          assignmentsByTool: previousAssignmentsByTool,
+          spendByTool: previousSpendByTool,
+        }
+      : undefined,
+    budgetForecast: forecastData
+      ? {
+          status: forecastData.status,
+          projectedAnnualTotalCents: forecastData.projectedAnnualTotalCents,
+          projectedOverageCents:
+            forecastData.projectedAnnualTotalCents -
+            forecastData.budgetCeilingCents,
+        }
+      : null,
+    lastCompletedMonthLabel,
+    lastCompletedMonthVariancePct,
   };
 
   return (
@@ -128,11 +201,10 @@ export default async function ReportsPage({
         <ReportsTabBar
           activeTab={activeTab}
           overviewData={overviewData}
-          trendsData={trendsData}
-          usageData={usageData}
-          forecastData={forecastData}
           toolSummary={toolSummary}
           circleReport={circleReport}
+          expectedMonthlySparkline={sparkSeries}
+          budgetData={budgetData}
         />
       </div>
     </AuthGuard>

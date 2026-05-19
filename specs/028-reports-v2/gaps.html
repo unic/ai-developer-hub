@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 028 — Reports v2 · Gaps</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      h1, h2, h3, h4 { letter-spacing: -0.01em; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .chip .dot { width: 6px; height: 6px; border-radius: 999px; }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      a.link:hover { color: #c9e94a; }
+      table.spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.spec-table th, table.spec-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      table.spec-table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .toc a { color: var(--muted); }
+      .toc a:hover { color: var(--text); }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .gap { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+      .gap-id { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted-2); letter-spacing: 0.04em; }
+      .gap h3 { font-size: 15px; font-weight: 600; margin-top: 4px; }
+      .gap dl { display: grid; grid-template-columns: 110px 1fr; gap: 8px 16px; margin-top: 12px; font-size: 13px; }
+      .gap dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 2px; }
+      .gap dd { color: var(--text); margin: 0; }
+      .gap dd code { color: #67e8f9; background: #0d1c22; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+      .sev { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-2); }
+      .sev.blocking { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .sev.deferrable { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .sev.trivial { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .anchor { scroll-margin-top: 24px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+
+      <header class="mb-10 pb-6 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          <span class="chip">Spec 028</span>
+          <span class="chip warn">Gaps analysis</span>
+          <span class="chip">Created 2026-05-19</span>
+          <span class="chip">Owner · tobias.studer@unic.com</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Reports v2 — Gaps</h1>
+        <p class="text-[var(--muted)] mt-2 max-w-3xl">
+          What the mockups in <a class="link" href="overview-mock.html">overview-mock.html</a> and <a class="link" href="budget-mock.html">budget-mock.html</a> assume vs what the codebase and database currently provide.
+          Each gap is classified by whether it blocks the v2 PR, can be deferred to a follow-up, or is trivial to close inside the v2 PR.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <a class="chip info" href="README.md">README ↗</a>
+          <a class="chip info" href="overview-mock.html">overview-mock.html ↗</a>
+          <a class="chip info" href="budget-mock.html">budget-mock.html ↗</a>
+          <a class="chip success" href="plan.html">plan.html (single-PR plan) ↗</a>
+        </div>
+      </header>
+
+      <!-- Summary -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">Summary</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div class="card p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">Reusable as-is</div>
+            <div class="text-2xl font-semibold mt-1 tabular-nums">14</div>
+            <div class="text-xs text-[var(--muted)] mt-1">Functions / tables already in code, callable from the new reports without changes</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">Closed in v1</div>
+            <div class="text-2xl font-semibold mt-1 tabular-nums">1</div>
+            <div class="text-xs text-[var(--muted)] mt-1">Billed + running Anthropic API costs are unified into Actual (matches budget detail page)</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">Gaps deferred</div>
+            <div class="text-2xl font-semibold mt-1 tabular-nums">8</div>
+            <div class="text-xs text-[var(--muted)] mt-1">v1 PR ships a degraded version of the affected UI; follow-ups close them</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">Decisions open</div>
+            <div class="text-2xl font-semibold mt-1 tabular-nums">1</div>
+            <div class="text-xs text-[var(--muted)] mt-1">D-1 only — D-2 is decided</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TOC -->
+      <nav class="card p-5 mb-10 toc">
+        <h2 class="text-sm font-semibold mb-3">Contents</h2>
+        <ol class="text-sm space-y-1 list-decimal list-inside">
+          <li><a href="#reusable">What we already have (reusable)</a></li>
+          <li><a href="#gaps">Gaps</a>
+            <ol class="ml-5 mt-1 space-y-1 list-decimal list-inside">
+              <li><a href="#gap-1">G-1 · Per-tool budget allocation</a></li>
+              <li><a href="#gap-2">G-2 · Unified actual spend (closed in v1)</a></li>
+              <li><a href="#gap-3">G-3 · <code>billed_costs.tool_id</code> for per-tool invoice attribution</a></li>
+              <li><a href="#gap-4">G-4 · MoM snapshot of active assignments</a></li>
+              <li><a href="#gap-5">G-5 · Narrative insight generation</a></li>
+              <li><a href="#gap-6">G-6 · Per-month variance drivers (per tool)</a></li>
+              <li><a href="#gap-7">G-7 · Forecast confidence band</a></li>
+              <li><a href="#gap-8">G-8 · Circle × tool-mix breakdown</a></li>
+              <li><a href="#gap-9">G-9 · Tool rank shifts and % of org spend</a></li>
+            </ol>
+          </li>
+          <li><a href="#decisions">Decisions</a></li>
+          <li><a href="#scope">What ships in v1</a></li>
+        </ol>
+      </nav>
+
+      <!-- ===== Reusable ===== -->
+      <section id="reusable" class="anchor mb-10">
+        <h2 class="text-xl font-semibold mb-3">1 · What we already have (reusable)</h2>
+        <p class="text-[var(--muted)] text-sm mb-4">
+          The shipped Overview tab and the new Budget tab can be built almost entirely from these existing pieces — no new schema, no new aggregation pipelines.
+        </p>
+        <table class="spec-table card overflow-hidden">
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th>Where</th>
+              <th>Use in v2</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>getActiveBudget()</code></td>
+              <td><span class="file-path">src/actions/budget.ts:289-298</span></td>
+              <td>Annual ceiling + monthly planned amounts; <code>undefined</code> when none — drives the empty state.</td>
+            </tr>
+            <tr>
+              <td><code>getBudgetWithCosts(budgetId)</code></td>
+              <td><span class="file-path">src/actions/budget.ts:498-573</span></td>
+              <td>Returns each period with <code>expectedSpendCents</code> + <code>billedTotalCents</code>. Used by the per-period plan-vs-actual chart and the past-month spotlight.</td>
+            </tr>
+            <tr>
+              <td><code>getBilledCostsTimeSeries(budgetId)</code></td>
+              <td><span class="file-path">src/actions/budget.ts:576-595</span></td>
+              <td>Monthly array (<code>PeriodSpendPoint[]</code>) filtered to past periods. Direct fuel for the Jan→Dec bar chart and "best/worst month" tiles.</td>
+            </tr>
+            <tr>
+              <td><code>getBudgetForecast(budgetId)</code></td>
+              <td><span class="file-path">src/actions/budget.ts:598-635</span></td>
+              <td>OLS linear regression with status, slope, projections, projected annual total. Powers the projected EOY KPI + cumulative line chart.</td>
+            </tr>
+            <tr>
+              <td><code>forecastBudget(options)</code></td>
+              <td><span class="file-path">src/lib/forecast.ts:54-118</span></td>
+              <td>Lower-level forecast primitive; reusable if we ever want to forecast a per-tool sub-series.</td>
+            </tr>
+            <tr>
+              <td><code>getPerToolSpend(start, end)</code></td>
+              <td><span class="file-path">src/actions/budget.ts:638-664</span></td>
+              <td>License-based per-tool monthly spend over a date range. Backs the Tool Adoption table and the License-based portion of the Budget per-tool table.</td>
+            </tr>
+            <tr>
+              <td><code>getExpectedSpendForPeriod(start, end)</code></td>
+              <td><span class="file-path">src/actions/budget.ts:318-339</span></td>
+              <td>Sums active assignments overlapping a window. Used for the "Expected monthly spend" KPI.</td>
+            </tr>
+            <tr>
+              <td><code>getRunningCostsForPeriod(periodId)</code></td>
+              <td><span class="file-path">src/lib/budget-utils.ts:83-143</span></td>
+              <td>Aggregates <code>anthropic_workspace_costs</code> for a period. Lets us show Claude API spend alongside license costs in the past-month spotlight.</td>
+            </tr>
+            <tr>
+              <td><code>findPeriodForDate(date)</code></td>
+              <td><span class="file-path">src/lib/budget-utils.ts:41-61</span></td>
+              <td>Maps a date back to a budget period. Used to identify "the past month" deterministically.</td>
+            </tr>
+            <tr>
+              <td><code>buildCircleReport(users, assignments)</code></td>
+              <td><span class="file-path">src/lib/reports/circle-report.ts:7-35</span></td>
+              <td>Circle-level user counts and monthly cost. Powers the Spend-by-circle table (without the per-tool mix bar, which is a gap).</td>
+            </tr>
+            <tr>
+              <td><code>copilot_billing_snapshots</code></td>
+              <td><span class="file-path">src/lib/db/schema.ts:501-523</span></td>
+              <td>Latest monthly Copilot org spend. Surface as a separate line under "Usage-based tools" in the Budget tab.</td>
+            </tr>
+            <tr>
+              <td><code>anthropic_workspace_costs</code></td>
+              <td><span class="file-path">src/lib/db/schema.ts:689-710</span></td>
+              <td>Daily Claude API spend per workspace. Sum to month for the same "Usage-based tools" card.</td>
+            </tr>
+            <tr>
+              <td><code>BudgetForecast</code> / <code>PeriodSpendPoint</code> types</td>
+              <td><span class="file-path">src/types/index.ts:81-119</span></td>
+              <td>Stable contract for the new components — no DTO work needed.</td>
+            </tr>
+            <tr>
+              <td>Reports page + tab routing</td>
+              <td><span class="file-path">src/app/reports/page.tsx</span> + <span class="file-path">reports-tab-bar.tsx</span></td>
+              <td>The tab plumbing exists; v2 deletes three tabs and adds one.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ===== Gaps ===== -->
+      <section id="gaps" class="anchor mb-10">
+        <h2 class="text-xl font-semibold mb-3">2 · Gaps</h2>
+        <p class="text-[var(--muted)] text-sm mb-5">
+          Each gap is classified <span class="sev blocking">blocking</span> (the mock UI cannot ship as drawn without it),
+          <span class="sev deferrable">deferrable</span> (mock UI is graceful-degradable; v2 ships a simpler version),
+          or <span class="sev trivial">trivial</span> (small helper, fold into v2).
+        </p>
+
+        <div class="space-y-4">
+
+          <!-- G-1 -->
+          <div id="gap-1" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-1</div>
+                <h3>Per-tool budget allocation</h3>
+              </div>
+              <span class="sev deferrable">deferrable · needs product decision</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>The Budget "Per-tool budget breakdown" table has columns <em>YTD planned</em>, <em>Variance</em>, and <em>Annual cap</em> per tool — implying each tool has its own planned allocation.</dd>
+              <dt>Reality</dt>
+              <dd><code>budget_periods.planned_amount_cents</code> is <strong>org-level only</strong>. No <code>tool_id</code> column anywhere on <code>budget_periods</code> or <code>annual_budgets</code>. No table maps a tool to a planned amount.</dd>
+              <dt>Close by</dt>
+              <dd>Either (a) add a new <code>budget_tool_allocations</code> table (<code>period_id</code>, <code>tool_id</code>, <code>planned_amount_cents</code>) with a setter UI, or (b) derive per-tool plan from <code>access_tiers.monthly_cost_cents × max_licenses</code> (treats current capacity as "plan"). Option (a) is honest; (b) is a UX shortcut. <strong>Decision needed</strong> — see <a class="link" href="#decisions">D-1</a>.</dd>
+              <dt>v2 degrades to</dt>
+              <dd>Per-tool table shows <strong>YTD spent · run-rate · projected EOY · % of org spend</strong> only. No "planned" / "variance" / "annual cap" columns. Status chip becomes derived (e.g. "above run-rate" if EOY &gt; YTD-implied trajectory).</dd>
+            </dl>
+          </div>
+
+          <!-- G-2 -->
+          <div id="gap-2" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-2</div>
+                <h3>Unified actual spend (billed + running API)</h3>
+              </div>
+              <span class="sev success">closed in v1 · matches budget detail pattern</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>An "Actual" total that includes both invoiced costs and live API usage (Anthropic running costs), with per-period attribution.</dd>
+              <dt>Reality</dt>
+              <dd>The pattern already exists on the budget detail page (<span class="file-path">src/app/budget/[id]/budget-detail-client.tsx:126-131</span>): <code>totalActual = totalBilled + totalRunning</code>, where <code>totalRunning</code> sums <code>getRunningCostsForPeriod(periodId).runningCostCents</code> across periods. The per-period row shows the breakdown with an "(API)" annotation and an expandable per-workspace list.</dd>
+              <dt>v1 ships</dt>
+              <dd>The Budget report adopts the <em>exact same formula</em>: <code>actualCents = billedTotalCents + runningCostCents</code> for every period, KPI tile, chart, and the per-tool breakdown. The Anthropic API contribution appears as its own row in the per-tool table sourced from <code>getRunningCostsForPeriod</code>. Per-workspace breakdown is shown on demand via a disclosure, mirroring the detail page's expandable rows.</dd>
+              <dt>Residual</dt>
+              <dd>What's still <strong>not</strong> in v1: <strong>per-tool attribution of invoiced billed_costs rows</strong> — see <a class="link" href="#gap-3">G-3</a>. Without that, the per-tool breakdown table can attribute spend to (a) license-based tools via <code>getPerToolSpend</code> and (b) Anthropic API via running costs, but invoiced amounts (e.g. a Copilot invoice) only show up in the org-level Actual total, not against a specific tool row. This is identical to the budget detail page's current limitation.</dd>
+            </dl>
+          </div>
+
+          <!-- G-3 -->
+          <div id="gap-3" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-3</div>
+                <h3><code>billed_costs.tool_id</code> for per-tool invoice attribution</h3>
+              </div>
+              <span class="sev deferrable">deferrable</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>Past-month spotlight lists "top variance drivers" per tool, implying we know which tool an invoiced cost came from.</dd>
+              <dt>Reality</dt>
+              <dd><code>billed_costs</code> has only <code>description</code> (free-text, e.g. <code>"Invoice 4711 — Anthropic"</code>) and <code>vendor_reference</code>. No FK to <code>ai_tools</code>. Invoice matching (<span class="file-path">src/lib/sync/sources/invoice-matching.ts</span>) lands invoices on periods but doesn't tag a tool. The budget detail page lives with the same limitation today.</dd>
+              <dt>Close by</dt>
+              <dd>Migration: add nullable <code>tool_id INTEGER REFERENCES ai_tools(id)</code> on <code>billed_costs</code>. Backfill from <code>vendor_reference</code> heuristic or leave null. Update invoice matching to populate when confident.</dd>
+              <dt>v1 degrades to</dt>
+              <dd>Per-tool table attributes (a) license-based seats via <code>getPerToolSpend</code> and (b) Anthropic API via running costs. Invoiced amounts roll into the org-level Actual but do not appear as their own per-tool rows. Past-month spotlight drivers use license-delta diffs only.</dd>
+            </dl>
+          </div>
+
+          <!-- G-4 -->
+          <div id="gap-4" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-4</div>
+                <h3>MoM snapshot of active assignments</h3>
+              </div>
+              <span class="sev trivial">trivial · fold into v2</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>Overview KPI strip shows MoM deltas ("+22 licenses", "+8.2% spend"). What-changed-this-month insight cards. Rank-shift markers on the tool table.</dd>
+              <dt>Reality</dt>
+              <dd>No helper exists, but the data is derivable: <code>license_assignments.assigned_at</code> and <code>revoked_at</code> let us count assignments active "as of" any historical date.</dd>
+              <dt>Close by</dt>
+              <dd>Add <code>getAssignmentSnapshotAt(date: Date)</code> in <span class="file-path">src/actions/assignments.ts</span> — filter <code>assigned_at &lt;= date AND (revoked_at IS NULL OR revoked_at &gt; date)</code>. Wrap with a memoizing per-tool aggregator for the MoM diff. ~40 lines.</dd>
+              <dt>Status</dt>
+              <dd>Listed in <a class="link" href="plan.html#phase-2">plan.html Phase 2</a> as a small helper inside v2.</dd>
+            </dl>
+          </div>
+
+          <!-- G-5 -->
+          <div id="gap-5" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-5</div>
+                <h3>Narrative insight generation</h3>
+              </div>
+              <span class="sev deferrable">deferrable</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>"What changed this month" cards with human-readable sentences ("Cursor Pro grew 22 → 32 seats", "8 of those Copilot seats are inactive").</dd>
+              <dt>Reality</dt>
+              <dd>None of this exists. Needs a small rules engine that takes (current snapshot, prior snapshot, usage stats) → produces a ranked list of <code>{ severity, headline, body }</code> insights.</dd>
+              <dt>Close by</dt>
+              <dd>New <code>src/lib/reports/insights.ts</code>: handful of rules (license-count change, spend %, inactivity flag, tier change). Each rule returns a typed insight or null. Sort by absolute impact in cents. ~150 lines, no schema work.</dd>
+              <dt>v2 degrades to</dt>
+              <dd>The "What changed this month" section ships as a static, hand-coded version on first release showing the same four card slots populated by hard-rules (license-count MoM, spend MoM, inactive-seat count from existing assignments query, and the budget-health summary). Slightly less rich than the mock but no AI/rules-engine work. Full rules engine lands in a follow-up.</dd>
+            </dl>
+          </div>
+
+          <!-- G-6 -->
+          <div id="gap-6" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-6</div>
+                <h3>Per-month variance drivers (per tool)</h3>
+              </div>
+              <span class="sev deferrable">deferrable</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>Past-month spotlight ranks the 5 tools that drove the variance vs plan, with $ contribution and %.</dd>
+              <dt>Reality</dt>
+              <dd>Variance vs <em>plan</em> requires per-tool plan (G-1). Without that, we only have variance vs <em>last month's run-rate</em>, which is a different (less honest) signal.</dd>
+              <dt>Close by</dt>
+              <dd>Hard-depends on G-1. Once per-tool plan exists, a simple "actual − planned grouped by tool" query closes this.</dd>
+              <dt>v2 degrades to</dt>
+              <dd>Past-month spotlight shows: <strong>planned total · actual total · variance %</strong>. No per-tool driver breakdown. Replaced by a "what grew / what shrunk" list using G-4 snapshot diff (license count changes, not $ variance).</dd>
+            </dl>
+          </div>
+
+          <!-- G-7 -->
+          <div id="gap-7" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-7</div>
+                <h3>Forecast confidence band</h3>
+              </div>
+              <span class="sev deferrable">deferrable · low priority</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>The cumulative forecast chart has a shaded ±10% band around the projected line and a "crosses ceiling on Dec 2" annotation.</dd>
+              <dt>Reality</dt>
+              <dd><code>forecastBudget</code> returns point estimates. No residual stddev / confidence interval. No crossing-date derivation.</dd>
+              <dt>Close by</dt>
+              <dd>Extend <code>forecastBudget()</code> to also return <code>residualStdCents</code> and <code>ceilingCrossingMonth</code> (solve cumulative ≥ ceiling). ~30 lines in <span class="file-path">src/lib/forecast.ts</span>.</dd>
+              <dt>v2 degrades to</dt>
+              <dd>Cumulative chart shows point forecast as a dashed line with no band. Crossing date omitted. Everything else in the Forecast section ships.</dd>
+            </dl>
+          </div>
+
+          <!-- G-8 -->
+          <div id="gap-8" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-8</div>
+                <h3>Circle × tool-mix breakdown</h3>
+              </div>
+              <span class="sev deferrable">deferrable</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>"Spend by circle" table has a horizontal stacked bar per row showing the mix of tools that make up each circle's spend.</dd>
+              <dt>Reality</dt>
+              <dd><code>buildCircleReport</code> sums per circle. Doesn't break out by <code>tool_id</code>.</dd>
+              <dt>Close by</dt>
+              <dd>Extend <code>buildCircleReport</code> to also return <code>byTool: { toolId, toolName, cents }[]</code> per circle. ~15 lines.</dd>
+              <dt>v2 degrades to</dt>
+              <dd>Circle table ships without the mix bar. Header column "Mix" drops. Other columns (users, licenses, monthly cost, $/user) ship as drawn.</dd>
+            </dl>
+          </div>
+
+          <!-- G-9 -->
+          <div id="gap-9" class="anchor gap">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div class="gap-id">G-9</div>
+                <h3>Tool rank shifts and % of org spend</h3>
+              </div>
+              <span class="sev deferrable">deferrable</span>
+            </div>
+            <dl>
+              <dt>Mock shows</dt>
+              <dd>Overview tool-adoption table has a rank-shift marker (e.g. <code>▲4</code>) and a "% of org spend" column.</dd>
+              <dt>Reality</dt>
+              <dd>Rank shift depends on G-4 (snapshot helper). "% of org spend" depends on G-2 (unified total). Without G-2, the percentage would be license-only — misleading.</dd>
+              <dt>v2 degrades to</dt>
+              <dd>Tool-adoption table keeps active-users + expected-monthly + MoM-license-delta (G-4 closes this trivially) but drops rank-shift and the percentage column.</dd>
+            </dl>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ===== Decisions ===== -->
+      <section id="decisions" class="anchor mb-10">
+        <h2 class="text-xl font-semibold mb-3">3 · Decisions</h2>
+        <p class="text-[var(--muted)] text-sm mb-4">
+          D-2 is decided. D-1 is still open but does not block v1 — the per-tool breakdown ships without a "planned" column on each row.
+        </p>
+        <div class="space-y-4">
+          <div class="card-2 p-5">
+            <div class="flex items-center gap-2">
+              <span class="chip">D-1</span>
+              <span class="chip warn">open</span>
+              <h3 class="text-base font-semibold">How do per-tool budgets work?</h3>
+            </div>
+            <p class="text-sm mt-2 text-[var(--muted)]">Closes <a class="link" href="#gap-1">G-1</a> · <a class="link" href="#gap-6">G-6</a></p>
+            <ul class="text-sm mt-3 list-disc list-inside space-y-1 text-[var(--text)]/90">
+              <li><strong>Option A</strong> — Allocate a planned amount per tool per period (new <code>budget_tool_allocations</code> table + UI in Budget detail page). Honest but adds a planning step for admins.</li>
+              <li><strong>Option B</strong> — Derive per-tool plan from current capacity (<code>access_tiers × max_licenses</code>). Zero admin effort but treats run-rate as the plan.</li>
+              <li><strong>Option C</strong> — Skip per-tool plans entirely. Per-tool table shows actual + projected only; variance lives only at org level.</li>
+            </ul>
+          </div>
+          <div class="card-2 p-5">
+            <div class="flex items-center gap-2">
+              <span class="chip">D-2</span>
+              <span class="chip success">decided · 2026-05-19</span>
+              <h3 class="text-base font-semibold">How do usage-based costs enter the budget total?</h3>
+            </div>
+            <p class="text-sm mt-2 text-[var(--muted)]">Closes (partially) <a class="link" href="#gap-2">G-2</a> — full closure still depends on <a class="link" href="#gap-3">G-3</a>.</p>
+            <div class="callout success mt-3 text-sm">
+              <p class="text-[var(--text)] font-medium mb-1">Decision</p>
+              <p class="text-[var(--text)]/90">
+                Adopt the existing <strong>budget detail page pattern</strong>: <code>actualCents = billedTotalCents + runningCostCents</code> for every period.
+                <code>billedTotalCents</code> comes from <code>billed_costs</code> (invoiced spend, includes Copilot/ChatGPT/etc. invoices when entered).
+                <code>runningCostCents</code> comes from <code>getRunningCostsForPeriod(periodId)</code> — live Anthropic API usage from <code>anthropic_workspace_costs</code>.
+                Both contributions are shown side-by-side in the report, with an "(API)" annotation where running costs are present, mirroring <span class="file-path">budget-detail-client.tsx</span>.
+              </p>
+              <p class="text-[var(--text)]/90 mt-2">No new sync work, no new schema, no Marketplace integration. <strong>Both billed and running are required in v1.</strong></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== What ships ===== -->
+      <section id="scope" class="anchor mb-10">
+        <h2 class="text-xl font-semibold mb-3">4 · What ships in v1</h2>
+        <div class="callout info text-sm">
+          <p class="mb-2">With G-2 closed via the budget-detail pattern and the other 8 gaps deferred, the v1 PR ships:</p>
+          <ul class="list-disc list-inside space-y-1">
+            <li>Trends / Usage / Forecast tabs deleted (3 tabs of dead code removed).</li>
+            <li>Overview keeps every existing element and adds: budget-health hero, MoM license deltas (via G-4 trivial helper), expected-monthly sparkline, and a static-rule "what changed" section.</li>
+            <li>New Budget tab where <strong>every Actual number = billed + running Anthropic API costs</strong>: at-a-glance hero, past-month spotlight (with billed/running split), monthly plan-vs-actual chart (Actual stacks billed + running), forecast cumulative chart (Actual time series), and per-tool breakdown that includes an "Anthropic API" row sourced from running costs alongside the license-derived tools.</li>
+          </ul>
+          <p class="mt-2">See <a class="link" href="plan.html">plan.html</a> for the single-PR implementation plan.</p>
+        </div>
+      </section>
+
+    </div>
+  </body>
+</html>

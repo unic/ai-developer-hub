@@ -22,6 +22,7 @@ import {
 } from "@/lib/validators";
 import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast, MonthlySpend } from "@/types";
 import { forecastBudget } from "@/lib/forecast";
+import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import { recordCreation, recordUpdate, recordStatusChange } from "@/actions/history";
 
 export async function createBudget(
@@ -594,7 +595,8 @@ export async function getBilledCostsTimeSeries(
   }
 }
 
-// 005-rich-reports: Budget forecast using OLS linear regression
+// 005-rich-reports: Budget forecast using OLS linear regression.
+// Spec 028: Actual = billed + running Anthropic API costs (matches budget detail page).
 export async function getBudgetForecast(
   budgetId: number
 ): Promise<ActionResult<BudgetForecast>> {
@@ -603,17 +605,27 @@ export async function getBudgetForecast(
 
   const today = new Date();
 
+  // Layer in running Anthropic API costs per period so the forecast reflects Actual.
+  const runningResults = await Promise.all(
+    budget.periods.map((p) => getRunningCostsForPeriod(p.id))
+  );
+  const actualByPeriod = new Map<number, number>();
+  budget.periods.forEach((p, i) => {
+    const running = runningResults[i]?.runningCostCents ?? 0;
+    actualByPeriod.set(p.id, p.billedTotalCents + running);
+  });
+
   const completedPeriods = budget.periods.filter(
-    (p) => new Date(p.endDate) < today && p.billedTotalCents > 0
+    (p) => new Date(p.endDate) < today && (actualByPeriod.get(p.id) ?? 0) > 0
   );
 
   const history: MonthlySpend[] = completedPeriods.map((p) => ({
     month: p.periodLabel,
-    amountCents: p.billedTotalCents,
+    amountCents: actualByPeriod.get(p.id) ?? 0,
   }));
 
   const actualSpendToDateCents = completedPeriods.reduce(
-    (s, p) => s + p.billedTotalCents,
+    (s, p) => s + (actualByPeriod.get(p.id) ?? 0),
     0
   );
 

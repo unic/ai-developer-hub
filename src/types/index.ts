@@ -86,16 +86,6 @@ export interface PeriodSpendPoint {
   periodIndex: number;
 }
 
-export interface ToolUtilization {
-  toolId: number;
-  toolName: string;
-  vendor: string;
-  assignedCount: number;
-  maxLicenses: number | null;
-  utilizationPct: number;
-  expectedMonthlyCents: number;
-}
-
 export interface MonthlySpend {
   month: string;
   amountCents: number;
@@ -129,12 +119,30 @@ export interface ReportOverviewData {
   utilizationPct: number;
   spendTrend: "up" | "down" | "flat";
   spendTrendPct: number;
+  /**
+   * Snapshot of license activity as of the last calendar month-end.
+   * Absent when no comparable prior data exists (e.g. fresh org).
+   */
+  previousMonth?: {
+    activeLicenses: number;
+    expectedMonthlyCents: number;
+    assignmentsByTool: Record<number, number>;
+    spendByTool: Record<number, number>;
+  };
+  /** Forecast status surfaced on the budget-health hero. Null when no active budget. */
+  budgetForecast: {
+    status: "on_track" | "at_risk";
+    projectedAnnualTotalCents: number;
+    projectedOverageCents: number;
+  } | null;
+  /** Most recent past period label (e.g. "Apr 2026") that had any actual spend. Null otherwise. */
+  lastCompletedMonthLabel: string | null;
+  lastCompletedMonthVariancePct: number | null;
 }
 
-export interface ForecastChartPoint {
-  month: string;
-  historical: number | null;
-  projected: number | null;
+export interface SparklinePoint {
+  label: string;
+  value: number;
 }
 
 export interface ToolSummaryItem {
@@ -151,6 +159,61 @@ export interface CircleReportItem {
   licenseCount: number;
   totalMonthlyCost: number;
 }
+
+// Spec 028 — Reports v2 (Budget tab)
+
+/** A budget period augmented with the running-API contribution and the resulting Actual. */
+export type PeriodWithActual = PeriodWithCosts & {
+  runningCostCents: number;
+  actualCents: number;
+};
+
+/** YTD per-tool spend point used by the per-tool breakdown table. */
+export interface BudgetPerToolRow {
+  toolId: number | null;
+  toolName: string;
+  isAnthropicApi: boolean;
+  ytdSpentCents: number;
+  currentMonthlyCents: number;
+  projectedEoyCents: number;
+  /** Workspace-level rows shown when the tool is "Anthropic API" and there is more than one workspace. */
+  workspaceBreakdown?: Array<{
+    workspaceId: string | null;
+    name: string;
+    costCents: number;
+  }>;
+}
+
+export interface BudgetReportPastMonth {
+  periodId: number;
+  periodLabel: string;
+  plannedCents: number;
+  billedCents: number;
+  runningCents: number;
+  actualCents: number;
+  varianceCents: number;
+  variancePct: number | null;
+  /** Top variance drivers (per-tool MoM license-derived diffs). Up to 5. */
+  drivers: Array<{
+    toolId: number | null;
+    toolName: string;
+    /** Cents added/removed vs the prior completed period. */
+    deltaCents: number;
+    /** Percent change vs prior; null when prior was zero. */
+    deltaPct: number | null;
+  }>;
+}
+
+export type BudgetReportData =
+  | { kind: "empty"; reason: "no_active_budget" }
+  | {
+      kind: "ready";
+      budget: BudgetWithCosts;
+      periodsWithActual: PeriodWithActual[];
+      forecast: BudgetForecast;
+      pastMonth: BudgetReportPastMonth | null;
+      perTool: BudgetPerToolRow[];
+    };
 
 // Bulk import upsert result types
 export interface BulkImportResult {

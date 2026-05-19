@@ -7,56 +7,68 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import type {
   ReportOverviewData,
-  PeriodSpendPoint,
-  ToolUtilization,
-  BudgetForecast,
   ToolSummaryItem,
   CircleReportItem,
+  SparklinePoint,
+  BudgetReportData,
 } from "@/types";
 
-const ReportsChartsPanel = dynamic(
+const OverviewPanel = dynamic(
   () =>
     import("@/components/reports/reports-charts-panel").then(
-      (m) => m.ReportsChartsPanel
+      (m) => m.OverviewPanel
     ),
   {
     ssr: false,
-    loading: () => (
-      <div className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="mt-2 h-8 w-16" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Skeleton className="min-h-[300px] w-full rounded-lg" />
-      </div>
-    ),
+    loading: () => <PanelSkeleton />,
   }
 );
 
+const BudgetReport = dynamic(
+  () =>
+    import("@/components/reports/budget/budget-report").then(
+      (m) => m.BudgetReport
+    ),
+  {
+    ssr: false,
+    loading: () => <PanelSkeleton />,
+  }
+);
+
+function PanelSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="pt-6">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-2 h-8 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Skeleton className="min-h-[300px] w-full rounded-lg" />
+    </div>
+  );
+}
+
 export interface ReportsTabBarProps {
-  activeTab: "overview" | "trends" | "usage" | "forecast";
+  activeTab: "overview" | "budget";
   overviewData: ReportOverviewData;
-  trendsData: PeriodSpendPoint[];
-  usageData: ToolUtilization[];
-  forecastData: BudgetForecast | null;
   toolSummary: ToolSummaryItem[];
   circleReport: CircleReportItem[];
+  expectedMonthlySparkline: SparklinePoint[];
+  budgetData: BudgetReportData | null;
 }
 
 export function ReportsTabBar({
   activeTab,
   overviewData,
-  trendsData,
-  usageData,
-  forecastData,
   toolSummary,
   circleReport,
+  expectedMonthlySparkline,
+  budgetData,
 }: ReportsTabBarProps) {
   const router = useRouter();
 
@@ -69,21 +81,24 @@ export function ReportsTabBar({
     <Tabs value={activeTab} onValueChange={handleTabChange}>
       <TabsList>
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="trends">Trends</TabsTrigger>
-        <TabsTrigger value="usage">Usage</TabsTrigger>
-        <TabsTrigger value="forecast">Forecast</TabsTrigger>
+        <TabsTrigger value="budget">Budget</TabsTrigger>
       </TabsList>
 
-      <TabsContent value={activeTab} className="mt-6">
-        <ReportsChartsPanel
-          activeTab={activeTab}
+      <TabsContent value="overview" className="mt-6">
+        <OverviewPanel
           overviewData={overviewData}
-          trendsData={trendsData}
-          usageData={usageData}
-          forecastData={forecastData}
           toolSummary={toolSummary}
           circleReport={circleReport}
+          expectedMonthlySparkline={expectedMonthlySparkline}
         />
+      </TabsContent>
+
+      <TabsContent value="budget" className="mt-6">
+        {budgetData ? (
+          <BudgetReport data={budgetData} />
+        ) : (
+          <PanelSkeleton />
+        )}
       </TabsContent>
     </Tabs>
   );
