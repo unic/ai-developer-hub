@@ -50,6 +50,14 @@ export function getCurrentMonth(): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/** End of the previous calendar month, 23:59:59.999 UTC. */
+export function getLastMonthEnd(now: Date = new Date()): Date {
+  const firstOfThisMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  );
+  return new Date(firstOfThisMonth.getTime() - 1);
+}
+
 /**
  * Linear extrapolation of month-to-date spending to a projected month-end total.
  * Returns 0 when daysElapsed is 0 to avoid divide-by-zero.

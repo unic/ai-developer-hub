@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 028 — Reports v2 · Implementation plan</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      h1, h2, h3, h4 { letter-spacing: -0.01em; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #181818; border: 1px solid var(--border-2); color: var(--muted); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      a.link:hover { color: #c9e94a; }
+      table.spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.spec-table th, table.spec-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      table.spec-table th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      table.spec-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+      .toc a { color: var(--muted); }
+      .toc a:hover { color: var(--text); }
+      .phase-pill { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+      .phase-1 { background: #0a1c10; color: #86efac; border: 1px solid #14532d; }
+      .phase-2 { background: #082f3a; color: #67e8f9; border: 1px solid #155e75; }
+      .phase-3 { background: #2a1607; color: #fcd34d; border: 1px solid #78350f; }
+      .anchor { scroll-margin-top: 24px; }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      .ac-list { padding-left: 22px; }
+      .ac-list li { margin: 6px 0; }
+      .ac-list li::marker { color: #4ade80; }
+      .risk-list li::marker { color: #f87171; }
+      details.code-detail summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      details.code-detail summary:hover { color: var(--text); }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      pre.code .k { color: #c084fc; }
+      pre.code .s { color: #86efac; }
+      pre.code .n { color: #fcd34d; }
+      pre.code .c { color: #71717a; font-style: italic; }
+      pre.code .t { color: #67e8f9; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .badge-del { color: #fca5a5; background: #2a0a0a; border: 1px solid #7f1d1d; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+      .badge-mod { color: #fcd34d; background: #2a1607; border: 1px solid #78350f; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+      .badge-add { color: #86efac; background: #0a1c10; border: 1px solid #14532d; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+
+      <header class="mb-10 pb-6 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          <span class="chip">Spec 028</span>
+          <span class="chip info">Status · Ready for implementation</span>
+          <span class="chip">Created 2026-05-19</span>
+          <span class="chip">Owner · tobias.studer@unic.com</span>
+          <span class="chip success">3 phases · 1 PR · no schema changes</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Reports v2 — Implementation plan</h1>
+        <p class="text-[var(--muted)] mt-2 max-w-3xl">
+          Delete three dead tabs (<em>Trends, Usage, Forecast</em>), rework Overview to highlight what changed,
+          and ship a new <em>Budget</em> tab that answers "what did we spend last month, where is the year going, how does it compare to plan."
+          One PR, no migrations, ~6 new components. Every Actual value uses the existing
+          <code class="mono text-[var(--text)]">billed + running</code> formula from the budget detail page — billed costs and live Anthropic API costs are integrated into the report from v1.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <a class="chip info" href="README.md">README ↗</a>
+          <a class="chip info" href="overview-mock.html">overview-mock.html ↗</a>
+          <a class="chip info" href="budget-mock.html">budget-mock.html ↗</a>
+          <a class="chip warn" href="gaps.html">gaps.html (out of scope) ↗</a>
+        </div>
+      </header>
+
+      <!-- TOC -->
+      <nav class="card p-5 mb-10 toc">
+        <h2 class="text-sm font-semibold mb-3">Contents</h2>
+        <ol class="text-sm space-y-1 list-decimal list-inside">
+          <li><a href="#overview">Overview &amp; constraints</a></li>
+          <li><a href="#phase-1">Phase 1 — Cleanup</a></li>
+          <li><a href="#phase-2">Phase 2 — Overview rework</a></li>
+          <li><a href="#phase-3">Phase 3 — New Budget tab</a></li>
+          <li><a href="#files">File-by-file change list</a></li>
+          <li><a href="#data-flow">Data flow</a></li>
+          <li><a href="#tests">Test plan</a></li>
+          <li><a href="#risks">Risks &amp; mitigations</a></li>
+          <li><a href="#scope">Explicitly out of scope</a></li>
+        </ol>
+      </nav>
+
+      <!-- ===== 1. Overview ===== -->
+      <section id="overview" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">1 · Overview &amp; constraints</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div class="card-2 p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">Migrations</div>
+            <div class="text-lg font-semibold mt-1">0</div>
+            <div class="text-xs text-[var(--muted)] mt-1">Zero schema changes. All data is already in the DB.</div>
+          </div>
+          <div class="card-2 p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">New packages</div>
+            <div class="text-lg font-semibold mt-1">0</div>
+            <div class="text-xs text-[var(--muted)] mt-1">Recharts + shadcn/ui already cover everything.</div>
+          </div>
+          <div class="card-2 p-4">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)]">Roughly</div>
+            <div class="text-lg font-semibold mt-1">~1,200 LOC</div>
+            <div class="text-xs text-[var(--muted)] mt-1">Net change: ~+900 added / ~−300 deleted.</div>
+          </div>
+        </div>
+        <div class="callout text-sm">
+          <p class="font-medium text-[var(--text)] mb-1">Design principle</p>
+          <p class="text-[var(--text)]/90">
+            Reuse existing aggregations verbatim. If a mock element needs a calculation that doesn't exist, either (a) compose it from existing helpers without a schema change, or (b) drop it from v2 and document the gap.
+            The version of the mock that ships is faithful to the <em>shape and hierarchy</em> but may have <strong>fewer columns or simpler badges</strong> on tables — see <a class="link" href="gaps.html">gaps.html</a> for the trade-offs.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===== 2. Phase 1 ===== -->
+      <section id="phase-1" class="anchor mb-10">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="phase-pill phase-1">Phase 1</span>
+          <h2 class="text-2xl font-bold">Cleanup</h2>
+          <span class="chip">~30 min · no tests required</span>
+        </div>
+        <p class="text-[var(--muted)] text-sm mb-4">
+          Delete the three dead tabs (Trends, Usage, Forecast) and prune unused props from <code>ReportsPage</code>.
+          Doing this first means Phase 2/3 don't have to maintain compatibility with code that's about to be deleted.
+        </p>
+
+        <h3 class="text-base font-semibold mt-4 mb-2">Files touched</h3>
+        <table class="spec-table card overflow-hidden">
+          <tbody>
+            <tr>
+              <td><span class="badge-del">delete</span></td>
+              <td><span class="file-path">src/components/reports/trends-chart.tsx</span></td>
+              <td>Trends LineChart component.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-del">delete</span></td>
+              <td><span class="file-path">src/components/reports/utilization-chart.tsx</span></td>
+              <td>Usage BarChart component.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-del">delete</span></td>
+              <td><span class="file-path">src/components/reports/forecast-chart.tsx</span></td>
+              <td>Standalone forecast view. Its chart structure is salvaged inline into the new Budget tab.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/app/reports/page.tsx</span></td>
+              <td>Drop <code>"trends" | "usage" | "forecast"</code> from <code>VALID_TABS</code>. Stop fetching <code>getLicenseUtilizationByTool</code> in this file (overview still uses it).</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/app/reports/reports-tab-bar.tsx</span></td>
+              <td>Render only Overview + Budget tabs. Remove the three TabsTrigger entries and their <code>TabsContent</code> wrappers.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/components/reports/reports-charts-panel.tsx</span></td>
+              <td>Will be split — the Overview JSX stays, the Trends/Usage/Forecast JSX leaves. (Final shape lands in Phase 2.)</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/types/index.ts</span></td>
+              <td>Drop <code>ReportForecastData</code> if unused after removing forecast tab. Keep <code>BudgetForecast</code> — Phase 3 reuses it.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">Acceptance criteria</h3>
+        <ul class="ac-list text-sm">
+          <li><code>/reports?tab=trends</code>, <code>?tab=usage</code>, <code>?tab=forecast</code> all redirect/normalize to <code>?tab=overview</code> (existing fallback in <code>parseTab</code>).</li>
+          <li>No dead imports remain. <code>pnpm typecheck</code> and <code>pnpm lint</code> both clean.</li>
+          <li>Existing Overview content renders unchanged after this phase.</li>
+        </ul>
+      </section>
+
+      <!-- ===== 3. Phase 2 ===== -->
+      <section id="phase-2" class="anchor mb-10">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="phase-pill phase-2">Phase 2</span>
+          <h2 class="text-2xl font-bold">Overview rework</h2>
+          <span class="chip">~3–4 hr · component tests + 1 integration test</span>
+        </div>
+        <p class="text-[var(--muted)] text-sm mb-4">
+          Same data, better hierarchy. Add a small MoM snapshot helper and surface it as deltas on the KPI strip and as license-delta column on the tool-adoption table. Add a budget-health hero card that links to the new tab. Add the static "what changed this month" card grid (four hard-coded rule outputs — full rules engine is deferred per <a class="link" href="gaps.html#gap-5">G-5</a>).
+        </p>
+
+        <h3 class="text-base font-semibold mt-4 mb-2">2.1 · New helper: assignment snapshot at past date</h3>
+        <p class="text-sm mb-2">
+          Existing <code>license_assignments</code> has <code>assigned_at</code> and <code>revoked_at</code>. We can compute "active as of any past date" without schema work.
+        </p>
+        <details class="code-detail mb-3">
+          <summary>Show sketch — <code>getAssignmentSnapshotAt</code></summary>
+          <pre class="code"><span class="c">// src/actions/assignments.ts (new export)</span>
+<span class="k">export async function</span> <span class="t">getAssignmentSnapshotAt</span>(asOf: Date) {
+  <span class="k">return</span> db
+    .select({
+      id: licenseAssignments.id,
+      toolId: licenseAssignments.toolId,
+      userId: licenseAssignments.userId,
+      costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+    })
+    .from(licenseAssignments)
+    .where(
+      and(
+        lte(licenseAssignments.assignedAt, asOf),
+        or(
+          isNull(licenseAssignments.revokedAt),
+          gt(licenseAssignments.revokedAt, asOf),
+        ),
+      ),
+    );
+}</pre>
+        </details>
+        <p class="text-xs text-[var(--muted)]">~30 lines including a small per-tool aggregator (<code>countByToolFromSnapshot</code>) used for the MoM license-delta column and the static-rules input.</p>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">2.2 · Overview component shape</h3>
+        <table class="spec-table card overflow-hidden">
+          <thead>
+            <tr><th>Section</th><th>Source</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>KPI strip (4 tiles)</td>
+              <td><code>getUsers</code>, <code>getTools</code>, <code>getAssignments</code>, <code>getAssignmentSnapshotAt(lastMonthEnd)</code></td>
+              <td>Adds MoM badge ("+22 licenses", "+8.2%") + a 5-month bar sparkline for expected monthly spend (SVG, no Recharts needed at this scale).</td>
+            </tr>
+            <tr>
+              <td>Budget health hero</td>
+              <td><code>getActiveBudget</code>, <code>getBilledCostsTimeSeries</code>, <code>getBudgetForecast</code></td>
+              <td>Pill ("on track" / "at risk"), one-sentence narrative, "Open Budget report →" link. Hidden when no active budget exists.</td>
+            </tr>
+            <tr>
+              <td>What changed this month</td>
+              <td><code>insightsStatic({ now, lastMonth })</code> — new file <span class="file-path">src/lib/reports/insights-static.ts</span></td>
+              <td>Four hard rules (license-count change, spend %, budget-health summary, inactive-seat count). Each returns <code>{ severity, headline, body, iconKey }</code> or null. Renders up to four cards.</td>
+            </tr>
+            <tr>
+              <td>Tool adoption table</td>
+              <td>Existing <code>toolSummary</code> + <code>getAssignmentSnapshotAt</code> for MoM delta column</td>
+              <td>Adds one column: <em>MoM</em> (<code>+15</code> / <code>−3</code> / <code>±0</code>). No rank-shift, no "% of org spend" — see <a class="link" href="gaps.html#gap-9">G-9</a>.</td>
+            </tr>
+            <tr>
+              <td>Spend by circle table</td>
+              <td>Existing <code>buildCircleReport</code></td>
+              <td>Same as today plus a <em>$/user</em> derived column. No tool-mix stacked bar — see <a class="link" href="gaps.html#gap-8">G-8</a>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">2.3 · Files touched</h3>
+        <table class="spec-table card overflow-hidden">
+          <tbody>
+            <tr>
+              <td><span class="badge-add">add</span></td>
+              <td><span class="file-path">src/lib/reports/insights-static.ts</span></td>
+              <td>Pure function: <code>(now, lastMonth, budget) =&gt; Insight[]</code>. Hard rules, no schema deps.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-add">add</span></td>
+              <td><span class="file-path">src/components/reports/overview/budget-health-hero.tsx</span></td>
+              <td>The hero card. Pure presentational. <code>"use client"</code> only if the link uses interactive client routing — otherwise Server Component.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-add">add</span></td>
+              <td><span class="file-path">src/components/reports/overview/what-changed.tsx</span></td>
+              <td>Renders insight cards. Takes <code>insights: Insight[]</code>.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-add">add</span></td>
+              <td><span class="file-path">src/components/reports/overview/kpi-with-mom.tsx</span></td>
+              <td>Reusable KPI tile with MoM chip + optional sparkline.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/components/reports/reports-charts-panel.tsx</span></td>
+              <td>Replace overview JSX with composition of the above. ~200 net LOC; mostly substitution.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/actions/assignments.ts</span></td>
+              <td>Add <code>getAssignmentSnapshotAt</code> + small <code>countByToolFromSnapshot</code> helper.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/types/index.ts</span></td>
+              <td>Extend <code>ReportOverviewData</code> with <code>previousMonth?: { activeLicenses; expectedMonthlyCents; assignmentsByTool: Record&lt;number, number&gt; }</code>.</td>
+            </tr>
+            <tr>
+              <td><span class="badge-mod">modify</span></td>
+              <td><span class="file-path">src/app/reports/page.tsx</span></td>
+              <td>Compute <code>lastMonthEnd</code>, call snapshot helper, pass <code>previousMonth</code> into <code>overviewData</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">2.4 · Acceptance criteria</h3>
+        <ul class="ac-list text-sm">
+          <li>KPI strip renders MoM deltas; tiles still load when <code>previousMonth</code> is unavailable (e.g. fresh org) and just hide the badge.</li>
+          <li>Budget-health hero hidden entirely when <code>getActiveBudget()</code> returns <code>undefined</code>.</li>
+          <li>"What changed this month" shows 0–4 cards depending on which rules return non-null.</li>
+          <li>Tool adoption table sorts by <em>expected monthly cost desc</em> by default; MoM column right-aligned with consistent number formatting.</li>
+        </ul>
+      </section>
+
+      <!-- ===== 4. Phase 3 ===== -->
+      <section id="phase-3" class="anchor mb-10">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="phase-pill phase-3">Phase 3</span>
+          <h2 class="text-2xl font-bold">New Budget tab</h2>
+          <span class="chip">~6–8 hr · component tests + 2 integration tests</span>
+        </div>
+        <p class="text-[var(--muted)] text-sm mb-4">
+          The biggest chunk of new code, but the data layer is fully done. Each section maps to one existing server action or a thin composition of two.
+          One server action wraps the lot for a single round-trip from the page.
+        </p>
+
+        <h3 class="text-base font-semibold mt-4 mb-2">3.1 · One server action wraps everything</h3>
+        <div class="callout info text-sm mb-3">
+          <p class="text-[var(--text)] font-medium mb-1">D-2 decision applied</p>
+          <p class="text-[var(--text)]/90">
+            Every "Actual" value in this report is <code>billedTotalCents + runningCostCents</code>, matching the budget detail page (<span class="file-path">src/app/budget/[id]/budget-detail-client.tsx:126-131</span>).
+            Running costs come from <code>getRunningCostsForPeriod(periodId)</code> — already used by the detail page; no new helper needed.
+            We fetch one running-cost lookup per period in parallel, exactly like <span class="file-path">budget/[id]/page.tsx:38-47</span>.
+          </p>
+        </div>
+        <details class="code-detail mb-3" open>
+          <summary>Show sketch — <code>getBudgetReportData</code></summary>
+          <pre class="code"><span class="c">// src/actions/reports.ts (new)</span>
+<span class="k">import</span> { getActiveBudget, getBudgetWithCosts, getBilledCostsTimeSeries,
+         getBudgetForecast, getPerToolSpend } <span class="k">from</span> <span class="s">"@/actions/budget"</span>;
+<span class="k">import</span> { getRunningCostsForPeriod } <span class="k">from</span> <span class="s">"@/lib/budget-utils"</span>;
+
+<span class="k">export async function</span> <span class="t">getBudgetReportData</span>() {
+  <span class="k">const</span> budget = <span class="k">await</span> getBudgetWithCosts(<span class="c">/* active id */</span>);
+  <span class="k">if</span> (!budget) <span class="k">return</span> { kind: <span class="s">"empty"</span> } <span class="k">as const</span>;
+
+  <span class="c">// Fetch running Anthropic API costs for each period (same pattern as budget/[id]/page.tsx)</span>
+  <span class="k">const</span> runningResults = <span class="k">await</span> Promise.all(
+    budget.periods.map((p) =&gt; getRunningCostsForPeriod(p.id)),
+  );
+  <span class="k">const</span> runningByPeriod: Record&lt;number, RunningCostData&gt; = {};
+  budget.periods.forEach((p, i) =&gt; {
+    <span class="k">if</span> (runningResults[i]) runningByPeriod[p.id] = runningResults[i]!;
+  });
+
+  <span class="c">// Derive period-level Actual = billed + running (the v1 contract)</span>
+  <span class="k">const</span> periodsWithActual = budget.periods.map((p) =&gt; ({
+    ...p,
+    runningCents: runningByPeriod[p.id]?.runningCostCents ?? 0,
+    actualCents: p.billedTotalCents + (runningByPeriod[p.id]?.runningCostCents ?? 0),
+  }));
+
+  <span class="k">const</span> [series, forecast] = <span class="k">await</span> Promise.all([
+    getBilledCostsTimeSeries(budget.id),  <span class="c">// then we layer runningByPeriod onto each point</span>
+    getBudgetForecast(budget.id),         <span class="c">// driven by Actual = billed + running (see 3.5)</span>
+  ]);
+
+  <span class="k">const</span> pastMonth = pickPastMonth(periodsWithActual);  <span class="c">// see helper below</span>
+  <span class="k">const</span> perToolPastMonth = pastMonth
+    ? <span class="k">await</span> getPerToolSpend(pastMonth.startDate, pastMonth.endDate)
+    : [];
+
+  <span class="k">return</span> { kind: <span class="s">"ready"</span>, budget, periodsWithActual, runningByPeriod,
+           series, forecast, pastMonth, perToolPastMonth } <span class="k">as const</span>;
+}
+
+<span class="c">// "Most recent past period that has ANY actual spend (billed OR running)"</span>
+<span class="k">function</span> <span class="t">pickPastMonth</span>(periods: PeriodWithActual[]) {
+  <span class="k">const</span> today = <span class="k">new</span> Date();
+  <span class="k">return</span> periods
+    .filter((p) =&gt; <span class="k">new</span> Date(p.endDate) &lt; today &amp;&amp; p.actualCents &gt; 0)
+    .at(-1) ?? <span class="k">null</span>;
+}</pre>
+        </details>
+        <p class="text-xs text-[var(--muted)]">
+          The "past month" predicate switches from <code>billed &gt; 0</code> to <code>actual &gt; 0</code> so a brand-new month with only Anthropic API usage (no invoice yet) still qualifies as a real spotlight target.
+        </p>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.2 · Component breakdown</h3>
+        <p class="text-xs text-[var(--muted)] mb-2">All "Actual" values below = <code>billed + running</code>. The running contribution is shown with the "(API)" annotation and an expandable per-workspace breakdown, matching <span class="file-path">budget-detail-client.tsx</span>.</p>
+        <table class="spec-table card overflow-hidden">
+          <thead><tr><th>Mockup section</th><th>Component</th><th>Data slice</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>At-a-glance hero</td>
+              <td><code>&lt;AtAGlance budget periodsWithActual forecast /&gt;</code></td>
+              <td>Annual ceiling from <code>budget.totalAmountCents</code>; <strong>Billed YTD</strong> + <strong>Running YTD</strong> shown as two stacked sub-tiles (totals to "Actual YTD"); avg monthly run-rate = avg of completed-month <code>actualCents</code>; projected EOY = <code>forecast.projectedAnnualTotalCents</code>; status from <code>forecast.status</code>.</td>
+            </tr>
+            <tr>
+              <td>Past-month spotlight</td>
+              <td><code>&lt;PastMonthSpotlight pastMonth perToolPastMonth /&gt;</code></td>
+              <td>Three KPI tiles (Planned · Actual · Variance %), where Actual is broken into "$X billed + $Y API" inline. Inline plan-vs-actual bar shows two stacked segments (billed in solid, running in lighter tone, summing to Actual). <strong>Per-tool driver list ships in a degraded form</strong> using <code>getPerToolSpend</code> delta between current and previous month plus an "Anthropic API" delta from running costs — see <a class="link" href="gaps.html#gap-6">G-6</a>.</td>
+            </tr>
+            <tr>
+              <td>Plan vs actual chart</td>
+              <td><code>&lt;PlanVsActualChart periodsWithActual forecast /&gt;</code></td>
+              <td>Recharts <code>BarChart</code>. For each past month, the "Actual" bar is a <strong>stacked bar</strong>: billed (solid) + running (lighter, same hue). Planned shows as a separate grouped bar. Future months show forecast in reduced opacity. Plan reference line at monthly average. Tooltip splits Actual into "$X billed + $Y API".</td>
+            </tr>
+            <tr>
+              <td>Forecast cumulative chart</td>
+              <td><code>&lt;ForecastCumulativeChart periodsWithActual forecast budget /&gt;</code></td>
+              <td>Recharts <code>ComposedChart</code>: cumulative <strong>Actual</strong> (billed + running) as solid <code>Line</code>; forecast cumulative as dashed <code>Line</code>; ceiling as <code>ReferenceLine</code>. No confidence band — <a class="link" href="gaps.html#gap-7">G-7</a>.</td>
+            </tr>
+            <tr>
+              <td>Per-tool breakdown table</td>
+              <td><code>&lt;PerToolBreakdown perToolYtd anthropicYtd /&gt;</code></td>
+              <td>One row per license-based tool (from <code>getPerToolSpend</code> across the full fiscal year). <strong>Plus a dedicated "Anthropic API" row</strong> with YTD running-cost total, expandable to show per-workspace breakdown (same expander pattern as budget detail page). Columns: <em>YTD spent · current monthly · projected EOY · share of attributed spend</em>. Header note: "Invoiced costs without a tool tag are excluded from this table but included in the org Actual total — <a class="link" href="gaps.html#gap-3">G-3</a>".</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.5 · How forecast uses Actual</h3>
+        <p class="text-sm text-[var(--muted)] mb-2">
+          <code>getBudgetForecast</code> today regresses on <code>billedTotalCents</code> per completed period. With v1, the input series must be Actual (billed + running) so the projection reflects total run-rate including live API usage.
+        </p>
+        <details class="code-detail mb-1">
+          <summary>Show the one-line change in <code>getBudgetForecast</code></summary>
+          <pre class="code"><span class="c">// src/actions/budget.ts (~line 598-635)</span>
+<span class="c">// before:</span>
+<span class="k">const</span> completedPeriods = budget.periods.filter(
+  (p) =&gt; <span class="k">new</span> Date(p.endDate) &lt; today &amp;&amp; p.billedTotalCents &gt; 0
+);
+<span class="k">const</span> history = completedPeriods.map((p) =&gt; ({
+  monthLabel: p.periodLabel,
+  amountCents: p.billedTotalCents,
+}));
+
+<span class="c">// after — Actual includes running Anthropic API costs:</span>
+<span class="k">const</span> runningResults = <span class="k">await</span> Promise.all(
+  budget.periods.map((p) =&gt; getRunningCostsForPeriod(p.id)),
+);
+<span class="k">const</span> actualByPeriod = <span class="k">new</span> Map(
+  budget.periods.map((p, i) =&gt; [
+    p.id,
+    p.billedTotalCents + (runningResults[i]?.runningCostCents ?? 0),
+  ]),
+);
+<span class="k">const</span> completedPeriods = budget.periods.filter(
+  (p) =&gt; <span class="k">new</span> Date(p.endDate) &lt; today &amp;&amp; (actualByPeriod.get(p.id) ?? 0) &gt; 0,
+);
+<span class="k">const</span> history = completedPeriods.map((p) =&gt; ({
+  monthLabel: p.periodLabel,
+  amountCents: actualByPeriod.get(p.id)!,
+}));</pre>
+        </details>
+        <p class="text-xs text-[var(--muted)]">Same regression math; different input. The change is contained to <code>getBudgetForecast</code> — callers are unaffected.</p>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.3 · Files touched</h3>
+        <table class="spec-table card overflow-hidden">
+          <tbody>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/actions/reports.ts</span></td><td>The <code>getBudgetReportData</code> orchestrator above + the <code>pickPastMonth</code> helper. Fetches running costs in the same pattern as <span class="file-path">budget/[id]/page.tsx</span>.</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/budget-report.tsx</span></td><td>Top-level Budget tab content. Handles "no active budget" empty state with a CTA to create one.</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/at-a-glance.tsx</span></td><td>Hero card. Sub-tiles show billed and running side-by-side under Actual YTD.</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/past-month-spotlight.tsx</span></td><td>Spotlight section. Splits Actual into billed + API inside the KPI tile and the inline bar.</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/plan-vs-actual-chart.tsx</span></td><td>Recharts BarChart with stacked "Actual" bars (billed + running) in <code>ChartContainer</code>.</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/forecast-cumulative-chart.tsx</span></td><td>Recharts ComposedChart driven by cumulative Actual.</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/per-tool-breakdown.tsx</span></td><td>Table with license-based rows + a dedicated "Anthropic API" row with workspace-level disclosure.</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/actions/budget.ts</span></td><td>One-line change in <code>getBudgetForecast</code> to regress on Actual = billed + running (see 3.5). All other call sites unaffected.</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/app/reports/page.tsx</span></td><td>Add <code>"budget"</code> to <code>VALID_TABS</code>. Conditionally call <code>getBudgetReportData()</code> when the active tab is budget — avoid paying that cost on the overview tab.</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/app/reports/reports-tab-bar.tsx</span></td><td>Add the Budget <code>TabsTrigger</code> and a <code>TabsContent</code> wrapping <code>&lt;BudgetReport /&gt;</code>.</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/types/index.ts</span></td><td>Add <code>BudgetReportData</code> discriminated union and <code>PeriodWithActual</code> (extends <code>PeriodWithCosts</code> with <code>runningCents</code> + <code>actualCents</code>).</td></tr>
+          </tbody>
+        </table>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.4 · Acceptance criteria</h3>
+        <ul class="ac-list text-sm">
+          <li>Every "Actual" number rendered in the Budget tab equals the corresponding budget detail page value to the cent (validated against the same active budget in an integration test).</li>
+          <li>Visiting <code>/reports?tab=budget</code> with no active budget shows the empty state ("Create a budget to see this report") and a CTA to <code>/budget/new</code>.</li>
+          <li>With an active budget, the page renders without waterfall fetches — running-cost lookups happen in a single <code>Promise.all</code> over periods.</li>
+          <li>Past-month spotlight selects the most recent period where <code>endDate &lt; today AND actualCents &gt; 0</code>. If none qualifies (brand-new fiscal year, no spend anywhere), the section is hidden.</li>
+          <li>Past-month spotlight Actual tile displays the inline split "$X billed + $Y API" when running &gt; 0; collapses to just "$Z" when running = 0.</li>
+          <li>Plan vs Actual chart stacks billed + running within each past-month bar; legend shows three series (Planned, Billed, API). Bars for months with running = 0 display as solid single-color (no stack artifact).</li>
+          <li>Forecast chart hides forecast line + cumulative when <code>forecast.insufficientData</code> is set (less than 3 completed periods).</li>
+          <li>Per-tool breakdown sorts by YTD spent desc; ties broken by tool name. The "Anthropic API" row is always sorted positionally to its computed total (not pinned).</li>
+          <li>Per-tool breakdown shows a one-line footer noting that invoiced costs without tool attribution are excluded from the table but included in the org Actual total.</li>
+          <li><code>pnpm typecheck</code>, <code>pnpm lint</code>, <code>pnpm test</code> all clean. Lighthouse score for <code>/reports?tab=budget</code> ≥ 90 (Performance &amp; Accessibility).</li>
+        </ul>
+      </section>
+
+      <!-- ===== 5. Files ===== -->
+      <section id="files" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">5 · File-by-file change list</h2>
+        <p class="text-[var(--muted)] text-sm mb-3">Consolidated across all three phases. <span class="badge-add">add</span> · <span class="badge-mod">modify</span> · <span class="badge-del">delete</span></p>
+        <table class="spec-table card overflow-hidden">
+          <thead><tr><th>Action</th><th>Path</th><th>Phase</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge-del">delete</span></td><td><span class="file-path">src/components/reports/trends-chart.tsx</span></td><td>1</td></tr>
+            <tr><td><span class="badge-del">delete</span></td><td><span class="file-path">src/components/reports/utilization-chart.tsx</span></td><td>1</td></tr>
+            <tr><td><span class="badge-del">delete</span></td><td><span class="file-path">src/components/reports/forecast-chart.tsx</span></td><td>1</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/lib/reports/insights-static.ts</span></td><td>2</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/overview/budget-health-hero.tsx</span></td><td>2</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/overview/what-changed.tsx</span></td><td>2</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/overview/kpi-with-mom.tsx</span></td><td>2</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/actions/reports.ts</span></td><td>3</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/budget-report.tsx</span></td><td>3</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/at-a-glance.tsx</span></td><td>3</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/past-month-spotlight.tsx</span></td><td>3</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/plan-vs-actual-chart.tsx</span></td><td>3</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/forecast-cumulative-chart.tsx</span></td><td>3</td></tr>
+            <tr><td><span class="badge-add">add</span></td><td><span class="file-path">src/components/reports/budget/per-tool-breakdown.tsx</span></td><td>3</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/actions/budget.ts</span></td><td>3 (Forecast on Actual)</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/app/reports/page.tsx</span></td><td>1+2+3</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/app/reports/reports-tab-bar.tsx</span></td><td>1+3</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/components/reports/reports-charts-panel.tsx</span></td><td>1+2</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/actions/assignments.ts</span></td><td>2</td></tr>
+            <tr><td><span class="badge-mod">modify</span></td><td><span class="file-path">src/types/index.ts</span></td><td>1+2+3</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ===== 6. Data flow ===== -->
+      <section id="data-flow" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">6 · Data flow</h2>
+        <div class="card-2 p-4 mb-3">
+          <div class="text-xs text-[var(--muted)] mb-2 uppercase tracking-wider">Server-side request lifecycle</div>
+          <pre class="code"><span class="c">ReportsPage (server component)</span>
+  ├─ parseTab(searchParams) → "overview" | "budget"
+  │
+  <span class="c">// Always</span>
+  ├─ Promise.all([
+  │     getUsers(), getTools(), getAssignments(),
+  │     getActiveBudget(),
+  │     getAssignmentSnapshotAt(lastMonthEnd),  <span class="c">// NEW</span>
+  │   ])
+  │
+  <span class="c">// Only when activeTab === "budget"</span>
+  └─ getBudgetReportData()           <span class="c">// NEW orchestrator in src/actions/reports.ts</span>
+        ├─ getBudgetWithCosts(activeId)
+        ├─ Promise.all(periods.map(p =&gt; getRunningCostsForPeriod(p.id)))  <span class="c">// same as budget/[id]/page.tsx:38</span>
+        ├─ derive periodsWithActual[] : { ...period, runningCents, actualCents }
+        ├─ Promise.all([
+        │     getBilledCostsTimeSeries(id),  <span class="c">// merged with running per period in the component</span>
+        │     getBudgetForecast(id),         <span class="c">// now regresses on Actual = billed + running</span>
+        │   ])
+        ├─ pickPastMonth(periodsWithActual)  <span class="c">// most recent past period where actualCents &gt; 0</span>
+        └─ getPerToolSpend(start, end)</pre>
+        </div>
+        <p class="text-xs text-[var(--muted)]">
+          The overview tab does <strong>not</strong> pay the Budget tab's fetch cost (and vice versa).
+          Server-side rendering means a single round-trip per tab; no client-side data fetching needed.
+        </p>
+      </section>
+
+      <!-- ===== 7. Test plan ===== -->
+      <section id="tests" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">7 · Test plan</h2>
+
+        <h3 class="text-base font-semibold mt-3 mb-2">Unit (Vitest)</h3>
+        <ul class="ac-list text-sm">
+          <li><code>insights-static.ts</code> — 4 rules × (positive case, null case, edge case) = ~12 cases.</li>
+          <li><code>pickPastMonth(periods)</code> — chooses last period meeting both predicates; returns null when none qualify.</li>
+          <li><code>countByToolFromSnapshot</code> — groups snapshot rows by toolId, computes deltas vs current.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-3 mb-2">Integration (Vitest + real DB)</h3>
+        <ul class="ac-list text-sm">
+          <li><code>getAssignmentSnapshotAt</code> — seed assignments with various assigned/revoked dates, assert the right active set at three points in time.</li>
+          <li><code>getBudgetReportData</code> — happy path (active budget, 4 completed months) returns <code>kind: "ready"</code> with all expected slices populated; no-active-budget returns <code>kind: "empty"</code>.</li>
+          <li><strong>Billed + running parity</strong> — given a seeded budget with both <code>billed_costs</code> and <code>anthropic_workspace_costs</code>, assert that the totals exposed by <code>getBudgetReportData</code> equal those computed by the budget detail page logic to the cent (<code>totalBilled + totalRunning</code> = the report's Actual YTD).</li>
+          <li><code>getBudgetForecast</code> — with the new Actual-based input, regression coefficients differ from the billed-only baseline when running &gt; 0; with running = 0 the result is unchanged from the prior implementation.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-3 mb-2">E2E (Playwright)</h3>
+        <ul class="ac-list text-sm">
+          <li>Navigate to <code>/reports</code>. Default tab is Overview. Click <em>Open Budget report</em> button — verify URL becomes <code>?tab=budget</code> and Budget content renders.</li>
+          <li>Visit <code>/reports?tab=trends</code> — assert URL normalizes to <code>?tab=overview</code> (or the tab bar shows Overview as active).</li>
+          <li>Empty-state test: with no active budget, the Budget tab shows the CTA and the Overview's budget-health hero is hidden.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-3 mb-2">Visual / a11y</h3>
+        <ul class="ac-list text-sm">
+          <li>Lighthouse CI on <code>/reports?tab=budget</code> with seeded data — Performance ≥ 90, Accessibility ≥ 95.</li>
+          <li>Manual check: dark + light themes, keyboard navigation across all chart cards, screen-reader labels on all KPI tiles.</li>
+        </ul>
+      </section>
+
+      <!-- ===== 8. Risks ===== -->
+      <section id="risks" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">8 · Risks &amp; mitigations</h2>
+        <table class="spec-table card overflow-hidden">
+          <thead><tr><th>Risk</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Overview becomes slower because of the extra snapshot query.</td>
+              <td>Low</td>
+              <td>Snapshot is a single indexed query on <code>license_assignments</code>; same shape as the existing fetch. Add a <code>EXPLAIN</code> sanity check during PR review.</td>
+            </tr>
+            <tr>
+              <td>"Past month" definition picks a stale period if invoices land late.</td>
+              <td>Low</td>
+              <td>The filter requires <code>actualCents &gt; 0</code> (billed + running). Running Anthropic costs land daily, so a month with any API usage qualifies even before its invoice arrives. UI labels the spotlight with the actual month name so the user can verify.</td>
+            </tr>
+            <tr>
+              <td>Running and billed double-count if an Anthropic invoice is also entered into <code>billed_costs</code> for the same period.</td>
+              <td>Medium</td>
+              <td>Same risk exists on the budget detail page today and is treated as an operational discipline issue, not a system one. v1 documents the behavior in the per-tool table footer ("Running costs reflect live API usage; once invoiced, manually delete the running attribution or expect overlap"). Follow-up work could reconcile automatically via G-3 + an Anthropic-source tag on billed_costs.</td>
+            </tr>
+            <tr>
+              <td>Per-tool table can't attribute invoiced costs to a specific tool.</td>
+              <td>Medium</td>
+              <td>Footer on the table makes this explicit: invoiced costs without tool attribution roll into the org-level Actual but not into any tool row. Same constraint as the existing budget detail page. Closure path tracked as <a class="link" href="gaps.html#gap-3">G-3</a>.</td>
+            </tr>
+            <tr>
+              <td>Forecast chart looks empty in Q1 (fewer than 3 completed months).</td>
+              <td>Low</td>
+              <td><code>getBudgetForecast</code> already returns <code>insufficientData</code>; component renders a placeholder card with the message.</td>
+            </tr>
+            <tr>
+              <td>Stale state from cached page after a new budget is created.</td>
+              <td>Low</td>
+              <td>Existing budget actions call <code>revalidatePath('/reports')</code> on write. Verify after Phase 3 lands.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ===== 9. Out of scope ===== -->
+      <section id="scope" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">9 · Explicitly out of scope</h2>
+        <div class="callout warn text-sm">
+          <p class="mb-2 text-[var(--text)]">The following are tracked as gaps and are <strong>not part of this PR</strong>. See <a class="link" href="gaps.html">gaps.html</a> for the full classification. Note: <strong>G-2 (billed + running unification) is no longer in this list — it ships in v1.</strong></p>
+          <ul class="list-disc list-inside space-y-1">
+            <li>Per-tool budget allocations (<a class="link" href="gaps.html#gap-1">G-1</a>) — needs product decision <a class="link" href="gaps.html#decisions">D-1</a>.</li>
+            <li>Per-tool attribution of invoiced billed_costs (<a class="link" href="gaps.html#gap-3">G-3</a>) — needs a <code>tool_id</code> column + invoice-matcher update.</li>
+            <li>Per-month per-tool variance drivers (<a class="link" href="gaps.html#gap-6">G-6</a>) — depends on G-1.</li>
+            <li>Forecast confidence band + ceiling-crossing date (<a class="link" href="gaps.html#gap-7">G-7</a>).</li>
+            <li>Circle × tool-mix stacked bar (<a class="link" href="gaps.html#gap-8">G-8</a>).</li>
+            <li>Tool rank shifts (<a class="link" href="gaps.html#gap-9">G-9</a>) — depends on G-4 (which ships) and a UI choice.</li>
+            <li>Full narrative insight rules engine (<a class="link" href="gaps.html#gap-5">G-5</a>) — v1 ships the static-rule version.</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer class="text-xs text-[var(--muted-2)] pt-6 border-t border-[var(--border)]">
+        Spec 028 · Reports v2 · plan.html — pairs with <a class="link" href="gaps.html">gaps.html</a> · <a class="link" href="README.md">README.md</a>
+      </footer>
+
+    </div>
+  </body>
+</html>

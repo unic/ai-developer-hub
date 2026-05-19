@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reports · Overview — redesign mock</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .tabular { font-variant-numeric: tabular-nums; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 1.6; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+      .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid var(--border-2); background: transparent; color: var(--text); cursor: pointer; }
+      .btn:hover { background: #1f1f1f; }
+      .btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+      .btn-ghost { border-color: transparent; color: var(--muted); }
+      .select { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-2); background: #141414; color: var(--text); font-size: 13px; }
+      .kpi-tile { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); }
+      .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .kpi-value { font-size: 28px; font-weight: 600; line-height: 1.1; }
+      .kpi-sub { font-size: 12px; color: var(--muted); }
+      .tab { padding: 8px 14px; font-size: 13px; color: var(--muted); border-radius: 8px; cursor: pointer; }
+      .tab.active { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+      table.report { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.report th, table.report td { padding: 10px 12px; text-align: left; vertical-align: middle; }
+      table.report thead th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+      table.report tbody tr { border-bottom: 1px solid var(--border); }
+      table.report tbody tr:hover { background: rgba(255,255,255,0.02); }
+      table.report td.num { font-variant-numeric: tabular-nums; text-align: right; }
+      table.report th.num { text-align: right; }
+      .delta-up { color: var(--danger); }
+      .delta-down { color: var(--success); }
+      .delta-flat { color: var(--muted); }
+      .rank { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; border-radius: 6px; background: #1f1f1f; color: var(--muted); font-variant-numeric: tabular-nums; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .insight-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+      .insight-card .icon { width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+      .progress { height: 6px; border-radius: 999px; background: #262626; overflow: hidden; }
+      .progress > div { height: 100%; border-radius: 999px; }
+      .sparkline { display: block; }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-56 shrink-0 border-r border-[var(--border)] bg-[var(--panel)] p-4 hidden lg:block">
+        <h2 class="text-sm font-semibold mb-4">AI Developer Hub</h2>
+        <div class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] mb-2">Navigation</div>
+        <nav class="text-sm space-y-1">
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Dashboard</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Tools</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Users</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Assignments</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Budget</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded bg-white/5 text-white font-medium">Reports</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Copilot</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Claude</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Invoices</a>
+          <a class="flex items-center gap-2 px-2 py-1.5 rounded text-[var(--muted)] hover:bg-white/5">Settings</a>
+        </nav>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 min-w-0">
+        <div class="mx-auto max-w-[1200px] px-6 py-6 space-y-6">
+
+          <!-- Header -->
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 class="text-2xl font-bold tracking-tight">Reports</h1>
+              <p class="text-[var(--muted)] text-sm">Tool adoption, license utilization, and spending insights</p>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-[var(--muted)]">As of</span>
+              <span class="tabular">May 19, 2026</span>
+            </div>
+          </div>
+
+          <!-- Tabs (Trends/Usage/Forecast removed) -->
+          <div class="flex items-center gap-1 border border-[var(--border)] p-1 rounded-lg w-fit">
+            <a class="tab active">Overview</a>
+            <a class="tab" href="budget-mock.html">Budget</a>
+          </div>
+
+          <!-- ===== KPI strip ===== -->
+          <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="kpi-tile">
+              <div class="kpi-label">Active users</div>
+              <div class="flex items-baseline gap-2 mt-1">
+                <div class="kpi-value tabular">312</div>
+                <span class="chip success">+4</span>
+              </div>
+              <div class="kpi-sub mt-1">vs 308 last month</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Active tools</div>
+              <div class="flex items-baseline gap-2 mt-1">
+                <div class="kpi-value tabular">8</div>
+                <span class="chip">±0</span>
+              </div>
+              <div class="kpi-sub mt-1">No change since Jan</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Active licenses</div>
+              <div class="flex items-baseline gap-2 mt-1">
+                <div class="kpi-value tabular">357</div>
+                <span class="chip danger">+22</span>
+              </div>
+              <div class="kpi-sub mt-1">15 Copilot · 10 Cursor · −3 ChatGPT</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="kpi-label">Expected monthly spend</div>
+              <div class="flex items-baseline gap-2 mt-1">
+                <div class="kpi-value tabular">$48,395</div>
+                <span class="chip danger">+8.2%</span>
+              </div>
+              <!-- Inline sparkline: 5 months bar trend -->
+              <div class="mt-2">
+                <svg viewBox="0 0 160 28" class="sparkline w-full h-7">
+                  <g fill="#52525b">
+                    <rect x="0"   y="14" width="20" height="14" rx="2"/>
+                    <rect x="28"  y="12" width="20" height="16" rx="2"/>
+                    <rect x="56"  y="9"  width="20" height="19" rx="2"/>
+                    <rect x="84"  y="6"  width="20" height="22" rx="2"/>
+                  </g>
+                  <rect x="112" y="2"  width="20" height="26" rx="2" fill="#d4f057"/>
+                </svg>
+                <div class="flex justify-between text-[10px] text-[var(--muted-2)] mt-1">
+                  <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span class="text-[var(--text)]">May</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Budget health hero (links to Budget tab) ===== -->
+          <section class="card p-5">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-center">
+              <div class="lg:col-span-2 flex items-center gap-4">
+                <div class="shrink-0 w-14 h-14 rounded-full flex items-center justify-center" style="background:#2a0a0a; border:1px solid #7f1d1d">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <h3 class="text-lg font-semibold">Budget health · at risk</h3>
+                    <span class="pill" style="background:#2a0a0a; color:#fca5a5; border:1px solid #7f1d1d">
+                      <span class="dot" style="background:#f87171"></span>
+                      Projected +$40.4k over
+                    </span>
+                  </div>
+                  <p class="text-sm text-[var(--muted)] mt-1">
+                    YTD spend is <span class="text-[var(--text)] font-medium">$195,800</span> (40.8% of $480k ceiling).
+                    Linear trend lands at <span class="text-[var(--danger)] font-medium">$520,400</span> by year-end.
+                    April was the worst month: <span class="text-[var(--text)] font-medium">+22.3%</span> over plan.
+                  </p>
+                </div>
+              </div>
+              <div class="lg:text-right">
+                <a href="budget-mock.html" class="btn btn-primary inline-flex">
+                  Open Budget report
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== What changed this month ===== -->
+          <section class="card p-6">
+            <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+              <div>
+                <h2 class="text-lg font-semibold">What changed this month</h2>
+                <p class="text-sm text-[var(--muted)]">MoM deltas worth knowing · auto-generated from license + usage data</p>
+              </div>
+              <span class="text-xs text-[var(--muted)]">May 1 – May 19 vs April</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="insight-card">
+                <div class="flex items-start gap-3">
+                  <span class="icon" style="background:#2a0a0a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium">Cursor Pro grew 22 → 32 seats</div>
+                    <p class="text-xs text-[var(--muted)] mt-1">+10 seats, +45% MoM. Adds <span class="text-[var(--text)]">$2,000/mo</span> expected. Mostly Engineering circle.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="insight-card">
+                <div class="flex items-start gap-3">
+                  <span class="icon" style="background:#2a0a0a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium">Claude API spend up 18% MoM</div>
+                    <p class="text-xs text-[var(--muted)] mt-1">$9.5k → $11.2k. 38% came from one Cursor sub-agent workflow.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="insight-card">
+                <div class="flex items-start gap-3">
+                  <span class="icon" style="background:#1c1407"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium">GitHub Copilot added 15 seats in April</div>
+                    <p class="text-xs text-[var(--muted)] mt-1">Q2 onboarding cohort. 8 of those seats are inactive (no commits in 14 days).</p>
+                  </div>
+                </div>
+              </div>
+              <div class="insight-card">
+                <div class="flex items-start gap-3">
+                  <span class="icon" style="background:#0a1c10"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg></span>
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium">ChatGPT Enterprise down 3 seats</div>
+                    <p class="text-xs text-[var(--muted)] mt-1">Offboarding from Marketing circle. Saves $330/mo.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Tool adoption (improved) ===== -->
+          <section class="card p-6">
+            <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+              <div>
+                <h2 class="text-lg font-semibold">Tool adoption</h2>
+                <p class="text-sm text-[var(--muted)]">Active assignments and expected monthly cost · ranks vs last month</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="btn btn-ghost text-xs">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export
+                </button>
+              </div>
+            </div>
+
+            <table class="report">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Tool</th>
+                  <th class="num">Active users</th>
+                  <th class="num">MoM</th>
+                  <th class="num">Expected monthly</th>
+                  <th class="num">% of org spend</th>
+                  <th>Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="rank">1</span></td>
+                  <td>
+                    <div class="font-medium">GitHub Copilot</div>
+                    <div class="text-xs text-[var(--muted)]">GitHub</div>
+                  </td>
+                  <td class="num">215</td>
+                  <td class="num"><span class="delta-up">+15</span></td>
+                  <td class="num">$18,275</td>
+                  <td class="num">37.8%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 100%; background: #d4f057;"></div></div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rank">2</span></td>
+                  <td>
+                    <div class="font-medium">Claude API</div>
+                    <div class="text-xs text-[var(--muted)]">Anthropic · usage-based</div>
+                  </td>
+                  <td class="num">—</td>
+                  <td class="num"><span class="delta-up">+18%</span></td>
+                  <td class="num">$11,200</td>
+                  <td class="num">23.1%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 61%; background: #86efac;"></div></div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rank">3</span></td>
+                  <td>
+                    <div class="font-medium">ChatGPT Enterprise</div>
+                    <div class="text-xs text-[var(--muted)]">OpenAI</div>
+                  </td>
+                  <td class="num">90</td>
+                  <td class="num"><span class="delta-down">−3</span></td>
+                  <td class="num">$9,800</td>
+                  <td class="num">20.2%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 54%; background: #67e8f9;"></div></div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="rank" style="background:#0a1c10;color:#86efac">▲4</span>
+                  </td>
+                  <td>
+                    <div class="font-medium">Cursor Pro</div>
+                    <div class="text-xs text-[var(--muted)]">Cursor</div>
+                  </td>
+                  <td class="num">32</td>
+                  <td class="num"><span class="delta-up">+10</span></td>
+                  <td class="num">$6,400</td>
+                  <td class="num">13.2%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 35%; background: #93c5fd;"></div></div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rank">5</span></td>
+                  <td>
+                    <div class="font-medium">Midjourney</div>
+                    <div class="text-xs text-[var(--muted)]">Midjourney</div>
+                  </td>
+                  <td class="num">8</td>
+                  <td class="num"><span class="delta-flat">±0</span></td>
+                  <td class="num">$1,800</td>
+                  <td class="num">3.7%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 10%; background: #c4b5fd;"></div></div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rank">6</span></td>
+                  <td>
+                    <div class="font-medium">Replit Teams</div>
+                    <div class="text-xs text-[var(--muted)]">Replit</div>
+                  </td>
+                  <td class="num">8</td>
+                  <td class="num"><span class="delta-flat">±0</span></td>
+                  <td class="num">$720</td>
+                  <td class="num">1.5%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 4%; background: #f9a8d4;"></div></div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rank">7</span></td>
+                  <td>
+                    <div class="font-medium">Perplexity Teams</div>
+                    <div class="text-xs text-[var(--muted)]">Perplexity</div>
+                  </td>
+                  <td class="num">4</td>
+                  <td class="num"><span class="delta-flat">±0</span></td>
+                  <td class="num">$200</td>
+                  <td class="num">0.4%</td>
+                  <td>
+                    <div class="progress" style="width: 200px;"><div style="width: 1%; background: #52525b;"></div></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- ===== Circle report (improved) ===== -->
+          <section class="card p-6">
+            <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+              <div>
+                <h2 class="text-lg font-semibold">Spend by circle</h2>
+                <p class="text-sm text-[var(--muted)]">License distribution across teams · monthly cost and per-user average</p>
+              </div>
+              <div class="text-xs text-[var(--muted)]">5 circles · 312 users</div>
+            </div>
+
+            <table class="report">
+              <thead>
+                <tr>
+                  <th>Circle</th>
+                  <th class="num">Users</th>
+                  <th class="num">Licenses</th>
+                  <th class="num">Monthly cost</th>
+                  <th class="num">MoM</th>
+                  <th class="num">$ per user</th>
+                  <th>Mix</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="font-medium">Engineering</div>
+                    <div class="text-xs text-[var(--muted)]">Backend, Frontend, Platform</div>
+                  </td>
+                  <td class="num">145</td>
+                  <td class="num">198</td>
+                  <td class="num">$28,420</td>
+                  <td class="num"><span class="delta-up">+11.4%</span></td>
+                  <td class="num">$196</td>
+                  <td>
+                    <div class="flex gap-0.5 w-[180px]" style="height: 14px;">
+                      <div style="width: 38%; background:#d4f057" title="Copilot"></div>
+                      <div style="width: 26%; background:#86efac" title="Claude API"></div>
+                      <div style="width: 18%; background:#67e8f9" title="ChatGPT"></div>
+                      <div style="width: 14%; background:#93c5fd" title="Cursor"></div>
+                      <div style="width: 4%;  background:#52525b" title="Other"></div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="font-medium">Design</div>
+                    <div class="text-xs text-[var(--muted)]">Brand, Product Design, Motion</div>
+                  </td>
+                  <td class="num">38</td>
+                  <td class="num">52</td>
+                  <td class="num">$6,840</td>
+                  <td class="num"><span class="delta-up">+2.1%</span></td>
+                  <td class="num">$180</td>
+                  <td>
+                    <div class="flex gap-0.5 w-[180px]" style="height: 14px;">
+                      <div style="width: 22%; background:#d4f057"></div>
+                      <div style="width: 14%; background:#86efac"></div>
+                      <div style="width: 24%; background:#67e8f9"></div>
+                      <div style="width: 8%;  background:#93c5fd"></div>
+                      <div style="width: 32%; background:#c4b5fd" title="Midjourney"></div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="font-medium">Product</div>
+                    <div class="text-xs text-[var(--muted)]">PM, Research, Analytics</div>
+                  </td>
+                  <td class="num">28</td>
+                  <td class="num">44</td>
+                  <td class="num">$5,180</td>
+                  <td class="num"><span class="delta-flat">+0.4%</span></td>
+                  <td class="num">$185</td>
+                  <td>
+                    <div class="flex gap-0.5 w-[180px]" style="height: 14px;">
+                      <div style="width: 30%; background:#d4f057"></div>
+                      <div style="width: 18%; background:#86efac"></div>
+                      <div style="width: 36%; background:#67e8f9"></div>
+                      <div style="width: 10%; background:#93c5fd"></div>
+                      <div style="width: 6%;  background:#52525b"></div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="font-medium">Marketing</div>
+                    <div class="text-xs text-[var(--muted)]">Content, Growth, Ops</div>
+                  </td>
+                  <td class="num">18</td>
+                  <td class="num">28</td>
+                  <td class="num">$3,420</td>
+                  <td class="num"><span class="delta-down">−4.8%</span></td>
+                  <td class="num">$190</td>
+                  <td>
+                    <div class="flex gap-0.5 w-[180px]" style="height: 14px;">
+                      <div style="width: 12%; background:#d4f057"></div>
+                      <div style="width: 10%; background:#86efac"></div>
+                      <div style="width: 48%; background:#67e8f9"></div>
+                      <div style="width: 6%;  background:#93c5fd"></div>
+                      <div style="width: 24%; background:#c4b5fd"></div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="font-medium">Other</div>
+                    <div class="text-xs text-[var(--muted)]">Finance, People, Legal</div>
+                  </td>
+                  <td class="num">83</td>
+                  <td class="num">35</td>
+                  <td class="num">$4,535</td>
+                  <td class="num"><span class="delta-flat">+0.6%</span></td>
+                  <td class="num">$55</td>
+                  <td>
+                    <div class="flex gap-0.5 w-[180px]" style="height: 14px;">
+                      <div style="width: 24%; background:#d4f057"></div>
+                      <div style="width: 6%;  background:#86efac"></div>
+                      <div style="width: 58%; background:#67e8f9"></div>
+                      <div style="width: 6%;  background:#93c5fd"></div>
+                      <div style="width: 6%;  background:#52525b"></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="flex flex-wrap gap-3 mt-4 text-xs text-[var(--muted)]">
+              <span><span class="legend-swatch" style="background:#d4f057"></span>Copilot</span>
+              <span><span class="legend-swatch" style="background:#86efac"></span>Claude API</span>
+              <span><span class="legend-swatch" style="background:#67e8f9"></span>ChatGPT</span>
+              <span><span class="legend-swatch" style="background:#93c5fd"></span>Cursor</span>
+              <span><span class="legend-swatch" style="background:#c4b5fd"></span>Midjourney</span>
+              <span><span class="legend-swatch" style="background:#52525b"></span>Other</span>
+            </div>
+
+            <div class="callout info mt-5 text-sm">
+              <div class="font-medium text-[var(--info)] mb-1">Heads-up</div>
+              <p class="text-[var(--text)]/90">
+                Engineering accounts for <span class="font-medium">58.7%</span> of org spend and grew the most this month.
+                Other circle's $55/user is the lowest — likely overhead users with minimal AI tooling.
+              </p>
+            </div>
+          </section>
+
+          <!-- ===== Footer notes about data sources ===== -->
+          <section class="card-2 p-5 text-xs text-[var(--muted)]">
+            <div class="font-medium text-[var(--text)] mb-2">Data sources backing this view</div>
+            <ul class="space-y-1 list-disc list-outside ml-5">
+              <li><code class="text-[var(--info)]">license_assignments</code> filtered to <code>status='active'</code> — user, license, and per-tool counts</li>
+              <li><code class="text-[var(--info)]">access_tiers.monthly_cost_cents</code> × active assignments — expected monthly spend by tool</li>
+              <li><code class="text-[var(--info)]">anthropic_workspace_costs</code>, <code class="text-[var(--info)]">anthropic_usage_metrics</code> — Claude API usage-based costs</li>
+              <li><code class="text-[var(--info)]">copilot_billing_snapshots</code> — actual Copilot seat counts and per-seat cost (more authoritative than license_assignments for Copilot)</li>
+              <li><code class="text-[var(--info)]">users.circle</code> — circle grouping (from <code>buildCircleReport()</code> in <code>src/lib/reports/circle-report.ts</code>)</li>
+              <li>MoM deltas computed by snapshotting <em>active assignments as of last calendar month-end</em> vs current — no schema changes needed</li>
+            </ul>
+          </section>
+
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

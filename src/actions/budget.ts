@@ -20,8 +20,9 @@ import {
   updateBilledCostSchema,
   deleteBilledCostSchema,
 } from "@/lib/validators";
-import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast, MonthlySpend } from "@/types";
-import { forecastBudget } from "@/lib/forecast";
+import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast } from "@/types";
+import { buildBudgetForecast } from "@/lib/forecast";
+import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import { recordCreation, recordUpdate, recordStatusChange } from "@/actions/history";
 
 export async function createBudget(
@@ -73,6 +74,8 @@ export async function createBudget(
   await recordCreation("annual_budget", budgetId!, Number(admin.id));
 
   revalidatePath("/budget");
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: { id: budgetId! } };
 }
 
@@ -199,6 +202,8 @@ export async function updateBudgetAllocations(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -251,6 +256,8 @@ export async function updateBudgetTotal(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -282,6 +289,8 @@ export async function archiveBudget(input: {
   );
 
   revalidatePath("/budget");
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -381,6 +390,8 @@ export async function createBilledCost(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${period.budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: { id: billedCost.id } };
 }
 
@@ -443,6 +454,8 @@ export async function updateBilledCost(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${existing.period.budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -491,6 +504,8 @@ export async function deleteBilledCost(
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${existing.period.budgetId}`);
+  revalidatePath("/reports");
+  revalidatePath("/reports/budget");
   return { success: true, data: undefined };
 }
 
@@ -594,45 +609,44 @@ export async function getBilledCostsTimeSeries(
   }
 }
 
-// 005-rich-reports: Budget forecast using OLS linear regression
+// 005-rich-reports: Budget forecast using OLS linear regression.
+// Spec 028: Actual = billed + running Anthropic API costs (matches budget detail page).
 export async function getBudgetForecast(
   budgetId: number
 ): Promise<ActionResult<BudgetForecast>> {
   const budget = await getBudgetWithCosts(budgetId);
   if (!budget) return { success: false, error: "Budget not found" };
-
   const today = new Date();
-
-  const completedPeriods = budget.periods.filter(
-    (p) => new Date(p.endDate) < today && p.billedTotalCents > 0
-  );
-
-  const history: MonthlySpend[] = completedPeriods.map((p) => ({
-    month: p.periodLabel,
-    amountCents: p.billedTotalCents,
-  }));
-
-  const actualSpendToDateCents = completedPeriods.reduce(
-    (s, p) => s + p.billedTotalCents,
-    0
-  );
-
-  const remainingPeriods = budget.periods.filter(
-    (p) => new Date(p.startDate) >= today
-  );
-  const monthsToProject = Math.min(Math.max(remainingPeriods.length, 3), 6);
-
-  const forecastResult = forecastBudget({
-    history,
-    monthsToProject,
-    totalPeriodsRemaining: remainingPeriods.length,
-    actualSpendToDateCents,
-    budgetCeilingCents: budget.totalAmountCents,
-    today,
-  });
-
-  return { success: true, data: forecastResult };
+  const actualByPeriod = await fetchActualByPeriod(budget, today);
+  return { success: true, data: buildBudgetForecast(budget, actualByPeriod, today) };
 }
+
+/**
+ * Layer running Anthropic API costs onto each period's billed amount.
+ * Skips future periods — they have no running data and the lookup is wasted.
+ * Exposed so the reports orchestrator can share one fetch with the forecast.
+ */
+export async function fetchActualByPeriod(
+  budget: BudgetWithCosts,
+  today: Date = new Date()
+): Promise<Map<number, number>> {
+  const pastOrCurrent = budget.periods.filter(
+    (p) => new Date(p.startDate) <= today
+  );
+  const runningResults = await Promise.all(
+    pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id))
+  );
+  const actualByPeriod = new Map<number, number>();
+  for (const p of budget.periods) {
+    actualByPeriod.set(p.id, p.billedTotalCents);
+  }
+  pastOrCurrent.forEach((p, i) => {
+    const running = runningResults[i]?.runningCostCents ?? 0;
+    actualByPeriod.set(p.id, p.billedTotalCents + running);
+  });
+  return actualByPeriod;
+}
+
 
 // US5: Per-tool spending breakdown for a period
 export async function getPerToolSpend(startDate: string, endDate: string) {

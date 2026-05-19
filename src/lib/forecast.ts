@@ -1,4 +1,9 @@
-import type { MonthlySpend, ForecastPoint, BudgetForecast } from "@/types";
+import type {
+  BudgetForecast,
+  BudgetWithCosts,
+  ForecastPoint,
+  MonthlySpend,
+} from "@/types";
 
 export interface ForecastOptions {
   history: MonthlySpend[];
@@ -115,4 +120,38 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
     budgetCeilingCents,
     status: projectedAnnualTotalCents <= budgetCeilingCents ? "on_track" : "at_risk",
   };
+}
+
+/**
+ * Derive a forecast from already-fetched budget data + an Actual-per-period
+ * map (billed + running). Lets the reports orchestrator share one fetch with
+ * `getBudgetForecast` instead of re-querying running costs.
+ */
+export function buildBudgetForecast(
+  budget: BudgetWithCosts,
+  actualByPeriod: Map<number, number>,
+  today: Date = new Date()
+): BudgetForecast {
+  const completedPeriods = budget.periods.filter(
+    (p) => new Date(p.endDate) < today && (actualByPeriod.get(p.id) ?? 0) > 0
+  );
+  const history: MonthlySpend[] = completedPeriods.map((p) => ({
+    month: p.periodLabel,
+    amountCents: actualByPeriod.get(p.id) ?? 0,
+  }));
+  const actualSpendToDateCents = completedPeriods.reduce(
+    (s, p) => s + (actualByPeriod.get(p.id) ?? 0),
+    0
+  );
+  const remainingPeriods = budget.periods.filter(
+    (p) => new Date(p.startDate) >= today
+  );
+  return forecastBudget({
+    history,
+    monthsToProject: Math.min(Math.max(remainingPeriods.length, 3), 6),
+    totalPeriodsRemaining: remainingPeriods.length,
+    actualSpendToDateCents,
+    budgetCeilingCents: budget.totalAmountCents,
+    today,
+  });
 }

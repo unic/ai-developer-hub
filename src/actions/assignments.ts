@@ -8,7 +8,7 @@ import {
   users,
   assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, count, asc, inArray } from "drizzle-orm";
+import { eq, and, count, asc, inArray, isNull, lte, gt, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -18,7 +18,7 @@ import {
   assignmentCommentSchema,
   bulkImportAssignmentRowSchema,
 } from "@/lib/validators";
-import type { ActionResult, ToolUtilization } from "@/types";
+import type { ActionResult } from "@/types";
 import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
 
@@ -135,6 +135,7 @@ export async function assignLicense(
   revalidatePath("/assignments");
   revalidatePath(`/users/${userId}`);
   revalidatePath(`/tools/${toolId}`);
+  revalidatePath("/reports");
   return { success: true, data: { id: newAssignmentId! } };
 }
 
@@ -169,6 +170,7 @@ export async function revokeLicense(input: {
   revalidatePath("/assignments");
   revalidatePath(`/users/${assignment.userId}`);
   revalidatePath(`/tools/${assignment.toolId}`);
+  revalidatePath("/reports");
   return { success: true, data: undefined };
 }
 
@@ -307,6 +309,7 @@ export async function updateAssignment(
 
   revalidatePath("/assignments");
   revalidatePath(`/users/${assignment.userId}`);
+  revalidatePath("/reports");
 
   return { success: true, data: undefined, warning };
 }
@@ -346,6 +349,7 @@ export async function bulkImportAssignments(input: {
 
   if (validatedRows.length === 0) {
     revalidatePath("/assignments");
+    revalidatePath("/reports");
     return { success: true, data: { imported: 0, failed: errors.length, errors } };
   }
 
@@ -464,6 +468,7 @@ export async function bulkImportAssignments(input: {
   }
 
   revalidatePath("/assignments");
+  revalidatePath("/reports");
   return {
     success: true,
     data: { imported, failed: errors.length, errors },
@@ -588,56 +593,34 @@ export async function getAssignmentsForUser(userId: number) {
   });
 }
 
-// 005-rich-reports: License utilization by tool
-export async function getLicenseUtilizationByTool(): Promise<ToolUtilization[]> {
-  try {
-    const activeTools = await db.query.aiTools.findMany({
-      where: eq(aiTools.status, "active"),
-    });
-
-    if (activeTools.length === 0) return [];
-
-    const activeAssignmentsList = await db
-      .select({
-        toolId: licenseAssignments.toolId,
-        costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
-      })
-      .from(licenseAssignments)
-      .where(eq(licenseAssignments.status, "active"));
-
-    // Group by toolId
-    const byTool = new Map<
-      number,
-      { count: number; totalCost: number }
-    >();
-    for (const a of activeAssignmentsList) {
-      const existing = byTool.get(a.toolId) ?? { count: 0, totalCost: 0 };
-      existing.count += 1;
-      existing.totalCost += a.costAtAssignmentCents;
-      byTool.set(a.toolId, existing);
-    }
-
-    const result: ToolUtilization[] = activeTools.map((tool) => {
-      const stats = byTool.get(tool.id) ?? { count: 0, totalCost: 0 };
-      const utilizationPct =
-        tool.maxLicenses !== null && tool.maxLicenses > 0
-          ? (stats.count / tool.maxLicenses) * 100
-          : 0;
-      return {
-        toolId: tool.id,
-        toolName: tool.name,
-        vendor: tool.vendor,
-        assignedCount: stats.count,
-        maxLicenses: tool.maxLicenses,
-        utilizationPct,
-        expectedMonthlyCents: stats.totalCost,
-      };
-    });
-
-    return result.sort(
-      (a, b) => b.expectedMonthlyCents - a.expectedMonthlyCents
+/**
+ * Snapshot of assignments active "as of" a past moment.
+ * An assignment counts as active iff it was assigned before/at the cutoff
+ * and not yet revoked at the cutoff.
+ */
+export async function getAssignmentSnapshotAt(asOf: Date): Promise<
+  Array<{
+    id: number;
+    toolId: number;
+    userId: number;
+    costAtAssignmentCents: number;
+  }>
+> {
+  return db
+    .select({
+      id: licenseAssignments.id,
+      toolId: licenseAssignments.toolId,
+      userId: licenseAssignments.userId,
+      costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+    })
+    .from(licenseAssignments)
+    .where(
+      and(
+        lte(licenseAssignments.assignedAt, asOf),
+        or(
+          isNull(licenseAssignments.revokedAt),
+          gt(licenseAssignments.revokedAt, asOf)
+        )
+      )
     );
-  } catch {
-    return [];
-  }
 }
