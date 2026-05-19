@@ -175,26 +175,33 @@ function ProgressBar({
           {over ? "projected" : "ceiling"}
         </span>
       </div>
-      <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-muted">
-        {over && (
+      <div className="relative mt-2 pt-4">
+        <div className="relative h-3 overflow-hidden rounded-full bg-muted">
+          {over && (
+            <div
+              className="absolute inset-y-0 left-0 bg-destructive/40"
+              style={{ width: `${projectedPct}%` }}
+              aria-hidden
+            />
+          )}
           <div
-            className="absolute inset-y-0 left-0 bg-destructive/40"
-            style={{ width: `${projectedPct}%` }}
-            aria-hidden
+            className="absolute inset-y-0 left-0 rounded-full bg-primary"
+            style={{ width: `${actualPct}%` }}
+            aria-label={`Actual ${((actualYtd / ceiling) * 100).toFixed(1)}% of ceiling`}
           />
-        )}
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-primary"
-          style={{ width: `${actualPct}%` }}
-          aria-label={`Actual ${((actualYtd / ceiling) * 100).toFixed(1)}% of ceiling`}
-        />
+        </div>
         {over && (
           <div
-            className="absolute inset-y-0 w-px bg-foreground/60"
-            style={{ left: `${ceilingPct}%` }}
+            className="pointer-events-none absolute -top-1 bottom-0 flex flex-col items-center"
+            style={{ left: `${ceilingPct}%`, transform: "translateX(-50%)" }}
             aria-hidden
             title={`Ceiling ${formatCurrency(ceiling)}`}
-          />
+          >
+            <span className="mb-0.5 whitespace-nowrap rounded bg-foreground px-1.5 py-px text-[10px] font-medium leading-none text-background">
+              ceiling {formatCurrency(ceiling)}
+            </span>
+            <div className="w-0.5 flex-1 bg-foreground" />
+          </div>
         )}
       </div>
     </div>
