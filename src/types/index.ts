@@ -187,6 +187,8 @@ export interface BudgetPerToolRow {
 export interface BudgetReportPastMonth {
   periodId: number;
   periodLabel: string;
+  /** The completed period immediately before {@link periodLabel}, if any. */
+  priorPeriodLabel: string | null;
   plannedCents: number;
   billedCents: number;
   runningCents: number;
@@ -197,7 +199,11 @@ export interface BudgetReportPastMonth {
   drivers: Array<{
     toolId: number | null;
     toolName: string;
-    /** Cents added/removed vs the prior completed period. */
+    /** License-derived spend in the prior period. */
+    priorCents: number;
+    /** License-derived spend in the past (spotlighted) period. */
+    pastCents: number;
+    /** pastCents − priorCents. */
     deltaCents: number;
     /** Percent change vs prior; null when prior was zero. */
     deltaPct: number | null;

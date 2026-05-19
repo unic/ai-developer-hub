@@ -184,6 +184,7 @@ function buildPastMonth(
   return {
     periodId: past.id,
     periodLabel: past.periodLabel,
+    priorPeriodLabel: prior?.periodLabel ?? null,
     plannedCents: past.plannedAmountCents,
     billedCents: past.billedTotalCents,
     runningCents: past.runningCostCents,
@@ -216,13 +217,22 @@ function buildVarianceDrivers(
     deltas.push({
       toolId,
       toolName,
+      priorCents,
+      pastCents: cents,
       deltaCents: delta,
       deltaPct: pctChange(cents, priorCents),
     });
   }
   for (const [toolId, { toolName, cents }] of priorTools) {
     if (pastTools.has(toolId)) continue;
-    deltas.push({ toolId, toolName, deltaCents: -cents, deltaPct: -100 });
+    deltas.push({
+      toolId,
+      toolName,
+      priorCents: cents,
+      pastCents: 0,
+      deltaCents: -cents,
+      deltaPct: -100,
+    });
   }
 
   return deltas
