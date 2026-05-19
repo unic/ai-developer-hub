@@ -21,6 +21,8 @@ interface KpiWithMomProps {
   };
   /** Optional historical data for an inline sparkline (most-recent value last). */
   sparkline?: number[];
+  /** Optional small muted footnote shown under the comparison line. */
+  note?: string;
 }
 
 export function KpiWithMom({
@@ -29,6 +31,7 @@ export function KpiWithMom({
   comparison,
   delta,
   sparkline,
+  note,
 }: KpiWithMomProps) {
   return (
     <Card>
@@ -55,6 +58,9 @@ export function KpiWithMom({
             </div>
             {comparison && (
               <p className="mt-1 text-xs text-muted-foreground">{comparison}</p>
+            )}
+            {note && (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">{note}</p>
             )}
           </div>
           {sparkline && sparkline.length > 1 && (

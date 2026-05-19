@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 028 — Budget tab · planned values analysis</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      h1, h2, h3, h4 { letter-spacing: -0.01em; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      a.link:hover { color: #c9e94a; }
+      table.spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.spec-table th, table.spec-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      table.spec-table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      .src-mark-ok { color: #86efac; font-weight: 600; }
+      .src-mark-warn { color: #facc15; font-weight: 600; }
+      .src-mark-bad { color: #f87171; font-weight: 600; }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .anchor { scroll-margin-top: 24px; }
+      .choice { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+      .choice-id { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted-2); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+
+      <header class="mb-10 pb-6 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          <span class="chip">Spec 028</span>
+          <span class="chip warn">Analysis — awaiting decision</span>
+          <span class="chip">Created 2026-05-19</span>
+          <span class="chip">Owner · tobias.studer@unic.com</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Budget tab — are the "planned" values linked to the active budget?</h1>
+        <p class="text-[var(--muted)] mt-2 max-w-3xl">
+          Trace of every "planned" reference on the Budget tab back to its source.
+          The short answer: <em>mostly yes</em> — per-period plans flow directly to most places.
+          But three surfaces silently average the per-period values together, which mis-reads as a fixed monthly plan when allocations are uneven.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <a class="chip info" href="README.md">README ↗</a>
+          <a class="chip info" href="plan.html">plan.html ↗</a>
+          <a class="chip info" href="gaps.html">gaps.html ↗</a>
+        </div>
+      </header>
+
+      <!-- ===== 1. Source of truth ===== -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">1 · Source of truth</h2>
+        <p class="text-[var(--muted)] text-sm mb-3">
+          The Budget detail page (<span class="file-path">src/app/budget/[id]/budget-detail-client.tsx</span>) writes planned amounts into two DB columns:
+        </p>
+        <table class="spec-table card overflow-hidden">
+          <thead>
+            <tr><th>Column</th><th>Scope</th><th>Set by</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>annual_budgets.total_amount_cents</code></td>
+              <td>Annual ceiling — one value per budget</td>
+              <td>Budget create form + "Update total" dialog on detail page</td>
+            </tr>
+            <tr>
+              <td><code>budget_periods.planned_amount_cents</code></td>
+              <td>Per-period allocation — one value per period (12 monthly or 4 quarterly)</td>
+              <td>Per-row input on the budget detail page → <code>updateBudgetAllocations</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="text-xs text-[var(--muted)] mt-3">
+          Each period can hold a different planned amount. The sum of all periods' allocations may equal the annual ceiling
+          (fully allocated) or be less (partially allocated) — never more (the action rejects it).
+        </p>
+      </section>
+
+      <!-- ===== 2. Where the Budget tab consumes planned values ===== -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">2 · Where the Budget tab reads planned values</h2>
+        <p class="text-[var(--muted)] text-sm mb-3">
+          Each row is a "planned" element rendered on <code>/reports/budget</code>. The <em>Sourced from</em> column tells you whether
+          the value uses the per-period plan directly or transforms it.
+        </p>
+        <table class="spec-table card overflow-hidden">
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th>File</th>
+              <th>Sourced from</th>
+              <th>Linked?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>At-a-glance · <em>Annual ceiling</em> tile value</td>
+              <td><span class="file-path">at-a-glance.tsx</span></td>
+              <td><code>budget.totalAmountCents</code></td>
+              <td><span class="src-mark-ok">✓ direct</span></td>
+            </tr>
+            <tr>
+              <td>At-a-glance · "12 × $3,500.00 planned" subtext</td>
+              <td><span class="file-path">at-a-glance.tsx:37–40, 71–75</span></td>
+              <td>Average: <code>sum(plannedAmountCents) / periods.length</code></td>
+              <td><span class="src-mark-warn">⚠ averaged</span></td>
+            </tr>
+            <tr>
+              <td>At-a-glance · "vs $3,500.00 planned (+41.4%)" subtext on Avg monthly run-rate</td>
+              <td><span class="file-path">at-a-glance.tsx:90–99</span></td>
+              <td>Same average</td>
+              <td><span class="src-mark-warn">⚠ averaged</span></td>
+            </tr>
+            <tr>
+              <td>At-a-glance · "Projected year-end" tile</td>
+              <td><span class="file-path">at-a-glance.tsx:102–110</span></td>
+              <td><code>forecast.projectedAnnualTotalCents</code> &amp; <code>ceiling</code></td>
+              <td><span class="src-mark-ok">✓ direct</span></td>
+            </tr>
+            <tr>
+              <td>Past-month spotlight · "Planned" KPI tile</td>
+              <td><span class="file-path">past-month-spotlight.tsx:43–46</span></td>
+              <td><code>past.plannedAmountCents</code> for the spotlighted period</td>
+              <td><span class="src-mark-ok">✓ per-period</span></td>
+            </tr>
+            <tr>
+              <td>Past-month spotlight · Variance % &amp; $</td>
+              <td><span class="file-path">at <code>buildPastMonth</code> in reports.ts</span></td>
+              <td><code>actual - planned</code> per period</td>
+              <td><span class="src-mark-ok">✓ per-period</span></td>
+            </tr>
+            <tr>
+              <td>Past-month spotlight · inline Plan-vs-Actual bar (Planned row)</td>
+              <td><span class="file-path">past-month-spotlight.tsx:140–145</span></td>
+              <td><code>pastMonth.plannedCents</code></td>
+              <td><span class="src-mark-ok">✓ per-period</span></td>
+            </tr>
+            <tr>
+              <td>Plan vs actual chart · planned bars (12 of them)</td>
+              <td><span class="file-path">plan-vs-actual-chart.tsx:44–54, 107</span></td>
+              <td><code>p.plannedAmountCents</code> for each period</td>
+              <td><span class="src-mark-ok">✓ per-period</span></td>
+            </tr>
+            <tr>
+              <td>Plan vs actual chart · dashed reference line</td>
+              <td><span class="file-path">plan-vs-actual-chart.tsx:56–84</span></td>
+              <td>Same average <code>sum / periods.length</code></td>
+              <td><span class="src-mark-warn">⚠ averaged</span></td>
+            </tr>
+            <tr>
+              <td>Forecast cumulative chart · ceiling reference line</td>
+              <td><span class="file-path">forecast-cumulative-chart.tsx</span></td>
+              <td><code>forecast.budgetCeilingCents</code></td>
+              <td><span class="src-mark-ok">✓ direct</span></td>
+            </tr>
+            <tr>
+              <td>Per-tool breakdown · planned column</td>
+              <td>—</td>
+              <td>Doesn't exist (G-1 deferred — no per-tool budgets in v1)</td>
+              <td>n/a</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ===== 3. The actual problem ===== -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">3 · The actual problem</h2>
+        <div class="callout warn text-sm mb-4">
+          <p class="text-[var(--text)] mb-2 font-medium">
+            Three surfaces collapse the 12 per-period plans into a single average.
+          </p>
+          <p class="text-[var(--text)]/90">
+            When admins allocate <strong>equally</strong> across periods — which is the default the create-budget flow produces if the user
+            leaves all rows untouched at $0 (well, technically $0 each, but that's the pattern) — the average matches the per-period value
+            and everything reads correctly. When admins allocate <strong>unevenly</strong> (e.g. Q4-heavy seasonal, ramp-up, or only-funded-the-first-three-months),
+            the average is a number that doesn't match any actual period's plan, and the report visually suggests a uniformity that isn't there.
+          </p>
+        </div>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.1 · Concrete example</h3>
+        <p class="text-sm text-[var(--muted)] mb-3">
+          Suppose the admin allocates $42,000 with Q4-loaded distribution:
+        </p>
+        <pre class="code">Jan: $1,000  Feb: $1,000  Mar: $1,000  Apr: $1,500   May: $2,000
+Jun: $2,500  Jul: $3,000  Aug: $3,500  Sep: $4,000   Oct: $5,500
+Nov: $7,000  Dec: $10,000                       Total: $42,000</pre>
+        <p class="text-sm mt-3">The at-a-glance shows:</p>
+        <ul class="text-sm list-disc list-inside ml-3 mt-1 space-y-1">
+          <li>Annual ceiling: <strong>$42,000</strong> · subtext: <span class="src-mark-warn">"12 × $3,500.00 planned"</span> — but <em>no single month</em> is planned at $3,500.</li>
+          <li>Avg monthly run-rate: <strong>$4,949.95</strong> · subtext: <span class="src-mark-warn">"vs $3,500.00 planned (+41.4%)"</span> — comparing against the global average when, for Apr, the planned was actually $1,500.</li>
+          <li>Plan-vs-actual chart bars correctly show $1k → $10k ramp ✓ but the reference line at $3,500 cuts across them in a way that doesn't represent any real target.</li>
+        </ul>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.2 · Quarterly budgets</h3>
+        <p class="text-sm text-[var(--muted)]">
+          A budget created with <code>periodType: "quarterly"</code> has 4 periods, not 12. The at-a-glance subtext would render
+          "4 × $X planned" (calculation is generic — <code>periods.length</code>) but the rest of the page still says
+          "monthly" everywhere (KPI label: "Avg monthly run-rate"; past-month spotlight: "Past month"; chart subtitle: "monthly planned vs billed").
+          This isn't strictly a planned-value issue but it surfaces the same way to the user.
+        </p>
+
+        <h3 class="text-base font-semibold mt-5 mb-2">3.3 · Initial state (zero allocations)</h3>
+        <p class="text-sm text-[var(--muted)]">
+          <code>generatePeriods()</code> creates each period with <code>planned_amount_cents: 0</code>. Until the admin opens the
+          budget detail page and saves allocations, every "planned" value in the report is $0 — which is technically correct (nothing is
+          allocated yet) but produces uninformative output: variance becomes "—" (we divide by 0), the reference line is hidden,
+          the chart shows planned bars at height 0.
+        </p>
+      </section>
+
+      <!-- ===== 4. What's working correctly ===== -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">4 · What's working correctly</h2>
+        <ul class="list-disc list-inside text-sm space-y-1">
+          <li>Per-month <strong>planned bars</strong> in the Plan-vs-Actual chart render the actual value from each <code>budget_periods.planned_amount_cents</code>. If you change April's allocation on the detail page, April's bar moves here on the next render. <span class="src-mark-ok">✓</span></li>
+          <li>The <strong>past-month spotlight</strong> uses the spotlighted period's own planned amount. Variance %, variance $, the inline bar, and the headline all reflect the period-specific allocation. <span class="src-mark-ok">✓</span></li>
+          <li>The <strong>annual ceiling</strong> tile and the forecast chart's <strong>ceiling line</strong> use the budget total directly. <span class="src-mark-ok">✓</span></li>
+        </ul>
+      </section>
+
+      <!-- ===== 5. Options ===== -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">5 · Options to fix</h2>
+        <p class="text-[var(--muted)] text-sm mb-4">
+          Pick one option per group (A/B/C, D/E, F/G). I'll only act on the choices you confirm.
+        </p>
+
+        <h3 class="text-base font-semibold mb-2">Group 1 — "12 × $3,500.00 planned" subtext on Annual ceiling</h3>
+        <div class="space-y-3 mb-6">
+          <div class="choice">
+            <div class="choice-id">A1</div>
+            <p class="text-sm mt-1">
+              <strong>Replace with the total only.</strong> "$42,000 across 12 periods" — no implied uniformity. Always honest.
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">A2</div>
+            <p class="text-sm mt-1">
+              <strong>Conditional wording.</strong> Show "12 × $3,500.00 planned" only when all periods are equal (or within $1 of each other). Otherwise show "Allocated unevenly — see chart".
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">A3</div>
+            <p class="text-sm mt-1">
+              <strong>Drop the subtext entirely.</strong> Annual ceiling stands alone; the per-period breakdown is the chart.
+            </p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mb-2">Group 2 — "vs $3,500.00 planned" subtext on Avg monthly run-rate</h3>
+        <div class="space-y-3 mb-6">
+          <div class="choice">
+            <div class="choice-id">B1</div>
+            <p class="text-sm mt-1">
+              <strong>Compare against planned-to-date instead of the global average.</strong> "vs $X planned for the same period range" — much more honest for uneven allocations. Uses <code>sum(plannedAmountCents)</code> over the completed periods divided by their count.
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">B2</div>
+            <p class="text-sm mt-1">
+              <strong>Keep the current behaviour</strong> (compare against year-wide average). Simple, easy to read, but mis-represents uneven plans.
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">B3</div>
+            <p class="text-sm mt-1">
+              <strong>Drop the comparison.</strong> Show only the run-rate value; the variance vs plan lives in the past-month spotlight already.
+            </p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mb-2">Group 3 — Plan-vs-Actual chart's reference line</h3>
+        <div class="space-y-3 mb-6">
+          <div class="choice">
+            <div class="choice-id">C1</div>
+            <p class="text-sm mt-1">
+              <strong>Drop the average reference line.</strong> The per-period planned bars already show the target — a single average line distracts and risks misreading.
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">C2</div>
+            <p class="text-sm mt-1">
+              <strong>Keep but label it.</strong> Add an inline label like "avg" so the line is honest about what it represents.
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">C3</div>
+            <p class="text-sm mt-1">
+              <strong>Replace with a different line:</strong> the YTD-to-date target line (cumulative planned through "today"). More relevant to the "are we tracking?" question.
+            </p>
+          </div>
+        </div>
+
+        <h3 class="text-base font-semibold mb-2">Group 4 — Optional (quarterly / zero-state housekeeping)</h3>
+        <div class="space-y-3 mb-6">
+          <div class="choice">
+            <div class="choice-id">D1</div>
+            <p class="text-sm mt-1">
+              <strong>Adapt wording for quarterly budgets.</strong> Replace "monthly" with "per period" or "per quarter" when <code>budget.periodType === "quarterly"</code>. Three labels need touching.
+            </p>
+          </div>
+          <div class="choice">
+            <div class="choice-id">D2</div>
+            <p class="text-sm mt-1">
+              <strong>Add a "set allocations" CTA</strong> at the top of the Budget tab when every <code>plannedAmountCents</code> is 0, linking to <code>/budget/[id]</code>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 6. My recommendation ===== -->
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-3">6 · My recommendation</h2>
+        <div class="callout info text-sm">
+          <p class="text-[var(--text)] mb-2 font-medium">
+            <strong>A1 + B1 + C1</strong> (plus optional D1 if you ever expect quarterly users).
+          </p>
+          <ul class="list-disc list-inside ml-2 text-[var(--text)]/90 space-y-1">
+            <li><strong>A1</strong> — "$42,000 across 12 periods" — is unambiguous and never wrong.</li>
+            <li><strong>B1</strong> — "vs planned-to-date" — answers the real question ("am I burning faster than the plan said I should be by now?") and degrades gracefully even for uneven allocations.</li>
+            <li><strong>C1</strong> — drop the reference line. The bars already show the truth per period. The line was a hold-over from the original mock; it doesn't add information once the bars exist.</li>
+          </ul>
+          <p class="mt-2 text-[var(--text)]/90">
+            All three are small, contained changes — total ~25 lines across two files, no schema work, no contract changes.
+          </p>
+        </div>
+      </section>
+
+      <footer class="text-xs text-[var(--muted-2)] pt-6 border-t border-[var(--border)]">
+        Spec 028 · planned-values-analysis.html — pairs with
+        <a class="link" href="plan.html">plan.html</a> and
+        <a class="link" href="gaps.html">gaps.html</a>
+      </footer>
+
+    </div>
+  </body>
+</html>

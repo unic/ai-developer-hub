@@ -125,6 +125,7 @@ export function OverviewPanel({
           }
           comparison={trendComparison(overviewData)}
           sparkline={expectedMonthlySparkline.map((p) => p.value)}
+          note="Licenses only — API usage not included"
         />
       </div>
 
