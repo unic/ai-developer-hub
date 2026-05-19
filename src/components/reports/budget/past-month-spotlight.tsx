@@ -245,29 +245,30 @@ function DriverCard({
   const tone = positive ? "text-destructive" : "text-primary";
 
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_70px] items-center gap-3">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border bg-card/40 px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium" title={toolName}>
-            {toolName}
-          </p>
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-            {formatCurrency(priorCents)} → {formatCurrency(pastCents)}
-          </p>
-        </div>
-        <div className={`whitespace-nowrap text-sm font-medium tabular-nums ${tone}`}>
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border bg-card/40 px-4 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium" title={toolName}>
+          {toolName}
+        </p>
+        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          {formatCurrency(priorCents)} → {formatCurrency(pastCents)}
+        </p>
+      </div>
+      <div className={`whitespace-nowrap text-right tabular-nums ${tone}`}>
+        <div className="text-sm font-medium">
           <span aria-hidden className="mr-1">
             {positive ? "↑" : "↓"}
           </span>
           {positive ? "+" : ""}
           {formatCurrency(deltaCents)}
         </div>
+        {deltaPct !== null && (
+          <div className="text-xs">
+            {deltaPct >= 0 ? "+" : ""}
+            {deltaPct.toFixed(1)}%
+          </div>
+        )}
       </div>
-      <span className={`text-right text-xs tabular-nums ${tone}`}>
-        {deltaPct !== null
-          ? `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%`
-          : "—"}
-      </span>
     </li>
   );
 }
