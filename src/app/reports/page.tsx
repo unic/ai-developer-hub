@@ -11,6 +11,7 @@ import {
 } from "@/actions/budget";
 import { OverviewPanel } from "@/components/reports/reports-charts-panel";
 import { buildCircleReport } from "@/lib/reports/circle-report";
+import { classifyPeriod } from "@/lib/reports/period-helpers";
 import { getLastMonthEnd } from "@/lib/utils";
 import type {
   ReportOverviewData,
@@ -75,8 +76,21 @@ export default async function ReportsOverviewPage() {
   const utilizationPct =
     budgetCeilingCents > 0 ? (billedYtdCents / budgetCeilingCents) * 100 : 0;
 
-  const historicalPeriods = trendsData.filter((p) => p.billedCents > 0);
-  const { spendTrend, spendTrendPct } = computeSpendTrend(historicalPeriods);
+  // Only fully-past periods qualify as "completed" — the current month's
+  // billing is partial and comparing it to a full-month plan is misleading.
+  const today = new Date();
+  const completedTrend = (activeBudget?.periods ?? [])
+    .filter((bp) => classifyPeriod(bp, today) === "past")
+    .map((bp) => {
+      const trend = trendsData.find((t) => t.month === bp.periodLabel);
+      return {
+        label: bp.periodLabel,
+        billedCents: trend?.billedCents ?? 0,
+        plannedCents: trend?.plannedCents ?? 0,
+      };
+    })
+    .filter((p) => p.billedCents > 0);
+  const { spendTrend, spendTrendPct } = computeSpendTrend(completedTrend);
 
   const previousActiveLicenses = priorMonthSnapshot.length;
   const previousExpectedMonthlyCents = priorMonthSnapshot.reduce(
@@ -93,8 +107,8 @@ export default async function ReportsOverviewPage() {
   }
   const hasPriorMonthData = priorMonthSnapshot.length > 0;
 
-  const lastCompleted = historicalPeriods.at(-1) ?? null;
-  const lastCompletedMonthLabel = lastCompleted?.month ?? null;
+  const lastCompleted = completedTrend.at(-1) ?? null;
+  const lastCompletedMonthLabel = lastCompleted?.label ?? null;
   const lastCompletedMonthVariancePct =
     lastCompleted && lastCompleted.plannedCents > 0
       ? ((lastCompleted.billedCents - lastCompleted.plannedCents) /
