@@ -53,7 +53,9 @@ async function getSourceRunner(sourceType: SyncSourceType) {
     case "anthropic_api_usage":
       return (await import("@/lib/sync/sources/anthropic-usage")).run;
     case "github_members":
-      return (await import("@/lib/sync/sources/github-members")).run;
+      // Members sync is interactive (preview + confirm) via the
+      // GitHubMemberSyncSheet UI in /settings/sync, not a programmatic trigger.
+      return null;
     case "invoice_period_matching":
       return (await import("@/lib/sync/sources/invoice-matching")).run;
     case "anthropic_api_costs":

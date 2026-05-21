@@ -12,7 +12,6 @@ import type {
   invoices,
   githubConnections,
   githubProfiles,
-  githubSyncEvents,
   copilotUsageMetrics,
   copilotBillingSnapshots,
   anthropicWorkspaces,
@@ -271,14 +270,11 @@ export interface SyncResult {
 
 // GitHub integration types
 export type GitHubConnectionStatus = "active" | "disconnected";
-export type GitHubSyncStatus = "in_progress" | "completed" | "partial" | "failed";
 
 export type GitHubConnection = InferSelectModel<typeof githubConnections>;
 export type NewGitHubConnection = InferInsertModel<typeof githubConnections>;
 export type GitHubProfile = InferSelectModel<typeof githubProfiles>;
 export type NewGitHubProfile = InferInsertModel<typeof githubProfiles>;
-export type GitHubSyncEvent = InferSelectModel<typeof githubSyncEvents>;
-export type NewGitHubSyncEvent = InferInsertModel<typeof githubSyncEvents>;
 
 export interface GitHubMemberData {
   login: string;

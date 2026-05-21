@@ -3,16 +3,19 @@
 import { db } from "@/lib/db";
 import {
   githubConnections,
-  githubSyncEvents,
   copilotUsageMetrics,
   copilotBillingSnapshots,
   licenseAssignments,
 } from "@/lib/db/schema";
-import { eq, and, sql, desc, count, ne } from "drizzle-orm";
+import { eq, sql, count } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import { validateCopilotScopes } from "@/lib/copilot-api";
 import { run as runCopilotSource } from "@/lib/sync/sources/github-copilot";
+import {
+  getLastCompletedSyncEvent,
+  mapOutcomeToLegacyStatus,
+} from "@/lib/sync/queries";
 import { recordUpdate } from "@/actions/history";
 import { revalidatePath } from "next/cache";
 import type { ActionResult, CopilotSyncStatus } from "@/types";
@@ -49,8 +52,7 @@ export async function enableCopilotSync(): Promise<
   if (scopeResult.error || !scopeResult.data) {
     return {
       success: false,
-      error:
-        scopeResult.error || "Failed to validate Copilot scopes",
+      error: scopeResult.error || "Failed to validate Copilot scopes",
     };
   }
 
@@ -154,14 +156,7 @@ export async function getCopilotSyncStatus(): Promise<
   // Run all independent queries in parallel
   const [lastSync, [dateRange], [metricsCount], [billingCount], [seatsCount]] =
     await Promise.all([
-      db.query.githubSyncEvents.findFirst({
-        where: and(
-          eq(githubSyncEvents.connectionId, connection.id),
-          eq(githubSyncEvents.syncType, "copilot"),
-          ne(githubSyncEvents.status, "in_progress")
-        ),
-        orderBy: [desc(githubSyncEvents.completedAt)],
-      }),
+      getLastCompletedSyncEvent("github_copilot_billing"),
       db
         .select({
           earliest: sql<string>`MIN(${copilotUsageMetrics.date})`,
@@ -188,12 +183,7 @@ export async function getCopilotSyncStatus(): Promise<
       ? { earliest: dateRange.earliest, latest: dateRange.latest }
       : null;
 
-  const lastSyncStatus =
-    lastSync?.status === "completed" ||
-    lastSync?.status === "partial" ||
-    lastSync?.status === "failed"
-      ? lastSync.status
-      : null;
+  const lastSyncStatus = mapOutcomeToLegacyStatus(lastSync?.outcome);
 
   return {
     success: true,

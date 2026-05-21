@@ -3,9 +3,7 @@ import {
   aiTools,
   accessTiers,
   licenseAssignments,
-  githubConnections,
   githubProfiles,
-  githubSyncEvents,
   copilotUsageMetrics,
   copilotBillingSnapshots,
 } from "@/lib/db/schema";
@@ -14,7 +12,6 @@ import {
   fetchCopilotSeats,
   fetchCopilotMetrics,
 } from "@/lib/copilot-api";
-import { decryptApiKey } from "@/lib/crypto";
 import { eq, and, desc } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -474,119 +471,3 @@ export async function syncUsageMetrics(
   return { metricsProcessed: metrics.length };
 }
 
-// ---------------------------------------------------------------------------
-// Function 5: runCopilotSync
-// ---------------------------------------------------------------------------
-
-export async function runCopilotSync(
-  connectionId: number,
-  syncEventId: number,
-): Promise<void> {
-  // Get the triggering admin from the sync event for audit attribution
-  const syncEvent = await db.query.githubSyncEvents.findFirst({
-    where: eq(githubSyncEvents.id, syncEventId),
-  });
-
-  // Get connection by ID
-  const connection = await db.query.githubConnections.findFirst({
-    where: eq(githubConnections.id, connectionId),
-  });
-
-  if (!connection) {
-    await db
-      .update(githubSyncEvents)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage: `Connection ${connectionId} not found`,
-      })
-      .where(eq(githubSyncEvents.id, syncEventId));
-    return;
-  }
-
-  // Decrypt token
-  let token: string;
-  try {
-    token = await decryptApiKey(connection.tokenEncrypted);
-  } catch {
-    await db
-      .update(githubSyncEvents)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage: "Failed to decrypt connection token",
-      })
-      .where(eq(githubSyncEvents.id, syncEventId));
-    return;
-  }
-
-  const syncConnection: SyncConnection = {
-    id: connection.id,
-    orgLogin: connection.orgLogin,
-  };
-
-  const errors: string[] = [];
-  let billingResult: BillingSyncResult | null = null;
-  let seatResult: SeatSyncResult | null = null;
-  let metricsResult: MetricsSyncResult | null = null;
-
-  // Sync billing data
-  try {
-    billingResult = await syncBillingData(syncConnection, token);
-  } catch (err) {
-    errors.push(
-      `Billing sync failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Sync seat assignments
-  try {
-    seatResult = await syncSeatAssignments(syncConnection, token);
-  } catch (err) {
-    errors.push(
-      `Seat sync failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Sync usage metrics
-  try {
-    metricsResult = await syncUsageMetrics(syncConnection, token);
-  } catch (err) {
-    errors.push(
-      `Metrics sync failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Determine final status
-  const successCount = [billingResult, seatResult, metricsResult].filter(
-    (r) => r !== null,
-  ).length;
-
-  let finalStatus: "completed" | "partial" | "failed";
-  if (successCount === 3) {
-    finalStatus = "completed";
-  } else if (successCount > 0) {
-    finalStatus = "partial";
-  } else {
-    finalStatus = "failed";
-  }
-
-  // Update sync event
-  await db
-    .update(githubSyncEvents)
-    .set({
-      status: finalStatus,
-      seatsProcessed: seatResult?.seatsProcessed ?? null,
-      metricsProcessed: metricsResult?.metricsProcessed ?? null,
-      billingProcessed: billingResult?.billingProcessed ?? null,
-      completedAt: new Date(),
-      errorMessage: errors.length > 0 ? errors.join("; ") : null,
-    })
-    .where(eq(githubSyncEvents.id, syncEventId));
-
-  // Update connection lastSyncAt
-  await db
-    .update(githubConnections)
-    .set({ lastSyncAt: new Date() })
-    .where(eq(githubConnections.id, connectionId));
-}

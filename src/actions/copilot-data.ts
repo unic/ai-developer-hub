@@ -8,11 +8,11 @@ import {
   users,
   githubProfiles,
   accessTiers,
-  githubSyncEvents,
   githubConnections,
 } from "@/lib/db/schema";
 import { and, sql, desc, asc, gte, lte, eq, or, ilike } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { listSyncEvents, mapOutcomeForDisplay } from "@/lib/sync/queries";
 import {
   copilotDateRangeSchema,
   copilotSeatFilterSchema,
@@ -29,19 +29,21 @@ async function getActiveConnection() {
   return db.query.githubConnections.findFirst({
     where: and(
       eq(githubConnections.status, "active"),
-      eq(githubConnections.copilotSyncEnabled, true)
+      eq(githubConnections.copilotSyncEnabled, true),
     ),
   });
 }
 
 function derivePlanType(tierName: string | null): "business" | "enterprise" {
-  return (tierName ?? "").toLowerCase().includes("enterprise") ? "enterprise" : "business";
+  return (tierName ?? "").toLowerCase().includes("enterprise")
+    ? "enterprise"
+    : "business";
 }
 
 function getDefaultDateRange(
   since?: string,
   until?: string,
-  days = 28
+  days = 28,
 ): { sinceDate: string; untilDate: string } {
   const now = new Date();
   const defaultSince = new Date(now);
@@ -53,7 +55,7 @@ function getDefaultDateRange(
 }
 
 export async function getCopilotOverview(
-  input?: unknown
+  input?: unknown,
 ): Promise<ActionResult<CopilotOverviewData>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -70,9 +72,16 @@ export async function getCopilotOverview(
     return {
       success: true,
       data: {
-        totalSeats: 0, activeSeats: 0, pendingSeats: 0, acceptanceRate: 0,
-        totalSuggestions: 0, totalAcceptances: 0, totalLinesSuggested: 0,
-        totalLinesAccepted: 0, totalActiveUsers: 0, trends: [],
+        totalSeats: 0,
+        activeSeats: 0,
+        pendingSeats: 0,
+        acceptanceRate: 0,
+        totalSuggestions: 0,
+        totalAcceptances: 0,
+        totalLinesSuggested: 0,
+        totalLinesAccepted: 0,
+        totalActiveUsers: 0,
+        trends: [],
       },
     };
   }
@@ -86,8 +95,8 @@ export async function getCopilotOverview(
         and(
           eq(copilotUsageMetrics.connectionId, connection.id),
           gte(copilotUsageMetrics.date, sinceDate),
-          lte(copilotUsageMetrics.date, untilDate)
-        )
+          lte(copilotUsageMetrics.date, untilDate),
+        ),
       )
       .orderBy(copilotUsageMetrics.date),
     db
@@ -173,7 +182,8 @@ export async function getCopilotSeats(input?: unknown): Promise<
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = copilotSeatFilterSchema.safeParse(input ?? {});
-  if (!parsed.success) return { success: false, error: "Invalid filter parameters" };
+  if (!parsed.success)
+    return { success: false, error: "Invalid filter parameters" };
 
   const {
     search,
@@ -195,8 +205,8 @@ export async function getCopilotSeats(input?: unknown): Promise<
     conditions.push(
       or(
         ilike(users.name, `%${search}%`),
-        ilike(githubProfiles.githubLogin, `%${search}%`)
-      )!
+        ilike(githubProfiles.githubLogin, `%${search}%`),
+      )!,
     );
   }
 
@@ -271,14 +281,19 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
     status: "active" | "inactive" | "pending";
     matchedUserId: number | null;
     matchedUserName: string | null;
-    activityTimeline: Array<{ date: string; lastActivityAt: string | null; status: string }>;
+    activityTimeline: Array<{
+      date: string;
+      lastActivityAt: string | null;
+      status: string;
+    }>;
   }>
 > {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = copilotSeatDetailSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Invalid input: githubId is required" };
+  if (!parsed.success)
+    return { success: false, error: "Invalid input: githubId is required" };
 
   const { githubId } = parsed.data;
 
@@ -307,35 +322,23 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
     .where(
       and(
         eq(licenseAssignments.userId, profile.userId),
-        eq(licenseAssignments.source, "copilot-sync")
-      )
+        eq(licenseAssignments.source, "copilot-sync"),
+      ),
     )
     .limit(1);
 
-  if (!assignment) return { success: false, error: "No Copilot seat assignment found for this user" };
+  if (!assignment)
+    return {
+      success: false,
+      error: "No Copilot seat assignment found for this user",
+    };
 
-  // Build activity timeline from sync events (copilot sync type), scoped by connection
-  const connection = await getActiveConnection();
-  const syncEventConditions = [eq(githubSyncEvents.syncType, "copilot")];
-  if (connection) {
-    syncEventConditions.push(eq(githubSyncEvents.connectionId, connection.id));
-  }
+  const recentSyncs = await listSyncEvents("github_copilot_billing", 30);
 
-  const syncEvents = await db
-    .select({
-      startedAt: githubSyncEvents.startedAt,
-      completedAt: githubSyncEvents.completedAt,
-      status: githubSyncEvents.status,
-    })
-    .from(githubSyncEvents)
-    .where(and(...syncEventConditions))
-    .orderBy(desc(githubSyncEvents.startedAt))
-    .limit(30);
-
-  const activityTimeline = syncEvents.map((evt) => ({
+  const activityTimeline = recentSyncs.map((evt) => ({
     date: evt.startedAt.toISOString().split("T")[0],
     lastActivityAt: evt.completedAt?.toISOString() ?? null,
-    status: evt.status,
+    status: mapOutcomeForDisplay(evt.outcome),
   }));
 
   return {
@@ -357,38 +360,21 @@ export async function getCopilotSeatDetail(input: unknown): Promise<
 }
 
 export async function getCopilotBillingSyncHistory(): Promise<
-  ActionResult<Array<{
-    id: number;
-    startedAt: string;
-    completedAt: string | null;
-    status: string;
-    billingProcessed: number | null;
-    errorMessage: string | null;
-  }>>
+  ActionResult<
+    Array<{
+      id: number;
+      startedAt: string;
+      completedAt: string | null;
+      status: string;
+      billingProcessed: number | null;
+      errorMessage: string | null;
+    }>
+  >
 > {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const connection = await getActiveConnection();
-
-  const conditions = [eq(githubSyncEvents.syncType, "copilot")];
-  if (connection) {
-    conditions.push(eq(githubSyncEvents.connectionId, connection.id));
-  }
-
-  const rows = await db
-    .select({
-      id: githubSyncEvents.id,
-      startedAt: githubSyncEvents.startedAt,
-      completedAt: githubSyncEvents.completedAt,
-      status: githubSyncEvents.status,
-      billingProcessed: githubSyncEvents.billingProcessed,
-      errorMessage: githubSyncEvents.errorMessage,
-    })
-    .from(githubSyncEvents)
-    .where(and(...conditions))
-    .orderBy(desc(githubSyncEvents.startedAt))
-    .limit(10);
+  const rows = await listSyncEvents("github_copilot_billing", 10);
 
   return {
     success: true,
@@ -396,15 +382,15 @@ export async function getCopilotBillingSyncHistory(): Promise<
       id: row.id,
       startedAt: row.startedAt.toISOString(),
       completedAt: row.completedAt?.toISOString() ?? null,
-      status: row.status,
-      billingProcessed: row.billingProcessed,
+      status: mapOutcomeForDisplay(row.outcome),
+      billingProcessed: row.createdCount,
       errorMessage: row.errorMessage,
     })),
   };
 }
 
 export async function getCopilotBilling(
-  input?: unknown
+  input?: unknown,
 ): Promise<ActionResult<CopilotBillingData>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -419,7 +405,13 @@ export async function getCopilotBilling(
     return {
       success: true,
       data: {
-        currentMonth: { totalCostCents: 0, activeSeats: 0, totalSeats: 0, costPerActiveUserCents: 0, planType: "business" as const },
+        currentMonth: {
+          totalCostCents: 0,
+          activeSeats: 0,
+          totalSeats: 0,
+          costPerActiveUserCents: 0,
+          planType: "business" as const,
+        },
         cumulativeCostCents: 0,
         trends: [],
       },
@@ -447,7 +439,8 @@ export async function getCopilotBilling(
     .orderBy(asc(copilotBillingSnapshots.billingMonth));
 
   // Current month = latest snapshot
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  const latestSnapshot =
+    snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
   // Cumulative cost
   let cumulativeCostCents = 0;
@@ -488,7 +481,7 @@ export async function getCopilotBilling(
 }
 
 export async function getCopilotAnalytics(
-  input?: unknown
+  input?: unknown,
 ): Promise<ActionResult<CopilotAnalyticsData>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -504,8 +497,14 @@ export async function getCopilotAnalytics(
     return {
       success: true,
       data: {
-        byLanguage: [], byEditor: [],
-        activityDistribution: { powerUsers: 0, regularUsers: 0, occasionalUsers: 0, inactiveUsers: 0 },
+        byLanguage: [],
+        byEditor: [],
+        activityDistribution: {
+          powerUsers: 0,
+          regularUsers: 0,
+          occasionalUsers: 0,
+          inactiveUsers: 0,
+        },
         utilizationTrend: [],
       },
     };
@@ -519,15 +518,20 @@ export async function getCopilotAnalytics(
       and(
         eq(copilotUsageMetrics.connectionId, connection.id),
         gte(copilotUsageMetrics.date, sinceDate),
-        lte(copilotUsageMetrics.date, untilDate)
-      )
+        lte(copilotUsageMetrics.date, untilDate),
+      ),
     )
     .orderBy(asc(copilotUsageMetrics.date));
 
   // Aggregate language breakdown from JSONB across all days
   const languageMap = new Map<
     string,
-    { suggestions: number; acceptances: number; linesSuggested: number; linesAccepted: number }
+    {
+      suggestions: number;
+      acceptances: number;
+      linesSuggested: number;
+      linesAccepted: number;
+    }
   >();
 
   for (const m of metrics) {
@@ -542,10 +546,18 @@ export async function getCopilotAnalytics(
           linesSuggested: 0,
           linesAccepted: 0,
         };
-        existing.suggestions += Number(item.suggestions ?? item.totalSuggestions ?? 0);
-        existing.acceptances += Number(item.acceptances ?? item.totalAcceptances ?? 0);
-        existing.linesSuggested += Number(item.linesSuggested ?? item.totalLinesSuggested ?? 0);
-        existing.linesAccepted += Number(item.linesAccepted ?? item.totalLinesAccepted ?? 0);
+        existing.suggestions += Number(
+          item.suggestions ?? item.totalSuggestions ?? 0,
+        );
+        existing.acceptances += Number(
+          item.acceptances ?? item.totalAcceptances ?? 0,
+        );
+        existing.linesSuggested += Number(
+          item.linesSuggested ?? item.totalLinesSuggested ?? 0,
+        );
+        existing.linesAccepted += Number(
+          item.linesAccepted ?? item.totalLinesAccepted ?? 0,
+        );
         languageMap.set(lang, existing);
       }
     }
@@ -582,9 +594,15 @@ export async function getCopilotAnalytics(
           suggestions: 0,
           acceptances: 0,
         };
-        existing.engagedUsers += Number(item.engagedUsers ?? item.totalEngagedUsers ?? 0);
-        existing.suggestions += Number(item.suggestions ?? item.totalSuggestions ?? 0);
-        existing.acceptances += Number(item.acceptances ?? item.totalAcceptances ?? 0);
+        existing.engagedUsers += Number(
+          item.engagedUsers ?? item.totalEngagedUsers ?? 0,
+        );
+        existing.suggestions += Number(
+          item.suggestions ?? item.totalSuggestions ?? 0,
+        );
+        existing.acceptances += Number(
+          item.acceptances ?? item.totalAcceptances ?? 0,
+        );
         editorMap.set(editor, existing);
       }
     }
@@ -624,9 +642,7 @@ export async function getCopilotAnalytics(
     activeUsers: m.totalActiveUsers,
     totalSeats,
     utilizationRate:
-      totalSeats > 0
-        ? Math.round((m.totalActiveUsers / totalSeats) * 100)
-        : 0,
+      totalSeats > 0 ? Math.round((m.totalActiveUsers / totalSeats) * 100) : 0,
   }));
 
   return {
