@@ -1,6 +1,6 @@
 ---
 name: agent-browser-session
-description: Mint a NextAuth-compatible session cookie for the seeded Nighthawk agent user so the browser (Playwright, Chrome DevTools MCP, or curl) can hit auth-gated routes without going through the human `/login` flow. Use whenever you're testing this app in a browser against `localhost:3000` or a Vercel preview and an auth-gated page (anything not in `isPublicPath`) redirects to `/login`, or whenever the user asks to "log in as the agent", "sign in for testing", "skip the login screen", or "test the dashboard / admin / reports / settings UI". The route refuses production by design and is rate-limited only by its 30-minute TTL. Do not invoke against production; do not attempt to use the minted session against any endpoint on the built-in agent deny-list (DELETE /api/users, POST /api/users/invite, /api/users/reset-password, /api/invoices/ingest, /api/sync, /setup-password, POST /api/anthropic-config, POST /api/github-config) — those are blocked in middleware and you will get 403.
+description: Mint a NextAuth-compatible session cookie for the seeded Nighthawk agent user so the browser (Playwright, Chrome DevTools MCP, or curl) can hit auth-gated routes without going through the human `/login` flow. Use whenever you're testing this app in a browser against `localhost:3000` or a Vercel preview and an auth-gated page (anything not in `isPublicPath`) redirects to `/login`, or whenever the user asks to "log in as the agent", "sign in for testing", "skip the login screen", or "test the dashboard / admin / reports / settings UI". The route refuses production by design and is rate-limited only by its 30-minute TTL. Do not invoke against production; do not attempt to use the minted session against any endpoint on the built-in agent deny-list (DELETE /api/users, POST /api/users/invite, /api/users/reset-password, /setup-password, POST /api/anthropic-config, POST /api/github-config) — those return 403 in middleware. `/api/invoices/ingest` and `/api/sync` are also on the deny-list as defense-in-depth, but the middleware matcher excludes them today — they're gated by their own bearer tokens (INVOICE_INGEST_SECRET / CRON_SECRET), so a session cookie is irrelevant for them.
 ---
 
 # Mint a browser session for the Nighthawk agent user
@@ -130,21 +130,28 @@ If you're hand-injecting cookies (rarely needed), use the exact name from the re
 
 ## Deny-list — what the session refuses
 
-Even with a valid agent cookie, the middleware (src/middleware.ts → `isAgentDenied` in src/lib/agent-auth.ts) returns `403 Forbidden (agent deny-list)` for these paths:
+Two layers gate the agent away from destructive paths — middleware deny-list and route-level bearer auth. Don't conflate them; the failure mode differs.
+
+**Middleware deny-list** (src/middleware.ts → `isAgentDenied` in src/lib/agent-auth.ts) returns `403 Forbidden (agent deny-list)` for requests that match `BUILT_IN_DENY_PATHS` **and** pass through the middleware matcher:
 
 - `DELETE /api/users`
 - `POST /api/users/invite`
 - `POST /api/users/reset-password`
-- `/api/invoices/ingest` (any method)
-- `/api/sync` (any method)
 - `/setup-password` (any method)
 - `POST /api/anthropic-config`
 - `POST /api/github-config`
 - Plus anything in the `AGENT_DENY_PATHS` env var (comma-separated, format `"/path"` or `"METHOD /path"`)
 
-These are outbound side-effects (real email, R2 uploads, key rotations) and destructive admin operations. **Read-only admin pages are allowed.** If the user asks you to test one of these flows in the browser, surface that it's blocked for the agent user by design — the right answer is a unit/integration test, not the live UI.
+**Defense-in-depth entries** also live in `BUILT_IN_DENY_PATHS` but are currently **not enforced by middleware** because the matcher in src/middleware.ts excludes them:
 
-Match is by prefix. `/api/users` (DELETE) is blocked; `GET /api/users` is allowed. `/api/invoices/ingest/anything` is blocked because the deny entry has no method qualifier. Check src/lib/agent-auth.ts:18 for the canonical list — keep this skill in sync if it changes.
+- `/api/invoices/ingest` — gated by `INVOICE_INGEST_SECRET` (route-level bearer)
+- `/api/sync` — gated by `CRON_SECRET` (route-level bearer)
+
+For these two, an agent session cookie is irrelevant: the routes never check it. They reject anything without the right bearer token, regardless of who the user is. The deny-list entries only activate if the matcher is later widened. Treat them as "blocked for the agent, but via a different mechanism" — don't try to exercise them with a session cookie.
+
+These are all outbound side-effects (real email, R2 uploads, key rotations) and destructive admin operations. **Read-only admin pages are allowed.** If the user asks you to test one of these flows in the browser, surface that it's blocked for the agent user by design — the right answer is a unit/integration test, not the live UI.
+
+Match is by prefix. `/api/users` (DELETE) is blocked; `GET /api/users` is allowed. Check src/lib/agent-auth.ts:18 (and the matcher in src/middleware.ts:43) for the canonical state — keep this skill in sync if either changes.
 
 ## Cleanup
 
