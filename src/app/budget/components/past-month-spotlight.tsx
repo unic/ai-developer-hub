@@ -8,6 +8,7 @@ import {
 import { formatCurrency, formatVariance } from "@/lib/utils";
 import type { BudgetWithCosts } from "@/types";
 import type { RunningCostsResult } from "@/lib/budget-utils";
+import { classifyPeriod } from "@/lib/reports/period-helpers";
 import { StatTile } from "./stat-tile";
 
 interface Props {
@@ -19,12 +20,11 @@ export function PastMonthSpotlight({ budget, runningCosts }: Props) {
   const today = new Date();
   let latest: { period: BudgetWithCosts["periods"][number]; endTime: number; actual: number } | null = null;
   for (const p of budget.periods) {
-    const end = new Date(p.endDate);
-    if (end >= today) continue;
+    if (classifyPeriod(p, today) !== "past") continue;
     const running = runningCosts[p.id]?.runningCostCents ?? 0;
     const actual = p.billedTotalCents + running;
     if (actual <= 0) continue;
-    const endTime = end.getTime();
+    const endTime = new Date(p.endDate + "T00:00:00Z").getTime();
     if (!latest || endTime > latest.endTime) {
       latest = { period: p, endTime, actual };
     }

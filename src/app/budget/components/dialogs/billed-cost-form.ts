@@ -1,3 +1,5 @@
+import { formatDateOnly } from "@/lib/utils";
+
 export interface BilledCostFormState {
   amountDollars: string;
   invoiceDate: string;
@@ -8,7 +10,7 @@ export interface BilledCostFormState {
 export function makeEmptyBilledCostForm(): BilledCostFormState {
   return {
     amountDollars: "",
-    invoiceDate: new Date().toISOString().slice(0, 10),
+    invoiceDate: formatDateOnly(new Date()),
     description: "",
     vendorReference: "",
   };

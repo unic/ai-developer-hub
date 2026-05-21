@@ -22,6 +22,7 @@ import {
 } from "@/lib/utils";
 import type { BilledCost, BudgetWithCosts } from "@/types";
 import type { RunningCostsResult } from "@/lib/budget-utils";
+import { classifyPeriod } from "@/lib/reports/period-helpers";
 
 interface Props {
   budget: BudgetWithCosts;
@@ -78,17 +79,24 @@ export function PeriodAllocationsTable({
 
   const canEdit = isAdmin && !isArchived;
 
+  // Footer aggregates everything ever allocated (planned), but only the
+  // expected/actual numbers for periods that have started — otherwise the
+  // variance line would compare YTD actual against full-year expected and
+  // always read as a massive negative.
   const totals = periods.reduce(
     (a, p) => {
       const running = runningCosts[p.id]?.runningCostCents ?? 0;
+      const isFuture = classifyPeriod(p, today) === "future";
       a.allocated += allocations[p.id] ?? 0;
-      a.expected += p.expectedSpendCents;
-      a.actual += p.billedTotalCents + running;
+      if (!isFuture) {
+        a.expectedToDate += p.expectedSpendCents;
+        a.actualToDate += p.billedTotalCents + running;
+      }
       return a;
     },
-    { allocated: 0, expected: 0, actual: 0 }
+    { allocated: 0, expectedToDate: 0, actualToDate: 0 }
   );
-  const totalVariance = totals.actual - totals.expected;
+  const totalVariance = totals.actualToDate - totals.expectedToDate;
 
   return (
     <>
@@ -119,11 +127,10 @@ export function PeriodAllocationsTable({
                 expected > 0
                   ? Math.round(((actualCents - expected) / expected) * 100)
                   : 0;
-              const start = new Date(period.startDate);
-              const end = new Date(period.endDate);
-              const isCurrent = start <= today && today <= end;
-              const isFuture = start > today;
-              const isClosed = end < today;
+              const phase = classifyPeriod(period, today);
+              const isCurrent = phase === "current";
+              const isFuture = phase === "future";
+              const isClosed = phase === "past";
               const isOverExpected = isClosed && variance > expected * 0.05;
               const isUnderExpected = isClosed && variance < -expected * 0.05;
               const isExpanded = expandedPeriods.has(period.id);
@@ -355,8 +362,8 @@ export function PeriodAllocationsTable({
               <TableCell />
               <TableCell>YTD Total</TableCell>
               <TableCell>{formatCurrency(totals.allocated)}</TableCell>
-              <TableCell>{formatCurrency(totals.expected)}</TableCell>
-              <TableCell>{formatCurrency(totals.actual)}</TableCell>
+              <TableCell>{formatCurrency(totals.expectedToDate)}</TableCell>
+              <TableCell>{formatCurrency(totals.actualToDate)}</TableCell>
               <TableCell className={varianceClassName(totalVariance)}>
                 {formatVariance(totalVariance)}
               </TableCell>

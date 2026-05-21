@@ -496,6 +496,80 @@
       </p>
     </div>
 
+    <h2>Post-review fixes (Copilot review on PR #98)</h2>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · correctness</div>
+      <h3>Period phase now uses <code>classifyPeriod</code> from <span class="file">src/lib/reports/period-helpers.ts</span></h3>
+      <p>
+        Three sites (hero, spotlight, period table) were comparing
+        <code>new Date(period.endDate) &lt; today</code>. <code>budget_periods.end_date</code> is a SQL
+        DATE — Drizzle hands it back as <code>"YYYY-MM-DD"</code>, and
+        <code>new Date("YYYY-MM-DD")</code> parses as UTC midnight of that calendar day. That made
+        periods flip to "past" at the <em>start</em> of their final day instead of after it ends, with
+        an extra timezone offset on top. Adopted the existing
+        <code>classifyPeriod(period, now)</code> helper (returns <code>"past" | "current" | "future"</code>,
+        treats <code>endDate</code> as inclusive-end-of-day). One source of truth across all four budget
+        views (Reports already used it).
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · correctness</div>
+      <h3>Period-table footer no longer mixes future and YTD numbers</h3>
+      <p>
+        The "YTD Total" row was summing <code>expectedSpendCents</code> + <code>billedTotalCents</code>
+        across <em>all</em> periods, which meant the variance line compared YTD actual (May) against
+        full-year expected (Jan–Dec). Most of the time the future months' actual was zero, so the
+        variance line read as a huge negative that didn't actually mean anything. Now the totals
+        skip future periods and the label stays "YTD Total" — internally renamed
+        <code>expectedToDate</code> / <code>actualToDate</code> so the next person to read the code
+        doesn't have to re-derive the intent.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · correctness</div>
+      <h3>Hero / unallocated reflects in-progress allocation edits</h3>
+      <p>
+        Before saving, the user could edit Jan's allocation to push <em>over</em> the ceiling — the
+        table's "Allocations exceed budget" warning fired, but the hero still showed
+        <code>$X unallocated</code> because it was reading
+        <code>budget.periods[*].plannedAmountCents</code> (the persisted value). Added an optional
+        <code>allocations?: Record&lt;number, number&gt;</code> prop to <code>BudgetHealthHero</code>; the
+        parent client passes its local map. The hero falls back to <code>plannedAmountCents</code> when
+        the prop is absent (it isn't, here, but keeping the fallback means the component is reusable
+        from a read-only context later).
+      </p>
+      <p>
+        Spotlight kept reading persisted values — a closed period's "planned" is historical; editing it
+        in the table while the spotlight is open is unusual and the user probably wants the spotlight
+        to show the saved snapshot, not an unsaved edit.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · correctness</div>
+      <h3><code>makeEmptyBilledCostForm()</code> uses <code>formatDateOnly</code></h3>
+      <p>
+        Was <code>new Date().toISOString().slice(0, 10)</code> — UTC-based, so a user in UTC+02:00 at
+        01:30 local time gets yesterday's date pre-filled. <code>src/lib/utils.ts</code> already has
+        <code>formatDateOnly(d)</code> that returns the local <code>yyyy-MM-dd</code> for exactly this
+        case. Now used.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · spec hygiene</div>
+      <h3>Spec README "Out of scope" list updated to match what shipped</h3>
+      <p>
+        The original out-of-scope bullet listed <code>getPerToolSpend</code> as "unchanged" on the
+        assumption Reports still called it. The implementation audit found no callers (Reports has
+        its own <code>fetchPerToolByPeriod</code>) and deleted the action. README now says so
+        explicitly so future readers don't infer the action still exists.
+      </p>
+    </div>
+
     <div class="entry">
       <div class="meta">considered + skipped · status enum alignment</div>
       <div class="callout-open callout">

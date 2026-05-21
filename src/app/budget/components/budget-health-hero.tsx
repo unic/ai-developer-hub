@@ -3,11 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatVariance } from "@/lib/utils";
 import type { BudgetWithCosts } from "@/types";
 import type { RunningCostsResult } from "@/lib/budget-utils";
+import { classifyPeriod } from "@/lib/reports/period-helpers";
 import { StatTile } from "./stat-tile";
 
 interface Props {
   budget: BudgetWithCosts;
   runningCosts: Record<number, RunningCostsResult>;
+  /**
+   * Optional in-progress allocation edits keyed by period id. When omitted,
+   * the hero reads `period.plannedAmountCents` (the persisted value). The
+   * parent client passes this so the hero's "unallocated" / "planned YTD"
+   * figures stay in sync while the user edits the period table.
+   */
+  allocations?: Record<number, number>;
 }
 
 type StatusKind = "no_data" | "under" | "on_track" | "at_risk" | "over";
@@ -57,29 +65,27 @@ function statusBadgeVariant(
   }
 }
 
-export function BudgetHealthHero({ budget, runningCosts }: Props) {
+export function BudgetHealthHero({ budget, runningCosts, allocations }: Props) {
   const today = new Date();
   const periods = budget.periods;
   const ceiling = budget.totalAmountCents;
 
   const totals = periods.reduce(
     (a, p) => {
-      const start = new Date(p.startDate);
-      const end = new Date(p.endDate);
-      const isYtd = start <= today;
-      const isClosed = end < today;
+      const phase = classifyPeriod(p, today);
+      const planned = allocations?.[p.id] ?? p.plannedAmountCents;
       const billed = p.billedTotalCents;
       const running = runningCosts[p.id]?.runningCostCents ?? 0;
       const actual = billed + running;
-      a.totalPlanned += p.plannedAmountCents;
-      if (isYtd) {
+      a.totalPlanned += planned;
+      if (phase !== "future") {
         a.ytdPeriodCount += 1;
-        a.plannedYtd += p.plannedAmountCents;
+        a.plannedYtd += planned;
         a.expectedYtd += p.expectedSpendCents;
         a.billedYtd += billed;
         a.runningYtd += running;
       }
-      if (isClosed && actual > 0) {
+      if (phase === "past" && actual > 0) {
         a.closedPeriodCount += 1;
         a.closedActual += actual;
       }

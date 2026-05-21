@@ -192,7 +192,11 @@ export function BudgetDetailClient({
         showBreadcrumb={showBreadcrumb}
       />
 
-      <BudgetHealthHero budget={budget} runningCosts={runningCosts} />
+      <BudgetHealthHero
+        budget={budget}
+        runningCosts={runningCosts}
+        allocations={allocations}
+      />
 
       <PastMonthSpotlight budget={budget} runningCosts={runningCosts} />
 

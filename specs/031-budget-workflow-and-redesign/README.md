@@ -60,10 +60,10 @@ What's **not** changing: the add/edit/delete billed-cost dialogs, allocation sav
 ## Out of scope
 
 - Data model: no schema changes. All redesign uses existing `annual_budgets`, `budget_periods`, `billed_costs`, `anthropic_workspace_costs`.
-- Server actions: `getActiveBudget`, `getBudgets`, `getBudgetWithCosts`, `getPerToolSpend`, `getRunningCostsForPeriod`, `updateBudgetAllocations`, `createBilledCost`, `updateBilledCost`, `deleteBilledCost` — all unchanged.
+- Server actions: `getActiveBudget`, `getBudgets`, `getBudgetWithCosts`, `getRunningCostsForPeriod`, `updateBudgetAllocations`, `createBilledCost`, `updateBilledCost`, `deleteBilledCost` — all unchanged.
 - Validation, the new-budget creation flow (`/budget/new`), and the budget edit/archive actions in `BudgetListActions`.
 - The Reports → Budget tab — that's spec 028 and lives at `/reports`.
-- Per-tool spending breakdown — removed from the detail view entirely. It's already covered by the Reports → Budget page (spec 028); duplicating it here was noise.
+- Per-tool spending breakdown — removed from the detail view entirely. It's already covered by the Reports → Budget page (spec 028); duplicating it here was noise. `getPerToolSpend` was originally listed here as "unchanged" on the assumption Reports still called it; an audit during implementation showed it had no callers (Reports has its own `fetchPerToolByPeriod` in `src/actions/reports.ts`), so the action itself was deleted in this PR.
 - Per-tool budgets (still derived from `expected_spend_cents`; spec 028 open question still applies but is not blocked by this).
 
 ## Implementation sketch
