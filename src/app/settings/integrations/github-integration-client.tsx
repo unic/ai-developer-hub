@@ -173,7 +173,9 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
               aria-describedby="token-help"
             />
             <p id="token-help" className="text-xs text-muted-foreground">
-              Requires <code>read:org</code> and <code>read:user</code> scopes.
+              Requires <code>read:org</code>, <code>read:user</code>, and{" "}
+              <code>manage_billing:copilot</code> scopes (the last for Copilot
+              billing and usage metrics).
             </p>
           </div>
 
@@ -291,7 +293,16 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
               placeholder="ghp_..."
               value={updateToken}
               onChange={(e) => setUpdateTokenValue(e.target.value)}
+              aria-describedby="update-token-help"
             />
+            <p
+              id="update-token-help"
+              className="text-xs text-muted-foreground"
+            >
+              Requires <code>read:org</code>, <code>read:user</code>, and{" "}
+              <code>manage_billing:copilot</code> scopes (the last for Copilot
+              billing and usage metrics).
+            </p>
             <div className="flex gap-2">
               <Button
                 size="sm"

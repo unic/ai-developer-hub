@@ -129,38 +129,6 @@ export async function triggerCopilotSync(): Promise<
   }
 }
 
-/**
- * Backfill Copilot usage metrics from `startDate` (UTC) up to today minus the
- * finalization lag. GitHub retains ~28 days of report history; older start
- * dates simply yield empty days. Idempotent — re-running overwrites existing
- * rows in the same date range.
- */
-export async function triggerCopilotBackfill(
-  startDateIso: string,
-): Promise<ActionResult<{ syncEventId: number }>> {
-  const admin = await requireAdmin();
-  if (!admin) return { success: false, error: "Unauthorized" };
-
-  const startDate = new Date(startDateIso);
-  if (Number.isNaN(startDate.getTime())) {
-    return { success: false, error: "Invalid backfill start date" };
-  }
-
-  try {
-    const result = await runCopilotSource(Number(admin.id), {
-      backfillStartDate: startDate,
-    });
-
-    revalidatePath("/copilot");
-    revalidatePath("/copilot/analytics");
-
-    return { success: true, data: { syncEventId: result.eventId } };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: message };
-  }
-}
-
 export async function getCopilotSyncStatus(): Promise<
   ActionResult<CopilotSyncStatus>
 > {
