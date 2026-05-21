@@ -29,55 +29,147 @@ export async function POST(request: NextRequest) {
     const message = err instanceof Error ? err.message : "Server misconfigured";
     return NextResponse.json(
       { success: false, error: message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
+  // Read incoming Content-Type up front so we can both branch on it and
+  // include it in any failure-log message (helps diagnose bad callers like
+  // Power Automate flows that omit the multipart boundary).
+  const contentType = request.headers.get("content-type") ?? "";
+  const headerVendor = request.headers.get("x-vendor");
+
+  let pdfBuffer: Buffer;
+  let filename: string;
+
   try {
-    // Parse multipart form data
-    const formData = await request.formData();
-    const file = formData.get("invoice");
+    if (contentType.toLowerCase().startsWith("application/pdf")) {
+      // Raw PDF body path — used by callers (e.g. Power Automate) that can't
+      // easily build a multipart envelope. Filename comes from X-Filename;
+      // optional X-Vendor lets the caller skip the default "Anthropic".
+      filename = request.headers.get("x-filename")?.trim() || "invoice.pdf";
 
-    if (!file || !(file instanceof File)) {
+      // Validate Content-Length before reading the body so we reject
+      // oversized requests without allocating a large buffer. Keep the
+      // post-read check below as a fallback when the header is absent.
+      const contentLengthHeader = request.headers.get("content-length");
+      const contentLength = contentLengthHeader !== null ? parseInt(contentLengthHeader, 10) : null;
+      if (contentLength !== null && !isNaN(contentLength) && contentLength > MAX_FILE_SIZE) {
+        await logIngestionAttempt({
+          filename,
+          outcome: "failed",
+          errorMessage: "File exceeds 10 MB limit",
+          channel: "api",
+        });
+        return NextResponse.json(
+          { success: false, error: "File exceeds 10 MB limit" },
+          { status: 413 },
+        );
+      }
+
+      const arrayBuffer = await request.arrayBuffer();
+      pdfBuffer = Buffer.from(arrayBuffer);
+
+      if (pdfBuffer.byteLength > MAX_FILE_SIZE) {
+        await logIngestionAttempt({
+          filename,
+          outcome: "failed",
+          errorMessage: "File exceeds 10 MB limit",
+          channel: "api",
+        });
+        return NextResponse.json(
+          { success: false, error: "File exceeds 10 MB limit" },
+          { status: 413 },
+        );
+      }
+
+      // Cheap sanity check: a real PDF starts with "%PDF-". This catches the
+      // common Power Automate mistake of POSTing a base64 string with
+      // Content-Type: application/pdf instead of decoded binary.
+      if (
+        pdfBuffer.byteLength < 5 ||
+        pdfBuffer.subarray(0, 5).toString("ascii") !== "%PDF-"
+      ) {
+        const error =
+          "Body is not a valid PDF (missing %PDF- header). If sending from Power Automate, wrap the body in base64ToBinary(...).";
+        await logIngestionAttempt({
+          filename,
+          outcome: "failed",
+          errorMessage: error,
+          channel: "api",
+        });
+        return NextResponse.json({ success: false, error }, { status: 400 });
+      }
+    } else if (contentType.toLowerCase().startsWith("multipart/form-data")) {
+      // Existing multipart path — preserved for browser uploads and any
+      // callers already sending properly-formed multipart bodies.
+      const boundaryMatch = contentType.match(/;\s*boundary=(?:"([^"]+)"|([^;]+))/i);
+      const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2]?.trim();
+
+      if (!boundary) {
+        const error =
+          "Content-Type multipart/form-data is missing a boundary parameter.";
+        await logIngestionAttempt({
+          outcome: "failed",
+          errorMessage: error,
+          channel: "api",
+        });
+        return NextResponse.json({ success: false, error }, { status: 400 });
+      }
+
+      const formData = await request.formData();
+      const file = formData.get("invoice");
+
+      if (!file || !(file instanceof File)) {
+        await logIngestionAttempt({
+          outcome: "failed",
+          errorMessage: "No PDF file provided",
+          channel: "api",
+        });
+        return NextResponse.json(
+          { success: false, error: "No PDF file provided" },
+          { status: 400 },
+        );
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        await logIngestionAttempt({
+          filename: file.name,
+          outcome: "failed",
+          errorMessage: "File exceeds 10 MB limit",
+          channel: "api",
+        });
+        return NextResponse.json(
+          { success: false, error: "File exceeds 10 MB limit" },
+          { status: 400 },
+        );
+      }
+
+      if (file.type !== "application/pdf") {
+        await logIngestionAttempt({
+          filename: file.name,
+          outcome: "failed",
+          errorMessage: "File must be a PDF",
+          channel: "api",
+        });
+        return NextResponse.json(
+          { success: false, error: "File must be a PDF" },
+          { status: 400 },
+        );
+      }
+
+      pdfBuffer = Buffer.from(await file.arrayBuffer());
+      filename = file.name;
+    } else {
+      const error = `Unsupported Content-Type "${contentType || "(none)"}". Use application/pdf (raw body) or multipart/form-data with field "invoice".`;
       await logIngestionAttempt({
         outcome: "failed",
-        errorMessage: "No PDF file provided",
+        errorMessage: error,
         channel: "api",
       });
-      return NextResponse.json(
-        { success: false, error: "No PDF file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error }, { status: 415 });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      await logIngestionAttempt({
-        filename: file.name,
-        outcome: "failed",
-        errorMessage: "File exceeds 10 MB limit",
-        channel: "api",
-      });
-      return NextResponse.json(
-        { success: false, error: "File exceeds 10 MB limit" },
-        { status: 400 }
-      );
-    }
-
-    if (file.type !== "application/pdf") {
-      await logIngestionAttempt({
-        filename: file.name,
-        outcome: "failed",
-        errorMessage: "File must be a PDF",
-        channel: "api",
-      });
-      return NextResponse.json(
-        { success: false, error: "File must be a PDF" },
-        { status: 400 }
-      );
-    }
-
-    // Read the PDF buffer
-    const pdfBuffer = Buffer.from(await file.arrayBuffer());
     const objectKey = `invoices/${randomUUID()}.pdf`;
 
     // Extract invoice fields from raw bytes BEFORE uploading to R2
@@ -90,24 +182,22 @@ export async function POST(request: NextRequest) {
     if (!extraction.success || !extraction.data) {
       const error = "Could not extract required fields from the provided PDF";
       await logIngestionAttempt({
-        filename: file.name,
+        filename,
         outcome: "failed",
         errorMessage: error,
         channel: "api",
       });
-      return NextResponse.json(
-        { success: false, error },
-        { status: 422 }
-      );
+      return NextResponse.json({ success: false, error }, { status: 422 });
     }
 
     const { invoiceNumber, invoiceDate, amountCents, vendor } = extraction.data;
 
     // Require the three critical fields
     if (!invoiceNumber || !invoiceDate || amountCents === null) {
-      const error = "Could not extract required fields (invoiceNumber, invoiceDate, amountCents) from the provided PDF";
+      const error =
+        "Could not extract required fields (invoiceNumber, invoiceDate, amountCents) from the provided PDF";
       await logIngestionAttempt({
-        filename: file.name,
+        filename,
         vendor: vendor ?? null,
         invoiceNumber: invoiceNumber ?? null,
         invoiceDate: invoiceDate ?? null,
@@ -116,10 +206,7 @@ export async function POST(request: NextRequest) {
         errorMessage: error,
         channel: "api",
       });
-      return NextResponse.json(
-        { success: false, error },
-        { status: 422 }
-      );
+      return NextResponse.json({ success: false, error }, { status: 422 });
     }
 
     // Check for duplicates before uploading
@@ -130,7 +217,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       const error = `Invoice ${invoiceNumber} already exists`;
       await logIngestionAttempt({
-        filename: file.name,
+        filename,
         vendor: vendor ?? null,
         invoiceNumber,
         invoiceDate,
@@ -145,7 +232,7 @@ export async function POST(request: NextRequest) {
           error,
           data: { existingInvoiceId: existing.id },
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -156,13 +243,13 @@ export async function POST(request: NextRequest) {
         Key: objectKey,
         Body: pdfBuffer,
         ContentType: "application/pdf",
-      })
+      }),
     );
 
     const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
 
     // Normalize vendor once so filter evaluation and persistence are consistent
-    const resolvedVendor = vendor ?? "Anthropic";
+    const resolvedVendor = vendor ?? headerVendor ?? "Anthropic";
 
     // Evaluate ingestion filters before budget linking
     const filterResult = await evaluateIngestionFilters({
@@ -187,7 +274,7 @@ export async function POST(request: NextRequest) {
         .returning({ id: invoices.id });
 
       await logIngestionAttempt({
-        filename: file.name,
+        filename,
         vendor: resolvedVendor,
         invoiceNumber,
         invoiceDate,
@@ -261,7 +348,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logIngestionAttempt({
-      filename: file.name,
+      filename,
       vendor: resolvedVendor,
       invoiceNumber,
       invoiceDate,
@@ -287,19 +374,23 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Invoice ingestion error:", err);
-    const message = err instanceof Error ? err.message : "An unexpected error occurred";
+    const message =
+      err instanceof Error ? err.message : "An unexpected error occurred";
     try {
       await logIngestionAttempt({
         outcome: "failed",
-        errorMessage: message,
+        errorMessage: `${message} (Content-Type: ${contentType || "(none)"})`,
         channel: "api",
       });
     } catch {
       // Best-effort logging — don't mask the original error
     }
     return NextResponse.json(
-      { success: false, error: "An unexpected error occurred. Please try again." },
-      { status: 500 }
+      {
+        success: false,
+        error: "An unexpected error occurred. Please try again.",
+      },
+      { status: 500 },
     );
   }
 }
