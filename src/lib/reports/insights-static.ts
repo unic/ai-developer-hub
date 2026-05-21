@@ -41,6 +41,18 @@ export interface InsightInput {
   /** Most recent past month variance percent (Actual vs Planned); null when not available. */
   lastMonthVariancePct: number | null;
   lastMonthLabel: string | null;
+  /** Optional Anthropic workspace alert summary; consumers that don't have it pass undefined. */
+  workspaceAlert?: {
+    topName: string | null;
+    topUtilizationPct: number | null;
+    workspacesOverEighty: number;
+  } | null;
+  /** Optional sync freshness signal; consumers that don't have it pass undefined. */
+  sync?: {
+    lastSyncedAt: Date | null;
+    ageMinutes: number | null;
+    isStale: boolean;
+  } | null;
 }
 
 const SIGNIFICANT_LICENSE_DELTA = 5;
@@ -172,13 +184,67 @@ function pastMonthInsight(input: InsightInput): Insight | null {
   };
 }
 
+function workspaceLimitInsight(input: InsightInput): Insight | null {
+  const alert = input.workspaceAlert;
+  if (!alert || !alert.topName || alert.topUtilizationPct === null) return null;
+  if (alert.topUtilizationPct < 80) return null;
+  const severity: InsightSeverity =
+    alert.topUtilizationPct >= 100 ? "danger" : "warn";
+  const body =
+    alert.workspacesOverEighty > 1
+      ? `${alert.topName} is at ${alert.topUtilizationPct}% of its monthly cap (+${alert.workspacesOverEighty - 1} more workspace${alert.workspacesOverEighty - 1 === 1 ? "" : "s"} over 80%).`
+      : `${alert.topName} is at ${alert.topUtilizationPct}% of its monthly cap.`;
+  return {
+    key: "workspace-limit",
+    severity,
+    icon: "warn",
+    headline: "Anthropic workspace approaching limit",
+    body,
+  };
+}
+
+function syncFreshnessInsight(input: InsightInput): Insight | null {
+  const sync = input.sync;
+  if (!sync) return null;
+  if (sync.lastSyncedAt === null) {
+    return {
+      key: "sync-missing",
+      severity: "warn",
+      icon: "warn",
+      headline: "Anthropic data not yet synced",
+      body: "Spend figures may be incomplete until the first sync finishes.",
+    };
+  }
+  if (!sync.isStale) {
+    const age = sync.ageMinutes ?? 0;
+    const ageLabel =
+      age < 60 ? `${age} min ago` : `${Math.floor(age / 60)} hour${Math.floor(age / 60) === 1 ? "" : "s"} ago`;
+    return {
+      key: "sync-fresh",
+      severity: "info",
+      icon: "shield",
+      headline: "All sources synced",
+      body: `Anthropic + invoice data refreshed ${ageLabel}.`,
+    };
+  }
+  return {
+    key: "sync-stale",
+    severity: "warn",
+    icon: "warn",
+    headline: "Sync data is stale",
+    body: `Anthropic data is more than ${Math.floor((sync.ageMinutes ?? 0) / 60)}h old — figures may lag reality.`,
+  };
+}
+
 /** Return up to four insights in priority order. Rules that return null are dropped. */
 export function getStaticInsights(input: InsightInput): Insight[] {
   const candidates = [
     budgetHealthInsight(input),
+    workspaceLimitInsight(input),
     topLicenseMover(input, "up"),
     spendInsight(input),
     pastMonthInsight(input),
+    syncFreshnessInsight(input),
     topLicenseMover(input, "down"),
   ];
   return candidates.filter((i): i is Insight => i !== null).slice(0, 4);

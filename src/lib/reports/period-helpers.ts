@@ -1,6 +1,24 @@
-import type { BudgetForecast } from "@/types";
+import type { BudgetForecast, ReportOverviewData } from "@/types";
 
 export type PeriodPhase = "past" | "current" | "future";
+
+/**
+ * Trend direction + magnitude between the two most recent billed periods.
+ * Used by the Reports Overview page and the admin dashboard's KPI grid.
+ */
+export function computeSpendTrend(historicalPeriods: { billedCents: number }[]): {
+  spendTrend: ReportOverviewData["spendTrend"];
+  spendTrendPct: number;
+} {
+  const lastTwo = historicalPeriods.slice(-2);
+  if (lastTwo.length < 2 || lastTwo[0].billedCents === 0) {
+    return { spendTrend: "flat", spendTrendPct: 0 };
+  }
+  const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
+  const pct = (diff / lastTwo[0].billedCents) * 100;
+  if (Math.abs(pct) < 1) return { spendTrend: "flat", spendTrendPct: pct };
+  return { spendTrend: diff > 0 ? "up" : "down", spendTrendPct: pct };
+}
 
 export function classifyPeriod(
   period: { startDate: string; endDate: string },

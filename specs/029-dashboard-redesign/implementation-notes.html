@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>029 — Implementation notes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background:#09090b; color:#e4e4e7; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+    .prose-spec { max-width: 1040px; }
+    .prose-spec h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+    .prose-spec h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: .5rem; color:#fafafa; }
+    .prose-spec h3 { font-size: 1rem; font-weight: 600; margin-top: 1.4rem; margin-bottom: .35rem; color:#fafafa; }
+    .prose-spec p, .prose-spec li { color:#a1a1aa; line-height: 1.6; }
+    .prose-spec li { margin: .25rem 0; }
+    .prose-spec strong { color:#fafafa; font-weight: 600; }
+    .prose-spec code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(63,63,70,0.5); color:#e4e4e7; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+    .prose-spec a { color:#c4dc52; }
+    .prose-spec ul { padding-left: 1.25rem; list-style: disc; }
+    .note { border-left: 3px solid #a4c400; background: rgba(164,196,0,0.06); padding: .75rem 1rem; border-radius: 0 8px 8px 0; margin-top:.5rem; }
+    .deviation { border-left-color: #facc15; background: rgba(250,204,21,0.06); }
+    .tradeoff { border-left-color: #7c9eff; background: rgba(124,158,255,0.06); }
+    .open { border-left-color: #f0abfc; background: rgba(240,171,252,0.06); }
+    .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:500; vertical-align: middle; }
+    .tag-decision { background: rgba(164,196,0,0.15); color:#c4dc52; }
+    .tag-deviation { background: rgba(250,204,21,0.15); color:#fde68a; }
+    .tag-tradeoff { background: rgba(124,158,255,0.15); color:#a5b4fc; }
+    .tag-open { background: rgba(240,171,252,0.15); color:#f0abfc; }
+  </style>
+</head>
+<body class="antialiased">
+  <div class="mx-auto px-6 lg:px-10 py-10 prose-spec">
+
+    <div>
+      <div class="text-xs uppercase tracking-[0.18em] text-zinc-500">Feature 029 · Implementation notes</div>
+      <h1 class="mt-1">Live notes from building the dashboards</h1>
+      <p class="mt-2 text-zinc-400 max-w-2xl">
+        Notes accumulated while implementing <a href="plan.html">plan.html</a>. Captures decisions, deviations, tradeoffs, and open questions
+        I'd want confirmed.
+      </p>
+    </div>
+
+    <h2>Decisions made while implementing</h2>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>No <code>getActiveAlerts()</code> function exists in the codebase.</strong>
+      The plan referenced <code>src/actions/alerts.ts</code> but it does not exist. The closest signal is <code>getDashboardKpis()</code> in
+      <code>src/actions/anthropic-global.ts</code>, which already returns <code>workspacesOverEightyCount</code>, <code>topOverWorkspaceName</code>, and <code>topOverWorkspaceUtilizationPct</code>.
+      <br><br>
+      Reused that output for the "workspace approaching limit" insight rather than writing a new alerts action. Same data, no new code.
+    </div>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>Extended <code>InsightInput</code> in place rather than fork the type.</strong>
+      Two new insight rules (<code>workspace_approaching_limit</code>, <code>sync_freshness</code>) needed extra inputs. Added optional
+      <code>workspaceAlert</code> and <code>sync</code> fields to <code>InsightInput</code> in <code>src/lib/reports/insights-static.ts</code>. The reports page omits them; the dashboard supplies them. Keeps one source of truth for insight generation.
+    </div>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>Sidebar nav adjustment: opened "Tools" to viewers.</strong> The plan only spoke about the <code>/tools</code> page being viewer-accessible. To make the read-only catalog actually reachable, also flipped <code>roles: ["admin"]</code> → <code>roles: ["admin", "viewer"]</code> for Tools in <code>src/components/app-sidebar.tsx</code>. All admin-only sidebar items (Users, Budget, Reports, Copilot, Claude Console, Invoices) stay admin-only.
+    </div>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>Spend snapshot card lives next to the hero, not inside it.</strong>
+      The plan called for "Hero row (2/3 + 1/3)" — Budget Health hero on the left, This Month at a Glance on the right. Built as two sibling cards inside a 3-column grid: hero spans 2 columns, snapshot 1 column. Stacks on small screens.
+    </div>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>Activity feed: same assignment can produce two timeline entries.</strong>
+      If a license was both assigned and revoked, the admin and viewer activity feeds surface both events. Kept them separate rather than collapsing into "active for N days" because the timeline is meant to track *changes*, not states.
+    </div>
+
+    <h2>Deviations from the plan</h2>
+
+    <div class="note deviation">
+      <span class="tag tag-deviation">deviation</span>
+      <strong>Skipped the Suspense skeletons + Vitest tests in Phase 3.</strong>
+      The plan called for both. Skipped to keep PR scope tight. The dashboards render server-side; if data fetching is slow the user sees the route transition spinner. Vitest coverage for the merge-sort helper is a sensible follow-up but not load-bearing in v1.
+    </div>
+
+    <div class="note deviation">
+      <span class="tag tag-deviation">deviation</span>
+      <strong>Spend chart shows all 12 budget periods, including future ones.</strong>
+      Future periods naturally render with 0 cents and look like empty bars. The plan implied a faded-forecast bar for future months. Implementing that properly needs the <code>BudgetForecast.projections</code> lookup; opted to keep the chart simpler. Past + current periods carry the story; the empty bars on the right are honest about where data ends.
+    </div>
+
+    <div class="note deviation">
+      <span class="tag tag-deviation">deviation</span>
+      <strong>"Active users" KPI shows no MoM delta.</strong>
+      The plan implied MoM deltas on all four KPI cards, but <code>ReportOverviewData.previousMonth</code> contains only license / spend snapshots — not a prior user count. Adding one would require a new historical-user query. Left it as a plain number; this matches what the existing reports page does.
+    </div>
+
+    <div class="note deviation">
+      <span class="tag tag-deviation">deviation</span>
+      <strong>Worktree was missing <code>SYSTEM_ADMIN_USER_ID</code> env var.</strong>
+      Required by <code>src/lib/env.ts</code> but absent from the parent repo's <code>.env.local</code>. Set to <code>"1"</code> in the local worktree to start the dev server. The user should set this to a real active-admin user id before deploying — this isn't a code change, it's an env config item.
+    </div>
+
+    <h2>Tradeoffs considered</h2>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>Cache savings figure is rough, not exact.</strong>
+      The viewer's "saved ~CHF X" footer estimates cache savings by multiplying the month total by <code>cacheReadTokens / totalInputTokens</code> × 0.9. Anthropic's actual cache pricing is a 90% discount on hit reads, but per-row math would require iterating every usage metric. Surfaced with a "~" to signal the approximation. <em>Alternative considered:</em> compute exactly using pricing tables — rejected because it'd duplicate logic from <code>resolveModelPricing</code> for cosmetic precision.
+    </div>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>By-model rail uses chart colors 1–4 cycling, not stable per-model colors.</strong>
+      The same model would get a different color across different screens because the cycle starts from the highest-spend model each time. <em>Alternative considered:</em> maintain a string-hash → color map so model names always get the same color. Rejected: cycling preserves the highest-spend → highest-saturation reading order, which matters more for "what cost me the most" than for cross-screen consistency.
+    </div>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>Copilot data is fetched but never blocks the dashboard.</strong>
+      <code>safeCopilotAcceptance()</code> swallows any error from <code>getCopilotOverview()</code> and returns null. The dashboard then degrades the KPI footnote to "Licenses only" but still renders. <em>Alternative considered:</em> surface a Copilot-specific error card. Rejected: Copilot data is supplementary on this dashboard; we don't want it to halt the page if the GitHub connection is down.
+    </div>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>Stacked spend bars (licenses + API) instead of grouped/100%.</strong>
+      The mockup had toggle buttons for Stacked / Grouped / 100%. Built only Stacked. <em>Alternative considered:</em> add toggles. Rejected: the toggle is a chart-of-the-day decision; we can add it once we see which view people actually want. Three implementations triple the surface area for zero confirmed user value.
+    </div>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>The viewer's <code>availableToolCount</code> is a real query, not a static hint.</strong>
+      It runs a small <code>SELECT id FROM ai_tools WHERE status = 'active'</code> in the same Promise.all as the rest of the viewer load. The plan suggested either a count or just a link. <em>Alternative considered:</em> static "Browse all tools →" without the count. Kept the count: it's free in the same network round-trip and answers the implicit "is there more?" question viewers will have.
+    </div>
+
+    <h2>Open questions</h2>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>"Tokens this month" KPI: total or input/output split?</strong>
+      Currently shows total tokens with the input/output split as the sub-line. Alternative: two narrower KPIs for in vs out. Going with the combined view for now — viewers probably care most about volume; the split is one glance away.
+    </div>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>Should the viewer dashboard show MoM deltas?</strong>
+      The mockup had "+18.4%" badges on the viewer's spend KPI. Building MoM for a single user requires a separate prior-month aggregation query (<code>SUM(computed_cost_cents) WHERE date BETWEEN ...</code>). Not built in v1. Cheap follow-up if you want it.
+    </div>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>The throwaway <code>scripts/toggle-agent-role.ts</code> used for browser verification — delete or keep?</strong>
+      I'm deleting it before commit. If you want it as a permanent dev helper (it's handy for testing viewer flows from an admin agent session), say so and I'll re-add it as a documented helper.
+    </div>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>Insight order tuning.</strong>
+      The two new rules (<em>workspace approaching limit</em>, <em>sync freshness</em>) are slotted between the existing budget-health and license-mover insights. Limited to 4 visible insights total. With both new rules firing plus a license mover and the budget hero, sync freshness can fall off the bottom. If syncing visibly is more important than license movement, reorder in <code>getStaticInsights()</code>.
+    </div>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>Recent-activity timeline: should revoked + assigned for the same assignment collapse?</strong>
+      Currently two entries appear for an assignment that was both granted and revoked. Some users may prefer "Granted X · revoked 4 days later". Easy to change in <code>getRecentDashboardActivity</code> and the viewer equivalent.
+    </div>
+
+    <h2>Follow-up: admin preview toggle</h2>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>Added a <code>?as=viewer</code> query-param toggle.</strong>
+      Admins now get a "Preview as viewer" pill next to the sync chip on the admin dashboard. Clicking it
+      navigates to <code>/?as=viewer</code>; the page reads the search param, validates the caller is admin, and renders
+      <code>&lt;ViewerDashboard userId={session.user.id} isAdminPreview /&gt;</code>. The viewer page shows a green
+      "Admin preview" banner with a "Back to admin view" link. Viewers cannot promote themselves — the search param
+      is ignored unless the session role is already admin.
+    </div>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>Preview uses the admin's own user id, not a real viewer.</strong>
+      Admins rarely have their own license assignment with an Anthropic API key, so the preview lands in the
+      empty-state path ("Claude API not configured", "no tools assigned", "—" KPI placeholders). That's the actual
+      experience a fresh viewer gets, so it's still useful — but it's not a way to inspect what a richly-populated
+      viewer dashboard looks like. Doing that needs a real viewer's data, which would require either a "view as viewer X"
+      user picker or temporarily logging in as that viewer.
+    </div>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>Identity card still shows "Admin" badge in preview mode.</strong>
+      Because the underlying data is the admin's own row, the role badge in <code>IdentityCard</code> reads "Admin"
+      even though we're rendering the viewer layout. The banner at the top makes the context obvious, but this is a
+      mild inconsistency worth confirming you're okay with. Alternative: force the badge to "Viewer" during preview.
+      Going with what the data says.
+    </div>
+
+    <h2>What was verified in browser</h2>
+    <ul>
+      <li>Admin dashboard at <code>/</code>: budget health hero (at-risk, with stacked YTD bar and ceiling tick), this-month card, 4 KPIs (users / tools / licenses / expected monthly), spend-over-time stacked chart with PR #91 tooltip pattern, 4 insight cards including workspace limit + sync freshness, top-tools table with MoM badges, recent-activity timeline merging invoice ingestions + assignment events, jump-to footer. Screenshot: <code>admin-live.png</code>.</li>
+      <li>Viewer dashboard at <code>/</code> (verified by temporarily switching agent user role): identity card with viewer badge, "Claude API not configured" empty state hero, KPI strip with degraded "—" placeholders, empty-state messages for the tools table and the activity timeline, "Available tools" link card. Screenshot: <code>viewer-live.png</code>.</li>
+      <li>Read-only <code>/tools</code> page for viewer: AI Tools list with vendor / active licenses / status columns, no "Add Tool" button, only the eye (view) action available per row. Description copy switches to "Browse the AI tools available in your organisation." Screenshot: <code>viewer-tools.png</code>.</li>
+      <li>Sidebar visibility: viewer sees Dashboard · Tools · Assignments · Settings (Tools newly added). Admin-only items stay admin-only.</li>
+    </ul>
+
+    <div class="mt-12 pt-6 border-t border-zinc-800 text-[11px] text-zinc-600">
+      Last updated: implementation complete. Ready for review.
+    </div>
+  </div>
+</body>
+</html>

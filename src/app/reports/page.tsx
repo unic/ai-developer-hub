@@ -11,7 +11,7 @@ import {
 } from "@/actions/budget";
 import { OverviewPanel } from "@/components/reports/reports-charts-panel";
 import { buildCircleReport } from "@/lib/reports/circle-report";
-import { classifyPeriod } from "@/lib/reports/period-helpers";
+import { classifyPeriod, computeSpendTrend } from "@/lib/reports/period-helpers";
 import { getLastMonthEnd } from "@/lib/utils";
 import type {
   ReportOverviewData,
@@ -163,16 +163,3 @@ export default async function ReportsOverviewPage() {
   );
 }
 
-function computeSpendTrend(historicalPeriods: { billedCents: number }[]): {
-  spendTrend: ReportOverviewData["spendTrend"];
-  spendTrendPct: number;
-} {
-  const lastTwo = historicalPeriods.slice(-2);
-  if (lastTwo.length < 2 || lastTwo[0].billedCents === 0) {
-    return { spendTrend: "flat", spendTrendPct: 0 };
-  }
-  const diff = lastTwo[1].billedCents - lastTwo[0].billedCents;
-  const pct = (diff / lastTwo[0].billedCents) * 100;
-  if (Math.abs(pct) < 1) return { spendTrend: "flat", spendTrendPct: pct };
-  return { spendTrend: diff > 0 ? "up" : "down", spendTrendPct: pct };
-}

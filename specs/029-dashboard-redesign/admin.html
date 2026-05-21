@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — AI Developer Hub (mockup)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: "#f6fbe5",
+              100: "#ecf6c4",
+              200: "#dcec8e",
+              300: "#c4dc52",
+              400: "#a4c400",
+              500: "#8aa700",
+              600: "#6e8500",
+              700: "#566600",
+              800: "#3f4a00",
+            },
+            ink: {
+              0: "#fafafa",
+              50: "#f4f4f5",
+              100: "#e4e4e7",
+              200: "#a1a1aa",
+              300: "#71717a",
+              400: "#52525b",
+              500: "#3f3f46",
+              600: "#27272a",
+              700: "#1f1f22",
+              800: "#18181b",
+              900: "#101012",
+              950: "#09090b",
+            },
+            danger: "#f87171",
+            warn: "#facc15",
+            ok: "#4ade80",
+          },
+          fontFamily: {
+            sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Inter', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .grid-bg {
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(164,196,0,0.08), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(124,158,255,0.04), transparent 60%),
+        #09090b;
+    }
+    .card {
+      background: rgba(24,24,27,0.7);
+      border: 1px solid rgba(63,63,70,0.6);
+      backdrop-filter: blur(6px);
+    }
+    .card-soft { background: rgba(24,24,27,0.55); }
+    .hairline { border-color: rgba(63,63,70,0.55); }
+    .ring-brand { box-shadow: 0 0 0 1px rgba(164,196,0,0.3) inset; }
+    .stripe::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(135deg, rgba(248,113,113,0.08) 0 6px, transparent 6px 12px);
+      pointer-events: none; border-radius: inherit;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 18px; font-variant-numeric: tabular-nums; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; line-height: 16px; border: 1px solid rgba(63,63,70,0.7); background: rgba(24,24,27,0.6); color: #d4d4d8; }
+    .pulse {
+      width: 8px; height: 8px; border-radius: 999px; background: #4ade80;
+      box-shadow: 0 0 0 0 rgba(74,222,128,0.6);
+      animation: pulse 2.5s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.55); }
+      80% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+      100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+    }
+  </style>
+</head>
+<body class="grid-bg text-zinc-100 antialiased">
+  <!-- App shell mock: side rail + main -->
+  <div class="min-h-screen flex">
+    <!-- Side rail (collapsed look just to provide frame; not part of redesign) -->
+    <aside class="hidden md:flex w-14 flex-col items-center gap-2 border-r hairline py-4 bg-ink-950/60">
+      <div class="size-9 rounded-md bg-brand-400/10 ring-brand flex items-center justify-center text-brand-400">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h6M4 6h16M4 18h10"/></svg>
+      </div>
+      <div class="mt-2 flex flex-col gap-2 text-zinc-400">
+        <button class="size-9 rounded-md hover:bg-ink-700/60" title="Dashboard"><span class="block mx-auto" style="width:18px;height:18px;background:currentColor;mask:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path d=%22M3 12l9-9 9 9-9 9z%22 fill=%22black%22/></svg>') center/contain no-repeat"></span></button>
+        <button class="size-9 rounded-md hover:bg-ink-700/60">📊</button>
+        <button class="size-9 rounded-md hover:bg-ink-700/60">🧩</button>
+        <button class="size-9 rounded-md hover:bg-ink-700/60">👥</button>
+        <button class="size-9 rounded-md hover:bg-ink-700/60">💳</button>
+      </div>
+    </aside>
+
+    <main class="flex-1 min-w-0">
+      <!-- Top bar -->
+      <div class="px-6 lg:px-10 pt-6 lg:pt-8 pb-2 flex flex-col gap-2">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div class="text-xs uppercase tracking-[0.18em] text-zinc-500">Overview</div>
+            <h1 class="text-2xl lg:text-3xl font-semibold tracking-tight mt-1">Good morning, Tobias</h1>
+            <p class="text-sm text-zinc-400 mt-1">May 2026 · 21 days in · here's where AI spend, licenses and adoption stand today.</p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="chip"><span class="pulse"></span>All sources synced · 12 min ago</span>
+            <button class="chip hover:bg-ink-700/60">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              Last 30 days
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <button class="chip hover:bg-ink-700/60">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              Export
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero row: Budget health + this month -->
+      <section class="px-6 lg:px-10 pt-4 grid gap-4 lg:grid-cols-3">
+        <!-- Budget health hero -->
+        <div class="lg:col-span-2 card rounded-xl p-5 lg:p-6 border-red-500/40 relative">
+          <div class="grid gap-5 lg:grid-cols-3 items-center">
+            <div class="lg:col-span-2 flex items-start gap-4">
+              <div class="size-12 shrink-0 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-lg font-semibold">Budget health · at risk</h3>
+                  <span class="badge bg-red-500/15 text-red-300 ring-1 ring-red-500/30">Projected CHF 12,500 over</span>
+                </div>
+                <p class="mt-1 text-sm text-zinc-400 leading-relaxed">
+                  YTD spend is <span class="font-medium text-zinc-100">CHF 78,400</span>
+                  (43.6% of CHF 180,000 ceiling). Linear trend lands at <span class="font-medium text-zinc-100">CHF 192,500</span>
+                  by year-end. April was <span class="text-red-300 font-medium">7.2% over</span> plan, driven by Anthropic API.
+                </p>
+              </div>
+            </div>
+            <div class="lg:text-right">
+              <a href="#" class="inline-flex items-center justify-center rounded-md bg-brand-400 hover:bg-brand-500 text-ink-900 font-medium text-sm px-4 py-2">
+                Open Budget report
+                <svg class="ml-2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Stacked progress bar: ytd actual + projected, ceiling tick -->
+          <div class="mt-6">
+            <div class="flex justify-between text-[11px] text-zinc-500 mb-2 tabular">
+              <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>
+              <span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
+            </div>
+            <div class="relative h-3 rounded-full bg-ink-700/70 overflow-hidden">
+              <!-- Actual YTD (43.6%) -->
+              <div class="absolute inset-y-0 left-0 bg-brand-400" style="width:43.6%"></div>
+              <!-- Projected portion (from 43.6% to 107%) shown as striped destructive -->
+              <div class="absolute inset-y-0 stripe" style="left:43.6%; width:63.4%; background: rgba(248,113,113,0.35);"></div>
+              <!-- Ceiling tick at 100% -->
+              <div class="absolute inset-y-[-4px] w-px bg-zinc-300/80" style="left:calc(100% - 5.8%);"></div>
+            </div>
+            <div class="mt-2 flex justify-between text-[11px] text-zinc-400 tabular">
+              <span><span class="dot bg-brand-400 mr-1"></span>YTD CHF 78,400</span>
+              <span><span class="dot mr-1" style="background:rgba(248,113,113,0.6)"></span>Projected CHF 114,100 remaining</span>
+              <span class="text-zinc-300">Ceiling CHF 180,000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- This month at a glance -->
+        <div class="card rounded-xl p-5 lg:p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[11px] uppercase tracking-[0.18em] text-zinc-500">This month</div>
+              <div class="text-lg font-semibold">May 2026</div>
+            </div>
+            <span class="badge bg-zinc-700/60 text-zinc-200">21 / 31 days</span>
+          </div>
+
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <div>
+              <div class="text-[11px] uppercase tracking-wide text-zinc-500">Spend so far</div>
+              <div class="text-2xl font-semibold tabular mt-1">CHF 16,240</div>
+              <div class="text-[11px] text-zinc-400 mt-0.5">of <span class="tabular">CHF 22,300</span> plan</div>
+            </div>
+            <div>
+              <div class="text-[11px] uppercase tracking-wide text-zinc-500">Projected</div>
+              <div class="text-2xl font-semibold tabular mt-1">CHF 23,950</div>
+              <div class="text-[11px] mt-0.5">
+                <span class="badge bg-red-500/15 text-red-300 ring-1 ring-red-500/30">+7.4% over</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 30-day mini area -->
+          <div class="mt-4">
+            <svg viewBox="0 0 320 70" class="w-full h-16" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="spendArea" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#a4c400" stop-opacity="0.45"/>
+                  <stop offset="100%" stop-color="#a4c400" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,60 L10,58 L20,55 L30,56 L40,52 L50,48 L60,50 L70,46 L80,44 L90,40 L100,42 L110,38 L120,36 L130,34 L140,30 L150,32 L160,28 L170,26 L180,22 L190,24 L200,20 L210,18 L220,15 L230,17 L240,14 L250,12 L260,10 L270,12 L280,9 L290,7 L300,6 L310,5 L320,5 L320,70 L0,70 Z" fill="url(#spendArea)"/>
+              <path d="M0,60 L10,58 L20,55 L30,56 L40,52 L50,48 L60,50 L70,46 L80,44 L90,40 L100,42 L110,38 L120,36 L130,34 L140,30 L150,32 L160,28 L170,26 L180,22 L190,24 L200,20 L210,18 L220,15 L230,17 L240,14 L250,12 L260,10 L270,12 L280,9 L290,7 L300,6 L310,5 L320,5" fill="none" stroke="#a4c400" stroke-width="1.75"/>
+              <!-- Today marker -->
+              <line x1="218" y1="0" x2="218" y2="70" stroke="#52525b" stroke-dasharray="2 3"/>
+              <circle cx="218" cy="16" r="3" fill="#a4c400"/>
+            </svg>
+            <div class="flex justify-between text-[10px] text-zinc-500 tabular -mt-1">
+              <span>May 1</span><span>Today</span><span>May 31</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- KPI grid -->
+      <section class="px-6 lg:px-10 pt-4 grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <!-- Active users -->
+        <div class="card rounded-xl p-5">
+          <div class="flex items-start justify-between">
+            <div class="text-[11px] uppercase tracking-wide text-zinc-500">Active users</div>
+            <div class="size-8 rounded-md bg-brand-400/10 text-brand-400 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/><path d="M17 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <div class="text-3xl font-semibold tabular">247</div>
+            <span class="badge bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30">+8</span>
+          </div>
+          <div class="text-[11px] text-zinc-400 mt-1">vs 239 last month</div>
+          <svg viewBox="0 0 120 32" class="mt-3 w-full h-8" preserveAspectRatio="none">
+            <polyline fill="none" stroke="#a4c400" stroke-width="1.5" points="0,24 10,22 20,24 30,20 40,22 50,18 60,19 70,16 80,17 90,14 100,12 110,10 120,8"/>
+          </svg>
+        </div>
+
+        <!-- Active licenses with utilization -->
+        <div class="card rounded-xl p-5">
+          <div class="flex items-start justify-between">
+            <div class="text-[11px] uppercase tracking-wide text-zinc-500">Active licenses</div>
+            <div class="size-8 rounded-md bg-brand-400/10 text-brand-400 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <div class="text-3xl font-semibold tabular">312</div>
+            <span class="badge bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30">+14</span>
+          </div>
+          <div class="text-[11px] text-zinc-400 mt-1">across 14 tools · 81% capacity</div>
+          <div class="mt-3 h-2 rounded-full bg-ink-700/80 overflow-hidden">
+            <div class="h-full bg-brand-400" style="width:81%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-zinc-500 mt-1 tabular">
+            <span>312 assigned</span><span>385 cap</span>
+          </div>
+        </div>
+
+        <!-- This month spend -->
+        <div class="card rounded-xl p-5">
+          <div class="flex items-start justify-between">
+            <div class="text-[11px] uppercase tracking-wide text-zinc-500">Spend this month</div>
+            <div class="size-8 rounded-md bg-brand-400/10 text-brand-400 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <div class="text-3xl font-semibold tabular">CHF 16.2k</div>
+            <span class="badge bg-red-500/15 text-red-300 ring-1 ring-red-500/30">+11.4%</span>
+          </div>
+          <div class="text-[11px] text-zinc-400 mt-1">vs CHF 14.6k last month · projection CHF 23.9k</div>
+          <svg viewBox="0 0 120 32" class="mt-3 w-full h-8" preserveAspectRatio="none">
+            <polyline fill="none" stroke="#a4c400" stroke-width="1.5" points="0,22 10,20 20,22 30,18 40,16 50,17 60,14 70,15 80,12 90,10 100,9 110,8 120,6"/>
+            <polyline fill="none" stroke="#71717a" stroke-width="1.25" stroke-dasharray="3 3" points="0,22 30,20 60,18 90,16 120,14"/>
+          </svg>
+        </div>
+
+        <!-- Copilot acceptance -->
+        <div class="card rounded-xl p-5">
+          <div class="flex items-start justify-between">
+            <div class="text-[11px] uppercase tracking-wide text-zinc-500">Copilot acceptance</div>
+            <div class="size-8 rounded-md bg-brand-400/10 text-brand-400 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <div class="text-3xl font-semibold tabular">38.4%</div>
+            <span class="badge bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30">+2.1pp</span>
+          </div>
+          <div class="text-[11px] text-zinc-400 mt-1">142 active devs · 28d rolling</div>
+          <!-- weekly bars -->
+          <div class="mt-3 grid grid-cols-12 gap-[3px] h-8 items-end">
+            <div class="bg-brand-400/40" style="height:35%"></div>
+            <div class="bg-brand-400/45" style="height:40%"></div>
+            <div class="bg-brand-400/50" style="height:42%"></div>
+            <div class="bg-brand-400/55" style="height:48%"></div>
+            <div class="bg-brand-400/55" style="height:46%"></div>
+            <div class="bg-brand-400/60" style="height:52%"></div>
+            <div class="bg-brand-400/65" style="height:58%"></div>
+            <div class="bg-brand-400/65" style="height:60%"></div>
+            <div class="bg-brand-400/70" style="height:66%"></div>
+            <div class="bg-brand-400/75" style="height:70%"></div>
+            <div class="bg-brand-400/80" style="height:78%"></div>
+            <div class="bg-brand-400" style="height:88%"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Spend over time chart + legend -->
+      <section class="px-6 lg:px-10 pt-6">
+        <div class="card rounded-xl p-5 lg:p-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 class="text-base font-semibold">Spend over time</h3>
+              <p class="text-xs text-zinc-400 mt-1">Stacked monthly cost · Licenses, Anthropic API, Copilot seats · forecast dashed</p>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <button class="px-2.5 py-1 rounded-md border hairline text-zinc-300 hover:bg-ink-700/60">Stacked</button>
+              <button class="px-2.5 py-1 rounded-md border hairline text-zinc-500">Grouped</button>
+              <button class="px-2.5 py-1 rounded-md border hairline text-zinc-500">100%</button>
+            </div>
+          </div>
+
+          <div class="mt-4 grid lg:grid-cols-[1fr_220px] gap-6 items-stretch">
+            <!-- Chart -->
+            <div class="relative">
+              <svg viewBox="0 0 780 230" class="w-full h-[230px]" preserveAspectRatio="none">
+                <!-- y grid -->
+                <g stroke="rgba(82,82,91,0.35)" stroke-dasharray="2 4">
+                  <line x1="36" y1="20" x2="780" y2="20"/>
+                  <line x1="36" y1="70" x2="780" y2="70"/>
+                  <line x1="36" y1="120" x2="780" y2="120"/>
+                  <line x1="36" y1="170" x2="780" y2="170"/>
+                  <line x1="36" y1="210" x2="780" y2="210"/>
+                </g>
+                <!-- y labels -->
+                <g fill="#71717a" font-size="10" font-family="ui-monospace, monospace">
+                  <text x="0" y="24">25k</text>
+                  <text x="0" y="74">20k</text>
+                  <text x="0" y="124">15k</text>
+                  <text x="0" y="174">10k</text>
+                  <text x="0" y="214">5k</text>
+                </g>
+
+                <!-- bars: 12 months, x: 36..780 width 744 -> 12 slots = 62 each, bar width 36, gap 26 -->
+                <!-- helper: x_i = 36 + 26 + 62*i = 62 + 62*i; w=36 -->
+                <!-- months: J F M A M J J A S O N D -->
+                <!-- Heights chosen so stacks grow. Bottom: licenses (steady ~120 -> ~95 px tall). Middle: api (growing). Top: copilot (growing slowly). Last 3 forecast: dashed via opacity. -->
+
+                <!-- Jan -->
+                <g><rect x="62"  y="118" width="36" height="92" fill="#a4c400"/><rect x="62"  y="98"  width="36" height="20" fill="#7c9eff"/><rect x="62"  y="84"  width="36" height="14" fill="#f0abfc"/></g>
+                <!-- Feb -->
+                <g><rect x="124" y="116" width="36" height="94" fill="#a4c400"/><rect x="124" y="92"  width="36" height="24" fill="#7c9eff"/><rect x="124" y="76"  width="36" height="16" fill="#f0abfc"/></g>
+                <!-- Mar -->
+                <g><rect x="186" y="112" width="36" height="98" fill="#a4c400"/><rect x="186" y="84"  width="36" height="28" fill="#7c9eff"/><rect x="186" y="66"  width="36" height="18" fill="#f0abfc"/></g>
+                <!-- Apr -->
+                <g><rect x="248" y="110" width="36" height="100" fill="#a4c400"/><rect x="248" y="76"  width="36" height="34" fill="#7c9eff"/><rect x="248" y="56"  width="36" height="20" fill="#f0abfc"/></g>
+                <!-- May (current — pulse marker) -->
+                <g><rect x="310" y="106" width="36" height="104" fill="#a4c400"/><rect x="310" y="66"  width="36" height="40" fill="#7c9eff"/><rect x="310" y="44"  width="36" height="22" fill="#f0abfc"/></g>
+                <!-- Jun (forecast) -->
+                <g opacity="0.55"><rect x="372" y="104" width="36" height="106" fill="#a4c400"/><rect x="372" y="60"  width="36" height="44" fill="#7c9eff"/><rect x="372" y="36"  width="36" height="24" fill="#f0abfc"/></g>
+                <!-- Jul (forecast) -->
+                <g opacity="0.45"><rect x="434" y="102" width="36" height="108" fill="#a4c400"/><rect x="434" y="54"  width="36" height="48" fill="#7c9eff"/><rect x="434" y="28"  width="36" height="26" fill="#f0abfc"/></g>
+                <!-- Aug -->
+                <g opacity="0.4"><rect x="496" y="100" width="36" height="110" fill="#a4c400"/><rect x="496" y="48"  width="36" height="52" fill="#7c9eff"/><rect x="496" y="20"  width="36" height="28" fill="#f0abfc"/></g>
+                <!-- Sep -->
+                <g opacity="0.35"><rect x="558" y="98"  width="36" height="112" fill="#a4c400"/><rect x="558" y="42"  width="36" height="56" fill="#7c9eff"/><rect x="558" y="12"  width="36" height="30" fill="#f0abfc"/></g>
+                <!-- Oct -->
+                <g opacity="0.3"><rect x="620" y="96"  width="36" height="114" fill="#a4c400"/><rect x="620" y="36"  width="36" height="60" fill="#7c9eff"/><rect x="620" y="4"   width="36" height="32" fill="#f0abfc"/></g>
+                <!-- Nov -->
+                <g opacity="0.25"><rect x="682" y="94"  width="36" height="116" fill="#a4c400"/><rect x="682" y="32"  width="36" height="62" fill="#7c9eff"/><rect x="682" y="-2"  width="36" height="34" fill="#f0abfc"/></g>
+                <!-- Dec -->
+                <g opacity="0.22"><rect x="744" y="92"  width="36" height="118" fill="#a4c400"/><rect x="744" y="28"  width="36" height="64" fill="#7c9eff"/><rect x="744" y="-6"  width="36" height="34" fill="#f0abfc"/></g>
+
+                <!-- Plan reference (dashed) at y for plan ~21k -->
+                <line x1="36" y1="46" x2="780" y2="46" stroke="#d4d4d8" stroke-dasharray="4 4" opacity="0.5"/>
+                <text x="744" y="40" fill="#d4d4d8" font-size="10" opacity="0.7">plan avg</text>
+
+                <!-- Current month vertical guide and tooltip -->
+                <line x1="328" y1="0" x2="328" y2="220" stroke="#a4c400" stroke-dasharray="2 4" opacity="0.6"/>
+                <g transform="translate(348,16)">
+                  <rect x="0" y="0" width="178" height="116" rx="8" fill="#0b0b0e" stroke="#3f3f46"/>
+                  <text x="12" y="18" font-size="11" font-weight="600" fill="#fafafa">May 2026</text>
+                  <line x1="12" y1="24" x2="166" y2="24" stroke="#27272a"/>
+                  <g font-size="11" font-family="ui-monospace, monospace">
+                    <g transform="translate(12,40)">
+                      <rect width="9" height="9" rx="2" fill="#f0abfc"/>
+                      <text x="16" y="9" fill="#d4d4d8">Copilot</text>
+                      <text x="166" y="9" text-anchor="end" fill="#fafafa">CHF 3,120</text>
+                      <text x="166" y="22" text-anchor="end" fill="#71717a" font-size="10">19.2%</text>
+                    </g>
+                    <g transform="translate(12,68)">
+                      <rect width="9" height="9" rx="2" fill="#7c9eff"/>
+                      <text x="16" y="9" fill="#d4d4d8">Anthropic API</text>
+                      <text x="166" y="9" text-anchor="end" fill="#fafafa">CHF 5,680</text>
+                      <text x="166" y="22" text-anchor="end" fill="#71717a" font-size="10">35.0%</text>
+                    </g>
+                    <g transform="translate(12,96)">
+                      <rect width="9" height="9" rx="2" fill="#a4c400"/>
+                      <text x="16" y="9" fill="#d4d4d8">Licenses</text>
+                      <text x="166" y="9" text-anchor="end" fill="#fafafa">CHF 7,440</text>
+                    </g>
+                  </g>
+                </g>
+
+                <!-- x axis labels -->
+                <g fill="#71717a" font-size="10" font-family="ui-monospace, monospace">
+                  <text x="80"  y="226" text-anchor="middle">Jan</text>
+                  <text x="142" y="226" text-anchor="middle">Feb</text>
+                  <text x="204" y="226" text-anchor="middle">Mar</text>
+                  <text x="266" y="226" text-anchor="middle">Apr</text>
+                  <text x="328" y="226" text-anchor="middle" fill="#a4c400">May</text>
+                  <text x="390" y="226" text-anchor="middle">Jun</text>
+                  <text x="452" y="226" text-anchor="middle">Jul</text>
+                  <text x="514" y="226" text-anchor="middle">Aug</text>
+                  <text x="576" y="226" text-anchor="middle">Sep</text>
+                  <text x="638" y="226" text-anchor="middle">Oct</text>
+                  <text x="700" y="226" text-anchor="middle">Nov</text>
+                  <text x="762" y="226" text-anchor="middle">Dec</text>
+                </g>
+              </svg>
+            </div>
+
+            <!-- Legend / share -->
+            <div class="border-l hairline lg:pl-5 flex flex-col gap-3">
+              <div>
+                <div class="text-[11px] uppercase tracking-wide text-zinc-500">YTD total</div>
+                <div class="text-2xl font-semibold tabular mt-0.5">CHF 78,400</div>
+              </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3 text-sm">
+                  <div class="flex items-center gap-2"><span class="dot" style="background:#a4c400"></span><span class="text-zinc-200">Licenses</span></div>
+                  <div class="text-right">
+                    <div class="tabular text-zinc-100">CHF 46,820</div>
+                    <div class="text-[10px] text-zinc-500 tabular">59.7%</div>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-3 text-sm">
+                  <div class="flex items-center gap-2"><span class="dot" style="background:#7c9eff"></span><span class="text-zinc-200">Anthropic API</span></div>
+                  <div class="text-right">
+                    <div class="tabular text-zinc-100">CHF 19,640</div>
+                    <div class="text-[10px] text-zinc-500 tabular">25.1%</div>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-3 text-sm">
+                  <div class="flex items-center gap-2"><span class="dot" style="background:#f0abfc"></span><span class="text-zinc-200">Copilot seats</span></div>
+                  <div class="text-right">
+                    <div class="tabular text-zinc-100">CHF 11,940</div>
+                    <div class="text-[10px] text-zinc-500 tabular">15.2%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-2 pt-3 border-t hairline text-[11px] text-zinc-500">
+                Dashed = linear forecast based on last 4 completed months.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- What's happening — insight grid -->
+      <section class="px-6 lg:px-10 pt-6">
+        <div class="flex items-end justify-between">
+          <div>
+            <h3 class="text-base font-semibold">What's happening</h3>
+            <p class="text-xs text-zinc-400 mt-1">Auto-generated signals from this month's data</p>
+          </div>
+          <a href="#" class="text-xs text-brand-400 hover:underline">View all changes →</a>
+        </div>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <!-- Biggest mover -->
+          <div class="card rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="size-8 rounded-md bg-red-500/15 text-red-400 flex items-center justify-center shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium">Biggest mover · Anthropic API</div>
+                <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  <span class="text-red-300 font-medium tabular">+42.1%</span> MoM. Driven by the
+                  <span class="text-zinc-100">research</span> workspace (CHF +1,240).
+                </p>
+              </div>
+            </div>
+            <svg viewBox="0 0 200 28" class="mt-3 w-full h-7" preserveAspectRatio="none">
+              <polyline fill="none" stroke="#f87171" stroke-width="1.5" points="0,22 20,20 40,18 60,20 80,15 100,16 120,12 140,10 160,8 180,5 200,4"/>
+            </svg>
+          </div>
+
+          <!-- Workspace at risk -->
+          <div class="card rounded-xl p-4 border-amber-500/30">
+            <div class="flex items-start gap-3">
+              <div class="size-8 rounded-md bg-amber-500/15 text-amber-300 flex items-center justify-center shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium">Workspace approaching limit</div>
+                <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  <span class="text-zinc-100">claude-research</span> is at
+                  <span class="text-amber-300 font-medium tabular">87%</span> of its CHF 2,000 cap with 10 days left.
+                </p>
+              </div>
+            </div>
+            <div class="mt-3 h-1.5 rounded-full bg-ink-700/80 overflow-hidden">
+              <div class="h-full bg-amber-400" style="width:87%"></div>
+            </div>
+            <div class="mt-1 text-[10px] text-zinc-500 tabular">CHF 1,740 / 2,000 · resets 1 Jun</div>
+          </div>
+
+          <!-- License capacity -->
+          <div class="card rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="size-8 rounded-md bg-brand-400/15 text-brand-400 flex items-center justify-center shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium">Cursor seats at capacity</div>
+                <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  <span class="tabular">25 / 25</span> Pro seats assigned, with
+                  <span class="text-zinc-100">3 requests pending</span>.
+                </p>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center justify-between text-[11px]">
+              <span class="text-zinc-500">3 users waiting</span>
+              <a href="#" class="text-brand-400 hover:underline">Increase cap →</a>
+            </div>
+          </div>
+
+          <!-- Sync health -->
+          <div class="card rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="size-8 rounded-md bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium">All sources synced</div>
+                <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  GitHub, Anthropic, invoices — last update 12 min ago.
+                  <span class="text-zinc-100">0 failures</span> in 24h.
+                </p>
+              </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-1.5 text-[10px]">
+              <span class="chip"><span class="dot bg-emerald-400"></span>GitHub · 12m</span>
+              <span class="chip"><span class="dot bg-emerald-400"></span>Anthropic · 18m</span>
+              <span class="chip"><span class="dot bg-emerald-400"></span>Invoices · 2h</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Two-column: top tools + recent activity -->
+      <section class="px-6 lg:px-10 pt-6 grid gap-4 lg:grid-cols-3">
+        <!-- Top tools -->
+        <div class="card rounded-xl p-5 lg:col-span-2">
+          <div class="flex items-end justify-between">
+            <div>
+              <h3 class="text-base font-semibold">Top tools by spend</h3>
+              <p class="text-xs text-zinc-400 mt-1">Current month · sorted by total cost</p>
+            </div>
+            <a href="#" class="text-xs text-brand-400 hover:underline">All tools →</a>
+          </div>
+
+          <div class="mt-4 overflow-hidden rounded-md border hairline">
+            <table class="w-full text-sm">
+              <thead class="text-[11px] uppercase tracking-wide text-zinc-500">
+                <tr class="border-b hairline bg-ink-900/40">
+                  <th class="text-left font-normal py-2 px-3">Tool</th>
+                  <th class="text-left font-normal py-2 px-3">Vendor</th>
+                  <th class="text-right font-normal py-2 px-3">Users</th>
+                  <th class="text-right font-normal py-2 px-3">MoM</th>
+                  <th class="text-right font-normal py-2 px-3">12-mo</th>
+                  <th class="text-right font-normal py-2 px-3 pr-4">Monthly</th>
+                </tr>
+              </thead>
+              <tbody class="[&_tr]:border-b [&_tr]:hairline [&_tr:last-child]:border-0">
+                <tr class="hover:bg-ink-700/30">
+                  <td class="py-2.5 px-3 font-medium">
+                    <div class="flex items-center gap-2">
+                      <span class="size-5 rounded bg-brand-400/15 text-brand-400 grid place-items-center text-[10px] font-bold">A</span>
+                      Claude API
+                      <span class="badge bg-zinc-700/60 text-zinc-300">running</span>
+                    </div>
+                  </td>
+                  <td class="py-2.5 px-3 text-zinc-400">Anthropic</td>
+                  <td class="py-2.5 px-3 text-right tabular">38</td>
+                  <td class="py-2.5 px-3 text-right"><span class="badge bg-red-500/15 text-red-300">+42.1%</span></td>
+                  <td class="py-2.5 px-3 text-right">
+                    <svg viewBox="0 0 80 24" class="ml-auto w-20 h-6" preserveAspectRatio="none"><polyline fill="none" stroke="#a4c400" stroke-width="1.4" points="0,20 8,19 16,18 24,17 32,15 40,13 48,11 56,9 64,7 72,5 80,3"/></svg>
+                  </td>
+                  <td class="py-2.5 px-3 pr-4 text-right tabular font-medium">CHF 5,680</td>
+                </tr>
+                <tr class="hover:bg-ink-700/30">
+                  <td class="py-2.5 px-3 font-medium">
+                    <div class="flex items-center gap-2">
+                      <span class="size-5 rounded bg-zinc-700/60 text-zinc-300 grid place-items-center text-[10px] font-bold">C</span>
+                      Cursor Pro
+                    </div>
+                  </td>
+                  <td class="py-2.5 px-3 text-zinc-400">Cursor</td>
+                  <td class="py-2.5 px-3 text-right tabular">25</td>
+                  <td class="py-2.5 px-3 text-right"><span class="badge bg-zinc-700/60 text-zinc-200">±0</span></td>
+                  <td class="py-2.5 px-3 text-right">
+                    <svg viewBox="0 0 80 24" class="ml-auto w-20 h-6" preserveAspectRatio="none"><polyline fill="none" stroke="#a4c400" stroke-width="1.4" points="0,14 8,14 16,12 24,12 32,11 40,10 48,10 56,10 64,10 72,10 80,10"/></svg>
+                  </td>
+                  <td class="py-2.5 px-3 pr-4 text-right tabular font-medium">CHF 4,500</td>
+                </tr>
+                <tr class="hover:bg-ink-700/30">
+                  <td class="py-2.5 px-3 font-medium">
+                    <div class="flex items-center gap-2">
+                      <span class="size-5 rounded bg-zinc-700/60 text-zinc-300 grid place-items-center text-[10px] font-bold">G</span>
+                      GitHub Copilot
+                    </div>
+                  </td>
+                  <td class="py-2.5 px-3 text-zinc-400">GitHub</td>
+                  <td class="py-2.5 px-3 text-right tabular">142</td>
+                  <td class="py-2.5 px-3 text-right"><span class="badge bg-emerald-500/15 text-emerald-300">−4</span></td>
+                  <td class="py-2.5 px-3 text-right">
+                    <svg viewBox="0 0 80 24" class="ml-auto w-20 h-6" preserveAspectRatio="none"><polyline fill="none" stroke="#a4c400" stroke-width="1.4" points="0,12 8,12 16,11 24,12 32,11 40,10 48,11 56,10 64,11 72,10 80,9"/></svg>
+                  </td>
+                  <td class="py-2.5 px-3 pr-4 text-right tabular font-medium">CHF 3,120</td>
+                </tr>
+                <tr class="hover:bg-ink-700/30">
+                  <td class="py-2.5 px-3 font-medium">
+                    <div class="flex items-center gap-2">
+                      <span class="size-5 rounded bg-zinc-700/60 text-zinc-300 grid place-items-center text-[10px] font-bold">M</span>
+                      Midjourney
+                    </div>
+                  </td>
+                  <td class="py-2.5 px-3 text-zinc-400">Midjourney</td>
+                  <td class="py-2.5 px-3 text-right tabular">12</td>
+                  <td class="py-2.5 px-3 text-right"><span class="badge bg-red-500/15 text-red-300">+1</span></td>
+                  <td class="py-2.5 px-3 text-right">
+                    <svg viewBox="0 0 80 24" class="ml-auto w-20 h-6" preserveAspectRatio="none"><polyline fill="none" stroke="#a4c400" stroke-width="1.4" points="0,18 8,17 16,17 24,16 32,15 40,14 48,14 56,13 64,12 72,12 80,11"/></svg>
+                  </td>
+                  <td class="py-2.5 px-3 pr-4 text-right tabular font-medium">CHF 1,440</td>
+                </tr>
+                <tr class="hover:bg-ink-700/30">
+                  <td class="py-2.5 px-3 font-medium">
+                    <div class="flex items-center gap-2">
+                      <span class="size-5 rounded bg-zinc-700/60 text-zinc-300 grid place-items-center text-[10px] font-bold">P</span>
+                      Perplexity Pro
+                    </div>
+                  </td>
+                  <td class="py-2.5 px-3 text-zinc-400">Perplexity</td>
+                  <td class="py-2.5 px-3 text-right tabular">36</td>
+                  <td class="py-2.5 px-3 text-right"><span class="badge bg-red-500/15 text-red-300">+6</span></td>
+                  <td class="py-2.5 px-3 text-right">
+                    <svg viewBox="0 0 80 24" class="ml-auto w-20 h-6" preserveAspectRatio="none"><polyline fill="none" stroke="#a4c400" stroke-width="1.4" points="0,20 8,19 16,18 24,17 32,16 40,15 48,13 56,12 64,10 72,8 80,7"/></svg>
+                  </td>
+                  <td class="py-2.5 px-3 pr-4 text-right tabular font-medium">CHF 720</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recent activity timeline -->
+        <div class="card rounded-xl p-5">
+          <div class="flex items-end justify-between">
+            <div>
+              <h3 class="text-base font-semibold">Recent activity</h3>
+              <p class="text-xs text-zinc-400 mt-1">Last 24h across the platform</p>
+            </div>
+            <a href="#" class="text-xs text-brand-400 hover:underline">History →</a>
+          </div>
+
+          <ul class="mt-4 relative pl-5">
+            <span class="absolute left-[7px] top-1 bottom-1 w-px bg-ink-700/80"></span>
+
+            <li class="relative pb-4">
+              <span class="absolute -left-[18px] top-[2px] size-3 rounded-full bg-brand-400 ring-2 ring-ink-950"></span>
+              <div class="text-sm">
+                <span class="text-zinc-100 font-medium">3 invoices ingested</span>
+                from <span class="text-zinc-400">Anthropic</span>
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">12 min ago · CHF 1,820 added to May</div>
+            </li>
+
+            <li class="relative pb-4">
+              <span class="absolute -left-[18px] top-[2px] size-3 rounded-full bg-zinc-500 ring-2 ring-ink-950"></span>
+              <div class="text-sm">
+                <span class="text-zinc-100 font-medium">M. Hofer</span>
+                assigned <span class="text-zinc-100">Cursor Pro</span>
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">42 min ago · by t.studer</div>
+            </li>
+
+            <li class="relative pb-4">
+              <span class="absolute -left-[18px] top-[2px] size-3 rounded-full bg-amber-400 ring-2 ring-ink-950"></span>
+              <div class="text-sm">
+                Workspace <span class="text-zinc-100 font-medium">claude-research</span> crossed
+                <span class="text-amber-300">80%</span> threshold
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">1h ago · auto-detected</div>
+            </li>
+
+            <li class="relative pb-4">
+              <span class="absolute -left-[18px] top-[2px] size-3 rounded-full bg-zinc-500 ring-2 ring-ink-950"></span>
+              <div class="text-sm">
+                <span class="text-zinc-100 font-medium">14 new GitHub members</span> matched to users
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">3h ago · 1 unmatched</div>
+            </li>
+
+            <li class="relative pb-4">
+              <span class="absolute -left-[18px] top-[2px] size-3 rounded-full bg-emerald-400 ring-2 ring-ink-950"></span>
+              <div class="text-sm">
+                Q2 budget period <span class="text-zinc-100 font-medium">closed</span> · 4.2% under plan
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">yesterday · system</div>
+            </li>
+
+            <li class="relative">
+              <span class="absolute -left-[18px] top-[2px] size-3 rounded-full bg-red-400 ring-2 ring-ink-950"></span>
+              <div class="text-sm">
+                Invoice <span class="text-zinc-100 font-mono text-[12px]">INV-04321</span> rejected · duplicate
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5">yesterday · auto-filtered</div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Quick nav (slim) -->
+      <section class="px-6 lg:px-10 pt-6 pb-10">
+        <h3 class="text-xs uppercase tracking-[0.18em] text-zinc-500">Jump to</h3>
+        <div class="mt-2 grid gap-3 grid-cols-2 sm:grid-cols-4">
+          <a href="#" class="card-soft rounded-lg border hairline p-3 hover:border-brand-400/50 transition flex items-center gap-3">
+            <span class="size-8 rounded-md bg-brand-400/10 text-brand-400 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+            <div>
+              <div class="text-sm font-medium">AI Tools</div>
+              <div class="text-[11px] text-zinc-500">14 active</div>
+            </div>
+          </a>
+          <a href="#" class="card-soft rounded-lg border hairline p-3 hover:border-brand-400/50 transition flex items-center gap-3">
+            <span class="size-8 rounded-md bg-brand-400/10 text-brand-400 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg></span>
+            <div>
+              <div class="text-sm font-medium">Users</div>
+              <div class="text-[11px] text-zinc-500">247 active</div>
+            </div>
+          </a>
+          <a href="#" class="card-soft rounded-lg border hairline p-3 hover:border-brand-400/50 transition flex items-center gap-3">
+            <span class="size-8 rounded-md bg-brand-400/10 text-brand-400 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg></span>
+            <div>
+              <div class="text-sm font-medium">Assignments</div>
+              <div class="text-[11px] text-zinc-500">312 active · 3 pending</div>
+            </div>
+          </a>
+          <a href="#" class="card-soft rounded-lg border hairline p-3 hover:border-brand-400/50 transition flex items-center gap-3">
+            <span class="size-8 rounded-md bg-brand-400/10 text-brand-400 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg></span>
+            <div>
+              <div class="text-sm font-medium">Budget</div>
+              <div class="text-[11px] text-red-300">at risk · 43.6% YTD</div>
+            </div>
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

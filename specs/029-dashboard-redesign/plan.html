@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>029 — Dashboard Redesign · Implementation plan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: {
+        brand: { 300:"#c4dc52", 400:"#a4c400", 500:"#8aa700" },
+        ink: { 700:"#1f1f22", 800:"#18181b", 900:"#101012", 950:"#09090b" },
+      } } },
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #09090b; color: #e4e4e7; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+    .prose-spec { max-width: 1040px; }
+    .prose-spec h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+    .prose-spec h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2.5rem; margin-bottom: 0.5rem; letter-spacing: -0.01em; color: #fafafa; }
+    .prose-spec h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.4rem; color: #fafafa; }
+    .prose-spec h4 { font-size: 0.92rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.3rem; color: #e4e4e7; }
+    .prose-spec p { color: #a1a1aa; line-height: 1.6; }
+    .prose-spec li { color: #a1a1aa; line-height: 1.55; margin: 0.18rem 0; }
+    .prose-spec strong { color: #fafafa; font-weight: 600; }
+    .prose-spec em { color: #d4d4d8; font-style: italic; }
+    .prose-spec code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(63,63,70,0.5); color: #e4e4e7; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+    .prose-spec a { color: #c4dc52; text-decoration: none; border-bottom: 1px dotted rgba(196,220,82,0.4); }
+    .prose-spec a:hover { color: #a4c400; }
+    .prose-spec ul { padding-left: 1.25rem; list-style: disc; }
+    .prose-spec ol { padding-left: 1.4rem; }
+    .prose-spec table { width: 100%; border-collapse: collapse; margin-top: 0.6rem; font-size: 13px; }
+    .prose-spec th, .prose-spec td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(63,63,70,0.55); vertical-align: top; }
+    .prose-spec th { color: #fafafa; font-weight: 600; background: rgba(24,24,27,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .prose-spec td { color: #d4d4d8; }
+    .card { background: rgba(24,24,27,0.65); border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; }
+    .grid-bg {
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(164,196,0,0.06), transparent 60%),
+        radial-gradient(800px 500px at 100% 0%, rgba(124,158,255,0.03), transparent 60%),
+        #09090b;
+    }
+    .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:500; line-height: 18px; vertical-align: middle; }
+    .tag-reuse { background: rgba(164,196,0,0.15); color:#c4dc52; }
+    .tag-extend { background: rgba(250,204,21,0.12); color:#fde68a; }
+    .tag-new   { background: rgba(124,158,255,0.15); color:#a5b4fc; }
+    .tag-drop  { background: rgba(113,113,122,0.25); color:#a1a1aa; text-decoration: line-through; }
+    .tag-admin { background: rgba(248,113,113,0.12); color:#fca5a5; }
+    .tag-viewer{ background: rgba(74,222,128,0.12); color:#86efac; }
+    .tag-phase0{ background: rgba(113,113,122,0.25); color:#d4d4d8; }
+    .tag-phase1{ background: rgba(164,196,0,0.18); color:#c4dc52; }
+    .tag-phase2{ background: rgba(124,158,255,0.18); color:#a5b4fc; }
+    .tag-phase3{ background: rgba(240,171,252,0.18); color:#f0abfc; }
+    .callout { border-left: 3px solid #a4c400; background: rgba(164,196,0,0.06); padding: 0.85rem 1rem; border-radius: 0 8px 8px 0; }
+    .callout-warn { border-left-color: #facc15; background: rgba(250,204,21,0.06); }
+    .callout p { color: #e4e4e7; margin: 0; }
+    .phase-card { border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; padding: 1rem 1.25rem; background: rgba(24,24,27,0.5); margin-top: 0.75rem; }
+    .phase-card h3 { margin-top: 0; }
+    .check { color: #4ade80; }
+    .file { font-family: ui-monospace, monospace; font-size: 12.5px; color: #c4dc52; }
+    .stat { font-variant-numeric: tabular-nums; }
+    .legend { display:flex; gap:.75rem; flex-wrap:wrap; font-size: 11.5px; color: #a1a1aa; }
+    .legend > span { display:inline-flex; align-items:center; gap:6px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; font-size:11px; background: rgba(164,196,0,0.12); color:#c4dc52; border: 1px solid rgba(164,196,0,0.25); }
+  </style>
+</head>
+<body class="grid-bg antialiased">
+  <div class="mx-auto px-6 lg:px-10 py-10 prose-spec">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div class="text-xs uppercase tracking-[0.18em] text-zinc-500">Feature 029 · Implementation plan</div>
+        <h1 class="mt-1">Dashboard Redesign</h1>
+        <p class="mt-2 text-zinc-400 max-w-2xl">
+          A slim plan that prioritizes existing data, reuses report-side components, and lands the
+          admin + viewer dashboards together in a single PR across four small phases.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="pill">Single PR · 4 phases</span>
+        <span class="pill">No schema changes</span>
+      </div>
+    </div>
+
+    <!-- Links to mockups & README -->
+    <div class="mt-6 grid gap-3 sm:grid-cols-3">
+      <a href="README.html" class="card p-3 hover:border-brand-400/40 transition flex items-center justify-between">
+        <span class="text-sm font-medium text-zinc-100">README</span>
+        <span class="text-[11px] text-zinc-500">design overview</span>
+      </a>
+      <a href="admin.html" class="card p-3 hover:border-brand-400/40 transition flex items-center justify-between">
+        <span class="text-sm font-medium text-zinc-100">admin.html</span>
+        <span class="tag tag-admin">admin</span>
+      </a>
+      <a href="viewer.html" class="card p-3 hover:border-brand-400/40 transition flex items-center justify-between">
+        <span class="text-sm font-medium text-zinc-100">viewer.html</span>
+        <span class="tag tag-viewer">viewer</span>
+      </a>
+    </div>
+
+    <!-- Decisions baked into this plan -->
+    <h2>Decisions baked into this plan</h2>
+    <p>Four product calls were made before writing this plan; each shrinks scope:</p>
+    <ul>
+      <li><strong>"Available tools" panel</strong> → <em>read-only catalog link</em>. No <code>access_requests</code> table; viewers get a link to a now-viewer-accessible read-only <code>/tools</code> page.</li>
+      <li><strong>Trial badge / "last call N min ago" chip</strong> → use only data that exists today.
+        Assignment row badges show <code>active</code> / <code>inactive</code> (driven by <code>licenseAssignments.status</code> + <code>revokedAt</code>).
+        Sync chip is sourced from <code>anthropicSyncStatus</code> — <em>"Anthropic data · synced 12 min ago"</em>, not "last API call".
+      </li>
+      <li><strong>Activity timeline</strong> → admin: <em>2 sources</em> (<code>ingestionLog</code> + recent <code>licenseAssignments</code>); viewer: <em>1 source</em> (their own assignment history). No <code>changeHistory</code> join, no <code>syncEvents</code> union.</li>
+      <li><strong>Spend over time</strong> → <em>2 layers</em>: Licenses + Anthropic API. Reuses <code>periodsWithActual</code> directly; no Copilot per-month aggregation.</li>
+    </ul>
+
+    <div class="callout mt-4">
+      <p><strong>Non-goals:</strong> no new tables, no new enum values, no new sync paths, no new background jobs, no test infrastructure additions. If a card can't be backed by an existing query (or a thin wrapper around one), it doesn't ship.</p>
+    </div>
+
+    <!-- Reuse vs new at a glance -->
+    <h2>What ships, at a glance</h2>
+    <div class="legend mt-2">
+      <span><span class="tag tag-reuse">reuse</span>existing component / action used as-is</span>
+      <span><span class="tag tag-extend">extend</span>existing component / action, small change</span>
+      <span><span class="tag tag-new">new</span>net-new component or thin query</span>
+      <span><span class="tag tag-drop">drop</span>from mockup, not shipped in v1</span>
+    </div>
+
+    <table class="mt-3">
+      <thead>
+        <tr><th style="width: 32%">Element</th><th>Source / target</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Budget Health Hero (admin)</td><td><code>src/components/reports/overview/budget-health-hero.tsx</code> → re-export from <code>components/dashboard/</code> shim</td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>YTD stacked progress bar with ceiling tick</td><td>Lift the <code>ProgressBar</code> sub-component out of <code>reports/budget/at-a-glance.tsx</code> into <code>components/shared/spend-progress-bar.tsx</code></td><td><span class="tag tag-extend">extend</span> (lift to shared)</td></tr>
+        <tr><td>KPI cards with MoM + sparkline</td><td><code>reports/overview/kpi-with-mom.tsx</code> + <code>sparkline.tsx</code></td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>What Changed insights (admin)</td><td><code>reports/overview/what-changed.tsx</code> + <code>lib/reports/insights-static.ts</code>; add 2 thin insight rules</td><td><span class="tag tag-extend">extend</span></td></tr>
+        <tr><td>Chart tooltip (PR #91)</td><td><code>components/ui/chart.tsx</code></td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>Tool adoption table</td><td><code>reports/reports-charts-panel.tsx</code> pattern, ported with top-5 limit</td><td><span class="tag tag-reuse">reuse</span> (pattern)</td></tr>
+        <tr><td>Stacked monthly spend chart (Licenses + API only)</td><td>New small Recharts component; data from <code>periodsWithActual</code></td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>Spend snapshot card (this month)</td><td>Small new component; data already on <code>BudgetReportData</code></td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>Activity timeline (admin)</td><td>New aggregation: union <code>ingestionLog</code> + <code>licenseAssignments</code> (revoke/assign rows)</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>Identity card (viewer)</td><td>Existing <code>getProfileData()</code> output</td><td><span class="tag tag-new">new</span> (UI only)</td></tr>
+        <tr><td>Sync freshness chip</td><td><code>getSyncStatus()</code> exists for admin (<code>anthropic-global.ts:626</code>); for viewer: read user's own <code>anthropicSyncStatus.lastSyncCompletedAt</code></td><td><span class="tag tag-extend">extend</span> (small viewer selector)</td></tr>
+        <tr><td>My Claude API usage (30d area + by-model rail)</td><td><code>getUserCostData()</code> already returns <code>dailyBreakdown</code> with models. Chart is new; data is not.</td><td><span class="tag tag-new">new</span> (UI only)</td></tr>
+        <tr><td>Cache savings footer</td><td>Add a rollup of <code>cacheReadInputTokens</code> vs <code>uncachedInputTokens</code> from <code>anthropicUsageMetrics</code></td><td><span class="tag tag-extend">extend</span></td></tr>
+        <tr><td>My tools &amp; licenses table</td><td><code>getAssignmentsForUser()</code> already returns rows; status badge uses <code>status</code> + <code>revokedAt</code></td><td><span class="tag tag-new">new</span> (UI only)</td></tr>
+        <tr><td>Personal activity timeline (viewer)</td><td>Read <code>licenseAssignments</code> for this user ordered by <code>greatest(assignedAt, revokedAt)</code></td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>Available tools panel (viewer)</td><td>Drop the request panel; ship instead as <strong>"Browse all tools →"</strong> link to <code>/tools</code> opened for viewers in read-only mode</td><td><span class="tag tag-extend">extend</span></td></tr>
+        <tr><td>Trial badge ("trial · 6d left")</td><td>—</td><td><span class="tag tag-drop">drop</span></td></tr>
+        <tr><td>"Last API call N min ago"</td><td>—</td><td><span class="tag tag-drop">drop</span></td></tr>
+        <tr><td>"Request access" workflow</td><td>—</td><td><span class="tag tag-drop">drop</span></td></tr>
+        <tr><td>Copilot seats series in spend chart</td><td>—</td><td><span class="tag tag-drop">drop</span></td></tr>
+        <tr><td>Workspace-limit insight, sync-health insight</td><td>Workspace limits exist (<code>anthropicWorkspaceLimits</code>) and <code>getActiveAlerts()</code> already returns them; sync via <code>getSyncStatus()</code>. Both stay.</td><td><span class="tag tag-reuse">reuse</span></td></tr>
+      </tbody>
+    </table>
+
+    <!-- Phasing -->
+    <h2>Phasing (single PR)</h2>
+    <p>Four phases, mergeable as one. Each phase is independently shippable so the PR can be split if review demands, but the default is to land as one.</p>
+
+    <div class="legend mt-2">
+      <span><span class="tag tag-phase0">Phase 0</span>foundation, shared utilities</span>
+      <span><span class="tag tag-phase1">Phase 1</span>admin dashboard</span>
+      <span><span class="tag tag-phase2">Phase 2</span>viewer dashboard</span>
+      <span><span class="tag tag-phase3">Phase 3</span>polish &amp; verification</span>
+    </div>
+
+    <!-- Phase 0 -->
+    <div class="phase-card">
+      <h3><span class="tag tag-phase0">Phase 0</span> &nbsp; Foundations <span class="text-xs text-zinc-500 font-normal">(~1 dev-day)</span></h3>
+      <p>Cheap reshuffles that unlock both dashboards. No UI visible yet.</p>
+
+      <h4>0.1 — Split <code>src/app/page.tsx</code> into role-routed components</h4>
+      <ul>
+        <li>Move the existing <code>AdminDashboard</code> and <code>ViewerDashboard</code> functions into <span class="file">src/components/dashboard/admin/admin-dashboard.tsx</span> and <span class="file">src/components/dashboard/viewer/viewer-dashboard.tsx</span>. <code>page.tsx</code> shrinks to a session-checked dispatcher (<code>session.user.role === "admin"</code>).</li>
+        <li>No behavior change. This is the seam Phase 1 and Phase 2 each write into.</li>
+      </ul>
+
+      <h4>0.2 — Lift two report sub-components to <code>components/shared/</code></h4>
+      <ul>
+        <li><span class="file">spend-progress-bar.tsx</span> — extracted from <code>reports/budget/at-a-glance.tsx</code> (the layered actual / projected / ceiling-tick bar). The current implementation embeds it inline; lift unchanged, change the import in <code>at-a-glance.tsx</code>.</li>
+        <li><span class="file">budget-health-hero.tsx</span> — already in <code>reports/overview/</code>; re-export from <code>components/shared/</code> so both the dashboard and the report import the same instance.</li>
+      </ul>
+
+      <h4>0.3 — Open <code>/tools</code> read-only to viewers</h4>
+      <ul>
+        <li>Remove the <code>AuthGuard requiredRole="admin"</code> wrapper from <code>src/app/tools/page.tsx</code>.</li>
+        <li>Guard admin-only actions (create/edit/delete buttons, row actions) inside the page with a <code>session.user.role === "admin"</code> check — viewers see the table only.</li>
+        <li>Sanity-check no server action on this page leaks data viewers shouldn't see (read-only list is fine — tool catalog is not sensitive).</li>
+      </ul>
+
+      <h4>0.4 — One small shared helper</h4>
+      <ul>
+        <li><span class="file">src/lib/format-relative.ts</span> — <code>formatRelativeAge(date): "12 min ago" | "2 hours ago" | "yesterday"</code>. Used by both dashboards' sync chips and activity timelines. ~25 lines, no deps.</li>
+      </ul>
+
+      <h4>Acceptance</h4>
+      <ul>
+        <li><span class="check">✓</span> <code>pnpm typecheck</code>, <code>pnpm lint</code> clean.</li>
+        <li><span class="check">✓</span> Existing admin dashboard and reports render identically (visual diff).</li>
+        <li><span class="check">✓</span> Viewer can reach <code>/tools</code>, sees read-only table, no admin buttons.</li>
+      </ul>
+    </div>
+
+    <!-- Phase 1 -->
+    <div class="phase-card">
+      <h3><span class="tag tag-phase1">Phase 1</span> &nbsp; Admin dashboard <span class="text-xs text-zinc-500 font-normal">(~2 dev-days)</span></h3>
+      <p>Replace the body of <code>admin-dashboard.tsx</code> with the new layout. All data comes from existing actions or thin wrappers.</p>
+
+      <h4>1.1 — Data layer: one new aggregating action</h4>
+      <p>Add <span class="file">src/actions/dashboard.ts</span> exporting <code>getAdminDashboardData()</code>. It calls existing actions in parallel and bundles the result. <strong>No new SQL.</strong></p>
+      <table>
+        <thead><tr><th>Bundled field</th><th>From existing</th></tr></thead>
+        <tbody>
+          <tr><td>Budget hero + 12-month progress data</td><td><code>getBudgetReportData()</code> (already returns <code>periodsWithActual</code> + forecast)</td></tr>
+          <tr><td>KPI grid (users, licenses, spend, copilot acceptance)</td><td><code>getReportOverviewData()</code> + <code>getCopilotOverview(28d)</code></td></tr>
+          <tr><td>This-month snapshot</td><td>current period from <code>periodsWithActual</code></td></tr>
+          <tr><td>Spend-over-time series</td><td>same <code>periodsWithActual</code> rows; map to {month, licensesCents, apiCents}</td></tr>
+          <tr><td>Insight cards</td><td><code>getStaticInsights()</code> + <code>getActiveAlerts()</code> + <code>getSyncStatus()</code></td></tr>
+          <tr><td>Activity feed (last 8 entries)</td><td><strong>new thin query</strong> — see 1.2</td></tr>
+          <tr><td>Top-5 tools</td><td>derive from <code>getReportOverviewData().toolSummary</code> (sort desc, slice 5)</td></tr>
+        </tbody>
+      </table>
+
+      <h4>1.2 — One thin new query: <code>getRecentDashboardActivity({limit})</code></h4>
+      <ul>
+        <li>Two parallel selects:
+          <ul>
+            <li><code>ingestionLog</code>: newest 5 ordered by <code>createdAt DESC</code>.</li>
+            <li><code>licenseAssignments</code>: newest 5 ordered by <code>GREATEST(assignedAt, revokedAt) DESC</code>, with user + tool joins.</li>
+          </ul>
+        </li>
+        <li>Map each to <code>{ id, kind: "ingestion" | "assignment", timestamp, payload }</code>, merge, sort, slice to limit. ~40 lines in <span class="file">src/actions/dashboard.ts</span>.</li>
+        <li>Admin-only via <code>requireAdmin()</code>.</li>
+      </ul>
+
+      <h4>1.3 — Components</h4>
+      <ul>
+        <li><span class="file">components/dashboard/admin/admin-dashboard.tsx</span> — top-level layout (grid sections).</li>
+        <li><span class="file">components/dashboard/admin/budget-hero-section.tsx</span> — reuses <code>BudgetHealthHero</code> + <code>SpendProgressBar</code> with the 12-month YTD axis.</li>
+        <li><span class="file">components/dashboard/admin/this-month-card.tsx</span> — small, snapshot tile.</li>
+        <li><span class="file">components/dashboard/admin/kpi-grid.tsx</span> — 4× <code>KpiWithMom</code>.</li>
+        <li><span class="file">components/dashboard/admin/spend-trend-chart.tsx</span> — Recharts stacked <code>BarChart</code> with 2 series (Licenses, API), forecast bars at 0.5 opacity, <code>ChartTooltipContent</code> with currency formatter + percent share.</li>
+        <li><span class="file">components/dashboard/admin/insights-grid.tsx</span> — reuses <code>WhatChanged</code> with 2 added insight rules: <em>workspace approaching limit</em> (from <code>getActiveAlerts()</code>), <em>sync freshness</em> (from <code>getSyncStatus()</code>).</li>
+        <li><span class="file">components/dashboard/admin/top-tools-card.tsx</span> — same column shape as report's tool adoption table; top-5 only; add inline 12-month sparkline via existing <code>Sparkline</code>.</li>
+        <li><span class="file">components/dashboard/admin/activity-timeline.tsx</span> — generic timeline that takes the merged feed and renders by <code>kind</code>.</li>
+        <li><span class="file">components/dashboard/admin/jump-to-row.tsx</span> — the four nav tiles, slim.</li>
+      </ul>
+
+      <h4>1.4 — Two new insight rules in <code>insights-static.ts</code></h4>
+      <ul>
+        <li><code>workspace_approaching_limit</code> — input: highest-utilization workspace from <code>getActiveAlerts()</code>. Trigger at &geq; 80%.</li>
+        <li><code>sync_freshness</code> — input: <code>getSyncStatus()</code>. Success when <code>ageMinutes &lt; STALE_MINUTES</code>; warn otherwise.</li>
+      </ul>
+
+      <h4>Acceptance</h4>
+      <ul>
+        <li><span class="check">✓</span> Admin lands on <code>/</code> and sees the new layout. Old <code>AdminDashboard</code> body is removed.</li>
+        <li><span class="check">✓</span> All numbers tie out with the report Overview and Budget reports (same actions feed both).</li>
+        <li><span class="check">✓</span> No new tables, no new enum values, no new sync jobs.</li>
+        <li><span class="check">✓</span> Tooltip on the spend chart shows color swatch + series name + currency + % share (PR #91 pattern).</li>
+      </ul>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase-card">
+      <h3><span class="tag tag-phase2">Phase 2</span> &nbsp; Viewer dashboard <span class="text-xs text-zinc-500 font-normal">(~1.5 dev-days)</span></h3>
+      <p>Replace the body of <code>viewer-dashboard.tsx</code>. Personal mirror — never queries org-wide data.</p>
+
+      <h4>2.1 — Data layer: one new aggregating action</h4>
+      <p>Same file <span class="file">src/actions/dashboard.ts</span> gets <code>getViewerDashboardData(userId)</code>. Self-only — uses the same auth pattern as <code>getUserCostData()</code> (<code>src/actions/anthropic-usage.ts:47-56</code>).</p>
+      <table>
+        <thead><tr><th>Bundled field</th><th>From existing</th></tr></thead>
+        <tbody>
+          <tr><td>Identity card (name, email, role, profile, circle)</td><td><code>getProfileData(userId)</code></td></tr>
+          <tr><td>30-day API usage (daily + by model)</td><td><code>getUserCostData(userId)</code> already returns <code>dailyBreakdown</code>; group by model client-side</td></tr>
+          <tr><td>Tokens used, input/output split</td><td>roll up daily rows in the action</td></tr>
+          <tr><td>Cache savings line</td><td>add <code>cacheReadInputTokens</code>, <code>uncachedInputTokens</code> sums; format as "saved ~CHF X"</td></tr>
+          <tr><td>Today's cost + per-hour bars</td><td>last entry of <code>dailyBreakdown</code></td></tr>
+          <tr><td>My tools &amp; licenses table</td><td><code>getAssignmentsForUser(userId)</code></td></tr>
+          <tr><td>Sync chip ("Anthropic data · synced 12 min ago")</td><td><strong>thin new selector</strong>: read user's own <code>anthropicSyncStatus</code> row (<code>schema.ts:566-582</code>) — return <code>lastSyncCompletedAt</code>, age in minutes</td></tr>
+          <tr><td>Personal activity timeline</td><td><strong>thin new selector</strong>: <code>licenseAssignments</code> where <code>userId = me</code>, ordered by <code>GREATEST(assignedAt, revokedAt) DESC</code> limit 6</td></tr>
+        </tbody>
+      </table>
+
+      <h4>2.2 — Components</h4>
+      <ul>
+        <li><span class="file">components/dashboard/viewer/viewer-dashboard.tsx</span> — top-level layout.</li>
+        <li><span class="file">components/dashboard/viewer/identity-card.tsx</span> — avatar, badges, "tools assigned · active licenses" tiles, sync-status callout (green when synced &lt; staleness threshold; amber otherwise — reuses copy from <code>getSyncStatus()</code> output).</li>
+        <li><span class="file">components/dashboard/viewer/my-usage-card.tsx</span> — 30d area chart + by-model right rail. Recharts <code>AreaChart</code> with <code>ChartTooltipContent</code>; rail is plain HTML.</li>
+        <li><span class="file">components/dashboard/viewer/personal-kpis.tsx</span> — 4 cards (spend, tokens, my tools, today). All read from the same bundled data.</li>
+        <li><span class="file">components/dashboard/viewer/my-tools-table.tsx</span> — status badge logic: <code>status === "active" → green "active"</code>; <code>status === "inactive" → grey "inactive"</code>; if <code>revokedAt</code> within 30 days, append "· revoked <code>formatRelativeAge(revokedAt)</code>".</li>
+        <li><span class="file">components/dashboard/viewer/personal-activity.tsx</span> — generic timeline reused from admin path.</li>
+        <li><span class="file">components/dashboard/viewer/catalog-link-card.tsx</span> — the slim "Browse all tools →" panel that replaces "Request access". Counts how many tools the user doesn't have ("12 more tools available") and links to <code>/tools</code>.</li>
+      </ul>
+
+      <h4>2.3 — Empty / degraded states</h4>
+      <ul>
+        <li><strong>No Claude API key configured</strong> (user has no active assignment with <code>apiKeyEncrypted</code>): the hero collapses to a single card prompting "Get a Claude API key from your lead" + a link to <code>/profile</code>. KPI strip hides the API-derived cards and shows only "My tools" + "Active licenses".</li>
+        <li><strong>No assignments at all</strong>: replace the table with a one-line empty state plus the catalog link.</li>
+        <li><strong>Sync row missing for user</strong>: chip shows "Anthropic data · awaiting first sync" instead of an age.</li>
+      </ul>
+
+      <h4>Acceptance</h4>
+      <ul>
+        <li><span class="check">✓</span> A non-admin user lands on <code>/</code> and sees the new viewer layout.</li>
+        <li><span class="check">✓</span> All queries scope to <code>session.user.id</code>. <em>Manual test:</em> log in as a different user, confirm no cross-user data leaks (toast: numbers change, identity card changes).</li>
+        <li><span class="check">✓</span> All four empty states render without console errors (test by temporarily nulling fields).</li>
+        <li><span class="check">✓</span> Viewer's <code>Browse all tools</code> link reaches the read-only <code>/tools</code> page from Phase 0.</li>
+      </ul>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase-card">
+      <h3><span class="tag tag-phase3">Phase 3</span> &nbsp; Polish &amp; verification <span class="text-xs text-zinc-500 font-normal">(~0.5 dev-day)</span></h3>
+      <p>Catch the things that look small in mockups but matter in the actual app.</p>
+
+      <h4>3.1 — Responsive sweep</h4>
+      <ul>
+        <li>Manually verify sm / md / lg breakpoints in dev (1280, 1024, 768, 390 widths). The mockups assume lg; sm collapses the 4-column KPI grid to 2 and the hero stacks.</li>
+      </ul>
+
+      <h4>3.2 — Light-mode parity</h4>
+      <ul>
+        <li>Open the app in light theme and confirm: the spend-bar destructive overlay, the sync-stale amber, and the badge backgrounds all use design tokens (not hard-coded RGBs).</li>
+      </ul>
+
+      <h4>3.3 — Loading states</h4>
+      <ul>
+        <li>Wrap both dashboards in an <code>&lt;Suspense&gt;</code> boundary with a skeleton card grid that matches the section heights. Avoids layout shift.</li>
+      </ul>
+
+      <h4>3.4 — Tests (minimal)</h4>
+      <ul>
+        <li><strong>Unit:</strong> add a Vitest test for <code>getRecentDashboardActivity</code> merge-sort behavior (mocked rows).</li>
+        <li><strong>Integration:</strong> one test per dashboard hitting the real DB seed — admin sees their KPIs, viewer sees only their own data when authenticated as a non-admin user.</li>
+        <li><strong>No new E2E</strong> in this PR — Playwright spec can come in a follow-up if the team wants it.</li>
+      </ul>
+
+      <h4>3.5 — Browser smoke</h4>
+      <ul>
+        <li>Run <code>pnpm dev</code>, log in as admin and as a viewer, click through Budget hero → /reports/budget, click through "Browse all tools" link, confirm activity timeline updates after a manual invoice ingestion.</li>
+      </ul>
+    </div>
+
+    <!-- Files touched summary -->
+    <h2>Files touched / created</h2>
+    <h4>Created</h4>
+    <ul>
+      <li><span class="file">src/actions/dashboard.ts</span> — two aggregating actions + one merge-sort helper</li>
+      <li><span class="file">src/lib/format-relative.ts</span> — relative-age formatter</li>
+      <li><span class="file">src/components/shared/spend-progress-bar.tsx</span> — lifted from reports</li>
+      <li><span class="file">src/components/shared/budget-health-hero.tsx</span> — re-export shim</li>
+      <li><span class="file">src/components/dashboard/admin/</span> — 8 small files (see Phase 1.3)</li>
+      <li><span class="file">src/components/dashboard/viewer/</span> — 6 small files (see Phase 2.2)</li>
+      <li>2 Vitest tests under <code>tests/integration/</code> + 1 unit test</li>
+    </ul>
+
+    <h4>Modified</h4>
+    <ul>
+      <li><span class="file">src/app/page.tsx</span> — collapses to a role-routed dispatcher</li>
+      <li><span class="file">src/app/tools/page.tsx</span> — remove admin-only guard; gate write actions inline</li>
+      <li><span class="file">src/components/reports/budget/at-a-glance.tsx</span> — import progress bar from shared</li>
+      <li><span class="file">src/lib/reports/insights-static.ts</span> — add 2 insight rules</li>
+    </ul>
+
+    <h4>Deleted</h4>
+    <ul>
+      <li>The bodies of <code>AdminDashboard</code> and <code>ViewerDashboard</code> in the old <code>src/app/page.tsx</code> (functions become thin imports).</li>
+    </ul>
+
+    <p class="mt-3"><strong>Net delta estimate:</strong> ~700-900 LoC added (mostly small UI components), ~120 LoC removed. Zero migrations.</p>
+
+    <!-- Risks -->
+    <h2>Risks &amp; how the plan handles them</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Lifting components from <code>reports/</code> breaks the reports page.</td>
+          <td>Phase 0 ships the lift + import-swap with zero visual change. Reports are visually diffed in QA before any dashboard work begins.</td>
+        </tr>
+        <tr>
+          <td>Viewer dashboard accidentally reads org-wide data.</td>
+          <td>All viewer-side queries go through <code>getViewerDashboardData(userId)</code>, which self-checks like <code>getUserCostData</code>. Integration test in Phase 3 logs in as a non-admin and asserts only their data is returned.</td>
+        </tr>
+        <tr>
+          <td>The activity timeline becomes noisy.</td>
+          <td>Limit to 8 entries; only two sources. If it's still noisy, a follow-up adds filters — out of scope here.</td>
+        </tr>
+        <tr>
+          <td>Sync chip says "synced 12 min ago" but the data is actually stale because workspace sync failed.</td>
+          <td>Use <code>workspaceSyncCompletedAt</code> over <code>lastSyncCompletedAt</code> (same precedence as existing <code>getSyncStatus()</code>); surface <code>lastSyncError</code> as a tooltip on the chip when present.</td>
+        </tr>
+        <tr>
+          <td>Opening <code>/tools</code> to viewers leaks something sensitive.</td>
+          <td>The page is a read-only list of tool names, vendors, and access tiers — already shown indirectly via assignments. No costs, no users, no API keys. Reviewer confirms before merge.</td>
+        </tr>
+        <tr>
+          <td>The PR is too large to review.</td>
+          <td>Phasing aligns with logical commits. The team can request splitting into 4 PRs without rework: each phase typechecks and runs on its own.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Out of scope -->
+    <h2>Explicit non-goals (do not implement in this PR)</h2>
+    <ul>
+      <li>Trial / expiry concept on assignments (no <code>expiresAt</code>, no trial badges).</li>
+      <li>License access-request workflow (no <code>access_requests</code> table, no pending status, no admin approval UI).</li>
+      <li>Per-user Copilot attribution.</li>
+      <li>Per-user spend cap (only workspace-level exists today).</li>
+      <li>Intraday last-call timestamp on Anthropic usage.</li>
+      <li>changeHistory join into the activity timeline.</li>
+      <li>Copilot per-month series in the spend chart.</li>
+      <li>Date-range selector on the admin dashboard (always "current month + YTD"; reports own the date-range UX).</li>
+      <li>E2E / Playwright coverage of the new dashboards.</li>
+    </ul>
+
+    <p class="mt-2 text-zinc-400">Each is a sensible follow-up candidate, but none belong in this PR.</p>
+
+    <!-- Sequencing -->
+    <h2>Suggested commit sequence</h2>
+    <ol>
+      <li><strong>chore(dashboard): split page.tsx into role-routed components</strong> — Phase 0.1, no behavior change.</li>
+      <li><strong>refactor(reports): lift SpendProgressBar to shared</strong> — Phase 0.2.</li>
+      <li><strong>feat(tools): open /tools list to viewers (read-only)</strong> — Phase 0.3.</li>
+      <li><strong>chore(lib): add formatRelativeAge helper</strong> — Phase 0.4.</li>
+      <li><strong>feat(dashboard): admin layout + getAdminDashboardData</strong> — Phase 1, single commit ok.</li>
+      <li><strong>feat(dashboard): viewer layout + getViewerDashboardData</strong> — Phase 2.</li>
+      <li><strong>test(dashboard): activity merge + role scoping</strong> — Phase 3.4.</li>
+      <li><strong>polish(dashboard): suspense skeletons + responsive sweep</strong> — Phase 3.1-3.3.</li>
+    </ol>
+
+    <!-- Open questions remaining -->
+    <h2>What I still want to know</h2>
+    <p>None of these block the plan, but they shape v2:</p>
+    <ul>
+      <li>Should the activity timeline live as a sticky sidebar instead of a column panel? (Trade-off: visible always, but eats horizontal room on smaller screens.)</li>
+      <li>If the team uses Workflow DevKit for sync, would surfacing the last sync run's status link directly to the run be useful, or is the chip enough?</li>
+      <li>Is "12 more tools available" worth computing, or just say "Browse all tools →"? (Count needs the catalog query; the link doesn't.)</li>
+    </ul>
+
+    <div class="mt-12 pt-6 border-t border-zinc-800 text-[11px] text-zinc-600">
+      Feature 029 · Dashboard Redesign · Implementation plan · One PR, four phases, no schema changes.
+    </div>
+  </div>
+</body>
+</html>
