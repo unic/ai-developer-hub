@@ -4,7 +4,6 @@ import { ThisMonthCard } from "./this-month-card";
 import { KpiGrid } from "./kpi-grid";
 import { SpendTrendCard } from "./spend-trend-card";
 import { InsightsGrid } from "./insights-grid";
-import { TopToolsCard } from "./top-tools-card";
 import { ActivityTimeline } from "./activity-timeline";
 import { JumpToRow } from "./jump-to-row";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,18 +71,13 @@ export async function AdminDashboard() {
         billedYtdCents={data.billedYtdCents}
       />
 
-      <InsightsGrid
-        overview={data.overview}
-        toolSummary={data.toolSummary}
-        workspaceAlert={data.workspaceAlert}
-        sync={data.sync}
-      />
-
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <TopToolsCard
+          <InsightsGrid
+            overview={data.overview}
             toolSummary={data.toolSummary}
-            previousAssignmentsByTool={data.overview.previousMonth?.assignmentsByTool ?? {}}
+            workspaceAlert={data.workspaceAlert}
+            sync={data.sync}
           />
         </div>
         <ActivityTimeline activity={data.activity} />
