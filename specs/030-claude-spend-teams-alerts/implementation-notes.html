@@ -382,7 +382,37 @@
   </p>
 </div>
 
-<h2>10. Open questions for the spec author</h2>
+<h2>10. PR review fixes</h2>
+
+<div class="entry">
+  <span class="tag deviation">Deviation</span>
+  <h4>Replaced <code>__dirname</code> with ESM-safe derivation in .mts config</h4>
+  <p class="ts">2026-05-21 · PR #97 review</p>
+  <p>
+    Copilot reviewer flagged that <code>vitest.config.integration.mts</code> uses <code>__dirname</code>, which is
+    technically undefined in Node ESM. It worked in practice (Vitest's esbuild transform polyfilled it), but the
+    spec is clear and the defensive fix is cheap. Switched to
+    <code>path.dirname(fileURLToPath(import.meta.url))</code>. Also rebased <code>loadEnv()</code> to use that
+    derived path so it works regardless of CWD. <code>vitest.config.ts</code> stays as-is — it's <code>.ts</code>
+    not <code>.mts</code> and resolved as CJS in this CJS project.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag deviation">Deviation</span>
+  <h4>Refuse to post cards in production when dashboard base URL is undeterminable</h4>
+  <p class="ts">2026-05-21 · PR #97 review</p>
+  <p>
+    Reviewer flagged that the silent fallback to <code>"http://localhost:3000"</code> for the dashboard base URL
+    would produce embarrassingly broken deep links if a production deployment lacked both
+    <code>TEAMS_DASHBOARD_BASE_URL</code> and <code>NEXTAUTH_URL</code>. Added a guard: when
+    <code>VERCEL_ENV</code> indicates a production-like environment and neither base URL is set, the evaluator
+    returns <code>posted: 0, skipped: ["dashboard_base_url_missing"]</code>. Local dev still falls back to localhost
+    so the kill switch can be tested without extra env wiring.
+  </p>
+</div>
+
+<h2>11. Open questions for the spec author</h2>
 <p style="color:var(--muted); font-style:italic; font-size:13px;">(entries added as work progresses)</p>
 
 </div>

@@ -49,8 +49,17 @@ export async function evaluateAndPostTeamsAlerts(opts?: {
 
   const now = opts?.now ?? new Date();
   const month = format(now, "yyyy-MM");
-  const dashboardBase =
-    env.TEAMS_DASHBOARD_BASE_URL || env.NEXTAUTH_URL || "http://localhost:3000";
+
+  // Cards link back into the in-app dashboard. Refuse to post if we'd build
+  // a "http://localhost:3000" link in production — embarrassing for the
+  // channel and not actionable for the reader. Local dev gets a localhost
+  // fallback so the kill-switch can be tested without setting extra env.
+  const explicitBase = env.TEAMS_DASHBOARD_BASE_URL || env.NEXTAUTH_URL;
+  const isProductionLike = !!env.VERCEL_ENV && env.VERCEL_ENV !== "development";
+  if (!explicitBase && isProductionLike) {
+    return { posted: 0, skipped: ["dashboard_base_url_missing"] };
+  }
+  const dashboardBase = explicitBase || "http://localhost:3000";
   const dashboardUrl = `${dashboardBase.replace(/\/$/, "")}/claude`;
 
   const sync = await loadSyncStatus();
