@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Implementation Notes — Copilot + Members Sync Migration</title>
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #11151a; --panel-2: #161b22; --border: #232a33;
+    --text: #e6edf3; --muted: #9aa7b4; --accent: #7ee787; --accent-2: #79c0ff;
+    --warn: #f0b429; --danger: #ff7b72; --code-bg: #0d1117;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55;
+    max-width: 980px; margin: 0 auto; padding: 40px 28px 80px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 19px; margin: 32px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; margin: 18px 0 6px; color: var(--accent-2); }
+  p, li { font-size: 14px; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--code-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; overflow-x: auto; font-size: 12.5px; }
+  pre code { background: transparent; border: 0; padding: 0; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .meta strong { color: var(--text); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; }
+  .pill.design { background: rgba(121,192,255,0.10); color: var(--accent-2); border: 1px solid rgba(121,192,255,0.3); }
+  .pill.deviation { background: rgba(240,180,41,0.10); color: var(--warn); border: 1px solid rgba(240,180,41,0.3); }
+  .pill.tradeoff { background: rgba(126,231,135,0.10); color: var(--accent); border: 1px solid rgba(126,231,135,0.3); }
+  .pill.open { background: rgba(255,123,114,0.10); color: var(--danger); border: 1px solid rgba(255,123,114,0.3); }
+  .note { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent-2); padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 14px; }
+  .note.deviation { border-left-color: var(--warn); }
+  .note.tradeoff { border-left-color: var(--accent); }
+  .note.open { border-left-color: var(--danger); }
+  .note h3 { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); background: var(--panel-2); }
+</style>
+</head>
+<body>
+
+<h1>Implementation Notes — Copilot + Members Sync Migration</h1>
+<div class="meta">
+  <strong>Spec</strong>: <code>specs/030-copilot-sync-read-migration/plan.html</code> &nbsp;·&nbsp;
+  <strong>Branch</strong>: <code>worktree-copilot-bugfix</code> &nbsp;·&nbsp;
+  <strong>Started</strong>: 2026-05-21
+</div>
+
+<p>Running log of design decisions, deviations, tradeoffs, and open questions while implementing the plan. Last-write-wins ordering — newest sections appended at the bottom.</p>
+
+<!-- ============================================================ -->
+<h2>T5: Members write path</h2>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> Preserve disaggregated action return shape</h3>
+  <p>The action's <code>data</code> field still returns the original six-field breakdown (<code>enrichedCount</code>, <code>importedCount</code>, <code>manuallyMatchedCount</code>, <code>createdCount</code>, <code>skippedCount</code>, <code>conflictCount</code>) because <code>GitHubMemberSyncSheet</code> uses it to display the post-confirm summary. Only the <em>persistence</em> to <code>sync_events</code> uses the generic four-count shape. This means the UI sees no regression.</p>
+</div>
+
+<div class="note tradeoff">
+  <h3><span class="pill tradeoff">Tradeoff</span> Hard errors throw vs. soft errors return</h3>
+  <p>Plan §8.5 gave two options for error handling inside <code>withSyncLock</code>'s callback. I went with a hybrid:</p>
+  <ul>
+    <li><strong>Validation errors</strong> accumulated during the tx (duplicate email, conflicting GitHub login) become entries in the existing <code>errors[]</code> array, which I now pass through to <code>withSyncLock</code> as a non-null <code>errorMessage</code>. <code>conflictCount</code> flows into the generic <code>errorCount</code>. <code>withSyncLock</code> then picks <code>partial</code> or <code>failed</code> based on writes-vs-errors.</li>
+    <li><strong>Unexpected exceptions</strong> from the tx bubble up and let <code>withSyncLock</code> mark the row <code>failed</code> + rethrow. The outer <code>try/catch</code> converts that to <code>{ success: false, error }</code>.</li>
+  </ul>
+  <p>The legacy implementation silently dropped the <code>errors[]</code> array (never propagated to the caller). The new path also doesn't show those errors to the caller in the success response, but they now <em>do</em> persist on the <code>sync_events</code> row's <code>error_message</code> column — visible in <code>/settings/sync</code>'s history. That's a small visibility improvement.</p>
+</div>
+
+<div class="note deviation">
+  <h3><span class="pill deviation">Deviation</span> Removed <code>github_members</code> dispatcher case in <code>src/actions/sync.ts</code></h3>
+  <p>The plan said to delete <code>src/lib/sync/sources/github-members.ts</code>. Doing so broke a dynamic import in <code>src/actions/sync.ts:56</code> (the generic <code>triggerSync</code> dispatcher). The plan didn't anticipate this caller, because the audit identified the stub as having no <em>UI</em> callers — but the dispatcher was a programmatic caller.</p>
+  <p>Fix: replaced the dispatcher branch with <code>return null</code> and a comment that members sync is interactive (mirroring the existing <code>anthropic_team_invoices</code> branch). The dispatcher's <code>null</code> path returns a friendly "this source does not support manual triggering" error if anyone ever hits it. Confirmed via the audit that no UI surface calls <code>triggerSync('github_members')</code> — the "Sync Now" button on the scheduled-jobs row instead opens <code>GitHubMemberSyncSheet</code>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>T2–T4: Copilot read paths</h2>
+
+<div class="note tradeoff">
+  <h3><span class="pill tradeoff">Tradeoff</span> Timeline status mapping fallback</h3>
+  <p>The plan said to map <code>outcome → legacy status</code> via the helper. The activity-timeline rendering, however, was already lenient (it just passed <code>status</code> through as a string). To avoid silently swallowing the <code>in_progress</code> state on a live-running sync, the timeline now does:</p>
+  <pre><code>status: mapOutcomeToLegacyStatus(evt.outcome) ?? evt.outcome</code></pre>
+  <p>i.e. <code>success → "completed"</code>, <code>partial → "partial"</code>, <code>failed → "failed"</code>, and <code>in_progress</code> falls through as the literal string <code>"in_progress"</code>. Same shape the UI saw before (the legacy table used <code>in_progress</code> too), so no UI change needed.</p>
+  <p>Alternative: filter out <code>in_progress</code> rows in <code>listSyncEvents</code>. Rejected because the timeline should show currently-running syncs for visibility.</p>
+</div>
+
+<div class="note deviation">
+  <h3><span class="pill deviation">Deviation</span> <code>getCopilotBillingSyncHistory</code> exposes <code>createdCount</code> as <code>billingProcessed</code></h3>
+  <p>Plan §7.1 mentioned this mapping. Implementation keeps the public field name <code>billingProcessed</code> identical (the UI label stays "Billing processed") and just plumbs <code>row.createdCount</code> through. This means no UI changes are needed and the semantic shift is invisible at the call site. If we later split billing vs seats vs metrics counts in the new framework, we can reintroduce a distinct field.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Browser verification on Neon branch <code>wt/copilot-bugfix</code></h2>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> Neon branch + agent-mint session for verification</h3>
+  <p>Created Neon branch <code>wt/copilot-bugfix</code> (id <code>br-dawn-sea-al9hczcp</code>, parent <code>main</code>) and pointed the worktree's <code>.env.local</code> at the branch. Authenticated to the dev server via the dev-only <code>/api/agent/session</code> mint endpoint (uses <code>AGENT_SESSION_SECRET</code>) which seats the <code>nighthawk@agent.local</code> admin user. This avoids any plaintext-password use.</p>
+</div>
+
+<div class="note ok" style="border-left-color:#7ee787;">
+  <h3>Verified surfaces</h3>
+  <table>
+    <tr><th>URL</th><th>What I checked</th><th>Result</th></tr>
+    <tr><td><code>/settings/sync</code></td><td>Scheduled-jobs table for <code>github_copilot_billing</code> + <code>github_members</code> rows; sync-history table</td><td>Copilot row shows "about 7 hours ago" / success / created=1 / updated=77 — reading <code>sync_events</code> live. Members row shows existing row from earlier seed (will refresh on next confirm).</td></tr>
+    <tr><td><code>/copilot/seats/1264796</code> (studert)</td><td>"Sync History" timeline driven by <code>getCopilotActivityTimeline</code>'s read path inside <code>getCopilotSeatDetail</code></td><td>Shows entries from 5/21/2026 (today) back through April — proves the read now hits <code>sync_events</code>, not the legacy table that's been frozen since 2026-03-25.</td></tr>
+    <tr><td><code>/copilot/billing</code></td><td>Billing tab renders + makes Copilot data queries</td><td>No console errors; billing totals render. <code>getCopilotBillingSyncHistory</code> action is defined and migrated but I did not find a UI surface that currently renders its output — see open question below.</td></tr>
+    <tr><td>Console logs</td><td>Cross-page error/warn check</td><td>Zero errors, zero warnings.</td></tr>
+  </table>
+  <p>Screenshots saved alongside this file: <code>verification-sync-dashboard.png</code>, <code>verification-seat-sync-history.png</code>.</p>
+</div>
+
+<div class="note open">
+  <h3><span class="pill open">Open question</span> Are <code>getCopilotSyncStatus</code> and <code>getCopilotBillingSyncHistory</code> still consumed by any rendered UI?</h3>
+  <p>Search shows <code>CopilotSyncSection</code> (the component that drove "Last sync" on <code>/settings/integrations</code>) is defined at <code>src/components/copilot/copilot-sync-section.tsx</code> but <strong>not imported anywhere</strong>. It looks like the UI surface that originally exhibited the frozen-clock bug has been refactored out in a prior change. Same for <code>getCopilotBillingSyncHistory</code> — the action is still wired but I couldn't find a page rendering its output.</p>
+  <p><strong>Worth deciding:</strong></p>
+  <ul>
+    <li>Should the orphaned <code>CopilotSyncSection</code> component be deleted as part of cleanup? (Not done in this PR — out of scope as currently scoped.)</li>
+    <li>Should the <code>getCopilotBillingSyncHistory</code> action also be deleted if it has no consumer? (Same — out of scope.)</li>
+  </ul>
+  <p>The actions themselves are now correct against the new framework, so when/if a future PR re-introduces a UI consumer it will read fresh data immediately.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Post-review fixes (xhigh-effort code review)</h2>
+
+<p>Three review agents ran in parallel. Below: the fixes I applied, the ones I deliberately skipped, and one TypeScript quirk I had to work around.</p>
+
+<h3>Applied</h3>
+<table>
+  <tr><th>Finding</th><th>Fix</th></tr>
+  <tr>
+    <td>Three independent reviewers flagged: <code>getLastCompletedSyncEvent</code> ordered by <code>completedAt DESC</code> — inconsistent with the rest of the framework (which uses <code>started_at</code>), and no <code>completedAt</code> index → forces a sort.</td>
+    <td>Switched to <code>orderBy: [desc(syncEvents.startedAt)]</code>. Now rides the existing <code>sync_events_source_started_idx</code> index and matches <code>getSyncSources()</code> / <code>getSyncHistory()</code> semantics.</td>
+  </tr>
+  <tr>
+    <td>Quality reviewer: <code>errorCount: result.conflictCount</code> in the members write path silently dropped the <code>result.errors</code> array (validation errors mid-run like duplicate email / GitHub login). A run with 50 silent errors would have shown as <code>success</code>.</td>
+    <td>Changed to <code>errorCount: result.errors.length + result.conflictCount</code>, so the outcome computation in <code>withSyncLock</code> correctly marks such runs as <code>partial</code>/<code>failed</code>. Added a code comment explaining the aggregation.</td>
+  </tr>
+  <tr>
+    <td>Reuse + quality reviewers: <code>mapOutcomeToLegacyStatus(...) ?? evt.outcome</code> duplicated twice in <code>copilot-data.ts</code> — leaky pattern that bypasses the helper's type narrowing.</td>
+    <td>Added <code>mapOutcomeForDisplay</code> in <code>queries.ts</code>. Returns the legacy three-state string plus <code>"in_progress"</code> as a typed union. Both call sites now do <code>status: mapOutcomeForDisplay(evt.outcome)</code> — single helper, no fallback.</td>
+  </tr>
+  <tr>
+    <td>Reuse reviewer: <code>withSyncLock</code>'s <code>{ eventId }</code> return value was discarded. Future UI ("view this sync's detail") would need it.</td>
+    <td>Captured into <code>lockResult</code>; surfaced in the action's return data as <code>data.eventId</code>. Also extracted the inline return shape into a named <code>GitHubMemberSyncCounts</code> interface so the UI component can import the type.</td>
+  </tr>
+  <tr>
+    <td>Quality reviewer: the inner transaction body wasn't re-indented after wrapping in <code>withSyncLock</code>.</td>
+    <td>Ran Prettier on the touched files; indentation now correct.</td>
+  </tr>
+  <tr>
+    <td>Efficiency reviewer: first integration test asserted <code>row?.outcome === "partial"</code> against the globally-newest non-in-progress row — brittle on a shared DB where any newer organic Copilot event would fail the test.</td>
+    <td>Scoped the assertion: only check <code>outcome</code> when the returned row is one we seeded (via <code>seededIds.includes(row.id)</code>).</td>
+  </tr>
+  <tr>
+    <td>Quality reviewer: unnecessary <code>// Build activity timeline from the unified sync events table</code> comment narrated WHAT.</td>
+    <td>Deleted. Function and variable names already self-document.</td>
+  </tr>
+</table>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> Property-holder pattern for closure-mutated state</h3>
+  <p>TypeScript's strict mode wouldn't narrow a <code>let detailedCounts: T | null = null</code> after a <code>!= null</code> guard once the variable was mutated inside an async closure — it treats the read as <code>never</code> (the closure mutation isn't tracked across the await boundary). Workaround: wrap in a mutable object, <code>const detailed: { counts: T | null } = { counts: null }</code>. Property access through a const-bound object narrows properly. Documented at the declaration site.</p>
+</div>
+
+<h3>Deliberately skipped (with reasoning)</h3>
+<table>
+  <tr><th>Finding</th><th>Why skipped</th></tr>
+  <tr>
+    <td>Reuse #1: converge <code>listSyncEvents</code> with the existing <code>getSyncHistory()</code> in <code>actions/sync.ts</code> (extract a shared query to <code>registry.ts</code>).</td>
+    <td>The two helpers serve different concerns — <code>getSyncHistory</code> requires a <code>triggerType</code> partition and joins users; <code>listSyncEvents</code> doesn't. A real consolidation would change the public action signature of <code>getSyncHistory</code> and rewire the <code>/settings/sync</code> dashboard. That's a separate refactor, not a bug fix. Logged as follow-up.</td>
+  </tr>
+  <tr>
+    <td>Reuse #4: type the helper return as <code>SyncEventRecord</code> from <code>registry.ts</code>.</td>
+    <td><code>SyncEventRecord</code> includes <code>operationType</code> which the Copilot UI doesn't need. Adding it costs one SELECT column and one map field; not worth the import-coupling for this PR. The Drizzle-inferred shape is already type-safe.</td>
+  </tr>
+  <tr>
+    <td>Quality #3: move <code>try/catch</code> inside the <code>withSyncLock</code> callback to match other sources' pattern.</td>
+    <td>The other sources catch <em>per-sub-task</em> errors inside (each sub-task is independent and can partially succeed). The members confirm flow is a single atomic transaction — if it throws, everything rolls back, and there are no partial counts to preserve. The outer try/catch correctly returns a clean failure response. The patterns are consistent in spirit (catch where partial success is possible; let truly atomic operations bubble up to <code>withSyncLock</code>).</td>
+  </tr>
+  <tr>
+    <td>Quality #4: per-connection scoping was silently dropped from the Copilot read paths.</td>
+    <td>Deliberate per spec §D2 — the new <code>sync_events</code> table is connection-agnostic, and the app is single-tenant for GitHub today. Multi-connection support would require a schema extension regardless. Acknowledged in the original plan; not a regression specific to this PR.</td>
+  </tr>
+  <tr>
+    <td>Efficiency #F2: document the <code>Pool({ max: 1 })</code> constraint that makes advisory locks work.</td>
+    <td>This is a framework-level concern that predates this PR. Adding documentation is fine, but it belongs in a separate housekeeping PR for <code>src/lib/db/index.ts</code> + <code>framework.ts</code>, not bundled with the bug fix.</td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Setup</h2>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> Spec ID kept as 030</h3>
+  <p>The plan was originally scoped to Copilot reads only and the folder is <code>030-copilot-sync-read-migration</code>. Scope expanded to include members write-path, but I'm keeping the folder name to avoid renaming references in the spec tree. The plan title now reads "Copilot + Members Sync Migration."</p>
+</div>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> Branch name kept as <code>worktree-copilot-bugfix</code></h3>
+  <p>Plan suggested renaming to <code>chore/sync-events-consolidation</code> on push. Decided to keep the existing branch name (already pushed to remote as <code>worktree-copilot-bugfix</code>) — fighting the worktree naming gives no real benefit, and the PR title will describe the work accurately. The plan said "rename on push"; I'm explicitly choosing not to.</p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Implementation Plan — Copilot + Members Sync Migration</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #11151a;
+    --panel-2: #161b22;
+    --border: #232a33;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --accent: #7ee787;
+    --accent-2: #79c0ff;
+    --warn: #f0b429;
+    --danger: #ff7b72;
+    --code-bg: #0d1117;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55; }
+  body { max-width: 1040px; margin: 0 auto; padding: 40px 28px 80px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 22px 0 8px; color: var(--accent-2); }
+  h4 { font-size: 14px; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  p, li { font-size: 14px; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--code-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+  pre code { background: transparent; border: 0; padding: 0; font-size: 12.5px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; background: var(--panel-2); }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .meta strong { color: var(--text); }
+  .callout { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent-2); padding: 12px 16px; margin: 16px 0; border-radius: 4px; font-size: 13.5px; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.danger { border-left-color: var(--danger); }
+  .callout.ok { border-left-color: var(--accent); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; }
+  .pill.bug { background: rgba(255,123,114,0.12); color: var(--danger); border: 1px solid rgba(255,123,114,0.3); }
+  .pill.fix { background: rgba(126,231,135,0.10); color: var(--accent); border: 1px solid rgba(126,231,135,0.3); }
+  .pill.neutral { background: rgba(154,167,180,0.10); color: var(--muted); border: 1px solid var(--border); }
+  .pill.scope { background: rgba(240,180,41,0.10); color: var(--warn); border: 1px solid rgba(240,180,41,0.3); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px; font-size: 13px; }
+  .toc a { color: var(--accent-2); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ol { margin: 6px 0 0; padding-left: 20px; }
+  .file { color: var(--accent-2); font-family: var(--mono); font-size: 12.5px; }
+  .removed { color: var(--danger); }
+  .added { color: var(--accent); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; }
+  .card h4 { margin-top: 0; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+  details { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; margin: 8px 0; }
+  details[open] { padding-bottom: 14px; }
+  summary { cursor: pointer; font-weight: 600; font-size: 13.5px; color: var(--accent-2); padding: 4px 0; }
+  .kbd { font-family: var(--mono); font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 3px; }
+  .stripe { background: var(--panel-2); padding: 12px 16px; border-radius: 6px; border: 1px solid var(--border); margin: 12px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>Implementation Plan: Copilot + Members Sync Migration</h1>
+<div class="meta">
+  <strong>Spec ID</strong>: 030-copilot-sync-read-migration &nbsp;·&nbsp;
+  <strong>Branch</strong>: <code>fix/copilot-sync-read-paths</code> (rename to <code>chore/sync-events-consolidation</code> on push) &nbsp;·&nbsp;
+  <strong>Date</strong>: 2026-05-21 &nbsp;·&nbsp;
+  <strong>Owner</strong>: tobias.studer@unic.com &nbsp;·&nbsp;
+  <span class="pill bug">Bug fix</span> <span class="pill scope">Scope expansion: GitHub members</span>
+</div>
+
+<div class="callout warn">
+  <strong>Two bugs, one fix.</strong> The Copilot UI shows "Last sync" frozen at <strong>2026-03-25</strong> because Copilot reads still query the legacy <code>github_sync_events</code> table while writes now go to <code>sync_events</code>. GitHub Member sync is in the inverse trap: it still <em>writes</em> to <code>github_sync_events</code>, but the <code>/settings/sync</code> dashboard reads only <code>sync_events</code>, so the <code>github_members</code> row on the dashboard never shows real activity. Consolidating both flows onto <code>sync_events</code> in one PR removes the legacy table from active use entirely.
+</div>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#context">Technical context</a></li>
+    <li><a href="#root-cause">Root cause analysis (both flows)</a></li>
+    <li><a href="#scope">Scope &amp; out-of-scope</a></li>
+    <li><a href="#impact">Affected files inventory</a></li>
+    <li><a href="#design">Design decisions</a></li>
+    <li><a href="#data-shape">Data-shape mapping (legacy → new)</a></li>
+    <li><a href="#changes">Change-by-change implementation</a></li>
+    <li><a href="#dead-code">Dead-code removal</a></li>
+    <li><a href="#testing">Testing plan</a></li>
+    <li><a href="#rollout">Rollout &amp; verification</a></li>
+    <li><a href="#risks">Risks &amp; rollback</a></li>
+    <li><a href="#tasks">Task breakdown</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="summary">1. Summary</h2>
+<p>
+  Consolidate the GitHub Copilot and GitHub Member sync flows onto the new <code>sync_events</code> framework so both write through <code>withSyncLock</code> and both are read by the same query helpers. This unfreezes the Copilot "Last sync" indicator, populates the dormant <code>github_members</code> row on <code>/settings/sync</code>, and deletes the dead legacy orchestrator (<code>runCopilotSync</code>).
+</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>What changes</h4>
+    <ul>
+      <li><strong>Copilot reads</strong>: 3 server actions rewritten to query <code>sync_events</code> (source_type = <code>github_copilot_billing</code>).</li>
+      <li><strong>Members writes</strong>: <code>confirmGitHubSync()</code> wrapped in <code>withSyncLock</code>; writes to <code>sync_events</code> (source_type = <code>github_members</code>) instead of <code>github_sync_events</code>.</li>
+      <li><strong>Shared</strong>: 1 new helper module <code>src/lib/sync/queries.ts</code>.</li>
+      <li><strong>Cleanup</strong>: Delete <code>runCopilotSync</code>, the obsolete <code>getSyncHistory()</code> in <code>github-sync.ts</code>, and the unused pass-through in <code>src/lib/sync/sources/github-members.ts</code>.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>What does NOT change</h4>
+    <ul>
+      <li><code>github_sync_events</code> table is <em>kept in place</em> (no DROP migration in this PR) — see §D5.</li>
+      <li>No schema migrations required.</li>
+      <li>The Copilot UI components themselves: contract preserved.</li>
+      <li>The Member Sync Sheet flow (preview, conflict resolution): only its persistence path changes.</li>
+      <li>Cron schedule entries in <code>vercel.json</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="context">2. Technical context</h2>
+<table>
+  <tr><th>Item</th><th>Value</th></tr>
+  <tr><td>Language</td><td>TypeScript 5.9.3 (strict mode)</td></tr>
+  <tr><td>Framework</td><td>Next.js 15.5.12 App Router, React 19.2.4, Server Actions</td></tr>
+  <tr><td>ORM</td><td>Drizzle 0.45.1</td></tr>
+  <tr><td>DB</td><td>Neon PostgreSQL (serverless) — <strong>no schema changes</strong></td></tr>
+  <tr><td>Tables in play</td><td><code>sync_events</code>, <code>sync_sources</code> (already exist); <code>github_sync_events</code> (still exists, kept dormant)</td></tr>
+  <tr><td>Helpers reused</td><td><code>withSyncLock</code> from <code>src/lib/sync/framework.ts</code>; <code>getSyncSources</code> from <code>src/lib/sync/registry.ts</code></td></tr>
+  <tr><td>Migrations</td><td>None</td></tr>
+  <tr><td>New deps</td><td>None</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="root-cause">3. Root cause analysis (both flows)</h2>
+
+<h3>3.1 Copilot — split-brain reads</h3>
+<p>The write path was migrated on 2026-03-25:</p>
+<pre><code>// NEW (live): src/lib/sync/sources/github-copilot.ts
+withSyncLock({ sourceType: 'github_copilot_billing' }, ...) → INSERT INTO sync_events
+
+// OLD (dead since 2026-03-25): src/lib/copilot-sync.ts → runCopilotSync()
+INSERT INTO github_sync_events ...</code></pre>
+<p>But three server actions still query <code>github_sync_events</code> with <code>syncType='copilot'</code>, so <code>ORDER BY completed_at DESC LIMIT 1</code> returns the last legacy row (2026-03-25) forever.</p>
+
+<h3>3.2 Members — write path never migrated</h3>
+<p>The mirror image: <code>confirmGitHubSync()</code> (<code>src/actions/github-sync.ts:134–513</code>) still writes directly to <code>github_sync_events</code> with <code>syncType='members'</code>. There is a stub wrapper at <code>src/lib/sync/sources/github-members.ts</code> that accepts pre-computed counts and calls <code>withSyncLock</code>, but <em>nothing calls it</em>. Meanwhile the <code>/settings/sync</code> dashboard reads only <code>sync_events</code>, so the <code>github_members</code> row never lights up after a manual sync.</p>
+
+<div class="callout warn">
+  <strong>Why this duplicates the bug.</strong> The Copilot bug is "reads point at the wrong table." The members bug is "writes point at the wrong table." Both come from the same incomplete migration; fixing them together costs little extra effort and lets us retire <code>github_sync_events</code> as a follow-up.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="scope">4. Scope &amp; out-of-scope</h2>
+
+<h3>In scope</h3>
+<ul>
+  <li><strong>Copilot reads → <code>sync_events</code>.</strong> Rewrite <code>getCopilotSyncStatus</code>, <code>getCopilotActivityTimeline</code>, <code>getCopilotBillingSyncHistory</code>.</li>
+  <li><strong>Members writes → <code>sync_events</code>.</strong> Wrap <code>confirmGitHubSync()</code> in <code>withSyncLock({ sourceType: 'github_members' })</code>; map members-specific counts onto the generic <code>createdCount / updatedCount / skippedCount / errorCount</code> contract (see §7).</li>
+  <li><strong>Status mapping helper.</strong> New file <code>src/lib/sync/queries.ts</code> with <code>getLastCompletedSyncEvent</code>, <code>listSyncEvents</code>, and <code>mapOutcomeToLegacyStatus</code>. Used by Copilot read actions; available to future sources.</li>
+  <li><strong>Dead-code removal.</strong>
+    <ul>
+      <li><code>runCopilotSync</code> in <code>src/lib/copilot-sync.ts:481–592</code> (zero callers — confirmed by audit).</li>
+      <li><code>getSyncHistory()</code> in <code>src/actions/github-sync.ts:515–557</code> (legacy reader; superseded by <code>getSyncHistory()</code> in <code>src/actions/sync.ts</code>; no UI references).</li>
+      <li>Pass-through wrapper in <code>src/lib/sync/sources/github-members.ts</code> — replaced by inline <code>withSyncLock</code> usage inside <code>confirmGitHubSync()</code>.</li>
+    </ul>
+  </li>
+  <li><strong>Tests.</strong> Unit tests for the new helper; integration tests that prove both the Copilot last-sync read advances and the members row on the dashboard updates after a confirm.</li>
+</ul>
+
+<h3>Out of scope (deliberately)</h3>
+<ul>
+  <li><strong>Dropping <code>github_sync_events</code>.</strong> Keep the table in place for one release as a safety net; a follow-up PR can drop it once we've confirmed no surface depends on historical rows. See §D5.</li>
+  <li><strong>Persisting members-specific counts</strong> (<code>totalMembers</code>, <code>matchedCount</code>, <code>conflictCount</code>, …). The new schema has only generic counts. We accept the loss of granular history since no UI currently displays those columns from history; the in-flight Member Sync Sheet still surfaces them at preview/confirm time from live data.</li>
+  <li><strong>Connection-level <code>lastSyncAt</code>.</strong> <code>githubConnections.lastSyncAt</code> is updated by the members orchestrator and read by the GitHub integration card. Leave that update in place; do not retarget the card. Removing the column would be a destructive schema change with no UI benefit.</li>
+  <li><strong>UI label tweaks.</strong> The Member Sync Sheet's preview counts come from a live GitHub API call, not from <code>github_sync_events</code> — no copy change needed there.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="impact">5. Affected files inventory</h2>
+
+<h3>5.1 Copilot read paths (§Change 8.1–8.3)</h3>
+<table>
+  <tr>
+    <th>File</th>
+    <th>What it does today</th>
+    <th>Action</th>
+  </tr>
+  <tr>
+    <td><span class="file">src/actions/copilot.ts</span><br><span class="pill bug">L155–198</span></td>
+    <td>Reads last row from <code>githubSyncEvents</code> filtered by <code>connectionId</code> + <code>syncType='copilot'</code> + <code>status != 'in_progress'</code>.</td>
+    <td><span class="pill fix">Rewrite</span> Query <code>syncEvents</code> via the new <code>getLastCompletedSyncEvent('github_copilot_billing')</code> helper.</td>
+  </tr>
+  <tr>
+    <td><span class="file">src/actions/copilot-data.ts</span><br><span class="pill bug">L319–333</span></td>
+    <td><code>getCopilotActivityTimeline()</code> — last 30 rows.</td>
+    <td><span class="pill fix">Rewrite</span> Use <code>listSyncEvents('github_copilot_billing', 30)</code>; remap rows.</td>
+  </tr>
+  <tr>
+    <td><span class="file">src/actions/copilot-data.ts</span><br><span class="pill bug">L374–391</span></td>
+    <td><code>getCopilotBillingSyncHistory()</code> — last 10 rows with <code>billingProcessed</code>.</td>
+    <td><span class="pill fix">Rewrite</span> Use <code>listSyncEvents('github_copilot_billing', 10)</code>; surface <code>createdCount</code> in place of <code>billingProcessed</code> (see §7).</td>
+  </tr>
+</table>
+
+<h3>5.2 Members write path (§Change 8.5)</h3>
+<table>
+  <tr>
+    <th>File</th>
+    <th>What it does today</th>
+    <th>Action</th>
+  </tr>
+  <tr>
+    <td><span class="file">src/actions/github-sync.ts</span><br><span class="pill bug">L134–513</span></td>
+    <td><code>confirmGitHubSync()</code> opens a tx, inserts/updates users, writes a row to <code>github_sync_events</code> (L170–179 insert in_progress; L454–465 update completed; L500–506 update failed).</td>
+    <td><span class="pill fix">Rewrite</span> Wrap the body inside <code>withSyncLock({ sourceType: 'github_members', triggeredBy })</code>. Remove direct <code>githubSyncEvents</code> inserts/updates; return counts. <code>withSyncLock</code> handles event lifecycle.</td>
+  </tr>
+  <tr>
+    <td><span class="file">src/actions/github-sync.ts</span><br><span class="pill neutral">L515–557</span></td>
+    <td><code>getSyncHistory()</code> reads <code>github_sync_events</code> (no <code>syncType</code> filter — returns both members and copilot). Not referenced by any UI surface (audit confirmed).</td>
+    <td><span class="pill fix">Delete</span> The new <code>getSyncHistory()</code> in <code>src/actions/sync.ts</code> is the canonical reader.</td>
+  </tr>
+  <tr>
+    <td><span class="file">src/lib/sync/sources/github-members.ts</span></td>
+    <td>Pass-through wrapper that accepts pre-computed counts. No callers.</td>
+    <td><span class="pill fix">Delete</span> — its job is absorbed into <code>confirmGitHubSync()</code> via direct <code>withSyncLock</code>.</td>
+  </tr>
+</table>
+
+<h3>5.3 Dead code (§Change 8.6)</h3>
+<table>
+  <tr>
+    <th>File</th>
+    <th>What it does today</th>
+    <th>Action</th>
+  </tr>
+  <tr>
+    <td><span class="file">src/lib/copilot-sync.ts</span><br><span class="pill neutral">L481–592</span></td>
+    <td><code>runCopilotSync()</code> — old orchestrator writing to <code>github_sync_events</code>. Zero callers.</td>
+    <td><span class="pill fix">Delete</span></td>
+  </tr>
+</table>
+
+<h3>5.4 Type re-exports</h3>
+<table>
+  <tr>
+    <th>File</th>
+    <th>What it does today</th>
+    <th>Action</th>
+  </tr>
+  <tr>
+    <td><span class="file">src/types/index.ts</span><br><span class="pill neutral">L280–281, 390–397</span></td>
+    <td>Re-exports <code>GitHubSyncEvent</code>/<code>NewGitHubSyncEvent</code> and defines <code>CopilotSyncStatus</code>.</td>
+    <td><span class="pill neutral">Keep <code>CopilotSyncStatus</code></span> (UI contract). <span class="pill fix">Drop unused <code>GitHubSyncEvent</code> re-exports</span> if no remaining reference after this PR (verify via <code>tsc --noEmit</code>).</td>
+  </tr>
+</table>
+
+<h3>5.5 Untouched (intentionally)</h3>
+<ul>
+  <li><code>src/components/copilot/copilot-sync-section.tsx</code> — receives unchanged <code>CopilotSyncStatus</code>.</li>
+  <li><code>src/app/settings/sync/scheduled-jobs-table.tsx</code> — already reads <code>sync_events</code>; the <code>github_members</code> row will populate automatically once writes go to the new table.</li>
+  <li><code>src/app/settings/sync/manual-jobs-table.tsx</code> — same.</li>
+  <li><code>src/app/settings/integrations/github-integration-client.tsx</code> — keeps reading <code>connection.lastSyncAt</code>; members write path still updates that column inside the wrapped logic.</li>
+  <li><code>src/app/settings/sync/github-member-sync-sheet.tsx</code> — preview/confirm flow unchanged.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="design">6. Design decisions</h2>
+
+<h3>D1. Preserve the <code>CopilotSyncStatus</code> public shape</h3>
+<p>The UI consumes <code>lastSyncStatus: "completed" | "partial" | "failed" | null</code>. The new framework uses <code>outcome: "success" | "partial" | "failed" | "in_progress"</code>. Map at the server-action boundary so no <code>.tsx</code> changes ripple out:</p>
+<pre><code>const lastSyncStatus =
+  lastEvent?.outcome === "success" ? "completed"
+  : lastEvent?.outcome === "partial" ? "partial"
+  : lastEvent?.outcome === "failed"  ? "failed"
+  : null; // 'in_progress' is filtered out by the query</code></pre>
+
+<h3>D2. Drop <code>connectionId</code> as a Copilot read filter</h3>
+<p>The new <code>sync_events</code> table is connection-agnostic — the Copilot orchestrator picks the single active connection at runtime. Drop the <code>connectionId</code> filter in Copilot reads. (Multi-connection support is future work and would require a schema extension regardless.)</p>
+
+<h3>D3. Wrap <code>confirmGitHubSync()</code> with <code>withSyncLock</code> directly</h3>
+<p>Rather than route through the stub wrapper in <code>src/lib/sync/sources/github-members.ts</code>, call <code>withSyncLock</code> from inside <code>confirmGitHubSync()</code>. This keeps the orchestration (transaction, conflict resolution, count tabulation) co-located with the side effects it produces, and it lets <code>withSyncLock</code>'s lifecycle handle the <code>in_progress → success/partial/failed</code> transitions instead of duplicating that logic.</p>
+<pre><code>// src/actions/github-sync.ts — confirmGitHubSync (shape)
+return withSyncLock(
+  { sourceType: 'github_members', triggeredBy: actor.id },
+  async (eventId) =&gt; {
+    // existing logic: validate, open tx, insert/update users, link members
+    // …
+    // (still update githubConnections.lastSyncAt in the same tx)
+    return {
+      createdCount: importedCount,
+      updatedCount: matchedCount + manuallyMatchedCount,
+      skippedCount: unmatchedCount,
+      errorCount: conflictCount,
+    };
+  }
+);</code></pre>
+<p>The advisory lock keyed on <code>github_members</code> prevents two members syncs running at once — a meaningful guarantee given the interactive nature of the flow.</p>
+
+<h3>D4. Map members-specific counts → generic counts</h3>
+<p>The new schema has four generic count columns. Map members concepts onto them as below (see §7 for the full table). Accept loss of <code>totalMembers</code> (snapshot of org size) — it's not displayed in any history UI and is re-derivable from a live GitHub API call.</p>
+
+<h3>D5. Keep <code>github_sync_events</code> in place this PR</h3>
+<p>Both Copilot and members will write/read only <code>sync_events</code> after this change. <code>github_sync_events</code> becomes dormant. Two options:</p>
+<table>
+  <tr><th>Option</th><th>Pros</th><th>Cons</th><th>Pick?</th></tr>
+  <tr>
+    <td><strong>A.</strong> Drop the table in this PR with a Drizzle migration.</td>
+    <td>Codebase ends with a single sync-events table; less confusion for newcomers.</td>
+    <td>Destructive; loses historical rows from before 2026-03-25 (mostly members data). Couples the bug fix to a schema change.</td>
+    <td>No</td>
+  </tr>
+  <tr>
+    <td><strong>B.</strong> Leave the table; remove all code references; drop in a follow-up PR after one stable release.</td>
+    <td>Reversible: if a regression appears, restoring old reads is one revert. Historical data preserved for one release as a debugging aid.</td>
+    <td>One more PR to schedule.</td>
+    <td><strong>Yes</strong></td>
+  </tr>
+</table>
+
+<h3>D6. Centralize Copilot queries in a small helper module</h3>
+<p>One new file <code>src/lib/sync/queries.ts</code> with three functions. Source-type-agnostic, so future migrations can reuse it. See §8 for the full source.</p>
+
+<!-- ============================================================ -->
+<h2 id="data-shape">7. Data-shape mapping (legacy → new)</h2>
+
+<h3>7.1 Copilot</h3>
+<table>
+  <tr><th>UI need</th><th>Legacy column</th><th>New column</th><th>Notes</th></tr>
+  <tr><td>last-sync timestamp</td><td><code>github_sync_events.completed_at</code></td><td><code>sync_events.completed_at</code></td><td>Same semantics.</td></tr>
+  <tr><td>last-sync status</td><td><code>status</code> (<code>completed</code>/<code>partial</code>/<code>failed</code>/<code>in_progress</code>)</td><td><code>outcome</code> (<code>success</code>/<code>partial</code>/<code>failed</code>/<code>in_progress</code>)</td><td>Map <code>success → completed</code> at boundary.</td></tr>
+  <tr><td>billing rows processed</td><td><code>billing_processed</code></td><td><code>created_count</code></td><td>New framework folds billing inserts into <code>createdCount</code> and seat/metric updates into <code>updatedCount</code>. UI label "Billing processed" can stay verbatim — the number is still "rows of billing data inserted" — or be relabeled "Records created" in a follow-up.</td></tr>
+  <tr><td>error detail</td><td><code>error_message</code></td><td><code>error_message</code></td><td>Same.</td></tr>
+  <tr><td>connection scope</td><td><code>connection_id</code> FK</td><td><em>(none)</em></td><td>See D2.</td></tr>
+</table>
+
+<h3>7.2 Members</h3>
+<table>
+  <tr><th>Members concept</th><th>Legacy column</th><th>New column</th><th>Notes</th></tr>
+  <tr><td>new users created during sync</td><td><code>imported_count</code></td><td><code>created_count</code></td><td>Direct map.</td></tr>
+  <tr><td>existing users matched + enriched</td><td><code>matched_count + manually_matched_count</code></td><td><code>updated_count</code></td><td>Summed at write time.</td></tr>
+  <tr><td>GitHub members not resolved to a user</td><td><code>unmatched_count</code></td><td><code>skipped_count</code></td><td>"Skipped" reads slightly off; acceptable since the dashboard column header is "Skipped" generally.</td></tr>
+  <tr><td>duplicate-match conflicts</td><td><code>conflict_count</code></td><td><code>error_count</code></td><td>Conflicts already block completion in the sheet flow; mapping to errors preserves the "needs attention" signal in the dashboard outcome computation (<code>errorCount &gt; 0</code> + writes &gt; 0 = <code>partial</code>).</td></tr>
+  <tr><td>org size snapshot</td><td><code>total_members</code></td><td><em>(dropped)</em></td><td><span class="pill warn" style="background:rgba(240,180,41,.12);color:var(--warn);border:1px solid rgba(240,180,41,.3)">Data loss</span> No UI surface depends on this from history. If ever needed, re-derive from a live GitHub call.</td></tr>
+  <tr><td>sync trigger</td><td><code>triggered_by</code></td><td><code>triggered_by</code></td><td>Same.</td></tr>
+  <tr><td>error message</td><td><code>error_message</code></td><td><code>error_message</code></td><td>Same.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="changes">8. Change-by-change implementation</h2>
+
+<h3>Change 8.0 — New file <code>src/lib/sync/queries.ts</code></h3>
+<pre><code>import { db } from "@/lib/db";
+import { syncEvents } from "@/lib/db/schema";
+import { and, desc, eq, ne } from "drizzle-orm";
+import type { SyncSourceType } from "@/lib/sync/framework";
+
+export async function getLastCompletedSyncEvent(sourceType: SyncSourceType) {
+  return db.query.syncEvents.findFirst({
+    where: and(
+      eq(syncEvents.sourceType, sourceType),
+      ne(syncEvents.outcome, "in_progress"),
+    ),
+    orderBy: [desc(syncEvents.completedAt)],
+  });
+}
+
+export async function listSyncEvents(sourceType: SyncSourceType, limit: number) {
+  return db
+    .select({
+      id: syncEvents.id,
+      startedAt: syncEvents.startedAt,
+      completedAt: syncEvents.completedAt,
+      outcome: syncEvents.outcome,
+      createdCount: syncEvents.createdCount,
+      updatedCount: syncEvents.updatedCount,
+      errorCount: syncEvents.errorCount,
+      errorMessage: syncEvents.errorMessage,
+    })
+    .from(syncEvents)
+    .where(eq(syncEvents.sourceType, sourceType))
+    .orderBy(desc(syncEvents.startedAt))
+    .limit(limit);
+}
+
+export function mapOutcomeToLegacyStatus(
+  outcome: "in_progress" | "success" | "partial" | "failed" | null | undefined,
+): "completed" | "partial" | "failed" | null {
+  if (outcome === "success") return "completed";
+  if (outcome === "partial" || outcome === "failed") return outcome;
+  return null;
+}</code></pre>
+
+<h3>Change 8.1 — <code>getCopilotSyncStatus()</code> in <code>src/actions/copilot.ts</code></h3>
+<details>
+  <summary>Diff (illustrative)</summary>
+<pre><code><span class="removed">- import { githubSyncEvents, /* … */ } from "@/lib/db/schema";</span>
+<span class="added">+ import { /* … */ } from "@/lib/db/schema";</span>
+<span class="added">+ import { getLastCompletedSyncEvent, mapOutcomeToLegacyStatus } from "@/lib/sync/queries";</span>
+
+  const [lastSync, [dateRange], [metricsCount], [billingCount], [seatsCount]] =
+    await Promise.all([
+<span class="removed">-     db.query.githubSyncEvents.findFirst({ where: and(...), orderBy: [...] }),</span>
+<span class="added">+     getLastCompletedSyncEvent("github_copilot_billing"),</span>
+      /* …unchanged metrics/billing/seats queries… */
+    ]);
+
+<span class="removed">- const lastSyncStatus = lastSync?.status === "completed" || ... ? lastSync.status : null;</span>
+<span class="added">+ const lastSyncStatus = mapOutcomeToLegacyStatus(lastSync?.outcome);</span>
+  const lastSyncAt = lastSync?.completedAt?.toISOString() ?? null;</code></pre>
+</details>
+
+<h3>Change 8.2 — <code>getCopilotActivityTimeline()</code> in <code>src/actions/copilot-data.ts</code></h3>
+<p>Replace the <code>githubSyncEvents</code> select with <code>listSyncEvents('github_copilot_billing', 30)</code>. Map <code>outcome</code> via <code>mapOutcomeToLegacyStatus</code> if the returned shape needs the legacy status string. Drop the <code>connectionId</code> filter.</p>
+
+<h3>Change 8.3 — <code>getCopilotBillingSyncHistory()</code> in <code>src/actions/copilot-data.ts</code></h3>
+<p>Use <code>listSyncEvents('github_copilot_billing', 10)</code>. Expose <code>createdCount</code> where the UI expected <code>billingProcessed</code>. Apply the status mapping.</p>
+
+<h3>Change 8.4 — Delete legacy <code>getSyncHistory()</code> in <code>src/actions/github-sync.ts</code></h3>
+<p>Remove L515–557 and verify nothing imports it. The canonical reader is <code>getSyncHistory()</code> in <code>src/actions/sync.ts</code>.</p>
+
+<h3>Change 8.5 — Rewrite <code>confirmGitHubSync()</code> in <code>src/actions/github-sync.ts</code></h3>
+<p>Wrap the existing body in <code>withSyncLock</code>. Remove the four direct touches to <code>githubSyncEvents</code> (L170–179 insert, L454–465 success update, L500–506 failure update). The lock helper takes over the lifecycle. Keep the <code>githubConnections.lastSyncAt</code> update — it's a separate concern used by the integration card.</p>
+<details>
+  <summary>Skeleton</summary>
+<pre><code>export async function confirmGitHubSync(input: ConfirmGitHubSyncInput) {
+  /* …existing input validation, actor lookup, connection lookup… */
+
+<span class="added">+ const result = await withSyncLock(</span>
+<span class="added">+   { sourceType: "github_members", triggeredBy: actor.id },</span>
+<span class="added">+   async (_eventId) =&gt; {</span>
+      const counts = {
+        importedCount: 0,
+        matchedCount: 0,
+        manuallyMatchedCount: 0,
+        unmatchedCount: 0,
+        conflictCount: 0,
+      };
+
+      try {
+        await db.transaction(async (tx) =&gt; {
+          /* …existing user inserts, conflict resolution, link writes… */
+          /* …compute counts.* values from preview + resolutions… */
+
+          await tx
+            .update(githubConnections)
+            .set({ lastSyncAt: new Date() })
+            .where(eq(githubConnections.id, connection.id));
+        });
+      } catch (err) {
+        return {
+          createdCount: counts.importedCount,
+          updatedCount: counts.matchedCount + counts.manuallyMatchedCount,
+          skippedCount: counts.unmatchedCount,
+          errorCount: counts.conflictCount + 1,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        };
+      }
+
+      return {
+        createdCount: counts.importedCount,
+        updatedCount: counts.matchedCount + counts.manuallyMatchedCount,
+        skippedCount: counts.unmatchedCount,
+        errorCount: counts.conflictCount,
+      };
+<span class="added">+   },</span>
+<span class="added">+ );</span>
+
+  return { success: true, eventId: result.eventId };
+}</code></pre>
+</details>
+<p><strong>Subtlety:</strong> the original action handles a thrown error by writing a <code>failed</code> row and rethrowing. <code>withSyncLock</code> already does that on a thrown callback. Two ways to handle our case:</p>
+<ol>
+  <li><strong>Throw inside the callback</strong> on hard failures — <code>withSyncLock</code> marks the row <code>failed</code> and rethrows. Use for unexpected exceptions.</li>
+  <li><strong>Return counts with <code>errorCount &gt; 0</code></strong> for soft failures (e.g. conflicts that prevent some rows but not others) — <code>withSyncLock</code> picks <code>partial</code> or <code>failed</code> automatically based on the create+update vs error counts.</li>
+</ol>
+<p>The skeleton above uses option 1 implicitly (if the tx throws, return a populated counts object and surface the message). Either approach is fine; pick one consistent style at implementation time.</p>
+
+<h3>Change 8.6 — Delete dead code</h3>
+<ul>
+  <li><code>src/lib/copilot-sync.ts</code>: remove <code>runCopilotSync</code> (L481–592) and any private helpers it alone used. Keep <code>syncBillingData</code> / <code>syncSeatAssignments</code> / <code>syncUsageMetrics</code> — still called by the new Copilot orchestrator.</li>
+  <li><code>src/lib/sync/sources/github-members.ts</code>: delete the file. (If we keep it as a stub, it becomes drift bait.)</li>
+  <li><code>src/types/index.ts</code>: drop <code>GitHubSyncEvent</code> / <code>NewGitHubSyncEvent</code> re-exports if <code>tsc</code> reports them unreferenced.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="dead-code">9. Dead-code removal verification</h2>
+<pre><code>pnpm exec tsc --noEmit
+# Then:
+rg -n "runCopilotSync"            src/ tests/
+rg -n "githubSyncEvents"          src/ tests/   # should only match: schema.ts, the members write site (this PR removes it), the legacy getSyncHistory (this PR removes it)
+rg -n "from \"@/lib/sync/sources/github-members\"" src/</code></pre>
+<p>After the PR, the only references to <code>githubSyncEvents</code> should be in <code>src/lib/db/schema.ts</code> (the table definition, kept per §D5).</p>
+
+<!-- ============================================================ -->
+<h2 id="testing">10. Testing plan</h2>
+
+<h3>Unit (Vitest)</h3>
+<ul>
+  <li><strong><code>tests/unit/sync/queries.test.ts</code></strong> (new) — covers <code>mapOutcomeToLegacyStatus</code> for all five branches.</li>
+</ul>
+
+<h3>Integration (Vitest + real DB)</h3>
+<ul>
+  <li><strong><code>tests/integration/copilot-sync-status.test.ts</code></strong> (new):
+    <ol>
+      <li>Seed two <code>sync_events</code> rows for <code>github_copilot_billing</code>: completed at <code>T-1h</code> (<code>success</code>) and <code>T-10m</code> (<code>partial</code>).</li>
+      <li>Also seed one <code>github_sync_events</code> row from 2026-03-25 with <code>syncType='copilot'</code> — to prove we no longer read it.</li>
+      <li>Assert <code>getCopilotSyncStatus().lastSyncAt</code> = <code>T-10m</code>, <code>lastSyncStatus = 'partial'</code>.</li>
+    </ol>
+  </li>
+  <li><strong><code>tests/integration/copilot-sync-end-to-end.test.ts</code></strong> (extend or new):
+    <ol>
+      <li>Mock the GitHub API.</li>
+      <li>Call <code>run()</code> from <code>src/lib/sync/sources/github-copilot.ts</code>.</li>
+      <li>Call <code>getCopilotSyncStatus()</code>; assert <code>lastSyncAt</code> within last 60s. This is the original-bug regression test.</li>
+    </ol>
+  </li>
+  <li><strong><code>tests/integration/github-members-sync.test.ts</code></strong> (new):
+    <ol>
+      <li>Mock GitHub members API + seed an existing user that should match.</li>
+      <li>Run preview + confirm flow.</li>
+      <li>Assert a new row appears in <code>sync_events</code> with <code>sourceType='github_members'</code>, correct counts, and outcome.</li>
+      <li>Assert <em>no</em> new row appears in <code>github_sync_events</code>.</li>
+      <li>Call <code>getSyncStatus()</code> (the canonical reader) and confirm the <code>github_members</code> source shows the latest event.</li>
+    </ol>
+  </li>
+  <li><strong>Concurrency check.</strong> Trigger two members syncs concurrently; the second must reject with "Sync already in progress" (advisory lock).</li>
+</ul>
+
+<h3>E2E (Playwright, optional)</h3>
+<ul>
+  <li>Visit <code>/settings/sync</code>, note Copilot's "last event" cell. Click "Sync Now" on the Copilot row, wait for polling to refresh, confirm the cell advances.</li>
+  <li>Open the Member Sync Sheet, run a preview against a mocked org, confirm, then see the <code>github_members</code> row update on the dashboard.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="rollout">11. Rollout &amp; verification</h2>
+<ol>
+  <li><strong>Local.</strong> <code>pnpm typecheck &amp;&amp; pnpm lint &amp;&amp; pnpm test &amp;&amp; pnpm test:integration</code>.</li>
+  <li><strong>Preview deploy.</strong>
+    <ul>
+      <li><strong>Copilot:</strong> Open <code>/settings/integrations</code>, note "Last sync". Click "Sync now". Reload — should reflect the new run.</li>
+      <li><strong>Members:</strong> Open <code>/settings/sync</code>. Note the <code>github_members</code> row's last-event cell (should be empty or stale). Open the Member Sync Sheet via "Sync Now" on that row, preview, confirm. After completion, return to <code>/settings/sync</code> — the <code>github_members</code> row should now show a fresh event.</li>
+      <li><strong>Manual jobs table</strong> on <code>/settings/sync</code> should now include a new row for the members sync (triggered by the current user).</li>
+    </ul>
+  </li>
+  <li><strong>Production.</strong> Standard merge → Vercel deploy. Watch the next cron-driven Copilot sync.</li>
+  <li><strong>Backstop SQL.</strong>
+    <pre><code>SELECT source_type, MAX(completed_at) AS last_completed
+FROM sync_events
+WHERE source_type IN ('github_copilot_billing', 'github_members')
+GROUP BY source_type;</code></pre>
+  </li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="risks">12. Risks &amp; rollback</h2>
+<table>
+  <tr><th>Risk</th><th>Likelihood</th><th>Mitigation</th></tr>
+  <tr>
+    <td>Hidden caller of <code>runCopilotSync</code> or legacy <code>getSyncHistory</code>.</td>
+    <td>Low</td>
+    <td>Strict-mode TypeScript + grep audit. CI fails before merge.</td>
+  </tr>
+  <tr>
+    <td>Status-enum mapping bug for Copilot.</td>
+    <td>Low</td>
+    <td>Unit test covers all five branches.</td>
+  </tr>
+  <tr>
+    <td>Loss of <code>totalMembers</code> snapshot breaks an unanticipated consumer.</td>
+    <td>Low</td>
+    <td>Audit confirmed no UI surface displays it from history. Document the loss in the migration note.</td>
+  </tr>
+  <tr>
+    <td>Members advisory lock collides with a legitimate in-progress sheet flow if the user retries quickly.</td>
+    <td>Medium</td>
+    <td>The lock releases automatically on commit/rollback. Surface a friendly toast for the "Sync already in progress" error in the sheet UI if needed (follow-up if the existing error path isn't already user-friendly).</td>
+  </tr>
+  <tr>
+    <td>Conflict-count mapped to <code>error_count</code> changes the <code>outcome</code> computation in <code>withSyncLock</code> in unexpected ways (e.g. a sync with 5 conflicts but 1000 successful matches is now <code>partial</code> not <code>completed</code>).</td>
+    <td>Medium</td>
+    <td>Document the new outcome semantics. This is arguably <em>more</em> accurate than the legacy <code>completed</code>-with-conflicts state.</td>
+  </tr>
+  <tr>
+    <td>Members data fidelity loss makes future debugging harder.</td>
+    <td>Low</td>
+    <td>Historical rows remain in <code>github_sync_events</code> per §D5 for at least one release. Drop is a follow-up after confirmation.</td>
+  </tr>
+</table>
+<p><strong>Rollback.</strong> Revert the PR. No schema changes, no destructive operations — clean revert. Historical Copilot rows in <code>sync_events</code> remain (harmless); members continue to write to <code>github_sync_events</code> again.</p>
+
+<!-- ============================================================ -->
+<h2 id="tasks">13. Task breakdown</h2>
+<ol>
+  <li><span class="pill fix">T1</span> Create <code>src/lib/sync/queries.ts</code> with the three helpers.</li>
+  <li><span class="pill fix">T2</span> Rewrite <code>getCopilotSyncStatus</code> in <code>src/actions/copilot.ts</code>.</li>
+  <li><span class="pill fix">T3</span> Rewrite <code>getCopilotActivityTimeline</code> in <code>src/actions/copilot-data.ts</code>.</li>
+  <li><span class="pill fix">T4</span> Rewrite <code>getCopilotBillingSyncHistory</code> in <code>src/actions/copilot-data.ts</code>.</li>
+  <li><span class="pill fix">T5</span> Wrap <code>confirmGitHubSync()</code> with <code>withSyncLock({ sourceType: 'github_members' })</code>; remove direct <code>githubSyncEvents</code> inserts/updates; map counts.</li>
+  <li><span class="pill fix">T6</span> Delete legacy <code>getSyncHistory()</code> in <code>src/actions/github-sync.ts</code>.</li>
+  <li><span class="pill fix">T7</span> Delete <code>src/lib/sync/sources/github-members.ts</code> (unused pass-through).</li>
+  <li><span class="pill fix">T8</span> Delete <code>runCopilotSync</code> in <code>src/lib/copilot-sync.ts</code>.</li>
+  <li><span class="pill fix">T9</span> Trim unused type re-exports in <code>src/types/index.ts</code> if <code>tsc</code> says so.</li>
+  <li><span class="pill fix">T10</span> Add <code>tests/unit/sync/queries.test.ts</code>.</li>
+  <li><span class="pill fix">T11</span> Add <code>tests/integration/copilot-sync-status.test.ts</code> (frozen-row regression).</li>
+  <li><span class="pill fix">T12</span> Add <code>tests/integration/copilot-sync-end-to-end.test.ts</code> (or extend).</li>
+  <li><span class="pill fix">T13</span> Add <code>tests/integration/github-members-sync.test.ts</code> (write-path migration + lock contention).</li>
+  <li><span class="pill fix">T14</span> Run <code>pnpm typecheck</code>, <code>pnpm lint</code>, <code>pnpm test</code>, <code>pnpm test:integration</code>; fix fallout.</li>
+  <li><span class="pill fix">T15</span> Manual smoke on preview per §11.</li>
+  <li><span class="pill scope">T16 (follow-up PR)</span> Drop <code>github_sync_events</code> table + the legacy <code>copilotSyncTypeEnum</code> after one stable release. Out of scope here.</li>
+</ol>
+
+<hr />
+<p class="meta">
+  References — Copilot: <code>src/lib/sync/framework.ts</code> · <code>src/lib/sync/sources/github-copilot.ts</code> · <code>src/actions/copilot.ts</code> · <code>src/actions/copilot-data.ts</code> · <code>src/lib/copilot-sync.ts</code>. Members: <code>src/actions/github-sync.ts</code> · <code>src/lib/sync/sources/github-members.ts</code> · <code>src/app/settings/sync/github-member-sync-sheet.tsx</code>. Shared: <code>src/lib/sync/registry.ts</code> · <code>src/actions/sync.ts</code> · <code>src/lib/db/schema.ts</code>.
+</p>
+
+</body>
+</html>

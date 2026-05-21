@@ -1,13 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import {
-  githubConnections,
-  githubProfiles,
-  githubSyncEvents,
-  users,
-} from "@/lib/db/schema";
-import { eq, desc, ilike, or, and, notInArray, asc } from "drizzle-orm";
+import { githubConnections, githubProfiles, users } from "@/lib/db/schema";
+import { eq, ilike, or, and, notInArray, asc } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { decryptApiKey } from "@/lib/crypto";
 import {
@@ -17,9 +12,10 @@ import {
 } from "@/lib/github";
 import { confirmSyncSchema } from "@/lib/validators";
 import { recordCreation, recordUpdate } from "@/actions/history";
+import { withSyncLock } from "@/lib/sync/framework";
 import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
-import type { ActionResult, GitHubMemberData, GitHubSyncStatus, SyncPreview } from "@/types";
+import type { ActionResult, GitHubMemberData, SyncPreview } from "@/types";
 
 /** Shared helper: get active connection, decrypt token, fetch members, match to users */
 async function fetchAndMatchMembers(): Promise<
@@ -46,12 +42,18 @@ async function fetchAndMatchMembers(): Promise<
   try {
     token = await decryptApiKey(connection.tokenEncrypted);
   } catch {
-    return { success: false, error: "Failed to decrypt stored token. Please update your token." };
+    return {
+      success: false,
+      error: "Failed to decrypt stored token. Please update your token.",
+    };
   }
 
   const membersResult = await fetchOrgMembers(token, connection.orgLogin);
   if (membersResult.error || !membersResult.data) {
-    return { success: false, error: membersResult.error || "Failed to fetch organization members" };
+    return {
+      success: false,
+      error: membersResult.error || "Failed to fetch organization members",
+    };
   }
 
   const memberProfiles: GitHubMemberData[] = [];
@@ -102,7 +104,13 @@ async function fetchAndMatchMembers(): Promise<
 
   const matchResult = matchMembersToUsers(memberProfiles, systemUsers);
 
-  return { success: true, connection, memberProfiles, matchResult, rateLimitRemaining };
+  return {
+    success: true,
+    connection,
+    memberProfiles,
+    matchResult,
+    rateLimitRemaining,
+  };
 }
 
 export async function fetchGitHubSyncPreview(): Promise<
@@ -131,18 +139,18 @@ export async function fetchGitHubSyncPreview(): Promise<
   };
 }
 
+export interface GitHubMemberSyncCounts {
+  enrichedCount: number;
+  importedCount: number;
+  manuallyMatchedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  conflictCount: number;
+}
+
 export async function confirmGitHubSync(
-  input: unknown
-): Promise<
-  ActionResult<{
-    enrichedCount: number;
-    importedCount: number;
-    manuallyMatchedCount: number;
-    createdCount: number;
-    skippedCount: number;
-    conflictCount: number;
-  }>
-> {
+  input: unknown,
+): Promise<ActionResult<GitHubMemberSyncCounts & { eventId: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -162,403 +170,410 @@ export async function confirmGitHubSync(
     return { success: false, error: fetchResult.error };
   }
 
-  const { connection, memberProfiles, matchResult } = fetchResult;
+  const { memberProfiles, matchResult } = fetchResult;
 
   // Build set of valid unmatched logins for validation (#9)
-  const unmatchedLoginSet = new Set(matchResult.unmatched.map((m) => m.githubLogin));
-
-  // Create sync event at confirm time (not preview) to avoid orphaned records
-  const [syncEvent] = await db
-    .insert(githubSyncEvents)
-    .values({
-      connectionId: connection.id,
-      triggeredBy: Number(admin.id),
-      status: "in_progress",
-      totalMembers: memberProfiles.length,
-    })
-    .returning({ id: githubSyncEvents.id });
+  const unmatchedLoginSet = new Set(
+    matchResult.unmatched.map((m) => m.githubLogin),
+  );
 
   const adminId = Number(admin.id);
 
+  // TS's narrowing across async closures is unreliable for `let` variables;
+  // a mutable property holder lets the callback record its detailed counts
+  // without fighting the compiler.
+  const detailed: { counts: GitHubMemberSyncCounts | null } = { counts: null };
+
+  let lockResult: { eventId: number };
   try {
-    const result = await db.transaction(async (tx) => {
-      let enrichedCount = 0;
-      let importedCount = 0;
+    lockResult = await withSyncLock(
+      { sourceType: "github_members", triggeredBy: adminId },
+      async () => {
+        const result = await db.transaction(async (tx) => {
+          let enrichedCount = 0;
+          let importedCount = 0;
 
-      // Enrich matched users
-      for (const match of matchResult.matched) {
-        const existingProfile = await tx
-          .select({ id: githubProfiles.id, lastSyncedAt: githubProfiles.lastSyncedAt })
-          .from(githubProfiles)
-          .where(eq(githubProfiles.userId, match.matchedUserId))
-          .limit(1);
+          // Enrich matched users
+          for (const match of matchResult.matched) {
+            const existingProfile = await tx
+              .select({
+                id: githubProfiles.id,
+                lastSyncedAt: githubProfiles.lastSyncedAt,
+              })
+              .from(githubProfiles)
+              .where(eq(githubProfiles.userId, match.matchedUserId))
+              .limit(1);
 
-        const profileData = {
-          githubId: match.githubId,
-          githubLogin: match.githubLogin,
-          avatarUrl: match.githubAvatarUrl,
-          bio: match.githubBio,
-          publicRepos: match.githubPublicRepos,
-          profileUrl: match.githubProfileUrl,
-          name: match.githubName,
-          email: match.githubEmail,
-          lastSyncedAt: new Date(),
-          updatedAt: new Date(),
-        };
+            const profileData = {
+              githubId: match.githubId,
+              githubLogin: match.githubLogin,
+              avatarUrl: match.githubAvatarUrl,
+              bio: match.githubBio,
+              publicRepos: match.githubPublicRepos,
+              profileUrl: match.githubProfileUrl,
+              name: match.githubName,
+              email: match.githubEmail,
+              lastSyncedAt: new Date(),
+              updatedAt: new Date(),
+            };
 
-        if (existingProfile.length > 0) {
-          await tx
-            .update(githubProfiles)
-            .set(profileData)
-            .where(eq(githubProfiles.id, existingProfile[0].id));
+            if (existingProfile.length > 0) {
+              await tx
+                .update(githubProfiles)
+                .set(profileData)
+                .where(eq(githubProfiles.id, existingProfile[0].id));
 
-          await recordUpdate(
-            "github_profile",
-            existingProfile[0].id,
-            adminId,
-            { lastSyncedAt: { old: existingProfile[0].lastSyncedAt?.toISOString() ?? null, new: new Date().toISOString() } },
-            tx
+              await recordUpdate(
+                "github_profile",
+                existingProfile[0].id,
+                adminId,
+                {
+                  lastSyncedAt: {
+                    old: existingProfile[0].lastSyncedAt?.toISOString() ?? null,
+                    new: new Date().toISOString(),
+                  },
+                },
+                tx,
+              );
+            } else {
+              const [newProfile] = await tx
+                .insert(githubProfiles)
+                .values({
+                  userId: match.matchedUserId,
+                  ...profileData,
+                })
+                .returning({ id: githubProfiles.id });
+
+              await recordCreation(
+                "github_profile",
+                newProfile.id,
+                adminId,
+                tx,
+              );
+            }
+
+            // Populate githubUsername if matched by email and field was empty
+            if (match.matchType === "email") {
+              const [user] = await tx
+                .select({ githubUsername: users.githubUsername })
+                .from(users)
+                .where(eq(users.id, match.matchedUserId))
+                .limit(1);
+
+              if (user && !user.githubUsername) {
+                await tx
+                  .update(users)
+                  .set({
+                    githubUsername: match.githubLogin,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(users.id, match.matchedUserId));
+
+                await recordUpdate(
+                  "user",
+                  match.matchedUserId,
+                  adminId,
+                  {
+                    githubUsername: { old: null, new: match.githubLogin },
+                  },
+                  tx,
+                );
+              }
+            }
+
+            enrichedCount++;
+          }
+
+          // Import selected unmatched members
+          const importSet = new Set(importGitHubLogins);
+          const toImport = matchResult.unmatched.filter((m) =>
+            importSet.has(m.githubLogin),
           );
-        } else {
-          const [newProfile] = await tx
-            .insert(githubProfiles)
-            .values({
-              userId: match.matchedUserId,
-              ...profileData,
-            })
-            .returning({ id: githubProfiles.id });
 
-          await recordCreation("github_profile", newProfile.id, adminId, tx);
-        }
+          const tempPasswordHash = await hash("changeme123", 12);
 
-        // Populate githubUsername if matched by email and field was empty
-        if (match.matchType === "email") {
-          const [user] = await tx
-            .select({ githubUsername: users.githubUsername })
-            .from(users)
-            .where(eq(users.id, match.matchedUserId))
-            .limit(1);
+          for (const member of toImport) {
+            const [newUser] = await tx
+              .insert(users)
+              .values({
+                name: member.githubName || member.githubLogin,
+                email:
+                  member.githubEmail || `${member.githubLogin}@github.invalid`,
+                passwordHash: tempPasswordHash,
+                githubUsername: member.githubLogin,
+                role: "viewer",
+                status: "active",
+              })
+              .returning({ id: users.id });
 
-          if (user && !user.githubUsername) {
+            await recordCreation("user", newUser.id, adminId, tx);
+
+            const [newProfile] = await tx
+              .insert(githubProfiles)
+              .values({
+                userId: newUser.id,
+                githubId: member.githubId,
+                githubLogin: member.githubLogin,
+                avatarUrl: member.githubAvatarUrl,
+                bio: member.githubBio,
+                publicRepos: member.githubPublicRepos,
+                profileUrl: member.githubProfileUrl,
+                name: member.githubName,
+                email: member.githubEmail,
+                lastSyncedAt: new Date(),
+              })
+              .returning({ id: githubProfiles.id });
+
+            await recordCreation("github_profile", newProfile.id, adminId, tx);
+            importedCount++;
+          }
+
+          // Process manual matches (T013)
+          let manuallyMatchedCount = 0;
+          const memberLookup = new Map(
+            memberProfiles.map((m) => [m.login.toLowerCase(), m]),
+          );
+          const errors: string[] = [];
+
+          for (const mm of manualMatches) {
+            // Validate githubLogin is in the unmatched set (#9)
+            if (!unmatchedLoginSet.has(mm.githubLogin)) continue;
+
+            // Validate user exists
+            const [targetUser] = await tx
+              .select({ id: users.id, githubUsername: users.githubUsername })
+              .from(users)
+              .where(eq(users.id, mm.userId))
+              .limit(1);
+
+            if (!targetUser) continue;
+
+            // Check githubUsername uniqueness before updating (#1)
+            const [conflictingUser] = await tx
+              .select({ id: users.id, name: users.name })
+              .from(users)
+              .where(
+                and(
+                  eq(users.githubUsername, mm.githubLogin),
+                  notInArray(users.id, [mm.userId]),
+                ),
+              )
+              .limit(1);
+
+            if (conflictingUser) {
+              errors.push(
+                `GitHub login "${mm.githubLogin}" is already linked to user "${conflictingUser.name}" (ID ${conflictingUser.id})`,
+              );
+              continue;
+            }
+
+            const previousGithubUsername = targetUser.githubUsername;
+
             await tx
               .update(users)
-              .set({ githubUsername: match.githubLogin, updatedAt: new Date() })
-              .where(eq(users.id, match.matchedUserId));
+              .set({ githubUsername: mm.githubLogin, updatedAt: new Date() })
+              .where(eq(users.id, mm.userId));
 
-            await recordUpdate("user", match.matchedUserId, adminId, {
-              githubUsername: { old: null, new: match.githubLogin },
-            }, tx);
+            await recordUpdate(
+              "user",
+              mm.userId,
+              adminId,
+              {
+                githubUsername: {
+                  old: previousGithubUsername ?? null,
+                  new: mm.githubLogin,
+                },
+              },
+              tx,
+            );
+
+            // Upsert githubProfiles with enriched data
+            const memberData = memberLookup.get(mm.githubLogin.toLowerCase());
+            if (memberData) {
+              const existingProfile = await tx
+                .select({ id: githubProfiles.id })
+                .from(githubProfiles)
+                .where(eq(githubProfiles.userId, mm.userId))
+                .limit(1);
+
+              const profileData = {
+                githubId: memberData.id,
+                githubLogin: memberData.login,
+                avatarUrl: memberData.avatarUrl,
+                bio: memberData.bio,
+                publicRepos: memberData.publicRepos,
+                profileUrl: memberData.profileUrl,
+                name: memberData.name,
+                email: memberData.email,
+                lastSyncedAt: new Date(),
+                updatedAt: new Date(),
+              };
+
+              if (existingProfile.length > 0) {
+                await tx
+                  .update(githubProfiles)
+                  .set(profileData)
+                  .where(eq(githubProfiles.id, existingProfile[0].id));
+              } else {
+                await tx
+                  .insert(githubProfiles)
+                  .values({ userId: mm.userId, ...profileData });
+              }
+            }
+
+            manuallyMatchedCount++;
           }
-        }
 
-        enrichedCount++;
-      }
+          // Process new users (T016)
+          let createdCount = 0;
 
-      // Import selected unmatched members
-      const importSet = new Set(importGitHubLogins);
-      const toImport = matchResult.unmatched.filter((m) =>
-        importSet.has(m.githubLogin)
-      );
+          for (const nu of newUsers) {
+            // Validate githubLogin is in the unmatched set (#9)
+            if (!unmatchedLoginSet.has(nu.githubLogin)) continue;
 
-      const tempPasswordHash = await hash("changeme123", 12);
+            // Validate email uniqueness (#2)
+            const [existingByEmail] = await tx
+              .select({ id: users.id })
+              .from(users)
+              .where(eq(users.email, nu.email))
+              .limit(1);
 
-      for (const member of toImport) {
-        const [newUser] = await tx
-          .insert(users)
-          .values({
-            name: member.githubName || member.githubLogin,
-            email:
-              member.githubEmail || `${member.githubLogin}@github.invalid`,
-            passwordHash: tempPasswordHash,
-            githubUsername: member.githubLogin,
-            role: "viewer",
-            status: "active",
-          })
-          .returning({ id: users.id });
+            if (existingByEmail) {
+              errors.push(
+                `Email "${nu.email}" is already in use for GitHub member "${nu.githubLogin}"`,
+              );
+              continue;
+            }
 
-        await recordCreation("user", newUser.id, adminId, tx);
+            // Validate githubUsername uniqueness (#2)
+            const [existingByGithub] = await tx
+              .select({ id: users.id })
+              .from(users)
+              .where(eq(users.githubUsername, nu.githubLogin))
+              .limit(1);
 
-        const [newProfile] = await tx
-          .insert(githubProfiles)
-          .values({
-            userId: newUser.id,
-            githubId: member.githubId,
-            githubLogin: member.githubLogin,
-            avatarUrl: member.githubAvatarUrl,
-            bio: member.githubBio,
-            publicRepos: member.githubPublicRepos,
-            profileUrl: member.githubProfileUrl,
-            name: member.githubName,
-            email: member.githubEmail,
-            lastSyncedAt: new Date(),
-          })
-          .returning({ id: githubProfiles.id });
+            if (existingByGithub) {
+              errors.push(
+                `GitHub login "${nu.githubLogin}" is already linked to another user`,
+              );
+              continue;
+            }
 
-        await recordCreation("github_profile", newProfile.id, adminId, tx);
-        importedCount++;
-      }
+            const [newInlineUser] = await tx
+              .insert(users)
+              .values({
+                name: nu.name,
+                email: nu.email,
+                passwordHash: tempPasswordHash,
+                githubUsername: nu.githubLogin,
+                role: "viewer",
+                status: "active",
+              })
+              .returning({ id: users.id });
 
-      // Process manual matches (T013)
-      let manuallyMatchedCount = 0;
-      const memberLookup = new Map(memberProfiles.map((m) => [m.login.toLowerCase(), m]));
-      const errors: string[] = [];
+            await recordCreation("user", newInlineUser.id, adminId, tx);
 
-      for (const mm of manualMatches) {
-        // Validate githubLogin is in the unmatched set (#9)
-        if (!unmatchedLoginSet.has(mm.githubLogin)) continue;
+            const memberData = memberLookup.get(nu.githubLogin.toLowerCase());
+            if (memberData) {
+              const [newProfile] = await tx
+                .insert(githubProfiles)
+                .values({
+                  userId: newInlineUser.id,
+                  githubId: memberData.id,
+                  githubLogin: memberData.login,
+                  avatarUrl: memberData.avatarUrl,
+                  bio: memberData.bio,
+                  publicRepos: memberData.publicRepos,
+                  profileUrl: memberData.profileUrl,
+                  name: memberData.name,
+                  email: memberData.email,
+                  lastSyncedAt: new Date(),
+                })
+                .returning({ id: githubProfiles.id });
 
-        // Validate user exists
-        const [targetUser] = await tx
-          .select({ id: users.id, githubUsername: users.githubUsername })
-          .from(users)
-          .where(eq(users.id, mm.userId))
-          .limit(1);
+              await recordCreation(
+                "github_profile",
+                newProfile.id,
+                adminId,
+                tx,
+              );
+            }
 
-        if (!targetUser) continue;
+            createdCount++;
+          }
 
-        // Check githubUsername uniqueness before updating (#1)
-        const [conflictingUser] = await tx
-          .select({ id: users.id, name: users.name })
-          .from(users)
-          .where(and(eq(users.githubUsername, mm.githubLogin), notInArray(users.id, [mm.userId])))
-          .limit(1);
+          const totalResolved =
+            importedCount + manuallyMatchedCount + createdCount;
+          const unmatchedCount = Math.max(
+            0,
+            matchResult.unmatched.length - totalResolved,
+          );
 
-        if (conflictingUser) {
-          errors.push(`GitHub login "${mm.githubLogin}" is already linked to user "${conflictingUser.name}" (ID ${conflictingUser.id})`);
-          continue;
-        }
+          // Update connection lastSyncAt
+          await tx
+            .update(githubConnections)
+            .set({ lastSyncAt: new Date() })
+            .where(eq(githubConnections.status, "active"));
 
-        const previousGithubUsername = targetUser.githubUsername;
-
-        await tx
-          .update(users)
-          .set({ githubUsername: mm.githubLogin, updatedAt: new Date() })
-          .where(eq(users.id, mm.userId));
-
-        await recordUpdate("user", mm.userId, adminId, {
-          githubUsername: { old: previousGithubUsername ?? null, new: mm.githubLogin },
-        }, tx);
-
-        // Upsert githubProfiles with enriched data
-        const memberData = memberLookup.get(mm.githubLogin.toLowerCase());
-        if (memberData) {
-          const existingProfile = await tx
-            .select({ id: githubProfiles.id })
-            .from(githubProfiles)
-            .where(eq(githubProfiles.userId, mm.userId))
-            .limit(1);
-
-          const profileData = {
-            githubId: memberData.id,
-            githubLogin: memberData.login,
-            avatarUrl: memberData.avatarUrl,
-            bio: memberData.bio,
-            publicRepos: memberData.publicRepos,
-            profileUrl: memberData.profileUrl,
-            name: memberData.name,
-            email: memberData.email,
-            lastSyncedAt: new Date(),
-            updatedAt: new Date(),
+          return {
+            enrichedCount,
+            importedCount,
+            manuallyMatchedCount,
+            createdCount,
+            skippedCount: unmatchedCount,
+            conflictCount: matchResult.conflicts.length,
+            errors,
           };
+        });
 
-          if (existingProfile.length > 0) {
-            await tx
-              .update(githubProfiles)
-              .set(profileData)
-              .where(eq(githubProfiles.id, existingProfile[0].id));
-          } else {
-            await tx
-              .insert(githubProfiles)
-              .values({ userId: mm.userId, ...profileData });
-          }
-        }
+        detailed.counts = {
+          enrichedCount: result.enrichedCount,
+          importedCount: result.importedCount,
+          manuallyMatchedCount: result.manuallyMatchedCount,
+          createdCount: result.createdCount,
+          skippedCount: result.skippedCount,
+          conflictCount: result.conflictCount,
+        };
 
-        manuallyMatchedCount++;
-      }
-
-      // Process new users (T016)
-      let createdCount = 0;
-
-      for (const nu of newUsers) {
-        // Validate githubLogin is in the unmatched set (#9)
-        if (!unmatchedLoginSet.has(nu.githubLogin)) continue;
-
-        // Validate email uniqueness (#2)
-        const [existingByEmail] = await tx
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.email, nu.email))
-          .limit(1);
-
-        if (existingByEmail) {
-          errors.push(`Email "${nu.email}" is already in use for GitHub member "${nu.githubLogin}"`);
-          continue;
-        }
-
-        // Validate githubUsername uniqueness (#2)
-        const [existingByGithub] = await tx
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.githubUsername, nu.githubLogin))
-          .limit(1);
-
-        if (existingByGithub) {
-          errors.push(`GitHub login "${nu.githubLogin}" is already linked to another user`);
-          continue;
-        }
-
-        const [newInlineUser] = await tx
-          .insert(users)
-          .values({
-            name: nu.name,
-            email: nu.email,
-            passwordHash: tempPasswordHash,
-            githubUsername: nu.githubLogin,
-            role: "viewer",
-            status: "active",
-          })
-          .returning({ id: users.id });
-
-        await recordCreation("user", newInlineUser.id, adminId, tx);
-
-        const memberData = memberLookup.get(nu.githubLogin.toLowerCase());
-        if (memberData) {
-          const [newProfile] = await tx
-            .insert(githubProfiles)
-            .values({
-              userId: newInlineUser.id,
-              githubId: memberData.id,
-              githubLogin: memberData.login,
-              avatarUrl: memberData.avatarUrl,
-              bio: memberData.bio,
-              publicRepos: memberData.publicRepos,
-              profileUrl: memberData.profileUrl,
-              name: memberData.name,
-              email: memberData.email,
-              lastSyncedAt: new Date(),
-            })
-            .returning({ id: githubProfiles.id });
-
-          await recordCreation("github_profile", newProfile.id, adminId, tx);
-        }
-
-        createdCount++;
-      }
-
-      const totalResolved = importedCount + manuallyMatchedCount + createdCount;
-
-      // Update sync event — clamp unmatchedCount at 0 (#9)
-      const unmatchedCount = Math.max(0, matchResult.unmatched.length - totalResolved);
-
-      await tx
-        .update(githubSyncEvents)
-        .set({
-          status: "completed",
-          matchedCount: enrichedCount,
-          importedCount,
-          manuallyMatchedCount,
-          createdCount,
-          unmatchedCount,
-          conflictCount: matchResult.conflicts.length,
-          completedAt: new Date(),
-        })
-        .where(eq(githubSyncEvents.id, syncEvent.id));
-
-      // Update connection lastSyncAt
-      await tx
-        .update(githubConnections)
-        .set({ lastSyncAt: new Date() })
-        .where(eq(githubConnections.status, "active"));
-
-      return {
-        enrichedCount,
-        importedCount,
-        manuallyMatchedCount,
-        createdCount,
-        skippedCount: unmatchedCount,
-        conflictCount: matchResult.conflicts.length,
-        errors,
-      };
-    });
-
-    revalidatePath("/users");
-    revalidatePath("/settings/integrations");
-
-    return {
-      success: true,
-      data: {
-        enrichedCount: result.enrichedCount,
-        importedCount: result.importedCount,
-        manuallyMatchedCount: result.manuallyMatchedCount,
-        createdCount: result.createdCount,
-        skippedCount: result.skippedCount,
-        conflictCount: result.conflictCount,
+        // errorCount aggregates both validation errors raised mid-run
+        // (duplicate email/login) and pre-existing match conflicts that
+        // blocked resolution. Both warrant a non-success outcome on the
+        // sync_events row so the dashboard surfaces them.
+        return {
+          createdCount: result.importedCount + result.createdCount,
+          updatedCount: result.enrichedCount + result.manuallyMatchedCount,
+          skippedCount: result.skippedCount,
+          errorCount: result.errors.length + result.conflictCount,
+          errorMessage:
+            result.errors.length > 0 ? result.errors.join("; ") : null,
+        };
       },
-    };
+    );
   } catch (error) {
-    // Mark sync event as failed if transaction throws
-    await db
-      .update(githubSyncEvents)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-      })
-      .where(eq(githubSyncEvents.id, syncEvent.id));
-
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Sync failed unexpectedly",
+      error:
+        error instanceof Error ? error.message : "Sync failed unexpectedly",
     };
   }
+
+  if (!detailed.counts) {
+    return { success: false, error: "Sync did not complete" };
+  }
+
+  revalidatePath("/users");
+  revalidatePath("/settings/integrations");
+
+  return {
+    success: true,
+    data: { ...detailed.counts, eventId: lockResult.eventId },
+  };
 }
 
-export async function getSyncHistory(
-  limit = 10
-): Promise<
-  ActionResult<{
-    events: Array<{
-      id: number;
-      status: GitHubSyncStatus;
-      totalMembers: number | null;
-      matchedCount: number | null;
-      importedCount: number | null;
-      unmatchedCount: number | null;
-      manuallyMatchedCount: number | null;
-      createdCount: number | null;
-      startedAt: Date;
-      completedAt: Date | null;
-      triggeredByName: string;
-    }>;
-  }>
-> {
-  const admin = await requireAdmin();
-  if (!admin) return { success: false, error: "Unauthorized" };
-
-  const events = await db
-    .select({
-      id: githubSyncEvents.id,
-      status: githubSyncEvents.status,
-      totalMembers: githubSyncEvents.totalMembers,
-      matchedCount: githubSyncEvents.matchedCount,
-      importedCount: githubSyncEvents.importedCount,
-      unmatchedCount: githubSyncEvents.unmatchedCount,
-      manuallyMatchedCount: githubSyncEvents.manuallyMatchedCount,
-      createdCount: githubSyncEvents.createdCount,
-      startedAt: githubSyncEvents.startedAt,
-      completedAt: githubSyncEvents.completedAt,
-      triggeredByName: users.name,
-    })
-    .from(githubSyncEvents)
-    .innerJoin(users, eq(githubSyncEvents.triggeredBy, users.id))
-    .orderBy(desc(githubSyncEvents.startedAt))
-    .limit(limit);
-
-  return { success: true, data: { events } };
-}
-
-export async function searchUsersForMatching(
-  input: { query: string; excludeUserIds?: number[] }
-): Promise<
+export async function searchUsersForMatching(input: {
+  query: string;
+  excludeUserIds?: number[];
+}): Promise<
   ActionResult<
     Array<{
       id: number;
@@ -580,10 +595,7 @@ export async function searchUsersForMatching(
   const searchPattern = `%${query.trim()}%`;
 
   const conditions = [
-    or(
-      ilike(users.name, searchPattern),
-      ilike(users.email, searchPattern)
-    ),
+    or(ilike(users.name, searchPattern), ilike(users.email, searchPattern)),
   ];
 
   if (excludeUserIds && excludeUserIds.length > 0) {
