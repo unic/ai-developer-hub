@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 031 · Budget detail — redesign mock</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a;
+        --panel: #121212;
+        --panel-2: #181818;
+        --panel-3: #1f1f1f;
+        --border: #262626;
+        --border-2: #2e2e2e;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --muted-2: #71717a;
+        --primary: #d4f057;
+        --primary-ink: #0a0a0a;
+        --success: #4ade80;
+        --warn: #facc15;
+        --danger: #f87171;
+        --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .tabular { font-variant-numeric: tabular-nums; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 1.6; }
+      .pill .dot { width: 6px; height: 6px; border-radius: 999px; }
+      .pill-lg { padding: 4px 12px; font-size: 13px; }
+
+      .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); display: inline-flex; align-items: center; gap: 4px; }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.neutral { color: var(--text); border-color: var(--border-2); background: #1f1f1f; }
+      .chip.primary { color: var(--primary-ink); border-color: var(--primary); background: var(--primary); font-weight: 600; }
+
+      .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+
+      /* Multi-marker progress bar (hero) */
+      .multi-progress { position: relative; height: 22px; background: #1a1a1a; border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
+      .multi-progress .seg { position: absolute; top: 0; bottom: 0; }
+      .multi-progress .actual { background: linear-gradient(90deg, #6db86b, #86efac); border-radius: 7px 0 0 7px; }
+      .multi-progress .ytd-plan-marker, .multi-progress .expected-marker, .multi-progress .ceiling-marker {
+        position: absolute; top: -6px; bottom: -6px; width: 2px; border-radius: 2px;
+      }
+      .multi-progress .ytd-plan-marker { background: #fafafa; }
+      .multi-progress .expected-marker { background: var(--info); }
+      .multi-progress .ceiling-marker { background: var(--primary); width: 3px; }
+      .multi-progress .unallocated { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.04) 4px, rgba(255,255,255,0.04) 8px), #161616; border-radius: 0 7px 7px 0; }
+
+      .marker-label { position: absolute; top: -22px; font-size: 10px; color: var(--muted); white-space: nowrap; transform: translateX(-50%); }
+      .marker-label .v { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 500; }
+      .marker-foot { position: absolute; bottom: -22px; font-size: 10px; color: var(--muted); white-space: nowrap; transform: translateX(-50%); }
+      .marker-foot .v { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+      .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid var(--border-2); background: transparent; color: var(--text); cursor: pointer; }
+      .btn:hover { background: #1f1f1f; }
+      .btn-primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+      .btn-primary:hover { background: #c9e94a; }
+      .btn-ghost { border-color: transparent; color: var(--muted); }
+      .btn-ghost:hover { color: var(--text); background: #1f1f1f; }
+      .icon-btn { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid transparent; color: var(--muted); background: transparent; cursor: pointer; }
+      .icon-btn:hover { background: #1f1f1f; color: var(--text); border-color: var(--border); }
+      .icon-btn.danger:hover { color: var(--danger); }
+
+      .input { height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--border-2); background: #141414; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; width: 110px; }
+      .input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
+
+      /* Period table */
+      table.periods { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.periods th, table.periods td { padding: 12px 14px; vertical-align: middle; }
+      table.periods thead th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); background: #131313; text-align: left; }
+      table.periods thead th.num { text-align: right; }
+      table.periods td.num { text-align: right; font-variant-numeric: tabular-nums; }
+      table.periods tbody tr.period-row { border-bottom: 1px solid var(--border); }
+      table.periods tbody tr.period-row:hover { background: rgba(255,255,255,0.015); }
+      table.periods tbody tr.period-row.future td { color: var(--muted); }
+      table.periods tbody tr.period-row.future .period-label { color: var(--muted); font-weight: 400; }
+      table.periods tbody tr.period-row.over { background: rgba(248, 113, 113, 0.06); }
+      table.periods tbody tr.period-row.over:hover { background: rgba(248, 113, 113, 0.10); }
+      table.periods tbody tr.period-row.under { background: rgba(74, 222, 128, 0.03); }
+      table.periods tbody tr.period-row.current { background: rgba(212, 240, 87, 0.05); position: relative; }
+      table.periods tbody tr.period-row.current td:first-child { box-shadow: inset 3px 0 0 0 var(--primary); }
+      table.periods tbody tr.period-row.current:hover { background: rgba(212, 240, 87, 0.08); }
+
+      table.periods tbody tr.entry-row td { padding: 8px 14px; font-size: 12px; color: var(--muted); border: none; }
+      table.periods tbody tr.entry-row { background: #0f0f0f; }
+      table.periods tbody tr.entry-row.last td { border-bottom: 1px solid var(--border); }
+      table.periods tbody tr.entry-row .desc { color: var(--text); }
+      table.periods tbody tr.entry-row .ref { color: var(--muted-2); font-size: 11px; }
+
+      table.periods tbody tr.running-row { background: rgba(103, 232, 249, 0.04); }
+      table.periods tbody tr.running-row td { padding: 8px 14px; font-size: 12px; border: none; }
+      table.periods tbody tr.running-row .label { color: var(--info); font-weight: 500; }
+      table.periods tbody tr.running-row.last td { border-bottom: 1px solid var(--border); }
+
+      table.periods tbody tr.ws-row td { padding: 4px 14px 4px 36px; font-size: 11px; color: var(--muted-2); border: none; background: rgba(103, 232, 249, 0.02); }
+      table.periods tbody tr.ws-row.last td { border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+
+      table.periods tbody tr.total-row td { padding: 14px; font-weight: 600; font-size: 13px; background: #131313; border-top: 2px solid var(--border-2); border-bottom: none; }
+
+      .variance-pos { color: var(--danger); font-variant-numeric: tabular-nums; }
+      .variance-neg { color: var(--success); font-variant-numeric: tabular-nums; }
+      .variance-flat { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+      .pct-pill { display: inline-flex; align-items: center; gap: 2px; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 500; }
+      .pct-pill.over { background: #2a0a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+      .pct-pill.under { background: #0a1c10; color: #86efac; border: 1px solid #14532d; }
+      .pct-pill.flat { background: #1f1f1f; color: var(--muted); border: 1px solid var(--border-2); }
+
+      .expand-btn { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--muted); cursor: pointer; }
+      .expand-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+      /* Spotlight strip */
+      .spotlight { background: linear-gradient(180deg, rgba(74, 222, 128, 0.04), transparent 60%), var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--success); border-radius: 12px; }
+      .spotlight.warn { background: linear-gradient(180deg, rgba(250, 204, 21, 0.05), transparent 60%), var(--panel); border-left-color: var(--warn); }
+      .spotlight.danger { background: linear-gradient(180deg, rgba(248, 113, 113, 0.05), transparent 60%), var(--panel); border-left-color: var(--danger); }
+
+      .stat { display: flex; flex-direction: column; gap: 2px; }
+      .stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .stat .v { font-size: 22px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+      .stat .s { font-size: 11px; color: var(--muted); }
+
+      .ringline { position: relative; height: 1px; background: var(--border); margin: 14px 0; }
+
+      /* Top mock banner */
+      .mock-banner { background: linear-gradient(90deg, #1c1407, #161616); border-bottom: 1px solid #5a4607; color: var(--warn); font-size: 12px; padding: 7px 18px; letter-spacing: 0.02em; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+      .mock-banner .badge { background: var(--warn); color: var(--primary-ink); padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+
+      a.subtle-link { color: var(--info); font-size: 12px; }
+      a.subtle-link:hover { text-decoration: underline; }
+
+      .narrative { font-size: 14px; line-height: 1.55; color: var(--text); }
+      .narrative .em { color: var(--success); font-weight: 600; }
+      .narrative .em-warn { color: var(--warn); font-weight: 600; }
+      .narrative .em-danger { color: var(--danger); font-weight: 600; }
+
+      details > summary { list-style: none; cursor: pointer; }
+      details > summary::-webkit-details-marker { display: none; }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <!-- Mock banner -->
+    <header class="mock-banner">
+      <span class="badge">Spec 031</span>
+      <span>Budget detail redesign — mockup, not live. Reviewing visual hierarchy and information density.</span>
+      <span class="ml-auto text-[var(--muted-2)] font-normal">specs/031-budget-workflow-and-redesign/detail-mock.html</span>
+    </header>
+
+    <main class="mx-auto" style="max-width: 1280px;">
+      <div class="px-8 py-7 space-y-6">
+
+        <!-- ============================== -->
+        <!--   PAGE HEADER                 -->
+        <!-- ============================== -->
+        <section class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h1 class="text-3xl font-bold tracking-tight">FY 2026 Budget</h1>
+            <span class="pill pill-lg" style="background:#0a1c10; color:#86efac; border:1px solid #14532d">
+              <span class="dot" style="background: var(--success)"></span>
+              Active
+            </span>
+            <span class="text-sm text-[var(--muted)]">Monthly allocation · Jan – Dec 2026</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <a href="/budget/history" class="subtle-link inline-flex items-center gap-1">
+              All budgets
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <button class="btn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+          </div>
+        </section>
+
+        <!-- ============================== -->
+        <!--   BUDGET HEALTH HERO          -->
+        <!-- ============================== -->
+        <section class="card p-6">
+          <div class="flex items-start justify-between gap-6 flex-wrap">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-3 mb-3 flex-wrap">
+                <span class="text-xs uppercase tracking-wide text-[var(--muted-2)]">Budget health</span>
+                <span class="pill pill-lg" style="background:#0a1c10; color:#86efac; border:1px solid #14532d">
+                  <span class="dot" style="background: var(--success)"></span>
+                  On track
+                </span>
+                <span class="chip success">−2.5% vs expected YTD</span>
+              </div>
+              <p class="narrative">
+                Tracking <span class="em">$3.8k under expected</span> through May 19.
+                If the current pace holds, FY 2026 lands at <span class="em">$471.6k</span> —
+                roughly <span class="em">$8.4k under the $480k ceiling</span>, with $24k of unallocated buffer still intact.
+                March overran by 12%; February was 8% under. Net effect is balanced.
+              </p>
+            </div>
+            <div class="flex flex-col items-end gap-1 text-right shrink-0">
+              <div class="text-[11px] uppercase tracking-wide text-[var(--muted-2)]">Today</div>
+              <div class="tabular text-sm">May 19, 2026</div>
+              <div class="text-[11px] text-[var(--muted-2)] mt-1">Day 139 of 365 · 38% of year elapsed</div>
+            </div>
+          </div>
+
+          <!-- ============================== -->
+          <!--  MULTI-MARKER PROGRESS BAR    -->
+          <!-- ============================== -->
+          <div class="mt-7">
+            <div class="flex items-baseline justify-between text-[11px] text-[var(--muted)] mb-2 tabular">
+              <span>$0</span>
+              <span>$240k · 50%</span>
+              <span class="text-[var(--text)] font-medium">$480,000 · annual ceiling</span>
+            </div>
+
+            <!-- Bar widths (relative to $480k ceiling):
+                 Actual YTD     : $156,700  → 32.6%   (billed $148.2k + May running $8.5k)
+                 Planned YTD    : $160,000  → 33.3%
+                 Expected YTD   : $160,440  → 33.4%   (license-derived)
+                 Allocated total: $456,000  → 95.0%
+                 Ceiling        : $480,000  → 100%
+            -->
+            <div class="multi-progress">
+              <!-- Actual YTD fill -->
+              <div class="seg actual" style="left:0; width:32.6%;"></div>
+              <!-- Allocated extent (remaining planned) -->
+              <div class="seg" style="left:32.6%; width:62.4%; background:#222;"></div>
+              <!-- Unallocated buffer (striped) -->
+              <div class="seg unallocated" style="left:95%; width:5%;"></div>
+
+              <!-- Planned-to-date marker -->
+              <div class="ytd-plan-marker" style="left:33.3%;"></div>
+              <div class="marker-label" style="left:33.3%;">
+                <span class="v">$160k</span> planned YTD
+              </div>
+
+              <!-- Expected-to-date marker (slightly right of plan) -->
+              <div class="expected-marker" style="left:33.4%;"></div>
+              <div class="marker-foot" style="left:33.4%;">
+                <span style="color: var(--info)">▲</span> <span class="v">$160.4k</span> expected
+              </div>
+
+              <!-- Ceiling marker -->
+              <div class="ceiling-marker" style="left:100%; transform: translateX(-3px);"></div>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap items-center gap-4 mt-9 text-[11px] text-[var(--muted)]">
+              <span class="inline-flex items-center gap-1.5">
+                <span style="width:14px; height:8px; border-radius:2px; background: linear-gradient(90deg,#6db86b,#86efac); display:inline-block;"></span>
+                Actual YTD <span class="text-[var(--text)] tabular ml-1">$156.7k</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span style="width:2px; height:14px; background: var(--text); display:inline-block;"></span>
+                Planned-to-date <span class="text-[var(--text)] tabular ml-1">$160.0k</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span style="width:2px; height:14px; background: var(--info); display:inline-block;"></span>
+                Expected-to-date <span class="text-[var(--text)] tabular ml-1">$160.4k</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span style="width:14px; height:8px; border-radius:2px; background: repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.15) 3px, rgba(255,255,255,0.15) 6px), #161616; display:inline-block;"></span>
+                Unallocated buffer <span class="text-[var(--text)] tabular ml-1">$24.0k</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span style="width:3px; height:14px; background: var(--primary); display:inline-block;"></span>
+                Annual ceiling <span class="text-[var(--text)] tabular ml-1">$480.0k</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Bottom YTD vs full-year split -->
+          <div class="ringline mt-7"></div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div class="stat">
+              <div class="l">YTD billed</div>
+              <div class="v">$148,200</div>
+              <div class="s">Jan – April · 4 complete months</div>
+            </div>
+            <div class="stat">
+              <div class="l">May running</div>
+              <div class="v" style="color: var(--info)">+$8,500</div>
+              <div class="s">incl. $3,200 Anthropic API <span class="chip info ml-1">live</span></div>
+            </div>
+            <div class="stat">
+              <div class="l">Projected year-end</div>
+              <div class="v">$471,600</div>
+              <div class="s"><span class="text-[var(--success)]">−$8.4k under ceiling</span></div>
+            </div>
+            <div class="stat">
+              <div class="l">Variance vs expected</div>
+              <div class="v" style="color: var(--success)">−$3,740</div>
+              <div class="s">YTD actual − YTD expected</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== -->
+        <!--   PAST-MONTH SPOTLIGHT        -->
+        <!-- ============================== -->
+        <section class="spotlight warn p-6">
+          <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div class="min-w-0 flex-1">
+              <div class="text-[11px] uppercase tracking-wide text-[var(--muted-2)] mb-1">Last completed period · spotlight</div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <h2 class="text-lg font-semibold">April 2026</h2>
+                <span class="chip warn">+5.8% over expected</span>
+                <span class="chip neutral">$42,140 actual</span>
+              </div>
+              <p class="text-sm text-[var(--muted)] mt-1">
+                Closed two weeks ago. Plan was $40,000, expected $39,840 from licenses,
+                actual landed at $42,140. The overage is concentrated in one tool.
+              </p>
+            </div>
+            <a href="#april" class="subtle-link self-start inline-flex items-center gap-1 mt-1">
+              Jump to April row
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="card-2 p-4">
+              <div class="l text-[11px] uppercase tracking-wide text-[var(--muted)]">Planned</div>
+              <div class="text-xl font-semibold tabular mt-1">$40,000</div>
+              <div class="text-[11px] text-[var(--muted-2)] mt-1">Monthly allocation</div>
+            </div>
+            <div class="card-2 p-4">
+              <div class="l text-[11px] uppercase tracking-wide text-[var(--muted)]">Expected</div>
+              <div class="text-xl font-semibold tabular mt-1">$39,840</div>
+              <div class="text-[11px] text-[var(--muted-2)] mt-1">Sum of license tiers</div>
+            </div>
+            <div class="card-2 p-4">
+              <div class="l text-[11px] uppercase tracking-wide text-[var(--muted)]">Actual billed</div>
+              <div class="text-xl font-semibold tabular mt-1">$42,140</div>
+              <div class="text-[11px] mt-1">
+                <span class="chip warn">+$2,300 over expected</span>
+              </div>
+            </div>
+            <div class="card-2 p-4">
+              <div class="l text-[11px] uppercase tracking-wide text-[var(--muted)]">Top driver</div>
+              <div class="text-base font-semibold mt-1">GitHub Copilot Business</div>
+              <div class="text-[11px] text-[var(--muted-2)] mt-1">+$1,820 · 15 seats added mid-month</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== -->
+        <!--   PERIODS TABLE               -->
+        <!-- ============================== -->
+        <section class="card overflow-hidden">
+          <header class="flex items-center justify-between gap-3 px-6 py-5 border-b border-[var(--border)]">
+            <div>
+              <h2 class="text-lg font-semibold">Period allocations &amp; billed costs</h2>
+              <p class="text-xs text-[var(--muted)] mt-0.5">12 monthly periods · click a row to inspect billed entries</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="chip neutral">12 periods</span>
+              <span class="chip success">5 with billed</span>
+              <span class="chip warn">2 over expected</span>
+            </div>
+          </header>
+
+          <table class="periods">
+            <thead>
+              <tr>
+                <th style="width: 32px;"></th>
+                <th>Period</th>
+                <th class="num">Planned</th>
+                <th class="num">Expected</th>
+                <th class="num">Actual</th>
+                <th class="num">Variance</th>
+                <th class="num">% diff</th>
+                <th style="width: 44px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <!-- JANUARY · under -->
+              <tr class="period-row under">
+                <td><span class="expand-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </span></td>
+                <td class="period-label">
+                  <div class="font-medium">January 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Closed · 2 entries</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,720</td>
+                <td class="num">$37,420</td>
+                <td class="num variance-neg">−$2,300</td>
+                <td class="num"><span class="pct-pill under">−5.8%</span></td>
+                <td><button class="icon-btn" title="Add billed cost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </button></td>
+              </tr>
+
+              <!-- FEBRUARY · under (8% under) -->
+              <tr class="period-row under">
+                <td><span class="expand-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </span></td>
+                <td class="period-label">
+                  <div class="font-medium">February 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Closed · 2 entries</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">$36,650</td>
+                <td class="num variance-neg">−$3,190</td>
+                <td class="num"><span class="pct-pill under">−8.0%</span></td>
+                <td><button class="icon-btn" title="Add billed cost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </button></td>
+              </tr>
+
+              <!-- MARCH · over (12%) -->
+              <tr class="period-row over">
+                <td><span class="expand-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </span></td>
+                <td class="period-label">
+                  <div class="font-medium">March 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Closed · 3 entries</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,940</td>
+                <td class="num" style="color:#fca5a5;">$44,720</td>
+                <td class="num variance-pos">+$4,780</td>
+                <td class="num"><span class="pct-pill over">+12.0%</span></td>
+                <td><button class="icon-btn" title="Add billed cost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </button></td>
+              </tr>
+
+              <!-- APRIL (expanded, slightly over) -->
+              <tr id="april" class="period-row over">
+                <td><span class="expand-btn" style="background: rgba(255,255,255,0.06); color: var(--text);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </span></td>
+                <td class="period-label">
+                  <div class="font-medium">April 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Closed · 3 entries · spotlighted above</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num" style="color:#fca5a5;">$42,140</td>
+                <td class="num variance-pos">+$2,300</td>
+                <td class="num"><span class="pct-pill over">+5.8%</span></td>
+                <td><button class="icon-btn" title="Add billed cost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </button></td>
+              </tr>
+
+              <!-- April expanded entries -->
+              <tr class="entry-row">
+                <td></td>
+                <td colspan="2" style="padding-left: 56px;">
+                  <span class="desc">GitHub Copilot Business — April invoice</span>
+                  <span class="ref ml-2">Ref: INV-2026-031</span>
+                </td>
+                <td class="num">Apr 5, 2026</td>
+                <td class="num"><span class="tabular">$26,200</span></td>
+                <td></td>
+                <td></td>
+                <td>
+                  <div class="flex gap-1 justify-end">
+                    <button class="icon-btn" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="icon-btn danger" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr class="entry-row">
+                <td></td>
+                <td colspan="2" style="padding-left: 56px;">
+                  <span class="desc">Cursor Pro — April team plan</span>
+                  <span class="ref ml-2">Ref: CRSR-26-04</span>
+                </td>
+                <td class="num">Apr 12, 2026</td>
+                <td class="num"><span class="tabular">$3,840</span></td>
+                <td></td>
+                <td></td>
+                <td>
+                  <div class="flex gap-1 justify-end">
+                    <button class="icon-btn" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="icon-btn danger" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr class="entry-row last">
+                <td></td>
+                <td colspan="2" style="padding-left: 56px;">
+                  <span class="desc">Anthropic API — April usage (Claude on Cursor)</span>
+                  <span class="ref ml-2">Ref: ANTHR-2026-04</span>
+                </td>
+                <td class="num">Apr 30, 2026</td>
+                <td class="num"><span class="tabular">$12,100</span></td>
+                <td></td>
+                <td></td>
+                <td>
+                  <div class="flex gap-1 justify-end">
+                    <button class="icon-btn" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="icon-btn danger" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- MAY · CURRENT (expanded with running) -->
+              <tr class="period-row current">
+                <td><span class="expand-btn" style="background: rgba(212, 240, 87, 0.12); color: var(--primary);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </span></td>
+                <td class="period-label">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-medium">May 2026</span>
+                    <span class="chip primary">Current</span>
+                  </div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">In progress · 19 of 31 days · 1 billed entry + API running</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num" style="color: var(--info);">
+                  $8,500
+                  <span class="text-[11px] text-[var(--muted-2)] ml-1">(partial)</span>
+                </td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">tracking</span></td>
+                <td><button class="icon-btn" title="Add billed cost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </button></td>
+              </tr>
+
+              <!-- May entry: GitHub Copilot May invoice (already billed) -->
+              <tr class="entry-row">
+                <td></td>
+                <td colspan="2" style="padding-left: 56px;">
+                  <span class="desc">GitHub Copilot Business — May invoice</span>
+                  <span class="ref ml-2">Ref: INV-2026-046</span>
+                </td>
+                <td class="num">May 5, 2026</td>
+                <td class="num"><span class="tabular">$5,300</span></td>
+                <td></td>
+                <td></td>
+                <td>
+                  <div class="flex gap-1 justify-end">
+                    <button class="icon-btn" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="icon-btn danger" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- May Anthropic running row -->
+              <tr class="running-row">
+                <td></td>
+                <td colspan="2" style="padding-left: 56px;">
+                  <span class="label inline-flex items-center gap-1.5">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08 4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08 4.24-4.24"/></svg>
+                    Anthropic API · running
+                  </span>
+                  <span class="ref ml-2 text-[var(--muted-2)]">Live · updated 12 min ago</span>
+                </td>
+                <td class="num text-[var(--muted-2)]">— live —</td>
+                <td class="num" style="color: var(--info)"><span class="tabular">$3,200</span></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr class="ws-row">
+                <td></td>
+                <td colspan="2" style="padding-left: 80px;">eng-platform workspace</td>
+                <td></td>
+                <td class="num"><span class="tabular">$1,840</span></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr class="ws-row">
+                <td></td>
+                <td colspan="2" style="padding-left: 80px;">design-systems workspace</td>
+                <td></td>
+                <td class="num"><span class="tabular">$920</span></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr class="ws-row last">
+                <td></td>
+                <td colspan="2" style="padding-left: 80px;">research-sandbox workspace</td>
+                <td></td>
+                <td class="num"><span class="tabular">$440</span></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+
+              <!-- JUNE — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>June 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- JULY — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>July 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- AUGUST — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>August 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- SEPTEMBER — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>September 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- OCTOBER — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>October 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- NOVEMBER — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>November 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- DECEMBER — future -->
+              <tr class="period-row future">
+                <td></td>
+                <td class="period-label">
+                  <div>December 2026</div>
+                  <div class="text-[11px] text-[var(--muted-2)] mt-0.5">Planned</div>
+                </td>
+                <td class="num"><input class="input" value="38,000.00" /></td>
+                <td class="num">$39,840</td>
+                <td class="num">—</td>
+                <td class="num variance-flat">—</td>
+                <td class="num"><span class="pct-pill flat">—</span></td>
+                <td></td>
+              </tr>
+
+              <!-- YTD TOTAL -->
+              <tr class="total-row">
+                <td></td>
+                <td>
+                  <div>YTD total <span class="text-[var(--muted)] font-normal text-[11px] ml-1">Jan–May 19</span></div>
+                </td>
+                <td class="num tabular">$190,000</td>
+                <td class="num tabular">$160,440</td>
+                <td class="num tabular">$156,700</td>
+                <td class="num variance-neg">−$3,740</td>
+                <td class="num"><span class="pct-pill under">−2.3%</span></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Save row -->
+          <div class="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[#0f0f0f]">
+            <div class="flex items-center gap-3 text-[12px] text-[var(--muted)]">
+              <span class="inline-flex items-center gap-1.5">
+                <span style="width:8px; height:8px; background: var(--primary); display:inline-block; border-radius:2px;"></span>
+                Allocated <span class="tabular text-[var(--text)]">$456,000</span> of <span class="tabular text-[var(--text)]">$480,000</span>
+              </span>
+              <span class="text-[var(--muted-2)]">·</span>
+              <span class="tabular">$24,000 unallocated buffer</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn">Reset</button>
+              <button class="btn btn-primary">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Save allocations
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== -->
+        <!--   DESIGN NOTES FOOTER         -->
+        <!-- ============================== -->
+        <footer class="card-2 p-5 text-[12px] text-[var(--muted)] mt-2">
+          <div class="font-medium text-[var(--text)] mb-3 text-[13px]">Design notes — why this looks the way it does</div>
+          <ul class="space-y-2 list-disc list-outside ml-5">
+            <li>
+              <span class="text-[var(--text)]">Hero replaces five flat KPI cards.</span>
+              The previous Total / Allocated / Expected / Actual / Variance strip showed five
+              overlapping numbers with no relationship between them. The multi-marker bar carries
+              all five values in one visual, and the narrative sentence does the interpretation
+              the user used to do in their head.
+            </li>
+            <li>
+              <span class="text-[var(--text)]">No "Unallocated" tile.</span>
+              It's derivable as Total − Allocated. The striped trailing segment in the progress bar
+              communicates the buffer at a glance; the save-row footer states the exact dollars.
+              One tile less means the hero stays the visual focal point.
+            </li>
+            <li>
+              <span class="text-[var(--text)]">"Allocated" folded into the bar.</span>
+              The dark non-actual segment shows allocated-but-not-yet-spent capacity; the lime-yellow
+              ceiling tick shows where allocation ends. No need for a separate Allocated KPI.
+            </li>
+            <li>
+              <span class="text-[var(--text)]">Current month gets a primary-color left accent.</span>
+              In the live view, "where are we right now" was a scan-the-table guess. The Current
+              pill + accent border + warmer row tint make it unambiguous, and the row stays editable
+              even while live data updates inside it.
+            </li>
+            <li>
+              <span class="text-[var(--text)]">Past-month spotlight pulls one closed period forward.</span>
+              Borrowed from <code class="text-[var(--info)]">028-reports-v2/budget-mock.html</code>.
+              Most users open this page asking "what happened last month?" — answering that above
+              the table beats forcing them to find and expand the April row.
+            </li>
+            <li>
+              <span class="text-[var(--text)]">Anthropic running rows keep their cyan signal, dialed down.</span>
+              The current implementation uses a stronger blue background; here it's a subtle tinted
+              row plus a cyan "live" chip. Same semantics, less visual noise — and workspace
+              breakdown indents under the parent row exactly like the live code already does.
+            </li>
+          </ul>
+        </footer>
+
+      </div>
+    </main>
+  </body>
+</html>
