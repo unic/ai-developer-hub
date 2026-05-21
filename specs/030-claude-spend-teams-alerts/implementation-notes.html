@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Implementation Notes · Spec 030</title>
+<style>
+  :root {
+    --bg: #fafafa; --panel: #ffffff; --border: #e4e4e7; --text: #18181b;
+    --muted: #52525b; --teams: #5b5fc7;
+    --warn: #b45309; --warn-bg: #fef3c7;
+    --info-bg: #dbeafe; --info: #1d4ed8;
+    --ok: #047857; --ok-bg: #d1fae5;
+    --danger: #b91c1c; --danger-bg: #fee2e2;
+    --font: "Segoe UI Variable", "Segoe UI", -apple-system, sans-serif;
+    --mono: "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); }
+  .doc { max-width: 880px; margin: 0 auto; padding: 48px 32px 96px; }
+  header h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  header .meta { margin-top: 14px; font-size: 12px; color: var(--muted); }
+  h2 { margin: 40px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-size: 18px; }
+  h3 { margin: 20px 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .entry { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin: 12px 0; }
+  .entry .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 8px; }
+  .tag.decision { background: var(--info-bg); color: var(--info); }
+  .tag.deviation { background: var(--warn-bg); color: var(--warn); }
+  .tag.tradeoff { background: #f3e8ff; color: #6b21a8; }
+  .tag.question { background: var(--danger-bg); color: var(--danger); }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); }
+  .entry h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+  .entry p { margin: 4px 0; font-size: 13.5px; line-height: 1.55; }
+  code { font-family: var(--mono); font-size: 12px; background: #f4f4f5; border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; }
+  .ts { font-size: 11px; color: #a1a1aa; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div class="doc">
+
+<header>
+  <h1>Implementation Notes</h1>
+  <p>Running log of design decisions, deviations, tradeoffs, and open questions while implementing spec 030 (Claude Spend → Microsoft Teams).</p>
+  <div class="meta">
+    Branch: <code>worktree-ms-teams-report</code> ·
+    Neon: <code>wt/ms-teams-report</code> (<code>br-frosty-rice-alo5bla5</code>, parent <code>main</code>) ·
+    Started: 2026-05-21
+  </div>
+</header>
+
+<h2>1. Setup</h2>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Worktree-isolated DB branch before touching schema</h4>
+  <p class="ts">2026-05-21 · Task 1</p>
+  <p>
+    The worktree didn't have its own <code>.env.local</code> (gitignored). Copied from main repo, then branched
+    Neon project <code>ai-developer-hub</code> off <code>main</code> into <code>wt/ms-teams-report</code> via the
+    <code>neon-worktree-branch</code> skill. <code>DATABASE_URL</code> and <code>DATABASE_URL_UNPOOLED</code> now point
+    at the branch. Verified host differs from main's host. Production data is untouched by anything done in this
+    worktree.
+  </p>
+</div>
+
+<h2>2. Schema & data model</h2>
+
+<div class="entry">
+  <span class="tag deviation">Deviation</span>
+  <h4>Nullable <code>workspace_id</code> with two partial unique indexes — not <code>"__default__"</code> coalesce</h4>
+  <p class="ts">2026-05-21 · Task 2</p>
+  <p>
+    The plan specified <code>workspaceId: varchar(64).notNull()</code> and coalescing the Anthropic default workspace's
+    <code>null</code> to a sentinel string <code>"__default__"</code>. While reading the existing schema I found that
+    <code>anthropic_workspace_costs</code> and <code>anthropic_workspace_limits</code> already solve this with
+    <code>varchar(100)</code> nullable + two partial unique indexes (<code>WHERE workspace_id IS NOT NULL</code> and
+    <code>WHERE workspace_id IS NULL</code>). I matched that pattern in <code>anthropic_alert_state</code>.
+  </p>
+  <p>
+    <strong>Why:</strong> consistency across the whole Anthropic sub-schema. The coalesce approach would have required
+    a thin translation layer at every read/write site. The partial-index approach is invisible at the application
+    layer — Drizzle just sees a nullable column.
+  </p>
+  <p>
+    <strong>Tradeoff:</strong> the queries module now has to be careful to compare <code>workspace_id IS NULL</code>
+    rather than <code>= '__default__'</code>. Documented as a contract comment on the queries module.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Added a regex check constraint on <code>billing_month</code></h4>
+  <p class="ts">2026-05-21 · Task 2</p>
+  <p>
+    Added <code>CHECK (billing_month ~ '^[0-9]&#123;4&#125;-(0[1-9]|1[0-2])$')</code> so a malformed value (e.g.
+    <code>'2026-13'</code> or <code>'May'</code>) can&apos;t reach the table even if a future caller forgets to
+    validate. Cheap belt-and-braces — TS types are not enforced at the DB layer, and the value is small enough that the
+    regex won&apos;t show up in EXPLAIN plans.
+  </p>
+</div>
+
+<h2>3. Data layer (queries.ts)</h2>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Surgical extraction, not full refactor</h4>
+  <p class="ts">2026-05-21 · Task 4</p>
+  <p>
+    The spec said &quot;refactor the server actions to delegate&quot; — taken literally that meant moving every <code>_get*</code>
+    private function out of <code>anthropic-global.ts</code> (16 of them). I only moved the three the evaluator
+    actually needs (<code>loadSyncStatus</code>, <code>loadDashboardKpis</code>, <code>loadWorkspaceList</code>) and
+    left the other 13 private functions in place. The rest can migrate later if a second consumer emerges.
+  </p>
+  <p><strong>Why:</strong> minimum diff, zero behavior change for any of the other 13 dashboard panels. Typecheck passes.</p>
+  <p>
+    Mitigations from the plan all applied: <code>import &quot;server-only&quot;</code> at top, contract comment naming the
+    only two allowed callers, <code>load*</code> naming convention.
+  </p>
+</div>
+
+<h2>4. Forecast module</h2>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Forecast function signature gained <code>limitCents</code> parameter</h4>
+  <p class="ts">2026-05-21 · Task 5</p>
+  <p>
+    Plan signature was <code>forecastWorkspaceMonth(workspaceId, month, today)</code> but its return shape includes
+    <code>crossesCapOn</code> and <code>status: &quot;at_risk&quot; | &quot;on_track&quot;</code> — both of which require the cap.
+    Added a 4th param <code>limitCents: number | null</code>. Caller already has it on <code>WorkspaceListItem</code>.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag tradeoff">Tradeoff</span>
+  <h4>Simple 7-day trailing average over 14-day window, not OLS or EWMA</h4>
+  <p class="ts">2026-05-21 · Task 5</p>
+  <p>
+    Considered: weighted exponential moving average, OLS on day-of-month progression, or two-line piecewise to detect
+    inflection. Picked plain 7-day trailing because: (1) the forecast card already shows a 7-day rate as a fact, so the
+    projection &quot;7-day rate × days remaining&quot; is internally consistent with what the operator sees, (2) Anthropic spend
+    has strong weekly seasonality (weekday spikes, weekend dips), and a 7-day window naturally averages over that, (3)
+    EWMA would chase noise from a single backfill spike.
+  </p>
+  <p>
+    Downside: a single &quot;experiment Friday&quot; spike pulls the 7-day rate up for a week. Acceptable — the next 7 days will
+    smooth it back out.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4><code>insufficient_data</code> when &lt; 3 distinct billed days this month</h4>
+  <p class="ts">2026-05-21 · Task 5</p>
+  <p>
+    Plan didn&apos;t specify the data-sufficiency threshold. Picked 3 distinct billed days inside the current billing
+    month. Fewer than that and the projection is dominated by noise — no card fires, evaluator ignores the workspace
+    for forecast purposes. Threshold breaches still fire normally; they don&apos;t depend on the forecast.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>If already over cap → <code>crossesCapOn = null</code>, not today&apos;s date</h4>
+  <p class="ts">2026-05-21 · Task 5</p>
+  <p>
+    The forecast card shows &quot;Crosses 100% on YYYY-MM-DD&quot;. If a workspace is already over, the threshold breach card
+    has already signaled that — the forecast doesn&apos;t need to also say &quot;crosses today&quot;. Returning <code>null</code>
+    here lets the renderer omit the field instead of showing a confusing date.
+  </p>
+</div>
+
+<h2>5. Teams module</h2>
+
+<div class="entry">
+  <span class="tag deviation">Deviation</span>
+  <h4>Custom retry loop in <code>webhook.ts</code> instead of <code>retryWithBackoff()</code></h4>
+  <p class="ts">2026-05-21 · Task 6</p>
+  <p>
+    The plan said &quot;reuse <code>retryWithBackoff()</code> from <code>src/lib/sync/framework.ts</code>&quot;. Reading the
+    existing helper showed it retries on every error and ignores HTTP <code>Retry-After</code>. Microsoft&apos;s rate-limit
+    docs say to honor <code>Retry-After</code> on 429 and to retry only specific statuses (412/429/502/504), not
+    everything. Wrote a small Teams-specific retry that does both.
+  </p>
+  <p>
+    <strong>Tradeoff:</strong> &lt; 60 lines of duplicated structural code vs. forking the shared helper. Picked
+    duplication because the Teams retry has different semantics than the data-sync retry (status-specific, header-honoring)
+    and tangling them would make the data-sync retry harder to reason about.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Deep links use <code>/claude/workspaces/[id]</code>, not <code>/anthropic/workspaces/[id]</code></h4>
+  <p class="ts">2026-05-21 · Task 6</p>
+  <p>
+    Plan&apos;s example payloads used <code>https://hub.unic.com/anthropic/workspaces/research-claude</code>. The actual
+    route in this codebase is <code>/claude/workspaces/[workspaceId]</code>. Used that. <code>encodeURIComponent</code>
+    on the id for safety.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Workspace key abstraction: <code>"__default__"</code> for in-memory state only</h4>
+  <p class="ts">2026-05-21 · Task 6</p>
+  <p>
+    The DB stores <code>workspace_id IS NULL</code> for the default workspace (matching existing tables — see entry
+    under Schema). But the evaluator&apos;s state-machine maps need a non-null key for <code>Map&lt;string, ...&gt;</code>.
+    Coined a single helper <code>keyFor()</code> that maps <code>null → &quot;__default__&quot;</code> for in-memory keys only;
+    everything that hits the DB still passes the original <code>string | null</code>. Avoids the &quot;__default__&quot; leak
+    that I rejected at the schema layer.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag tradeoff">Tradeoff</span>
+  <h4>Persist state AFTER all cards have posted, not per-card</h4>
+  <p class="ts">2026-05-21 · Task 6</p>
+  <p>
+    Two options: persist after each card (so a mid-batch failure doesn&apos;t lose progress), or persist after all cards
+    succeed (so a mid-batch failure causes the next sync to re-post the cards that did make it). Picked the second
+    because: (a) re-posting an identical card to a Teams channel within the hour is benign (operator just sees a
+    duplicate), (b) the alternative leaves a half-fired state where some cards were &quot;announced&quot; but no operator knows
+    the others didn&apos;t make it. At-least-once delivery, idempotent on the receiver.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4><code>computeAlertDiff()</code> exported as a pure function</h4>
+  <p class="ts">2026-05-21 · Task 6</p>
+  <p>
+    The evaluator&apos;s state-machine logic is pure (no DB, no side effects). Split it out as
+    <code>computeAlertDiff()</code> and exported it so unit tests can hammer the threshold/forecast invariants without
+    needing a database. Plan didn&apos;t spell this out; this is a structural improvement.
+  </p>
+</div>
+
+<h2>6. Cron integration</h2>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Static import of evaluator (revised in code review)</h4>
+  <p class="ts">2026-05-21 · Task 7 → revisited in Code Review</p>
+  <p>
+    First pass used a dynamic <code>await import()</code> to keep the <code>&quot;server-only&quot;</code> chain out of the
+    sync source&apos;s static graph. Quality review flagged it as a smell. With the <code>tests/shims/server-only.ts</code>
+    alias already in both vitest configs, static import works fine in tests too. Switched back to static import.
+  </p>
+</div>
+
+<h2>7. Tests</h2>
+
+<div class="entry">
+  <span class="tag deviation">Deviation</span>
+  <h4>Added a vitest <code>server-only</code> shim — not in plan</h4>
+  <p class="ts">2026-05-21 · Task 8</p>
+  <p>
+    Both unit and integration test configs now alias the <code>server-only</code> package to an empty shim at
+    <code>tests/shims/server-only.ts</code>. Required because the plan&apos;s &quot;<code>import &quot;server-only&quot;</code>
+    at the top of <code>queries.ts</code>&quot; mitigation breaks vitest unless aliased — the package only exists at
+    runtime under Next.js. Net effect on production: zero. Tests now run; production builds still enforce the
+    server-only invariant.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag deviation">Deviation</span>
+  <h4>Integration vitest config now loads <code>.env.local</code></h4>
+  <p class="ts">2026-05-21 · Task 8</p>
+  <p>
+    Existing integration tests (e.g. <code>invoice-sync.test.ts</code>) silently rely on the caller exporting
+    <code>DATABASE_URL</code> before running <code>pnpm test:integration</code>. Added an explicit
+    <code>dotenv.config({ path: &quot;.env.local&quot; })</code> at the top of <code>vitest.config.integration.mts</code>. Also
+    bumped <code>hookTimeout</code> from 10s to 30s to tolerate Neon cold starts on first connection.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag decision">Decision</span>
+  <h4>Seed includes today&apos;s row in forecast integration tests</h4>
+  <p class="ts">2026-05-21 · Task 8</p>
+  <p>
+    Initial expectations assumed seed covered last 14 days ending yesterday. The function fills missing days with 0
+    (correct behavior — missing means &quot;not synced yet,&quot; treat conservatively). Updated seeds to include today&apos;s
+    row, which is more realistic anyway since the hourly cron writes a partial today row on every run.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag ok">Result</span>
+  <h4>317/317 unit tests · 7/7 forecast integration tests · 0 lint warnings · clean typecheck</h4>
+  <p class="ts">2026-05-21 · Task 8</p>
+  <p>
+    Existing anthropic-workspace backfill tests passed unchanged. They now emit
+    <code>[anthropic-api-costs] teams alerts posted=0 skipped=webhook_disabled</code> in their logs — confirming the
+    kill-switch behavior works correctly when <code>TEAMS_WEBHOOK_URL</code> is unset.
+  </p>
+</div>
+
+<h2>8. Verification</h2>
+
+<div class="entry">
+  <span class="tag ok">Result</span>
+  <h4>Dashboard renders unchanged after server-action refactor</h4>
+  <p class="ts">2026-05-21 · Task 9</p>
+  <p>
+    Navigated <code>http://localhost:3001/claude</code> in Chrome via the chrome-devtools MCP. Page renders with real
+    Neon-branch data — $2,438.76 MTD, 11 workspaces, KPIs, daily breakdown, historical trend, all 13 workspace budget
+    cards. Single console error is a static-asset 404 unrelated to this change. Server-action refactor is transparent.
+    Screenshot saved at <code>specs/030-claude-spend-teams-alerts/verification-dashboard.png</code>.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag ok">Result</span>
+  <h4>Full evaluator flow verified end-to-end</h4>
+  <p class="ts">2026-05-21 · Task 9</p>
+  <p>
+    Hit <code>/api/sync/anthropic-api-costs</code> via <code>curl</code> with the cron Bearer token in four
+    configurations:
+  </p>
+  <table style="width:100%; font-size:13px; margin-top:8px;">
+    <thead>
+      <tr style="background:var(--bg);">
+        <th style="text-align:left; padding:4px 8px;">Run</th>
+        <th style="text-align:left; padding:4px 8px;">TEAMS_WEBHOOK_URL</th>
+        <th style="text-align:left; padding:4px 8px;">posted=</th>
+        <th style="text-align:left; padding:4px 8px;">Confirms</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:4px 8px;">1</td><td style="padding:4px 8px;">unset</td><td style="padding:4px 8px;"><strong>0</strong></td><td style="padding:4px 8px;">Kill switch</td></tr>
+      <tr><td style="padding:4px 8px;">2</td><td style="padding:4px 8px;">set (httpbin echo)</td><td style="padding:4px 8px;"><strong>4</strong></td><td style="padding:4px 8px;">Digest + 3 forecast edges (first run)</td></tr>
+      <tr><td style="padding:4px 8px;">3</td><td style="padding:4px 8px;">set</td><td style="padding:4px 8px;"><strong>1</strong></td><td style="padding:4px 8px;">Idempotency — forecast cards suppressed</td></tr>
+      <tr><td style="padding:4px 8px;">4</td><td style="padding:4px 8px;">set</td><td style="padding:4px 8px;"><strong>1</strong></td><td style="padding:4px 8px;">State stable across runs</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:10px;">
+    <code>SELECT * FROM anthropic_alert_state</code> after run 2 shows three rows with <code>forecast_at_risk=true</code>
+    on the workspaces the dashboard&apos;s &quot;on pace 102%/103%/97%&quot; cards flagged. Threshold timestamps remain NULL because
+    no workspace is currently over 80%.
+  </p>
+</div>
+
+<div class="entry">
+  <span class="tag question">Open question</span>
+  <h4>Cleanup recommendation: production rollout step list</h4>
+  <p class="ts">2026-05-21 · Task 9</p>
+  <p>
+    The plan&apos;s rollout step list assumes the operator has a real Workflows webhook URL to test against. For our
+    verification I used httpbin.org/anything as a wire test. Before production rollout, the operator should: (a)
+    provision a real Workflows webhook in a Teams channel, (b) replace <code>TEAMS_WEBHOOK_URL</code> in Vercel, (c)
+    seed a synthetic over-limit workspace in staging to test the threshold path (didn&apos;t exist in current data).
+  </p>
+</div>
+
+<h2>9. Code review pass</h2>
+
+<div class="entry">
+  <span class="tag ok">Result</span>
+  <h4>Three parallel agent reviews · 24 findings · 9 applied, 15 deferred/skipped</h4>
+  <p class="ts">2026-05-21 · /simplify</p>
+  <p>
+    Three xhigh-effort review agents ran in parallel (reuse, quality, efficiency). High-value fixes applied:
+  </p>
+  <ul>
+    <li><strong>Reuse:</strong> Deleted <code>fmtMoneyPrecise</code> (duplicated <code>formatCurrency</code> from <code>src/lib/utils.ts</code>). Switched <code>fmtAgo</code> to wrap <code>date-fns formatDistanceToNow</code> (8+ existing call sites). Deleted unused <code>fmtDate</code>.</li>
+    <li><strong>Quality:</strong> Removed dead <code>ALL_THRESHOLDS</code> export. Extracted <code>projectedEomLabel()</code> from a nested ternary in <code>cards.ts</code>. Trimmed the contract comment in <code>queries.ts</code> from 18 → 4 lines. Replaced linear <code>workspaces.find()</code> with a <code>workspacesByKey</code> Map. Fixed the misleading &quot;at-least-once delivery&quot; comment to honestly describe all-or-nothing batch semantics. Hoisted the dynamic import to static.</li>
+    <li><strong>Efficiency:</strong> Killed an N+1 — <code>forecastWorkspaceMonth</code> is now a <em>pure</em> function; <code>loadCostHistory()</code> in <code>queries.ts</code> fetches all workspaces&apos; daily costs in one SQL query and the evaluator fans out in JS. ~11 queries → 1. State upsert batched into a single <code>INSERT...VALUES...ON CONFLICT</code> instead of N round trips; redundant per-row transaction dropped (caller has <code>withSyncLock</code>).</li>
+  </ul>
+  <p>
+    Smoke-tested against the Neon branch after the refactor: clean state → posted=4 (digest + 3 forecast cards) → re-run → posted=1 (digest only, idempotent). Same behavior as pre-refactor, fewer queries.
+  </p>
+  <p>
+    Deferred (out of scope for spec 030): the <code>&quot;__default__&quot;</code> magic string appears in 13 sites across the
+    codebase — extracting a shared <code>DEFAULT_WORKSPACE_KEY</code> constant is a cross-cutting cleanup, separate
+    ticket. Loading <code>loadDashboardKpis</code> as one query instead of two is a pre-existing pattern lifted
+    unchanged — also separate.
+  </p>
+</div>
+
+<h2>10. Open questions for the spec author</h2>
+<p style="color:var(--muted); font-style:italic; font-size:13px;">(entries added as work progresses)</p>
+
+</div>
+</body>
+</html>
