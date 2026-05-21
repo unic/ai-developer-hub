@@ -371,7 +371,10 @@ export async function getLastCompletedSyncEvent(sourceType: SyncSourceType) {
       eq(syncEvents.sourceType, sourceType),
       ne(syncEvents.outcome, "in_progress"),
     ),
-    orderBy: [desc(syncEvents.completedAt)],
+    // Ordering by started_at (not completed_at) so the query rides the existing
+    // sync_events_source_started_idx index instead of forcing an in-memory sort,
+    // and matches getSyncSources() / getSyncHistory() semantics.
+    orderBy: [desc(syncEvents.startedAt)],
   });
 }
 
@@ -384,6 +387,7 @@ export async function listSyncEvents(sourceType: SyncSourceType, limit: number) 
       outcome: syncEvents.outcome,
       createdCount: syncEvents.createdCount,
       updatedCount: syncEvents.updatedCount,
+      skippedCount: syncEvents.skippedCount,
       errorCount: syncEvents.errorCount,
       errorMessage: syncEvents.errorMessage,
     })
@@ -399,6 +403,13 @@ export function mapOutcomeToLegacyStatus(
   if (outcome === "success") return "completed";
   if (outcome === "partial" || outcome === "failed") return outcome;
   return null;
+}
+
+/** Like {@link mapOutcomeToLegacyStatus} but also surfaces "in_progress" for live timelines. */
+export function mapOutcomeForDisplay(
+  outcome: "in_progress" | "success" | "partial" | "failed",
+): "in_progress" | "completed" | "partial" | "failed" {
+  return outcome === "success" ? "completed" : outcome;
 }</code></pre>
 
 <h3>Change 8.1 — <code>getCopilotSyncStatus()</code> in <code>src/actions/copilot.ts</code></h3>

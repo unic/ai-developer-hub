@@ -189,6 +189,30 @@
 </table>
 
 <!-- ============================================================ -->
+<h2>PR #95 review responses</h2>
+
+<p>The Copilot PR reviewer left three inline comments. All three addressed in a follow-up commit.</p>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> 1. Lock acquired before GitHub API fetch</h3>
+  <p><strong>Reviewer:</strong> "<code>confirmGitHubSync</code> calls <code>fetchAndMatchMembers()</code> (GitHub API + per-member profile fetch loop) before acquiring the <code>withSyncLock</code> advisory lock. That means two concurrent confirms can both burn rate limit / do expensive work."</p>
+  <p><strong>Applied:</strong> Moved <code>fetchAndMatchMembers()</code> inside the <code>withSyncLock</code> callback. The second concurrent confirm now fails at the lock with "Sync already in progress" before issuing any GitHub calls. If the fetch itself fails inside the lock, the callback returns counts with <code>errorCount: 1</code> + the fetch error message, so the failure shows up in the sync history (an unexpected upside — previously a rate-limit error from the preview-style call was invisible). The outer action still returns <code>{ success: false, error }</code> for the UI via a new <code>prefetchError</code> guard.</p>
+  <p><strong>Note for the preview path:</strong> <code>fetchGitHubSyncPreview</code> (called from the sheet on open) still calls <code>fetchAndMatchMembers()</code> outside any lock. That's the right call — it's a read-only preview, doesn't write, and multiple admins should be able to inspect concurrently. Only the confirm path holds the advisory lock.</p>
+</div>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> 2. <code>errorMessage</code> capped + summarized</h3>
+  <p><strong>Reviewer:</strong> "<code>errorMessage</code> is built by joining all validation errors, which can get very large… Consider truncating to a reasonable max length (similar to the 1000-char cap in <code>withSyncLock</code>'s failure path) or storing only the first N errors plus a summary count."</p>
+  <p><strong>Applied:</strong> Extracted a <code>summarizeErrors(errors[])</code> helper into <code>src/lib/sync/error-message.ts</code>. It honors the same 1000-char cap as <code>withSyncLock</code>'s catch path, greedily includes complete messages until the budget runs out, and appends a <code>… (+N more)</code> suffix so the UI surfaces the dropped count. Covered by a 5-case unit test, including the edge case where the very first message alone overflows the cap.</p>
+</div>
+
+<div class="note">
+  <h3><span class="pill design">Design</span> 3. Spec snippet drift fixed</h3>
+  <p><strong>Reviewer:</strong> "The implementation-plan snippet for <code>getLastCompletedSyncEvent</code> orders by <code>completedAt</code>, but the actual code… orders by <code>startedAt</code>… Updating this snippet would prevent the spec from drifting from the merged implementation."</p>
+  <p><strong>Applied:</strong> Updated the snippet in <code>plan.html §8.0</code> to <code>orderBy: [desc(syncEvents.startedAt)]</code> with a comment explaining the index motivation. Also added the missing <code>skippedCount</code> column to the <code>listSyncEvents</code> projection and added <code>mapOutcomeForDisplay</code> to the snippet (it was introduced post-review).</p>
+</div>
+
+<!-- ============================================================ -->
 <h2>Setup</h2>
 
 <div class="note">

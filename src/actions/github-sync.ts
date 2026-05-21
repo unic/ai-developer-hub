@@ -13,6 +13,7 @@ import {
 import { confirmSyncSchema } from "@/lib/validators";
 import { recordCreation, recordUpdate } from "@/actions/history";
 import { withSyncLock } from "@/lib/sync/framework";
+import { summarizeErrors } from "@/lib/sync/error-message";
 import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
 import type { ActionResult, GitHubMemberData, SyncPreview } from "@/types";
@@ -164,19 +165,6 @@ export async function confirmGitHubSync(
   }
 
   const { importGitHubLogins, manualMatches, newUsers } = parsed.data;
-
-  const fetchResult = await fetchAndMatchMembers();
-  if (!fetchResult.success) {
-    return { success: false, error: fetchResult.error };
-  }
-
-  const { memberProfiles, matchResult } = fetchResult;
-
-  // Build set of valid unmatched logins for validation (#9)
-  const unmatchedLoginSet = new Set(
-    matchResult.unmatched.map((m) => m.githubLogin),
-  );
-
   const adminId = Number(admin.id);
 
   // TS's narrowing across async closures is unreliable for `let` variables;
@@ -184,11 +172,33 @@ export async function confirmGitHubSync(
   // without fighting the compiler.
   const detailed: { counts: GitHubMemberSyncCounts | null } = { counts: null };
 
+  // Lightweight pre-fetch state — populated inside the lock so that only one
+  // concurrent confirm performs the expensive GitHub API + per-member profile
+  // fetch loop. Earlier confirms that bypass the lock would otherwise burn
+  // rate limit before discovering the contention.
+  let prefetchError: string | null = null;
+
   let lockResult: { eventId: number };
   try {
     lockResult = await withSyncLock(
       { sourceType: "github_members", triggeredBy: adminId },
       async () => {
+        const fetchResult = await fetchAndMatchMembers();
+        if (!fetchResult.success) {
+          prefetchError = fetchResult.error;
+          return {
+            createdCount: 0,
+            updatedCount: 0,
+            skippedCount: 0,
+            errorCount: 1,
+            errorMessage: fetchResult.error.slice(0, 1000),
+          };
+        }
+
+        const { memberProfiles, matchResult } = fetchResult;
+        const unmatchedLoginSet = new Set(
+          matchResult.unmatched.map((m) => m.githubLogin),
+        );
         const result = await db.transaction(async (tx) => {
           let enrichedCount = 0;
           let importedCount = 0;
@@ -544,8 +554,7 @@ export async function confirmGitHubSync(
           updatedCount: result.enrichedCount + result.manuallyMatchedCount,
           skippedCount: result.skippedCount,
           errorCount: result.errors.length + result.conflictCount,
-          errorMessage:
-            result.errors.length > 0 ? result.errors.join("; ") : null,
+          errorMessage: summarizeErrors(result.errors),
         };
       },
     );
@@ -555,6 +564,10 @@ export async function confirmGitHubSync(
       error:
         error instanceof Error ? error.message : "Sync failed unexpectedly",
     };
+  }
+
+  if (prefetchError) {
+    return { success: false, error: prefetchError };
   }
 
   if (!detailed.counts) {
