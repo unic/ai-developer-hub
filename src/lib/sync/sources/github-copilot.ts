@@ -88,7 +88,9 @@ export async function run(
 
       // Sync usage metrics
       try {
-        const metricsResult = await syncUsageMetrics(syncConnection, token);
+        const metricsResult = await syncUsageMetrics(syncConnection, token, {
+          backfillStartDate: opts?.backfillStartDate,
+        });
         counts.updatedCount += metricsResult.metricsProcessed;
       } catch (err) {
         errors.push(

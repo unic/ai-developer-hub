@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  History,
   Power,
   PowerOff,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import {
   enableCopilotSync,
   disableCopilotSync,
   triggerCopilotSync,
+  triggerCopilotBackfill,
   getCopilotSyncStatus,
 } from "@/actions/copilot";
 
@@ -109,6 +111,32 @@ export function CopilotSyncSection({
     });
   }
 
+  function handleBackfill() {
+    // Default range: 28 days back, the maximum GitHub retains for the
+    // Copilot usage metrics reports API.
+    const startDate = new Date();
+    startDate.setUTCDate(startDate.getUTCDate() - 28);
+    const startDateIso = startDate.toISOString().slice(0, 10);
+
+    if (
+      !confirm(
+        `Backfill Copilot metrics from ${startDateIso} (28 days back)?\n\nThis re-fetches all daily reports in that range and overwrites existing rows. Safe to run repeatedly.`,
+      )
+    ) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await triggerCopilotBackfill(startDateIso);
+      if (result.success) {
+        toast.success(`Backfill started from ${startDateIso}.`);
+        setTimeout(() => refreshStatus(), 8000);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
   function refreshStatus() {
     startTransition(async () => {
       const result = await getCopilotSyncStatus();
@@ -131,11 +159,15 @@ export function CopilotSyncSection({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Your GitHub token must include the{" "}
+            Your GitHub token must include both{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">
               manage_billing:copilot
             </code>{" "}
-            scope. Enabling sync will import Copilot data into your existing
+            and{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              read:org
+            </code>{" "}
+            scopes. Enabling sync will import Copilot data into your existing
             tools, assignments, and budget tracking.
           </p>
           <Button onClick={handleEnable} disabled={isPending}>
@@ -213,12 +245,21 @@ export function CopilotSyncSection({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={handleSync} disabled={isPending} size="sm">
             <RefreshCw
               className={`size-4 mr-2 ${isPending ? "animate-spin" : ""}`}
             />
             {isPending ? "Syncing..." : "Sync Now"}
+          </Button>
+          <Button
+            onClick={handleBackfill}
+            disabled={isPending}
+            variant="outline"
+            size="sm"
+          >
+            <History className="size-4 mr-2" />
+            Backfill 28 Days
           </Button>
           <Button
             onClick={refreshStatus}

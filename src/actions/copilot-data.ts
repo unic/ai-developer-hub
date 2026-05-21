@@ -34,6 +34,50 @@ async function getActiveConnection() {
   });
 }
 
+/**
+ * Days behind today (UTC) before metrics are considered stale.
+ *
+ * GitHub finalizes Copilot usage data within ~3 days; we add a 3-day buffer to
+ * stay quiet during normal latency, surfacing only persistent freshness issues.
+ */
+const FRESHNESS_STALENESS_THRESHOLD_DAYS = 6;
+
+export interface CopilotFreshness {
+  /** Latest metric date in `copilot_usage_metrics`, or null if no rows. */
+  latestDate: string | null;
+  /** Whole UTC days between today and `latestDate`. Null when latestDate null. */
+  daysBehind: number | null;
+  /** True when `daysBehind` exceeds the staleness threshold. */
+  stale: boolean;
+}
+
+export async function getCopilotMetricsFreshness(): Promise<CopilotFreshness> {
+  const connection = await getActiveConnection();
+  if (!connection) {
+    return { latestDate: null, daysBehind: null, stale: false };
+  }
+
+  const [row] = await db
+    .select({ latest: sql<string>`MAX(${copilotUsageMetrics.date})` })
+    .from(copilotUsageMetrics)
+    .where(eq(copilotUsageMetrics.connectionId, connection.id));
+
+  if (!row?.latest) {
+    return { latestDate: null, daysBehind: null, stale: false };
+  }
+
+  const today = new Date();
+  const latest = new Date(row.latest);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysBehind = Math.floor((today.getTime() - latest.getTime()) / msPerDay);
+
+  return {
+    latestDate: row.latest,
+    daysBehind,
+    stale: daysBehind > FRESHNESS_STALENESS_THRESHOLD_DAYS,
+  };
+}
+
 function derivePlanType(tierName: string | null): "business" | "enterprise" {
   return (tierName ?? "").toLowerCase().includes("enterprise")
     ? "enterprise"

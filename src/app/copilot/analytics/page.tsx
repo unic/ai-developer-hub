@@ -1,13 +1,20 @@
-import { getCopilotAnalytics } from "@/actions/copilot-data";
+import {
+  getCopilotAnalytics,
+  getCopilotMetricsFreshness,
+} from "@/actions/copilot-data";
 import { LanguageChart } from "@/components/copilot/language-chart";
 import { EditorChart } from "@/components/copilot/editor-chart";
 import { ActivityDistribution } from "@/components/copilot/activity-distribution";
+import { MetricsFreshnessCard } from "@/components/copilot/metrics-freshness-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3 } from "lucide-react";
 import Link from "next/link";
 
 export default async function CopilotAnalyticsPage() {
-  const result = await getCopilotAnalytics();
+  const [result, freshness] = await Promise.all([
+    getCopilotAnalytics(),
+    getCopilotMetricsFreshness(),
+  ]);
 
   if (!result.success) {
     return (
@@ -20,18 +27,22 @@ export default async function CopilotAnalyticsPage() {
 
   if (!hasData) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center space-y-3">
-          <BarChart3 className="size-12 mx-auto text-muted-foreground" />
-          <h3 className="text-lg font-medium">No analytics data yet</h3>
-          <p className="text-sm text-muted-foreground">Enable Copilot sync in <Link href="/settings/integrations" className="underline text-primary">Settings</Link> to start collecting usage analytics.</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <MetricsFreshnessCard freshness={freshness} />
+        <Card>
+          <CardContent className="py-12 text-center space-y-3">
+            <BarChart3 className="size-12 mx-auto text-muted-foreground" />
+            <h3 className="text-lg font-medium">No analytics data yet</h3>
+            <p className="text-sm text-muted-foreground">Enable Copilot sync in <Link href="/settings/integrations" className="underline text-primary">Settings</Link> to start collecting usage analytics.</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <MetricsFreshnessCard freshness={freshness} />
       <div className="grid gap-6 lg:grid-cols-2">
         <LanguageChart data={data.byLanguage} />
         <EditorChart data={data.byEditor} />

@@ -10,9 +10,12 @@ import {
 import {
   fetchCopilotBilling,
   fetchCopilotSeats,
-  fetchCopilotMetrics,
+  fetchCopilotOrgDayReport,
+  fetchCopilotUsersDayReport,
+  downloadReportNdjson,
+  type CopilotMetricsRow,
 } from "@/lib/copilot-api";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -287,187 +290,172 @@ export async function syncSeatAssignments(
 // Function 3: syncUsageMetrics
 // ---------------------------------------------------------------------------
 
+/**
+ * Number of UTC days before today that we wait before trusting a daily report.
+ * GitHub finalizes Copilot usage data within ~3 days; days more recent than
+ * `today - FINALIZATION_LAG_DAYS` are not yet stable.
+ *
+ * https://docs.github.com/en/copilot/reference/copilot-usage-metrics/reconciling-usage-metrics
+ */
+const FINALIZATION_LAG_DAYS = 3;
+
+/**
+ * How many additional days to re-fetch behind `FINALIZATION_LAG_DAYS` on each
+ * regular run. Catches late-arriving telemetry rows; idempotent upserts make
+ * the re-fetch a no-op when nothing changed.
+ */
+const RESTABILIZE_WINDOW_DAYS = 4;
+
+function utcDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function addUtcDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function daysInRange(start: Date, end: Date): string[] {
+  const out: string[] = [];
+  for (let cur = new Date(start); cur <= end; cur = addUtcDays(cur, 1)) {
+    out.push(utcDay(cur));
+  }
+  return out;
+}
+
+/**
+ * Map one NDJSON row from the org-1-day report onto a row of
+ * `copilot_usage_metrics`. Exported for unit testing.
+ *
+ * `activeUsers` and `engagedUsers` come from a separate users-1-day fetch
+ * (the org-level report does not expose them as flat counters), supplied by
+ * the caller.
+ */
+export function mapNdjsonRowToDbRow(
+  connectionId: number,
+  date: string,
+  row: CopilotMetricsRow,
+  userCounts: { active: number; engaged: number },
+) {
+  const chatModeKeys = [
+    "chat_panel_agent_mode",
+    "chat_panel_ask_mode",
+    "chat_panel_edit_mode",
+    "chat_panel_plan_mode",
+    "chat_panel_custom_mode",
+    "chat_panel_unknown_mode",
+  ] as const;
+  const hasChatData = chatModeKeys.some((k) => row[k] !== undefined);
+  const chatTurns = chatModeKeys.reduce(
+    (sum, k) => sum + ((row[k] as number | undefined) ?? 0),
+    0,
+  );
+
+  return {
+    connectionId,
+    date,
+    totalActiveUsers: userCounts.active,
+    totalEngagedUsers: userCounts.engaged,
+    totalSuggestions: row.code_generation_activity_count ?? 0,
+    totalAcceptances: row.code_acceptance_activity_count ?? 0,
+    totalLinesSuggested: row.loc_suggested_to_add_sum ?? 0,
+    totalLinesAccepted: row.loc_added_sum ?? 0,
+    totalChatTurns: hasChatData ? chatTurns : null,
+    totalChatAcceptances: null,
+    // GitHub removed these on 2026-04-02; written as null going forward.
+    totalDotcomChatTurns: null,
+    totalPrSummaries: null,
+    languageBreakdown: row.totals_by_language_feature ?? null,
+    editorBreakdown: row.totals_by_ide ?? null,
+    usedCli: row.totals_by_cli !== undefined,
+    usedAgent:
+      (row.chat_panel_agent_mode ?? 0) > 0 || (row.agent_edit ?? 0) > 0,
+    agentEditCount: row.agent_edit ?? null,
+    cliBreakdown: row.totals_by_cli ?? null,
+  };
+}
+
+/**
+ * When `backfillStartDate` is set, sync every UTC day from that date through
+ * today minus the finalization lag. When unset, sync the rolling restabilization
+ * window: `today − (FINALIZATION_LAG_DAYS + RESTABILIZE_WINDOW_DAYS)` through
+ * `today − FINALIZATION_LAG_DAYS`.
+ */
 export async function syncUsageMetrics(
   connection: SyncConnection,
   token: string,
+  opts: { backfillStartDate?: Date } = {},
 ): Promise<MetricsSyncResult> {
-  // Find latest metric date for this connection
-  const latestRow = await db.query.copilotUsageMetrics.findFirst({
-    where: eq(copilotUsageMetrics.connectionId, connection.id),
-    orderBy: desc(copilotUsageMetrics.date),
-  });
+  const newest = addUtcDays(new Date(), -FINALIZATION_LAG_DAYS);
+  const oldest = opts.backfillStartDate
+    ? new Date(opts.backfillStartDate)
+    : addUtcDays(newest, -RESTABILIZE_WINDOW_DAYS);
+  const targetDays = daysInRange(oldest, newest);
 
-  let since: string | undefined;
-  if (latestRow) {
-    // Use latest + 1 day as since
-    const latestDate = new Date(latestRow.date);
-    latestDate.setUTCDate(latestDate.getUTCDate() + 1);
-    since = latestDate.toISOString().split("T")[0];
-  }
+  let processed = 0;
 
-  const metricsResponse = await fetchCopilotMetrics(
-    token,
-    connection.orgLogin,
-    since,
-  );
+  for (const day of targetDays) {
+    const orgMeta = await fetchCopilotOrgDayReport(
+      token,
+      connection.orgLogin,
+      day,
+    );
 
-  if (metricsResponse.error || !metricsResponse.data) {
-    // GitHub returns 404 when the org has the Copilot Metrics API policy
-    // disabled, or when fewer than 5 members have generated telemetry in the
-    // window. The admin has to flip that on GitHub's side — there's nothing
-    // we can do from here, so don't fail the whole sync over it.
-    if (metricsResponse.status === 404) {
-      console.warn(
-        `[copilot-sync] Copilot metrics not available for org "${connection.orgLogin}" (404). The "Copilot Metrics API access" policy may be disabled, or the org has fewer than 5 users emitting telemetry. See https://docs.github.com/en/copilot/managing-copilot/managing-policies-and-features-for-copilot-in-your-organization`,
+    if (orgMeta.error) {
+      throw new Error(
+        `Copilot org-day report failed for ${day}: ${orgMeta.error}`,
       );
-      return { metricsProcessed: 0 };
     }
-    throw new Error(
-      metricsResponse.error ?? "Failed to fetch Copilot usage metrics",
+    // 204 No Content or empty links means GitHub hasn't generated a report for
+    // this day yet; that's expected behind the finalization lag.
+    if (
+      orgMeta.status === 204 ||
+      !orgMeta.data ||
+      !orgMeta.data.download_links?.length
+    ) {
+      continue;
+    }
+
+    const orgRows: CopilotMetricsRow[] = [];
+    for (const link of orgMeta.data.download_links) {
+      orgRows.push(...(await downloadReportNdjson(link)));
+    }
+    if (orgRows.length === 0) continue;
+    const orgRow = orgRows[0];
+
+    // Per-user counts come from the users-1-day report. Required to keep the
+    // schema's NOT NULL invariant on `total_active_users` / `total_engaged_users`.
+    const usersMeta = await fetchCopilotUsersDayReport(
+      token,
+      connection.orgLogin,
+      day,
     );
-  }
-
-  const metrics = metricsResponse.data;
-
-  for (const day of metrics) {
-    const completions = day.copilot_ide_code_completions;
-
-    // Aggregate language metrics from editors[].models[].languages[]
-    // (the top-level languages[] only has name + engaged_users, no counts)
-    const langTotals = new Map<
-      string,
-      {
-        suggestions: number;
-        acceptances: number;
-        linesSuggested: number;
-        linesAccepted: number;
+    let userCounts = { active: 0, engaged: 0 };
+    if (usersMeta.data?.download_links?.length) {
+      const userRows: CopilotMetricsRow[] = [];
+      for (const link of usersMeta.data.download_links) {
+        userRows.push(...(await downloadReportNdjson(link)));
       }
-    >();
-
-    let totalSuggestions = 0;
-    let totalAcceptances = 0;
-    let totalLinesSuggested = 0;
-    let totalLinesAccepted = 0;
-
-    for (const editor of completions?.editors ?? []) {
-      for (const model of editor.models ?? []) {
-        for (const lang of model.languages ?? []) {
-          totalSuggestions += lang.total_code_suggestions ?? 0;
-          totalAcceptances += lang.total_code_acceptances ?? 0;
-          totalLinesSuggested += lang.total_code_lines_suggested ?? 0;
-          totalLinesAccepted += lang.total_code_lines_accepted ?? 0;
-
-          const existing = langTotals.get(lang.name);
-          if (existing) {
-            existing.suggestions += lang.total_code_suggestions ?? 0;
-            existing.acceptances += lang.total_code_acceptances ?? 0;
-            existing.linesSuggested += lang.total_code_lines_suggested ?? 0;
-            existing.linesAccepted += lang.total_code_lines_accepted ?? 0;
-          } else {
-            langTotals.set(lang.name, {
-              suggestions: lang.total_code_suggestions ?? 0,
-              acceptances: lang.total_code_acceptances ?? 0,
-              linesSuggested: lang.total_code_lines_suggested ?? 0,
-              linesAccepted: lang.total_code_lines_accepted ?? 0,
-            });
-          }
-        }
-      }
+      userCounts = {
+        active: userRows.length,
+        engaged: userRows.filter(
+          (r) => (r.user_initiated_interaction_count ?? 0) > 0,
+        ).length,
+      };
     }
 
-    const languageBreakdown = [...langTotals.entries()].map(
-      ([language, totals]) => ({
-        language,
-        ...totals,
-      }),
-    );
-
-    // Build editor breakdown by summing across models[].languages[]
-    const editorBreakdown =
-      completions?.editors?.map((e) => {
-        let suggestions = 0;
-        let acceptances = 0;
-        for (const m of e.models ?? []) {
-          for (const l of m.languages ?? []) {
-            suggestions += l.total_code_suggestions ?? 0;
-            acceptances += l.total_code_acceptances ?? 0;
-          }
-        }
-        return {
-          editor: e.name,
-          engagedUsers: e.total_engaged_users,
-          suggestions,
-          acceptances,
-        };
-      }) ?? [];
-
-    // Aggregate chat metrics from editors[].models[]
-    let totalChatTurns = 0;
-    let totalChatAcceptances = 0;
-    let hasChatData = false;
-    for (const editor of day.copilot_ide_chat?.editors ?? []) {
-      for (const model of editor.models ?? []) {
-        hasChatData = true;
-        totalChatTurns += model.total_chats ?? 0;
-        totalChatAcceptances += model.total_chat_insertion_events ?? 0;
-      }
-    }
-
-    // Aggregate dotcom chat from models[]
-    let totalDotcomChatTurns = 0;
-    let hasDotcomChat = false;
-    for (const model of day.copilot_dotcom_chat?.models ?? []) {
-      hasDotcomChat = true;
-      totalDotcomChatTurns += model.total_chats ?? 0;
-    }
-
-    // Aggregate PR summaries from repositories[].models[]
-    let totalPrSummaries = 0;
-    let hasPrData = false;
-    for (const repo of day.copilot_dotcom_pull_requests?.repositories ?? []) {
-      for (const model of repo.models ?? []) {
-        hasPrData = true;
-        totalPrSummaries += model.total_pr_summaries_created ?? 0;
-      }
-    }
-
+    const mapped = mapNdjsonRowToDbRow(connection.id, day, orgRow, userCounts);
     await db
       .insert(copilotUsageMetrics)
-      .values({
-        connectionId: connection.id,
-        date: day.date,
-        totalActiveUsers: day.total_active_users,
-        totalEngagedUsers: day.total_engaged_users,
-        totalSuggestions,
-        totalAcceptances,
-        totalLinesSuggested,
-        totalLinesAccepted,
-        totalChatTurns: hasChatData ? totalChatTurns : null,
-        totalChatAcceptances: hasChatData ? totalChatAcceptances : null,
-        totalDotcomChatTurns: hasDotcomChat ? totalDotcomChatTurns : null,
-        totalPrSummaries: hasPrData ? totalPrSummaries : null,
-        languageBreakdown,
-        editorBreakdown,
-      })
+      .values(mapped)
       .onConflictDoUpdate({
         target: [copilotUsageMetrics.connectionId, copilotUsageMetrics.date],
-        set: {
-          totalActiveUsers: day.total_active_users,
-          totalEngagedUsers: day.total_engaged_users,
-          totalSuggestions,
-          totalAcceptances,
-          totalLinesSuggested,
-          totalLinesAccepted,
-          totalChatTurns: hasChatData ? totalChatTurns : null,
-          totalChatAcceptances: hasChatData ? totalChatAcceptances : null,
-          totalDotcomChatTurns: hasDotcomChat ? totalDotcomChatTurns : null,
-          totalPrSummaries: hasPrData ? totalPrSummaries : null,
-          languageBreakdown,
-          editorBreakdown,
-        },
+        set: mapped,
       });
+    processed++;
   }
 
-  return { metricsProcessed: metrics.length };
+  return { metricsProcessed: processed };
 }
 

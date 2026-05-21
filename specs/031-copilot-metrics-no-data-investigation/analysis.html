@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Copilot Metrics — Why No Data After April</title>
+<style>
+  :root {
+    --bg:           #0b0d10;
+    --bg-elev:      #111418;
+    --bg-elev-2:    #161a20;
+    --bg-inset:     #0d1014;
+    --border:       #1f242c;
+    --border-strong:#2a313b;
+    --text:         #e6e8ec;
+    --text-dim:     #9aa3af;
+    --text-faint:   #6b7280;
+    --accent:       #7aa2ff;
+    --ok:           #4ade80;
+    --ok-bg:        rgba(74,222,128,0.08);
+    --ok-border:    rgba(74,222,128,0.25);
+    --warn:         #f5b454;
+    --warn-bg:      rgba(245,180,84,0.10);
+    --warn-border:  rgba(245,180,84,0.30);
+    --err:          #ef6f6f;
+    --err-bg:       rgba(239,111,111,0.10);
+    --err-border:   rgba(239,111,111,0.28);
+    --neutral:      #6b7280;
+    --mono:         ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans:         system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 56px 40px 96px; }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 18px;
+  }
+  .eyebrow .sep { color: var(--border-strong); margin: 0 10px; }
+
+  h1 {
+    font-family: var(--sans);
+    font-size: 38px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 16px;
+    margin: 0 0 32px;
+    max-width: 760px;
+  }
+
+  .tldr {
+    border: 1px solid var(--warn-border);
+    background: var(--warn-bg);
+    border-radius: 10px;
+    padding: 18px 22px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px;
+    align-items: start;
+    margin-bottom: 48px;
+  }
+  .tldr-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--warn);
+    padding: 4px 8px;
+    border: 1px solid var(--warn-border);
+    border-radius: 4px;
+    white-space: nowrap;
+    height: fit-content;
+  }
+  .tldr p { margin: 0; font-size: 15px; color: var(--text); line-height: 1.6; }
+  .tldr strong { color: #fff; font-weight: 600; }
+
+  /* ---------- stat row ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 56px;
+  }
+  .stat {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .stat.ok    .stat-value { color: var(--ok); }
+  .stat.warn  .stat-value { color: var(--warn); }
+  .stat.err   .stat-value { color: var(--err); }
+
+  /* ---------- sections ---------- */
+  section { margin-bottom: 56px; }
+  h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-faint);
+    margin-right: 14px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
+  .h-sub {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 0 0 22px;
+    max-width: 780px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 10px;
+    color: var(--text);
+    font-family: var(--sans);
+  }
+
+  p { margin: 0 0 12px; color: var(--text); }
+  p.dim { color: var(--text-dim); }
+
+  /* ---------- timeline (vertical) ---------- */
+  .timeline {
+    position: relative;
+    padding-left: 28px;
+    border-left: 1px solid var(--border);
+    margin-left: 8px;
+  }
+  .tl-item {
+    position: relative;
+    padding: 6px 0 22px 16px;
+  }
+  .tl-item::before {
+    content: "";
+    position: absolute;
+    left: -35px;
+    top: 12px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--neutral);
+    box-shadow: 0 0 0 4px var(--bg);
+  }
+  .tl-item.ok::before    { background: var(--ok); }
+  .tl-item.warn::before  { background: var(--warn); }
+  .tl-item.err::before   { background: var(--err); }
+  .tl-item.now::before   { background: var(--accent); box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px rgba(122,162,255,0.25); }
+  .tl-date {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+  }
+  .tl-title { color: var(--text); font-weight: 500; }
+  .tl-note { color: var(--text-dim); font-size: 14px; margin-top: 2px; }
+
+  /* ---------- two-column cause cards ---------- */
+  .cause-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .cause {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: 10px;
+    padding: 22px 22px 20px;
+  }
+  .cause.likely {
+    border-color: var(--warn-border);
+    background: linear-gradient(180deg, var(--warn-bg), var(--bg-elev) 60%);
+  }
+  .cause-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: var(--text-dim);
+    border: 1px solid var(--border-strong);
+    margin-bottom: 12px;
+  }
+  .cause.likely .cause-tag { color: var(--warn); border-color: var(--warn-border); }
+  .cause h3 { font-size: 16px; margin-bottom: 10px; }
+  .cause p { color: var(--text-dim); font-size: 14.5px; line-height: 1.6; }
+  .cause .verdict {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border-strong);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text);
+  }
+  .cause .verdict .label { color: var(--text-faint); margin-right: 8px; }
+  .cause.likely .verdict .v { color: var(--warn); }
+  .cause:not(.likely) .verdict .v { color: var(--text-dim); }
+
+  /* ---------- tables ---------- */
+  .table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-elev);
+    margin-bottom: 28px;
+  }
+  .table-cap {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--bg-elev-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .table-cap .src { color: var(--text-faint); font-weight: 400; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th {
+    font-family: var(--mono);
+    font-weight: 500;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    background: var(--bg-elev-2);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td .pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid;
+    display: inline-block;
+  }
+  .pill.ok    { color: var(--ok);   border-color: var(--ok-border);   background: var(--ok-bg); }
+  .pill.warn  { color: var(--warn); border-color: var(--warn-border); background: var(--warn-bg); }
+  .pill.err   { color: var(--err);  border-color: var(--err-border);  background: var(--err-bg); }
+  td.note { color: var(--text-dim); white-space: normal; font-family: var(--sans); font-size: 13px; }
+  tr.row-hl td { background: rgba(122,162,255,0.04); }
+
+  /* ---------- code ---------- */
+  pre {
+    margin: 0;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.8px;
+    line-height: 1.65;
+    color: #d6dae1;
+  }
+  .code-cap {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .code-cap .path { color: var(--accent); text-transform: none; letter-spacing: 0; }
+  .code-block { margin-bottom: 22px; }
+
+  pre .c   { color: #6b7280; }     /* comment */
+  pre .k   { color: #c4a6ff; }     /* keyword */
+  pre .s   { color: #a8d99a; }     /* string */
+  pre .fn  { color: #7aa2ff; }     /* function */
+  pre .n   { color: #f5b454; }     /* number */
+  pre .v   { color: #e6e8ec; }     /* var */
+  pre .p   { color: #9aa3af; }     /* punctuation */
+
+  /* ---------- remediation ---------- */
+  .rem-group {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-elev);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .rem-head {
+    padding: 12px 18px;
+    background: var(--bg-elev-2);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .rem-head .badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+  .rem-head .badge.now   { color: var(--err);   border-color: var(--err-border);   background: var(--err-bg); }
+  .rem-head .badge.note  { color: var(--warn);  border-color: var(--warn-border);  background: var(--warn-bg); }
+  .rem-head .badge.code  { color: var(--accent);border-color: rgba(122,162,255,0.30); background: rgba(122,162,255,0.06); }
+  .rem-body { padding: 16px 22px 6px; }
+  .rem-body ol, .rem-body ul { margin: 0 0 12px; padding-left: 22px; }
+  .rem-body li { margin-bottom: 8px; color: var(--text); }
+  .rem-body li code, p code, td code { font-family: var(--mono); font-size: 12.5px; color: #d6dae1; background: var(--bg-inset); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); }
+
+  /* ---------- empty/why section ---------- */
+  .why {
+    border-left: 2px solid var(--accent);
+    background: rgba(122,162,255,0.04);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+  }
+  .why p { color: var(--text); }
+  .why p:last-child { margin-bottom: 0; }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 64px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    line-height: 1.9;
+  }
+  footer .row { display: flex; flex-wrap: wrap; gap: 24px; }
+  footer .col strong { color: var(--text-dim); font-weight: 500; }
+
+  @media (max-width: 920px) {
+    .page { padding: 36px 22px 72px; }
+    h1 { font-size: 30px; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .cause-grid { grid-template-columns: 1fr; }
+    .tldr { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <main class="page">
+
+    <!-- ============ HEADER ============ -->
+    <div class="eyebrow">
+      Investigation
+      <span class="sep">/</span>
+      2026-05-21
+      <span class="sep">/</span>
+      AI Developer Hub
+      <span class="sep">/</span>
+      branch: github-sync-may
+    </div>
+    <h1>Copilot Metrics — Why No Data After April</h1>
+    <p class="subtitle">
+      Daily Copilot analytics rows for org <code style="font-family:var(--mono);background:var(--bg-inset);padding:1px 6px;border-radius:4px;border:1px solid var(--border);font-size:13px;color:#d6dae1">unic</code>
+      stopped landing in the database on April&nbsp;2, 2026. The cron is healthy. The token is valid.
+      The org policy is enabled. We were calling an endpoint that <strong>GitHub permanently retired</strong> on exactly that day.
+    </p>
+
+    <div class="tldr">
+      <div class="tldr-label">TL;DR</div>
+      <p>
+        <strong>GitHub sunset the legacy Copilot Metrics API on <span style="color:var(--err)">April 2, 2026</span></strong>
+        (announced <a href="https://github.blog/changelog/2026-01-29-closing-down-notice-of-legacy-copilot-metrics-apis/" style="color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)">2026-01-29</a>).
+        Our sync calls <code>GET /orgs/&#123;org&#125;/copilot/metrics</code> — the exact endpoint that was closed down.
+        Since April&nbsp;3 it has returned <strong>HTTP&nbsp;404</strong> on every cron run. Org policy and active-user counts are <em>not</em> the cause (both were verified). The replacement is a redesigned <strong>Copilot usage metrics</strong> API with a different shape (report download links, not inline JSON) and requires a code migration — not a configuration toggle.
+      </p>
+    </div>
+
+    <!-- ============ AT-A-GLANCE ============ -->
+    <div class="stat-grid">
+      <div class="stat warn">
+        <div class="stat-label">Last metric row</div>
+        <div class="stat-value">2026-04-01</div>
+      </div>
+      <div class="stat err">
+        <div class="stat-label">Days without data</div>
+        <div class="stat-value">50</div>
+      </div>
+      <div class="stat err">
+        <div class="stat-label">Failed metric syncs</div>
+        <div class="stat-value">49 in a row</div>
+      </div>
+      <div class="stat ok">
+        <div class="stat-label">Billing &amp; seat sync</div>
+        <div class="stat-value">Healthy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Code fix shipped</div>
+        <div class="stat-value">2026-05-18</div>
+      </div>
+    </div>
+
+    <!-- ============ TIMELINE ============ -->
+    <section>
+      <h2><span class="num">01</span>Timeline</h2>
+      <p class="h-sub">Reconstructed from <code style="font-family:var(--mono);font-size:13px;color:#d6dae1;background:var(--bg-inset);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">sync_events</code> and <code style="font-family:var(--mono);font-size:13px;color:#d6dae1;background:var(--bg-inset);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">copilot_usage_metrics</code>. The break is sharp and dateable.</p>
+
+      <div class="timeline">
+        <div class="tl-item ok">
+          <div class="tl-date">Mar 23 — Apr 1, 2026</div>
+          <div class="tl-title">Steady state</div>
+          <div class="tl-note">10 days of healthy rows. Engaged users 4–34/day, suggestions 88–835/day, acceptances 25–199/day.</div>
+        </div>
+        <div class="tl-item ok">
+          <div class="tl-date">Apr 2, 2026 · 06:00 UTC</div>
+          <div class="tl-title">Last successful metrics sync — sync_events id=405</div>
+          <div class="tl-note">outcome=success, created=1, updated=79. This write is what produced the April 1 row.</div>
+        </div>
+        <div class="tl-item err">
+          <div class="tl-date">Apr 3, 2026 · 06:00 UTC</div>
+          <div class="tl-title">First 404 — sync_events id=454</div>
+          <div class="tl-note">outcome=partial · error="Metrics sync failed: Not Found". Billing and seats still succeed.</div>
+        </div>
+        <div class="tl-item err">
+          <div class="tl-date">Apr 3 — May 17, 2026</div>
+          <div class="tl-title">45 consecutive days of partial failures</div>
+          <div class="tl-note">Same shape every day: billing + seats succeed (76–80 seats updated), metrics returns 404, no row written.</div>
+        </div>
+        <div class="tl-item warn">
+          <div class="tl-date">May 18, 2026</div>
+          <div class="tl-title">Commit 19b38dc — "fix(copilot): treat metrics 404 as no-data, not a sync failure"</div>
+          <div class="tl-note">The 404 path stops throwing. sync_events.outcome flips from partial → success. No new data is written. Cosmetic only.</div>
+        </div>
+        <div class="tl-item err">
+          <div class="tl-date">May 19 — May 21, 2026</div>
+          <div class="tl-title">Three "successful" runs that still write zero metric rows</div>
+          <div class="tl-note">Dashboard remains empty after April 1. The signal that something was broken is now suppressed in the log.</div>
+        </div>
+        <div class="tl-item now">
+          <div class="tl-date">May 21, 2026 — today</div>
+          <div class="tl-title">Root cause identified — GitHub API sunset on Apr 2, 2026</div>
+          <div class="tl-note">Investigation traced the 404 to GitHub's <a href="https://github.blog/changelog/2026-01-29-closing-down-notice-of-legacy-copilot-metrics-apis/" style="color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)">Jan 29 deprecation announcement</a>. Endpoint <code>/orgs/&#123;org&#125;/copilot/metrics</code> was closed down. Migration to the new <em>Copilot usage metrics</em> API is required.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ROOT CAUSE ============ -->
+    <section>
+      <h2><span class="num">02</span>Root cause — the endpoint was retired</h2>
+      <p class="h-sub">Two initial hypotheses (policy disabled, &lt;5 active users) were both falsified during the investigation. The actual cause is an upstream <strong>API sunset</strong> on the exact day our data stops.</p>
+
+      <div class="cause-grid">
+        <div class="cause likely">
+          <span class="cause-tag">Confirmed cause</span>
+          <h3>GitHub sunset the legacy Copilot Metrics API on April 2, 2026</h3>
+          <p>
+            On <strong>2026-01-29</strong>, GitHub <a href="https://github.blog/changelog/2026-01-29-closing-down-notice-of-legacy-copilot-metrics-apis/" style="color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)">announced</a> the closure of three legacy Copilot metrics APIs, with the Copilot Metrics API itself sunset on <strong>April&nbsp;2, 2026</strong>. The official notice:
+          </p>
+          <blockquote style="margin:10px 0 14px;padding:10px 14px;border-left:2px solid var(--accent);background:var(--bg-inset);border-radius:0 6px 6px 0;color:var(--text);font-style:normal;">
+            "These Copilot metrics endpoints were closed down on April&nbsp;2,&nbsp;2026. Use the <strong>Copilot usage metrics</strong> endpoints instead, which provide more depth and flexibility."
+          </blockquote>
+          <p>
+            Our sync calls <code>GET /orgs/&#123;org&#125;/copilot/metrics</code> — exactly the path that was retired. Since April&nbsp;3 (the first cron run on or after the sunset), every call has returned <strong>HTTP&nbsp;404</strong>. The other Copilot endpoints we use (<code>/copilot/billing</code> and <code>/copilot/billing/seats</code>) were <em>not</em> part of the deprecation, which is why billing + seat sync keep succeeding on the same token.
+          </p>
+          <div class="verdict">
+            <span class="label">Verdict</span><span class="v">Dateline match is exact. Endpoint path matches the retired one. Other endpoints on the same token still work. No code change, token change, or org-config change aligns with Apr&nbsp;3.</span>
+          </div>
+        </div>
+
+        <div class="cause" style="opacity:0.75">
+          <span class="cause-tag" style="color:var(--text-faint)">Hypothesis A · Ruled out</span>
+          <h3>"Copilot Metrics API access" org policy disabled</h3>
+          <p>
+            Plausible on paper — flipping that policy off produces 404 with no token error. But the org owner verified the policy is enabled (and re-toggled it off/on) and the 404 persists. Falsified.
+          </p>
+          <div class="verdict">
+            <span class="label">Verdict</span><span class="v">Verified disabled-as-cause. Policy is on.</span>
+          </div>
+        </div>
+
+        <div class="cause" style="opacity:0.75">
+          <span class="cause-tag" style="color:var(--text-faint)">Hypothesis B · Ruled out</span>
+          <h3>Fewer than 5 members generated telemetry</h3>
+          <p>
+            The privacy gate would return 404 if the rolling 28-day window had &lt;5 active users. The actual numbers are 24–34 engaged users/day through April&nbsp;1, and the org continues to have well more than five active Copilot users today. Falsified.
+          </p>
+          <div class="verdict">
+            <span class="label">Verdict</span><span class="v">Engagement is well above threshold.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="why" style="margin-top:20px;">
+        <p style="margin:0;">
+          <strong>Why the May&nbsp;18 fix didn't help.</strong> Commit <code>19b38dc</code> reinterpreted 404 as "no data, not an error." That made sense under hypothesis A or B — both of which produce <em>transient</em> 404s. But the real upstream cause is permanent endpoint retirement, so swallowing the 404 just hides the symptom while the data flow remains broken. Re-enabling the org policy will not bring back a closed-down endpoint.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ NEW API ============ -->
+    <section>
+      <h2><span class="num">03</span>The replacement API — what we have to migrate to</h2>
+      <p class="h-sub">The new <strong>Copilot usage metrics</strong> endpoints are a different shape from the retired ones. Migration is not a URL swap.</p>
+
+      <div class="table-wrap">
+        <div class="table-cap">
+          <span>old → new endpoint mapping</span>
+          <span class="src">source: docs.github.com/en/rest/copilot/copilot-usage-metrics</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>What we want</th>
+              <th>Old endpoint (retired)</th>
+              <th>New endpoint</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Latest 28-day org-level rollup</td>
+              <td><code>GET /orgs/&#123;org&#125;/copilot/metrics</code></td>
+              <td><code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/organization-28-day/latest</code></td>
+            </tr>
+            <tr>
+              <td>Single-day org rollup (for daily cron)</td>
+              <td>same endpoint, filter by date</td>
+              <td><code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/organization-1-day</code></td>
+            </tr>
+            <tr>
+              <td>Per-user breakdown</td>
+              <td>not available on legacy</td>
+              <td><code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/users-1-day</code> · <code>...users-28-day/latest</code></td>
+            </tr>
+            <tr>
+              <td>Team membership rollups</td>
+              <td>not available on legacy</td>
+              <td><code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/user-teams-1-day</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="margin-top:18px;color:var(--text);">
+        <strong>Response shape is different.</strong> The retired endpoint returned inline JSON with daily metrics. The new endpoints return <strong>signed download links</strong> to report files — the caller follows the link to fetch the actual data. Field names also changed: the old <code>copilot_ide_code_completions</code> grouping is split out by language and model in the new schema, so there is no 1:1 column mapping.
+      </p>
+      <p style="margin-top:10px;color:var(--text);">
+        <strong>Required scopes.</strong> Org-level reports require <code>read:org</code> (we already have <code>manage_billing:copilot</code>; double-check the token also includes <code>read:org</code>). Enterprise-level reports require <code>read:enterprise</code> and aren't needed for our single-org setup.
+      </p>
+    </section>
+
+    <!-- ============ EVIDENCE: METRICS TABLE ============ -->
+    <section>
+      <h2><span class="num">04</span>Evidence — what's in the database</h2>
+      <p class="h-sub">123 days of <code style="font-family:var(--mono);font-size:13px;color:#d6dae1;background:var(--bg-inset);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">copilot_usage_metrics</code> rows from 2025-11-30 onward. Then it stops.</p>
+
+      <div class="table-wrap">
+        <div class="table-cap">
+          <span>copilot_usage_metrics · last 10 rows</span>
+          <span class="src">earliest: 2025-11-30 · latest: 2026-04-01 · total: 123 days</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th class="num">Active users</th>
+              <th class="num">Engaged users</th>
+              <th class="num">Suggestions</th>
+              <th class="num">Acceptances</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-hl"><td>2026-04-01</td><td class="num">32</td><td class="num">24</td><td class="num">393</td><td class="num">140</td><td class="note">Last row written.</td></tr>
+            <tr><td>2026-03-31</td><td class="num">40</td><td class="num">30</td><td class="num">313</td><td class="num">94</td><td class="note"></td></tr>
+            <tr><td>2026-03-30</td><td class="num">37</td><td class="num">23</td><td class="num">536</td><td class="num">164</td><td class="note"></td></tr>
+            <tr><td>2026-03-29</td><td class="num">9</td><td class="num">4</td><td class="num">88</td><td class="num">30</td><td class="note">Engaged briefly below 5 (single-day; doesn't trigger 404).</td></tr>
+            <tr><td>2026-03-28</td><td class="num">10</td><td class="num">8</td><td class="num">109</td><td class="num">25</td><td class="note"></td></tr>
+            <tr><td>2026-03-27</td><td class="num">36</td><td class="num">24</td><td class="num">668</td><td class="num">195</td><td class="note"></td></tr>
+            <tr><td>2026-03-26</td><td class="num">45</td><td class="num">32</td><td class="num">508</td><td class="num">120</td><td class="note"></td></tr>
+            <tr><td>2026-03-25</td><td class="num">37</td><td class="num">29</td><td class="num">375</td><td class="num">79</td><td class="note"></td></tr>
+            <tr><td>2026-03-24</td><td class="num">42</td><td class="num">25</td><td class="num">492</td><td class="num">135</td><td class="note"></td></tr>
+            <tr><td>2026-03-23</td><td class="num">42</td><td class="num">34</td><td class="num">835</td><td class="num">199</td><td class="note"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-cap">
+          <span>sync_events · key rows around the break</span>
+          <span class="src">filter: source = github-copilot · selected milestones</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>id</th>
+              <th>Started (UTC)</th>
+              <th>Outcome</th>
+              <th class="num">Created</th>
+              <th class="num">Updated</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>405</td><td>2026-04-02 06:00</td><td><span class="pill ok">success</span></td><td class="num">1</td><td class="num">79</td><td class="note">Last successful metrics sync — wrote the Apr 1 row.</td></tr>
+            <tr class="row-hl"><td>454</td><td>2026-04-03 06:00</td><td><span class="pill warn">partial</span></td><td class="num">0</td><td class="num">78</td><td class="note">First 404. error="Metrics sync failed: Not Found".</td></tr>
+            <tr><td>—</td><td>Apr 3 → May 17 (45 runs)</td><td><span class="pill warn">partial</span></td><td class="num">0</td><td class="num">76–80</td><td class="note">Same error string every day. Billing + seats keep updating.</td></tr>
+            <tr><td>—</td><td>2026-05-18</td><td><span class="pill warn">partial</span></td><td class="num">0</td><td class="num">77</td><td class="note">Last day with the honest "partial" outcome. Commit 19b38dc lands.</td></tr>
+            <tr class="row-hl"><td>—</td><td>2026-05-19 06:00</td><td><span class="pill ok">success</span></td><td class="num">0</td><td class="num">78</td><td class="note">404 now silently swallowed. No metric row written.</td></tr>
+            <tr><td>—</td><td>2026-05-20 06:00</td><td><span class="pill ok">success</span></td><td class="num">0</td><td class="num">79</td><td class="note">Still no metric row written.</td></tr>
+            <tr><td>—</td><td>2026-05-21 06:00</td><td><span class="pill ok">success</span></td><td class="num">0</td><td class="num">78</td><td class="note">Today. Still no metric row.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ CODE EXCERPTS ============ -->
+    <section>
+      <h2><span class="num">05</span>Code paths involved</h2>
+      <p class="h-sub">The cron is wired correctly. The orchestrator catches per-step. The 404 path used to fail loudly; as of May 18 it succeeds quietly.</p>
+
+      <div class="code-block">
+        <div class="code-cap">Excerpt · <span class="path">src/lib/copilot-sync.ts:300-306</span> · <span style="text-transform:none;letter-spacing:0;color:var(--text-dim)">`since` is computed as latest_date + 1</span></div>
+<pre><span class="c">// src/lib/copilot-sync.ts:300-306 — `since` is latest_date + 1</span>
+<span class="k">let</span> <span class="v">since</span><span class="p">:</span> <span class="k">string</span> <span class="p">|</span> <span class="k">undefined</span><span class="p">;</span>
+<span class="k">if</span> <span class="p">(</span><span class="v">latestRow</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">const</span> <span class="v">latestDate</span> <span class="p">=</span> <span class="k">new</span> <span class="fn">Date</span><span class="p">(</span><span class="v">latestRow</span><span class="p">.</span><span class="v">date</span><span class="p">);</span>
+  <span class="v">latestDate</span><span class="p">.</span><span class="fn">setUTCDate</span><span class="p">(</span><span class="v">latestDate</span><span class="p">.</span><span class="fn">getUTCDate</span><span class="p">()</span> <span class="p">+</span> <span class="n">1</span><span class="p">);</span>
+  <span class="v">since</span> <span class="p">=</span> <span class="v">latestDate</span><span class="p">.</span><span class="fn">toISOString</span><span class="p">().</span><span class="fn">split</span><span class="p">(</span><span class="s">"T"</span><span class="p">)[</span><span class="n">0</span><span class="p">];</span>
+<span class="p">}</span></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-cap">Excerpt · <span class="path">src/lib/copilot-sync.ts:314-324</span> · <span style="text-transform:none;letter-spacing:0;color:var(--text-dim)">404 is now silently swallowed (commit 19b38dc)</span></div>
+<pre><span class="c">// src/lib/copilot-sync.ts:314-324 — 404 is now silently swallowed</span>
+<span class="k">if</span> <span class="p">(</span><span class="v">metricsResponse</span><span class="p">.</span><span class="v">error</span> <span class="p">||</span> <span class="p">!</span><span class="v">metricsResponse</span><span class="p">.</span><span class="v">data</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="v">metricsResponse</span><span class="p">.</span><span class="v">status</span> <span class="p">===</span> <span class="n">404</span><span class="p">)</span> <span class="p">{</span>
+    <span class="v">console</span><span class="p">.</span><span class="fn">warn</span><span class="p">(</span>
+      <span class="s">`[copilot-sync] Copilot metrics not available for org "${connection.orgLogin}" (404). The "Copilot Metrics API access" policy may be disabled, or the org has fewer than 5 users emitting telemetry.`</span><span class="p">,</span>
+    <span class="p">);</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="v">metricsProcessed</span><span class="p">:</span> <span class="n">0</span> <span class="p">};</span>
+  <span class="p">}</span>
+  <span class="k">throw new</span> <span class="fn">Error</span><span class="p">(</span><span class="v">metricsResponse</span><span class="p">.</span><span class="v">error</span> <span class="p">??</span> <span class="s">"Failed to fetch Copilot usage metrics"</span><span class="p">);</span>
+<span class="p">}</span></pre>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 32px;margin-top:18px;font-family:var(--mono);font-size:12.5px;line-height:1.85;color:var(--text-dim);">
+        <div><span style="color:var(--text-faint)">Cron schedule</span> &nbsp; <span style="color:var(--text)">vercel.json</span> · daily 06:00 UTC</div>
+        <div><span style="color:var(--text-faint)">Cron route</span> &nbsp; <span style="color:var(--text)">src/app/api/sync/github-copilot/route.ts</span></div>
+        <div><span style="color:var(--text-faint)">Orchestrator</span> &nbsp; <span style="color:var(--text)">src/lib/sync/sources/github-copilot.ts:89-98</span></div>
+        <div><span style="color:var(--text-faint)">Metrics sync</span> &nbsp; <span style="color:var(--text)">src/lib/copilot-sync.ts:290-472</span></div>
+        <div><span style="color:var(--text-faint)">GitHub client</span> &nbsp; <span style="color:var(--text)">src/lib/copilot-api.ts:255-272</span></div>
+        <div><span style="color:var(--text-faint)">Dashboard page</span> &nbsp; <span style="color:var(--text)">src/app/copilot/analytics/page.tsx</span></div>
+      </div>
+    </section>
+
+    <!-- ============ WHY EMPTY ============ -->
+    <section>
+      <h2><span class="num">06</span>Why the dashboard looks "empty after April"</h2>
+      <div class="why">
+        <p>
+          The analytics dashboard default window is the last <strong>28 days</strong>.
+          From 2026-05-21, that window is <strong>2026-04-23 → 2026-05-21</strong>.
+          Since the last row in <code style="font-family:var(--mono);font-size:13px;color:#d6dae1;background:var(--bg-inset);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">copilot_usage_metrics</code> is <strong>2026-04-01</strong>, the default window contains
+          <strong>zero rows</strong>.
+        </p>
+        <p>
+          Widening to 90 days, the curve flatlines after April 1. This is not a query bug —
+          the data genuinely doesn't exist in the database, because the upstream API stopped serving it.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ REMEDIATION ============ -->
+    <section>
+      <h2><span class="num">07</span>Recommended remediation</h2>
+      <p class="h-sub">There is no configuration fix. The endpoint is gone. This needs a small but real migration to the new Copilot usage metrics API.</p>
+
+      <div class="rem-group">
+        <div class="rem-head"><span class="badge code">Migration · Required</span><span>Swap to the new API. Treat as a feature spec.</span></div>
+        <div class="rem-body">
+          <ol>
+            <li>Update <code>fetchCopilotMetrics</code> in <code>src/lib/copilot-api.ts:255-272</code> to call the new endpoints. For our daily cron, call <code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/organization-1-day?date=YYYY-MM-DD</code> (yesterday's date, since GitHub never serves today).</li>
+            <li>The new endpoint returns <strong>signed download links</strong>, not inline JSON. Add a second fetch step to download the report file and parse it. Confirm format (CSV/JSON) from the docs at <code>docs.github.com/en/rest/copilot/copilot-usage-metrics</code> before coding.</li>
+            <li>Re-map the response into the existing <code>copilot_usage_metrics</code> schema. The retired API's <code>copilot_ide_code_completions</code> grouping is replaced by per-language / per-model breakdowns — field-by-field translation, not a trivial rename. Plan to either (a) preserve the existing table shape via aggregation in code, or (b) add a forward-compatible <code>languageBreakdown</code> / <code>editorBreakdown</code> mapping (we already store these as JSONB, so option a is cheaper).</li>
+            <li>Verify the connection token has <code>read:org</code> (required for the new org-level endpoint). The current token works for billing/seats — confirm scopes via <code>validateCopilotScopes</code> before deploying.</li>
+            <li>Backfill: the new endpoint supports a 28-day rolling window via the <code>organization-28-day/latest</code> variant. After deploying, trigger a one-shot backfill (operation_type=<code>backfill</code>, already supported by the sync framework) to pull approximately <strong>2026-04-23 → 2026-05-20</strong> in one go.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="rem-group">
+        <div class="rem-head"><span class="badge note">Caveat · Permanent data loss</span><span>What's gone is gone.</span></div>
+        <div class="rem-body">
+          <ul>
+            <li>The new API still only retains <strong>28 days</strong> of history. Even after we ship the migration today (2026-05-21), GitHub will only return data from roughly <strong>2026-04-23</strong> onward. <strong>The gap 2026-04-02 → 2026-04-22 is permanently unrecoverable.</strong> Surface this on the analytics page (e.g., a footnote on the chart axis) so future readers don't read the dip as a real downturn.</li>
+            <li>If the migration ships later than 2026-06-18, the recoverable window shrinks day by day. Treat this PR as <strong>high priority</strong>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rem-group">
+        <div class="rem-head"><span class="badge code">Code · Follow-up PR</span><span>Make the next sunset impossible to miss.</span></div>
+        <div class="rem-body">
+          <ul>
+            <li>Remove the 404-as-success path added in <code>19b38dc</code>. With the new API, a 404 is no longer a benign "policy off" state — it's either auth or a genuine problem. Treat metric-side 404s as <code>partial</code> outcomes and surface them on the analytics page.</li>
+            <li>Add an admin-visible health card <strong>"Copilot metrics stale — last data N days ago"</strong> on the analytics page when the latest row is older than 3 days. This single card would have surfaced the sunset within 72 hours instead of 49 days.</li>
+            <li>Track upstream deprecations: subscribe the team's #ops channel to GitHub's <a href="https://github.blog/changelog/label/copilot-api/" style="color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)">Copilot API changelog</a> RSS feed. The sunset was announced 63 days before it happened.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer>
+      <div class="row">
+        <div class="col">
+          <strong>Files cited</strong><br>
+          src/app/api/sync/github-copilot/route.ts<br>
+          src/lib/sync/sources/github-copilot.ts:89-98<br>
+          src/lib/copilot-sync.ts:290-472<br>
+          src/lib/copilot-sync.ts:300-306<br>
+          src/lib/copilot-sync.ts:314-324<br>
+          src/lib/copilot-api.ts:255-272<br>
+          src/app/copilot/analytics/page.tsx<br>
+          vercel.json
+        </div>
+        <div class="col">
+          <strong>Tables queried</strong><br>
+          copilot_usage_metrics (123 rows)<br>
+          sync_events (filter: source = github-copilot)<br>
+          github_connections (single active row, org=unic)
+        </div>
+        <div class="col">
+          <strong>Commit referenced</strong><br>
+          19b38dc · 2026-05-18<br>
+          "fix(copilot): treat metrics 404 as no-data, not a sync failure"
+        </div>
+        <div class="col">
+          <strong>Upstream sources</strong><br>
+          GitHub Changelog · 2026-01-29<br>
+          Closing-down notice of legacy Copilot metrics APIs<br>
+          docs.github.com/en/rest/copilot/copilot-usage-metrics
+        </div>
+        <div class="col">
+          <strong>Generated</strong><br>
+          2026-05-21<br>
+          branch: github-sync-may<br>
+          spec: 031-copilot-metrics-no-data-investigation
+        </div>
+      </div>
+    </footer>
+
+  </main>
+</body>
+</html>

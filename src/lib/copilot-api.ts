@@ -51,106 +51,71 @@ interface CopilotSeatsPage {
 }
 
 // ---------------------------------------------------------------------------
-// Copilot Metrics types
+// Copilot Usage Metrics types (new reports API, replaces sunset 2026-04-02 endpoint)
 // ---------------------------------------------------------------------------
 
-// Top-level language summary (no suggestion/acceptance counts)
-export interface CopilotMetricsLanguageSummary {
-  name: string;
-  total_engaged_users: number;
+/**
+ * Wrapper response from /orgs/{org}/copilot/metrics/reports/organization-1-day.
+ * The actual data lives behind one or more signed URLs in `download_links`.
+ */
+export interface CopilotReportLinks {
+  download_links: string[];
+  report_day?: string;
+  report_start_day?: string;
+  report_end_day?: string;
 }
 
-// Detailed language metrics (only at editors[].models[].languages[])
-export interface CopilotMetricsModelLanguage {
-  name: string;
-  total_engaged_users: number;
-  total_code_suggestions: number;
-  total_code_acceptances: number;
-  total_code_lines_suggested: number;
-  total_code_lines_accepted: number;
-}
+/**
+ * One row in an NDJSON Copilot usage metrics report. The docs cover "only some"
+ * fields (community discussion #186189), so this type is intentionally loose:
+ * known fields are typed, unknown keys are preserved via the index signature.
+ */
+export interface CopilotMetricsRow {
+  day?: string;
+  organization_id?: number;
+  enterprise_id?: number | null;
+  user_id?: number;
+  user_login?: string;
 
-export interface CopilotMetricsEditorModel {
-  name: string;
-  is_custom_model: boolean;
-  custom_model_training_date?: string | null;
-  total_engaged_users: number;
-  languages?: CopilotMetricsModelLanguage[];
-}
+  user_initiated_interaction_count?: number;
+  code_generation_activity_count?: number;
+  code_acceptance_activity_count?: number;
 
-export interface CopilotMetricsEditor {
-  name: string;
-  total_engaged_users: number;
-  models?: CopilotMetricsEditorModel[];
-}
+  loc_suggested_to_add_sum?: number;
+  loc_added_sum?: number;
+  loc_suggested_to_delete_sum?: number;
+  loc_deleted_sum?: number;
+  agent_edit?: number;
 
-export interface CopilotIdeCodeCompletions {
-  total_engaged_users: number;
-  languages?: CopilotMetricsLanguageSummary[];
-  editors?: CopilotMetricsEditor[];
-}
+  chat_panel_agent_mode?: number;
+  chat_panel_ask_mode?: number;
+  chat_panel_edit_mode?: number;
+  chat_panel_plan_mode?: number;
+  chat_panel_custom_mode?: number;
+  chat_panel_unknown_mode?: number;
 
-export interface CopilotIdeChatModel {
-  name: string;
-  is_custom_model: boolean;
-  custom_model_training_date?: string | null;
-  total_engaged_users: number;
-  total_chats: number;
-  total_chat_insertion_events: number;
-  total_chat_copy_events: number;
-}
+  used_cli?: boolean;
+  used_agent?: boolean;
+  used_chat?: boolean;
 
-export interface CopilotIdeChatEditor {
-  name: string;
-  total_engaged_users: number;
-  models?: CopilotIdeChatModel[];
-}
+  totals_by_ide?: Record<string, Record<string, unknown>>;
+  totals_by_feature?: Record<string, Record<string, unknown>>;
+  totals_by_language_feature?: Record<string, Record<string, unknown>>;
+  totals_by_language_model?: Record<string, Record<string, unknown>>;
+  totals_by_model_feature?: Record<string, Record<string, unknown>>;
+  totals_by_cli?: {
+    session_count?: number;
+    request_count?: number;
+    prompt_count?: number;
+    last_known_cli_version?: string;
+    token_usage?: {
+      output_tokens_sum?: number;
+      prompt_tokens_sum?: number;
+      avg_tokens_per_request?: number;
+    };
+  };
 
-export interface CopilotIdeChat {
-  total_engaged_users: number;
-  editors?: CopilotIdeChatEditor[];
-}
-
-export interface CopilotDotcomChatModel {
-  name: string;
-  is_custom_model: boolean;
-  custom_model_training_date?: string | null;
-  total_engaged_users: number;
-  total_chats: number;
-}
-
-export interface CopilotDotcomChat {
-  total_engaged_users: number;
-  models?: CopilotDotcomChatModel[];
-}
-
-export interface CopilotDotcomPrModel {
-  name: string;
-  is_custom_model: boolean;
-  custom_model_training_date?: string | null;
-  total_engaged_users: number;
-  total_pr_summaries_created: number;
-}
-
-export interface CopilotDotcomPrRepository {
-  name: string;
-  total_engaged_users: number;
-  models?: CopilotDotcomPrModel[];
-}
-
-export interface CopilotDotcomPullRequests {
-  total_engaged_users: number;
-  repositories?: CopilotDotcomPrRepository[];
-}
-
-export interface CopilotDailyMetrics {
-  date: string;
-  total_active_users: number;
-  total_engaged_users: number;
-  copilot_ide_code_completions: CopilotIdeCodeCompletions | null;
-  copilot_ide_chat?: CopilotIdeChat | null;
-  copilot_dotcom_chat?: CopilotDotcomChat | null;
-  copilot_dotcom_pull_requests?: CopilotDotcomPullRequests | null;
+  [k: string]: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,31 +214,77 @@ export async function fetchCopilotSeats(
 }
 
 /**
- * Fetch Copilot usage metrics for an organization.
- * GET /orgs/{org}/copilot/metrics
+ * Fetch the wrapper response for a single-day org Copilot usage metrics report.
+ * GET /orgs/{org}/copilot/metrics/reports/organization-1-day?day=YYYY-MM-DD
+ *
+ * Replaces the sunset (2026-04-02) endpoint /orgs/{org}/copilot/metrics. The
+ * actual metric rows live behind signed URLs in the returned `download_links`;
+ * call `downloadReportNdjson` on each link to fetch the NDJSON data.
  */
-export async function fetchCopilotMetrics(
+export async function fetchCopilotOrgDayReport(
   token: string,
   org: string,
-  since?: string,
-  until?: string,
-): Promise<CopilotApiResponse<CopilotDailyMetrics[]>> {
-  const params: Record<string, string> = {};
-  if (since) params.since = since;
-  if (until) params.until = until;
-
+  day: string,
+): Promise<CopilotApiResponse<CopilotReportLinks>> {
   return stripScopes(
-    await githubFetch<CopilotDailyMetrics[]>(
-      `/orgs/${encodeURIComponent(org)}/copilot/metrics`,
+    await githubFetch<CopilotReportLinks>(
+      `/orgs/${encodeURIComponent(org)}/copilot/metrics/reports/organization-1-day`,
       token,
-      Object.keys(params).length > 0 ? params : undefined,
+      { day },
     ),
   );
 }
 
 /**
- * Validate that the provided token has the `manage_billing:copilot` scope
- * by making a lightweight request and inspecting the `x-oauth-scopes` header.
+ * Fetch the wrapper response for a single-day per-user Copilot usage metrics
+ * report. GET /orgs/{org}/copilot/metrics/reports/users-1-day?day=YYYY-MM-DD
+ *
+ * Each row in the downloaded NDJSON represents one (user, day) tuple. Used to
+ * derive `total_active_users` and `total_engaged_users` counters that the
+ * org-level report does not expose directly.
+ */
+export async function fetchCopilotUsersDayReport(
+  token: string,
+  org: string,
+  day: string,
+): Promise<CopilotApiResponse<CopilotReportLinks>> {
+  return stripScopes(
+    await githubFetch<CopilotReportLinks>(
+      `/orgs/${encodeURIComponent(org)}/copilot/metrics/reports/users-1-day`,
+      token,
+      { day },
+    ),
+  );
+}
+
+/**
+ * Download and parse the NDJSON body behind a signed Copilot report URL.
+ *
+ * Signed URLs authenticate via the signature itself — do NOT add an
+ * Authorization header (doing so triggers 403). TTL is undocumented; fetch
+ * immediately and never cache the URL.
+ */
+export async function downloadReportNdjson(
+  url: string,
+): Promise<CopilotMetricsRow[]> {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(
+      `Copilot report download ${res.status} from ${new URL(url).host}`,
+    );
+  }
+  const body = await res.text();
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as CopilotMetricsRow);
+}
+
+/**
+ * Validate that the provided token has the scopes needed to call both the
+ * Copilot billing endpoints (`manage_billing:copilot` or `admin:org`) and the
+ * new Copilot usage metrics reports endpoints (`read:org`).
  */
 export async function validateCopilotScopes(
   token: string,
@@ -281,9 +292,6 @@ export async function validateCopilotScopes(
   const result = await githubFetch<unknown>("/user", token);
 
   const scopes = result.scopes;
-  const hasScope = scopes.some(
-    (s) => s === "manage_billing:copilot" || s === "admin:org",
-  );
 
   if (result.error) {
     return {
@@ -295,10 +303,21 @@ export async function validateCopilotScopes(
     };
   }
 
-  if (!hasScope) {
+  const hasBillingScope = scopes.some(
+    (s) => s === "manage_billing:copilot" || s === "admin:org",
+  );
+  const hasOrgReadScope = scopes.some(
+    (s) => s === "read:org" || s === "admin:org",
+  );
+
+  const missing: string[] = [];
+  if (!hasBillingScope) missing.push("manage_billing:copilot");
+  if (!hasOrgReadScope) missing.push("read:org");
+
+  if (missing.length > 0) {
     return {
       data: { valid: false, scopes },
-      error: `Token missing required scope: manage_billing:copilot. Current scopes: ${scopes.join(", ")}`,
+      error: `Token missing required scope(s): ${missing.join(", ")}. The new Copilot usage metrics API requires read:org in addition to manage_billing:copilot. Current scopes: ${scopes.join(", ") || "(none)"}`,
       status: result.status,
       rateLimitRemaining: result.rateLimitRemaining,
       rateLimitReset: result.rateLimitReset,
