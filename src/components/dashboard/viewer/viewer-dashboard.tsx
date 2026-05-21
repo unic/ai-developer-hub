@@ -50,7 +50,7 @@ export async function ViewerDashboard({
   const hasApiKey = data.tools.some((t) => t.isAnthropic && t.hasApiKey);
   const hasAssignments = data.tools.length > 0;
   const activeTools = data.tools.filter((t) => t.status === "active");
-  const activeToolCount = new Set(activeTools.map((t) => t.id)).size;
+  const activeToolCount = new Set(activeTools.map((t) => t.toolId)).size;
   const activeLicenseCount = activeTools.length;
 
   return (

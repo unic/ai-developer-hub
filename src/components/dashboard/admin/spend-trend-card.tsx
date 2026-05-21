@@ -11,6 +11,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ReferenceLine,
   XAxis,
   YAxis,
@@ -56,12 +57,15 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
   const licensesPct = Math.round((totalLicensesYtd / grandTotal) * 100);
   const apiPct = 100 - licensesPct;
 
-  const plannedAvg =
-    spendSeries.length > 0
-      ? spendSeries.reduce(
+  // Average of past + current months only — future periods have no actual
+  // billed data and would drag the reference line down toward zero.
+  const billedMonths = spendSeries.filter((p) => !p.isForecast);
+  const avgMonthlyActual =
+    billedMonths.length > 0
+      ? billedMonths.reduce(
           (s, p) => s + p.licensesCents + p.apiCents,
           0
-        ) / spendSeries.length
+        ) / billedMonths.length
       : 0;
 
   return (
@@ -93,9 +97,9 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
                 axisLine={false}
                 width={48}
               />
-              {plannedAvg > 0 && (
+              {avgMonthlyActual > 0 && (
                 <ReferenceLine
-                  y={plannedAvg}
+                  y={avgMonthlyActual}
                   stroke="var(--chart-3)"
                   strokeDasharray="6 4"
                   strokeOpacity={0.5}
@@ -117,17 +121,24 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
                   />
                 }
               />
-              <Bar
-                dataKey="licenses"
-                stackId="actual"
-                fill="var(--color-licenses)"
-              />
-              <Bar
-                dataKey="api"
-                stackId="actual"
-                fill="var(--color-api)"
-                fillOpacity={0.85}
-              />
+              <Bar dataKey="licenses" stackId="actual" fill="var(--color-licenses)">
+                {data.map((d, i) => (
+                  <Cell
+                    key={`lic-${i}`}
+                    fill="var(--color-licenses)"
+                    fillOpacity={d.isForecast ? 0.35 : 1}
+                  />
+                ))}
+              </Bar>
+              <Bar dataKey="api" stackId="actual" fill="var(--color-api)">
+                {data.map((d, i) => (
+                  <Cell
+                    key={`api-${i}`}
+                    fill="var(--color-api)"
+                    fillOpacity={d.isForecast ? 0.3 : 0.85}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ChartContainer>
 

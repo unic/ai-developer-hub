@@ -441,19 +441,27 @@ export async function getRecentDashboardActivity(
     });
   }
 
+  // Surface both grant and revoke events for the same assignment so the
+  // timeline shows the lifecycle, not just the most recent state.
   for (const row of assignmentRows) {
-    const revoked = row.revokedAt !== null;
-    const ts = (revoked ? row.revokedAt! : row.assignedAt).toISOString();
     items.push({
-      id: `assignment-${row.id}-${revoked ? "revoked" : "added"}`,
-      kind: revoked ? "assignment_revoked" : "assignment_added",
-      timestamp: ts,
-      title: revoked
-        ? `${row.userName} revoked from ${row.toolName}`
-        : `${row.userName} assigned ${row.toolName}`,
+      id: `assignment-${row.id}-added`,
+      kind: "assignment_added",
+      timestamp: row.assignedAt.toISOString(),
+      title: `${row.userName} assigned ${row.toolName}`,
       detail: null,
-      severity: revoked ? "warn" : "info",
+      severity: "info",
     });
+    if (row.revokedAt) {
+      items.push({
+        id: `assignment-${row.id}-revoked`,
+        kind: "assignment_revoked",
+        timestamp: row.revokedAt.toISOString(),
+        title: `${row.userName} revoked from ${row.toolName}`,
+        detail: null,
+        severity: "warn",
+      });
+    }
   }
 
   items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
@@ -482,7 +490,10 @@ export interface ViewerSyncStatus {
 }
 
 export interface ViewerToolRow {
+  /** License assignment id. */
   id: number;
+  /** AI tool id — used to derive distinct-tool counts. */
+  toolId: number;
   toolName: string;
   vendor: string;
   tierName: string;
@@ -641,6 +652,7 @@ export async function getViewerDashboardData(
 
   const tools: ViewerToolRow[] = assignmentRows.map((row) => ({
     id: row.id,
+    toolId: row.toolId,
     toolName: row.toolName,
     vendor: row.vendor,
     tierName: row.tierName ?? "—",

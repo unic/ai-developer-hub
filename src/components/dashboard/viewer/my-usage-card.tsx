@@ -119,11 +119,12 @@ export function MyUsageCard({
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={(v) =>
-                    Number(v) >= 10_000
-                      ? `$${(Number(v) / 100_000).toFixed(1)}k`
-                      : `$${(Number(v) / 100).toFixed(0)}`
-                  }
+                  tickFormatter={(v) => {
+                    const dollars = Number(v) / 100;
+                    return dollars >= 1000
+                      ? `$${(dollars / 1000).toFixed(1)}k`
+                      : `$${dollars.toFixed(0)}`;
+                  }}
                   tickLine={false}
                   axisLine={false}
                   width={40}

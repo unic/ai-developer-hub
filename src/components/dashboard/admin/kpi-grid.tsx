@@ -60,7 +60,11 @@ export function KpiGrid({ overview, copilot, toolCount }: KpiGridProps) {
         }
         note={
           copilot
-            ? `Copilot acceptance ${copilot.acceptanceRate ?? "—"}%${copilot.totalActiveUsers > 0 ? ` · ${copilot.totalActiveUsers} devs` : ""}`
+            ? `Copilot acceptance ${
+                copilot.acceptanceRate === null
+                  ? "—"
+                  : `${copilot.acceptanceRate}%`
+              }${copilot.totalActiveUsers > 0 ? ` · ${copilot.totalActiveUsers} devs` : ""}`
             : "Licenses only — API usage tracked separately"
         }
       />
