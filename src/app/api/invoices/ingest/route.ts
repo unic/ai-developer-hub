@@ -47,9 +47,28 @@ export async function POST(request: NextRequest) {
       // Raw PDF body path — used by callers (e.g. Power Automate) that can't
       // easily build a multipart envelope. Filename comes from X-Filename;
       // optional X-Vendor lets the caller skip the default "Anthropic".
+      filename = request.headers.get("x-filename")?.trim() || "invoice.pdf";
+
+      // Validate Content-Length before reading the body so we reject
+      // oversized requests without allocating a large buffer. Keep the
+      // post-read check below as a fallback when the header is absent.
+      const contentLengthHeader = request.headers.get("content-length");
+      const contentLength = contentLengthHeader !== null ? parseInt(contentLengthHeader, 10) : null;
+      if (contentLength !== null && !isNaN(contentLength) && contentLength > MAX_FILE_SIZE) {
+        await logIngestionAttempt({
+          filename,
+          outcome: "failed",
+          errorMessage: "File exceeds 10 MB limit",
+          channel: "api",
+        });
+        return NextResponse.json(
+          { success: false, error: "File exceeds 10 MB limit" },
+          { status: 413 },
+        );
+      }
+
       const arrayBuffer = await request.arrayBuffer();
       pdfBuffer = Buffer.from(arrayBuffer);
-      filename = request.headers.get("x-filename")?.trim() || "invoice.pdf";
 
       if (pdfBuffer.byteLength > MAX_FILE_SIZE) {
         await logIngestionAttempt({
@@ -60,7 +79,7 @@ export async function POST(request: NextRequest) {
         });
         return NextResponse.json(
           { success: false, error: "File exceeds 10 MB limit" },
-          { status: 400 },
+          { status: 413 },
         );
       }
 
