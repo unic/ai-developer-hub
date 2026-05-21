@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude Spend → Microsoft Teams · Option 1 Mockup</title>
+<style>
+  :root {
+    --teams-violet: #5b5fc7;
+    --teams-violet-deep: #4f52b2;
+    --teams-violet-soft: #e8ebfa;
+    --bg-app: #f5f5f5;
+    --bg-rail: #ebebeb;
+    --bg-secondary: #f5f5f5;
+    --bg-main: #ffffff;
+    --bg-card: #ffffff;
+    --border-soft: #e0e0e0;
+    --border-card: #d1d1d1;
+    --text-primary: #242424;
+    --text-secondary: #616161;
+    --text-tertiary: #8a8a8a;
+    --warn-bg: #fff4ce;
+    --warn-text: #6e5816;
+    --warn-border: #fce100;
+    --danger-bg: #fde7e9;
+    --danger-text: #a4262c;
+    --danger-border: #d13438;
+    --ok-bg: #dff6dd;
+    --ok-text: #0e700e;
+    --ok-border: #237b4b;
+    --info-bg: #f0f6ff;
+    --info-text: #004578;
+
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.04);
+
+    --font: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; padding: 0; font-family: var(--font); background: #d6d6d6; color: var(--text-primary); }
+
+  /* === Page-level chrome around the Teams window === */
+  .page {
+    min-height: 100vh;
+    padding: 32px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+  .page-header {
+    width: min(1280px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .page-header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .page-header p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    max-width: 880px;
+  }
+
+  /* === Teams shell === */
+  .teams-shell {
+    width: min(1280px, 100%);
+    height: 820px;
+    background: var(--bg-app);
+    border: 1px solid #c8c8c8;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 68px 280px 1fr;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.18), 0 4px 8px rgba(0,0,0,0.06);
+  }
+
+  /* === Title bar overlay (fakes Teams top bar) === */
+  .teams-shell::before {
+    content: "";
+    position: relative;
+    grid-column: 1 / -1;
+    height: 0;
+  }
+
+  /* Left vertical rail */
+  .rail {
+    background: var(--bg-rail);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 4px;
+    border-right: 1px solid #dcdcdc;
+  }
+  .rail-item {
+    width: 52px;
+    height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    cursor: default;
+    position: relative;
+  }
+  .rail-item .ic {
+    width: 22px; height: 22px; display: grid; place-items: center;
+  }
+  .rail-item.active {
+    color: var(--teams-violet);
+    background: rgba(91,95,199,0.08);
+  }
+  .rail-item.active::before {
+    content: "";
+    position: absolute;
+    left: -8px; top: 14px; bottom: 14px;
+    width: 3px;
+    background: var(--teams-violet);
+    border-radius: 0 3px 3px 0;
+  }
+  .rail-item .badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: #c4314b;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 8px;
+    border: 1px solid var(--bg-rail);
+  }
+
+  /* Secondary rail */
+  .secondary {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .secondary header {
+    padding: 14px 16px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .secondary header h2 {
+    margin: 0; font-size: 16px; font-weight: 600;
+  }
+  .secondary .search {
+    margin: 0 16px 12px;
+    background: #fff;
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .team {
+    margin-top: 4px;
+  }
+  .team-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px 6px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .team-header .team-avatar {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, #5b5fc7, #8b8eea);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px; font-weight: 600;
+    display: grid; place-items: center;
+  }
+  .channel {
+    padding: 5px 16px 5px 50px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: default;
+    position: relative;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .channel:hover { background: rgba(0,0,0,0.04); }
+  .channel.active {
+    background: var(--teams-violet-soft);
+    color: var(--teams-violet-deep);
+    font-weight: 600;
+  }
+  .channel.active::before {
+    content: "";
+    position: absolute;
+    left: 38px; top: 50%;
+    transform: translateY(-50%);
+    width: 2px; height: 14px;
+    background: var(--teams-violet);
+    border-radius: 2px;
+  }
+  .channel .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--teams-violet);
+    margin-left: auto;
+  }
+
+  /* Main view */
+  .main {
+    background: var(--bg-main);
+    display: flex; flex-direction: column;
+    min-width: 0;
+  }
+  .channel-header {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .channel-header .title {
+    display: flex; flex-direction: column;
+  }
+  .channel-header .title strong {
+    font-size: 15px; font-weight: 600;
+  }
+  .channel-header .title small {
+    color: var(--text-secondary); font-size: 12px;
+  }
+  .channel-header .tabs {
+    display: flex; gap: 24px; margin-left: 24px;
+    border-left: 1px solid var(--border-soft); padding-left: 24px;
+    font-size: 13px;
+  }
+  .channel-header .tabs span {
+    color: var(--text-secondary); padding: 6px 0;
+  }
+  .channel-header .tabs span.active {
+    color: var(--text-primary); font-weight: 600;
+    border-bottom: 2px solid var(--teams-violet);
+  }
+  .channel-header .actions {
+    margin-left: auto; display: flex; gap: 8px; color: var(--text-secondary); font-size: 18px;
+  }
+
+  /* Message stream */
+  .stream {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 24px 24px;
+  }
+  .day-sep {
+    display: flex; align-items: center; gap: 12px;
+    margin: 16px 0 12px;
+    color: var(--text-secondary);
+    font-size: 11px; font-weight: 600;
+  }
+  .day-sep::before, .day-sep::after {
+    content: ""; flex: 1; border-top: 1px solid var(--border-soft);
+  }
+
+  .msg {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .avatar {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #d6794a, #c4592a);
+    color: #fff;
+    font-weight: 600;
+    font-size: 12px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    margin-top: 4px;
+  }
+  .avatar.bot {
+    background: linear-gradient(135deg, #5b5fc7, #8b8eea);
+  }
+  .msg-body {
+    min-width: 0;
+  }
+  .msg-meta {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .msg-meta .author {
+    color: var(--text-primary); font-weight: 600;
+  }
+  .msg-meta .app-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 6px;
+    background: var(--teams-violet-soft);
+    color: var(--teams-violet-deep);
+    font-size: 10px; font-weight: 600;
+    border-radius: 3px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .msg-meta .time {
+    margin-left: 6px; font-size: 12px;
+  }
+
+  /* === Adaptive Card === */
+  .ac-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 4px;
+    max-width: 520px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .ac-section { padding: 14px 16px; }
+  .ac-section + .ac-section { border-top: 1px solid var(--border-soft); }
+
+  .ac-section.tone-warn {
+    background: var(--warn-bg);
+    border-bottom: 1px solid var(--warn-border);
+  }
+  .ac-section.tone-danger {
+    background: var(--danger-bg);
+    border-bottom: 1px solid rgba(209,52,56,0.5);
+  }
+  .ac-section.tone-info {
+    background: var(--info-bg);
+  }
+
+  .ac-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 16px; font-weight: 600;
+    margin: 0;
+  }
+  .ac-title .icon {
+    width: 24px; height: 24px; flex: 0 0 24px;
+    display: grid; place-items: center;
+    border-radius: 4px;
+  }
+  .ac-title .icon.warn { background: #fce100; color: #54450b; }
+  .ac-title .icon.danger { background: var(--danger-border); color: #fff; }
+  .ac-title .icon.info { background: var(--teams-violet); color: #fff; }
+
+  .ac-subtitle {
+    margin: 2px 0 0 34px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .ac-subtitle code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .ac-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .ac-kpi {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .ac-kpi .label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .ac-kpi .value {
+    font-size: 20px; font-weight: 600; line-height: 1.2;
+  }
+  .ac-kpi .delta {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .ac-kpi .delta.up { color: var(--danger-border); }
+  .ac-kpi .delta.down { color: var(--ok-border); }
+
+  .ac-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ac-list .header {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex; justify-content: space-between;
+  }
+  .ac-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+    align-items: center;
+  }
+  .ac-row .name {
+    font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ac-row .name .pill {
+    font-size: 10px; font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+  }
+  .ac-row .name .pill.warn { background: var(--warn-bg); color: var(--warn-text); }
+  .ac-row .name .pill.ok { background: var(--ok-bg); color: var(--ok-text); }
+  .ac-row .amount {
+    font-size: 13px; color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .ac-row .bar {
+    grid-column: 1 / -1;
+    height: 6px;
+    background: #eee;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .ac-row .bar .fill {
+    height: 100%;
+    background: var(--ok-border);
+    border-radius: 999px;
+  }
+  .ac-row .bar .fill.warn { background: #d29200; }
+  .ac-row .bar .fill.danger { background: var(--danger-border); }
+
+  .ac-fact-set {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    row-gap: 6px;
+    column-gap: 16px;
+    font-size: 13px;
+  }
+  .ac-fact-set .k { color: var(--text-secondary); }
+  .ac-fact-set .v { color: var(--text-primary); font-weight: 500; }
+  .ac-fact-set .v.bad { color: var(--danger-text); font-weight: 600; }
+  .ac-fact-set .v.warn { color: var(--warn-text); font-weight: 600; }
+
+  .ac-text { font-size: 13px; color: var(--text-primary); margin: 0; line-height: 1.45; }
+  .ac-text.muted { color: var(--text-secondary); font-size: 12px; }
+
+  .ac-actions {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-top: 1px solid var(--border-soft);
+  }
+  .ac-btn {
+    border: 1px solid var(--border-card);
+    background: #fff;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: default;
+  }
+  .ac-btn.primary {
+    background: var(--teams-violet);
+    color: #fff;
+    border-color: var(--teams-violet);
+  }
+  .ac-btn.danger {
+    background: #fff;
+    color: var(--danger-border);
+    border-color: var(--danger-border);
+  }
+
+  .ac-footer-meta {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding: 8px 16px;
+    background: #fafafa;
+    border-top: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ac-footer-meta .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #2eb84b;
+  }
+  .ac-footer-meta code {
+    background: #eee; padding: 1px 4px; border-radius: 3px;
+  }
+
+  /* Sparkline */
+  .spark {
+    width: 100%;
+    height: 50px;
+  }
+  .spark .path-fill { fill: rgba(91,95,199,0.12); }
+  .spark .path-line { fill: none; stroke: var(--teams-violet); stroke-width: 1.5; }
+  .spark .path-forecast { fill: none; stroke: var(--danger-border); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .spark .ceiling { stroke: var(--text-tertiary); stroke-width: 1; stroke-dasharray: 2 4; }
+
+  /* Composer */
+  .composer {
+    border-top: 1px solid var(--border-soft);
+    padding: 12px 24px 16px;
+  }
+  .composer .box {
+    border: 1px solid var(--border-card);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text-tertiary);
+    font-size: 13px;
+  }
+
+  /* Caption under each card */
+  .caption {
+    margin: 2px 0 10px 42px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    max-width: 520px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+  .caption strong { color: var(--text-secondary); font-style: normal; }
+
+  /* Footer notes panel */
+  .notes-panel {
+    width: min(1280px, 100%);
+    background: #fff;
+    border: 1px solid #d6d6d6;
+    border-radius: 12px;
+    padding: 22px 28px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .notes-panel h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 12px;
+  }
+  .note-card h3 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .note-card h3 .badge {
+    font-size: 10px; font-weight: 700;
+    padding: 1px 6px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .note-card.warn h3 .badge { background: var(--warn-bg); color: var(--warn-text); }
+  .note-card.danger h3 .badge { background: var(--danger-bg); color: var(--danger-text); }
+  .note-card.info h3 .badge { background: var(--info-bg); color: var(--info-text); }
+  .note-card p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  .note-card code {
+    background: #f0f0f0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .legend-row {
+    display: flex; flex-wrap: wrap; gap: 16px 24px;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-soft);
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-row .sw {
+    width: 12px; height: 12px; border-radius: 3px;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="page-header">
+      <h1>Claude API Spend → Microsoft Teams</h1>
+      <p>
+        Option 1 mockup — Adaptive Cards posted into a Teams channel by the existing hourly Anthropic sync cron via an
+        incoming <strong>Workflows</strong> webhook (replacement for retired O365 Connectors). Three card variants are shown
+        in chronological order as they would appear in a real Teams channel: hourly digest, threshold-breach alert, and
+        forecast-at-risk alert.
+      </p>
+    </header>
+
+    <!-- ============================ TEAMS SHELL ============================ -->
+    <section class="teams-shell">
+
+      <!-- LEFT RAIL -->
+      <nav class="rail" aria-label="App rail">
+        <div class="rail-item">
+          <div class="ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 21s-7-4.5-7-10a7 7 0 1 1 14 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg>
+          </div>
+          Activity
+          <span class="badge">3</span>
+        </div>
+        <div class="rail-item">
+          <div class="ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a8 8 0 1 1-3.5-6.6L21 4v6h-6"/></svg>
+          </div>
+          Chat
+        </div>
+        <div class="rail-item active">
+          <div class="ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.2"/><path d="M3 19c0-3 2.6-5 6-5s6 2 6 5"/><path d="M14.5 19c0-2.2 1.7-3.8 4.5-3.8s2.5 1.6 2.5 3.8"/></svg>
+          </div>
+          Teams
+        </div>
+        <div class="rail-item">
+          <div class="ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+          </div>
+          Calendar
+        </div>
+        <div class="rail-item">
+          <div class="ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+          </div>
+          OneDrive
+        </div>
+      </nav>
+
+      <!-- SECONDARY RAIL -->
+      <aside class="secondary" aria-label="Teams list">
+        <header>
+          <h2>Teams</h2>
+          <div style="color:var(--text-secondary); font-size:18px;">⋯</div>
+        </header>
+        <div class="search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          Search this team
+        </div>
+
+        <div class="team">
+          <div class="team-header">
+            <div class="team-avatar">U</div>
+            <span>Unic · FinOps for AI</span>
+          </div>
+          <div class="channel">General</div>
+          <div class="channel">Vendor budgets</div>
+          <div class="channel active">
+            Claude Spend Alerts
+            <span class="dot"></span>
+          </div>
+          <div class="channel">Copilot &amp; GitHub</div>
+          <div class="channel">Invoices &amp; PO</div>
+          <div class="channel">Forecast reviews</div>
+        </div>
+
+        <div class="team" style="margin-top: 16px;">
+          <div class="team-header">
+            <div class="team-avatar" style="background:linear-gradient(135deg,#d6794a,#c4592a);">E</div>
+            <span>Engineering</span>
+          </div>
+          <div class="channel">General</div>
+          <div class="channel">Platform</div>
+          <div class="channel">AI experiments</div>
+        </div>
+      </aside>
+
+      <!-- MAIN VIEW -->
+      <main class="main">
+        <header class="channel-header">
+          <div class="title">
+            <strong>Claude Spend Alerts</strong>
+            <small>Hourly digest, threshold breaches, and forecast risk — posted by Unic Hub</small>
+          </div>
+          <div class="tabs">
+            <span class="active">Posts</span>
+            <span>Files</span>
+            <span>Spend dashboard ⤴</span>
+          </div>
+          <div class="actions" aria-hidden="true">
+            <span title="Meet">📹</span>
+            <span title="More">⋯</span>
+          </div>
+        </header>
+
+        <div class="stream">
+          <div class="day-sep">Today · 21 May 2026</div>
+
+          <!-- ====================== CARD 1: HOURLY DIGEST ====================== -->
+          <div class="msg">
+            <div class="avatar bot">UH</div>
+            <div class="msg-body">
+              <div class="msg-meta">
+                <span class="author">Unic Hub</span>
+                <span class="app-tag">via Workflows</span>
+                <span class="time">· 14:02</span>
+              </div>
+
+              <div class="ac-card">
+                <div class="ac-section tone-info">
+                  <h3 class="ac-title">
+                    <span class="icon info" aria-hidden="true">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+                    </span>
+                    Claude API spend · hourly digest
+                  </h3>
+                  <div class="ac-subtitle">
+                    May 2026 month-to-date · synced <code>14:01 CET</code> · data is <strong>1 min</strong> old
+                  </div>
+                </div>
+
+                <div class="ac-section">
+                  <div class="ac-kpis">
+                    <div class="ac-kpi">
+                      <span class="label">MTD spend</span>
+                      <span class="value">$18,420</span>
+                      <span class="delta up">▲ 12% vs same day last month</span>
+                    </div>
+                    <div class="ac-kpi">
+                      <span class="label">Workspaces &gt; 80%</span>
+                      <span class="value">3 <span style="font-size:13px; font-weight:500; color:var(--text-secondary);">of 11</span></span>
+                      <span class="delta up">▲ 2 since 09:00</span>
+                    </div>
+                    <div class="ac-kpi">
+                      <span class="label">Forecast</span>
+                      <span class="value" style="color:var(--danger-text);">At risk</span>
+                      <span class="delta">2 workspaces projected to overshoot</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ac-section">
+                  <div class="ac-list">
+                    <div class="header">
+                      <span>Top utilization · % of monthly limit</span>
+                      <span>Spend / limit</span>
+                    </div>
+
+                    <div class="ac-row">
+                      <span class="name">research-claude <span class="pill">102%</span></span>
+                      <span class="amount">$5,120 / $5,000</span>
+                      <div class="bar"><div class="fill danger" style="width:100%;"></div></div>
+                    </div>
+
+                    <div class="ac-row">
+                      <span class="name">support-bots <span class="pill warn">91%</span></span>
+                      <span class="amount">$2,730 / $3,000</span>
+                      <div class="bar"><div class="fill warn" style="width:91%;"></div></div>
+                    </div>
+
+                    <div class="ac-row">
+                      <span class="name">product-ai <span class="pill warn">84%</span></span>
+                      <span class="amount">$4,200 / $5,000</span>
+                      <div class="bar"><div class="fill warn" style="width:84%;"></div></div>
+                    </div>
+
+                    <div class="ac-row">
+                      <span class="name">engineering-prod <span class="pill ok">67%</span></span>
+                      <span class="amount">$4,020 / $6,000</span>
+                      <div class="bar"><div class="fill" style="width:67%;"></div></div>
+                    </div>
+
+                    <div class="ac-row">
+                      <span class="name">internal-tools <span class="pill ok">42%</span></span>
+                      <span class="amount">$840 / $2,000</span>
+                      <div class="bar"><div class="fill" style="width:42%;"></div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ac-actions">
+                  <button class="ac-btn primary">Open dashboard</button>
+                  <button class="ac-btn">View all 11 workspaces</button>
+                  <button class="ac-btn">Mute hourly · 24h</button>
+                </div>
+                <div class="ac-footer-meta">
+                  <span class="dot"></span>
+                  Source: <code>anthropic_workspace_costs</code> · cron <code>/api/sync/anthropic-api-costs</code> · next post 15:01
+                </div>
+              </div>
+              <div class="caption">
+                <strong>Trigger:</strong> end of every successful hourly Anthropic sync. One post per channel per hour. Skipped if sync is stale (&gt; 70&nbsp;min) — a stale-data warning post is sent instead.
+              </div>
+            </div>
+          </div>
+
+          <!-- ====================== CARD 2: THRESHOLD BREACH ====================== -->
+          <div class="msg">
+            <div class="avatar bot">UH</div>
+            <div class="msg-body">
+              <div class="msg-meta">
+                <span class="author">Unic Hub</span>
+                <span class="app-tag">via Workflows</span>
+                <span class="time">· 14:02</span>
+              </div>
+
+              <div class="ac-card">
+                <div class="ac-section tone-danger">
+                  <h3 class="ac-title">
+                    <span class="icon danger" aria-hidden="true">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2 1 22h22L12 2z"/><path d="M12 9v6M12 18.5v.5" stroke="#fff"/></svg>
+                    </span>
+                    Workspace over budget · research-claude
+                  </h3>
+                  <div class="ac-subtitle">
+                    Crossed <strong>100%</strong> of monthly limit at <code>13:58 CET</code> · first breach this month
+                  </div>
+                </div>
+
+                <div class="ac-section">
+                  <div class="ac-fact-set">
+                    <span class="k">Workspace</span><span class="v">research-claude</span>
+                    <span class="k">Monthly limit</span><span class="v">$5,000.00</span>
+                    <span class="k">Spend MTD</span><span class="v bad">$5,120.40 · 102%</span>
+                    <span class="k">Last 24 h</span><span class="v">$612.18 · 3.4× the 30-day avg</span>
+                    <span class="k">Projected EOM</span><span class="v bad">$8,940 · +$3,940 over (78% overshoot)</span>
+                    <span class="k">Top model</span><span class="v">claude-opus-4-7 · 71% of spend</span>
+                  </div>
+                </div>
+
+                <div class="ac-section">
+                  <p class="ac-text">
+                    Spend accelerated after a backfill job started at <strong>11:20</strong>. The OLS forecast on the last
+                    14 days now exceeds the ceiling by <strong>$3,940</strong>. Recommended actions: raise the cap,
+                    pause the workspace, or open the run-rate breakdown.
+                  </p>
+                </div>
+
+                <div class="ac-actions">
+                  <button class="ac-btn primary">Open workspace</button>
+                  <button class="ac-btn">Raise monthly limit</button>
+                  <button class="ac-btn danger">Pause workspace</button>
+                  <button class="ac-btn">Snooze · 4 h</button>
+                </div>
+                <div class="ac-footer-meta">
+                  <span class="dot" style="background: var(--danger-border);"></span>
+                  Breach state stored — won't re-fire for the same workspace this month unless utilization drops &lt; 80% and rises again.
+                </div>
+              </div>
+              <div class="caption">
+                <strong>Trigger:</strong> any workspace crosses 80%, 100%, or 120% of <code>anthropic_workspace_limits.monthly_cap</code> since the previous sync. Idempotency on <code>(workspace_id, threshold, billing_month)</code>.
+              </div>
+            </div>
+          </div>
+
+          <!-- ====================== CARD 3: FORECAST AT RISK ====================== -->
+          <div class="msg">
+            <div class="avatar bot">UH</div>
+            <div class="msg-body">
+              <div class="msg-meta">
+                <span class="author">Unic Hub</span>
+                <span class="app-tag">via Workflows</span>
+                <span class="time">· 14:03</span>
+              </div>
+
+              <div class="ac-card">
+                <div class="ac-section tone-warn">
+                  <h3 class="ac-title">
+                    <span class="icon warn" aria-hidden="true">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+                    </span>
+                    Forecast: product-ai projected to overshoot
+                  </h3>
+                  <div class="ac-subtitle">
+                    Linear forecast on the last 14 days · <strong>89% confidence</strong> · status changed to <code>at_risk</code>
+                  </div>
+                </div>
+
+                <div class="ac-section">
+                  <svg class="spark" viewBox="0 0 500 50" preserveAspectRatio="none" aria-hidden="true">
+                    <line class="ceiling" x1="0" y1="22" x2="500" y2="22"/>
+                    <path class="path-fill" d="M0,42 L20,40 L40,41 L60,37 L80,38 L100,34 L120,33 L140,30 L160,32 L180,28 L200,27 L220,25 L240,24 L260,22 L280,21 L300,22 L300,50 L0,50 Z"/>
+                    <path class="path-line" d="M0,42 L20,40 L40,41 L60,37 L80,38 L100,34 L120,33 L140,30 L160,32 L180,28 L200,27 L220,25 L240,24 L260,22 L280,21 L300,22"/>
+                    <path class="path-forecast" d="M300,22 L340,18 L380,14 L420,10 L460,6 L500,2"/>
+                    <text x="2" y="18" font-size="9" fill="#8a8a8a">$5k limit</text>
+                    <text x="305" y="35" font-size="9" fill="#a4262c">forecast →</text>
+                  </svg>
+                </div>
+
+                <div class="ac-section" style="padding-top: 4px;">
+                  <div class="ac-fact-set">
+                    <span class="k">Workspace</span><span class="v">product-ai</span>
+                    <span class="k">Spend MTD</span><span class="v">$4,200 · 84%</span>
+                    <span class="k">7-day run rate</span><span class="v warn">$210/day · ▲ 28% WoW</span>
+                    <span class="k">Projected EOM</span><span class="v warn">$5,890 · +$890 over</span>
+                    <span class="k">Crosses 100% on</span><span class="v warn">28 May 2026 · in 7 days</span>
+                    <span class="k">Driving model</span><span class="v">claude-sonnet-4-6 · +44% WoW invocations</span>
+                  </div>
+                </div>
+
+                <div class="ac-actions">
+                  <button class="ac-btn primary">Open forecast</button>
+                  <button class="ac-btn">Investigate run-rate spike</button>
+                  <button class="ac-btn">Snooze · this month</button>
+                </div>
+                <div class="ac-footer-meta">
+                  <span class="dot" style="background:#d29200;"></span>
+                  Re-evaluated each sync. Auto-resolves and posts a "back on track" update when status returns to <code>on_track</code>.
+                </div>
+              </div>
+              <div class="caption">
+                <strong>Trigger:</strong> <code>forecastBudget()</code> in <code>src/lib/forecast.ts</code> returns <code>status: at_risk</code> on this sync but was <code>on_track</code> on the previous sync. Edge-triggered, not level-triggered.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="composer">
+          <div class="box">
+            ✎ &nbsp; Reply to Unic Hub… &nbsp;&nbsp;&nbsp; <span style="float:right;">📎 😊 🖼 ⋯</span>
+          </div>
+        </div>
+      </main>
+    </section>
+
+    <!-- ============================ FOOTER NOTES ============================ -->
+    <section class="notes-panel">
+      <h2>How each card is produced</h2>
+      <p style="margin:6px 0 0; color:var(--text-secondary); font-size:13px;">
+        All three cards are static Adaptive Card v1.5 JSON payloads POSTed to a per-channel Workflows webhook URL. No bot,
+        no Entra app, no manifest — fire-and-forget HTTP from the existing hourly cron. Each post is a new message
+        (Workflows webhooks cannot edit in place).
+      </p>
+
+      <div class="notes-grid">
+        <div class="note-card info">
+          <h3>1. Hourly digest <span class="badge">always</span></h3>
+          <p>
+            Posted once per successful sync. Pulls <code>getDashboardKpis()</code> + the top 5 entries from
+            <code>getWorkspaceList()</code> sorted by <code>utilizationPct</code>. Skipped if
+            <code>getSyncStatus().isStale</code> is true; a stale-data warning posts instead.
+          </p>
+        </div>
+        <div class="note-card danger">
+          <h3>2. Threshold breach <span class="badge">edge-triggered</span></h3>
+          <p>
+            Fired once per workspace per threshold (80, 100, 120%) per billing month. Idempotency stored in a new
+            <code>anthropic_alert_state</code> table to survive cron restarts and re-runs.
+          </p>
+        </div>
+        <div class="note-card warn">
+          <h3>3. Forecast at-risk <span class="badge">edge-triggered</span></h3>
+          <p>
+            Fired when <code>forecastBudget()</code> flips from <code>on_track</code> → <code>at_risk</code>, and
+            again when it flips back. Single source-of-truth: the same forecast already shown in the in-app dashboard.
+          </p>
+        </div>
+      </div>
+
+      <div class="legend-row">
+        <span><span class="sw" style="background:var(--ok-border);"></span>On track (&lt; 80%)</span>
+        <span><span class="sw" style="background:#d29200;"></span>Approaching limit (80–99%)</span>
+        <span><span class="sw" style="background:var(--danger-border);"></span>Over budget (≥ 100%)</span>
+        <span style="margin-left:auto;">Channel: <strong>Unic · FinOps for AI &gt; Claude Spend Alerts</strong></span>
+        <span>Webhook: <code>https://prod-XX.westeurope.logic.azure.com/workflows/…</code></span>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

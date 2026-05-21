@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Plan · Claude Spend → Microsoft Teams (Option 1)</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --bg-panel: #ffffff;
+    --bg-code: #0f172a;
+    --bg-code-soft: #f4f4f5;
+    --bg-side: #f1f1f3;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #a1a1aa;
+    --teams: #5b5fc7;
+    --teams-deep: #4f52b2;
+    --teams-soft: #ebecfa;
+
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+    --ok: #047857;
+    --ok-bg: #d1fae5;
+    --info-bg: #dbeafe;
+    --info: #1d4ed8;
+
+    --code-fg: #e2e8f0;
+    --code-key: #93c5fd;
+    --code-str: #fcd34d;
+    --code-num: #c084fc;
+    --code-cmt: #64748b;
+    --code-kw: #f472b6;
+
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: var(--font); color: var(--text); background: var(--bg); }
+  body { -webkit-font-smoothing: antialiased; }
+
+  /* Layout */
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 0;
+    min-height: 100vh;
+  }
+  aside.toc {
+    background: var(--bg-side);
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  aside.toc h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin: 0 0 12px;
+  }
+  aside.toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: toc;
+    font-size: 13px;
+  }
+  aside.toc li {
+    counter-increment: toc;
+    margin-bottom: 6px;
+  }
+  aside.toc a {
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.35;
+  }
+  aside.toc a::before {
+    content: counter(toc, decimal) ". ";
+    color: var(--text-faint);
+    margin-right: 4px;
+  }
+  aside.toc a:hover { background: rgba(0,0,0,0.05); }
+
+  main.doc {
+    max-width: 920px;
+    width: 100%;
+    padding: 48px 56px 96px;
+    margin: 0;
+  }
+  header.doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  header.doc-header .crumb {
+    font-size: 12px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  header.doc-header h1 {
+    margin: 0 0 6px;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+  }
+  header.doc-header p.subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 760px;
+    line-height: 1.5;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+    font-size: 12px;
+  }
+  .meta-grid .cell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .meta-grid .cell .k {
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .meta-grid .cell .v {
+    font-weight: 600;
+  }
+
+  h2.section {
+    counter-increment: section;
+    margin: 56px 0 16px;
+    font-size: 22px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h2.section::before {
+    content: counter(section) ". ";
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+  main.doc { counter-reset: section; }
+  h3 {
+    margin: 28px 0 10px;
+    font-size: 16px;
+    letter-spacing: -0.005em;
+  }
+  h4 {
+    margin: 18px 0 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  p { line-height: 1.65; margin: 0 0 12px; font-size: 14.5px; }
+  ul, ol { line-height: 1.65; font-size: 14.5px; }
+  li { margin-bottom: 4px; }
+  li > p { margin-bottom: 4px; }
+
+  /* Code */
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--bg-code-soft);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--bg-code);
+    color: var(--code-fg);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 12px 0 20px;
+    border: 1px solid #1e293b;
+    position: relative;
+  }
+  pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  pre .filepath {
+    position: absolute;
+    top: 8px; right: 12px;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    background: #1e293b;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    text-transform: none;
+  }
+  .tag-new { color: #6ee7b7; }
+  .tag-edit { color: #fcd34d; }
+  .k { color: var(--code-key); }
+  .s { color: var(--code-str); }
+  .n { color: var(--code-num); }
+  .c { color: var(--code-cmt); font-style: italic; }
+  .kw { color: var(--code-kw); }
+
+  /* Callouts */
+  .callout {
+    border-left: 3px solid;
+    padding: 12px 14px;
+    margin: 16px 0 20px;
+    border-radius: 4px;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .callout strong { font-weight: 600; }
+  .callout.note { background: var(--info-bg); border-color: var(--info); color: #1e3a8a; }
+  .callout.warn { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+  .callout.danger { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+  .callout.ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+  .callout .label {
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 11px; display: block; margin-bottom: 4px;
+  }
+
+  /* File chip */
+  .file {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: #fff;
+    border: 1px solid var(--border-strong);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .file.new::before {
+    content: "NEW";
+    color: #047857; font-weight: 700; font-size: 9.5px; letter-spacing: 0.06em;
+  }
+  .file.edit::before {
+    content: "EDIT";
+    color: #b45309; font-weight: 700; font-size: 9.5px; letter-spacing: 0.06em;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-side);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  td code { font-size: 11.5px; }
+
+  /* Architecture diagram */
+  .arch {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 16px 0 24px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    overflow-x: auto;
+    line-height: 1.5;
+    white-space: pre;
+  }
+
+  /* Flow steps */
+  .steps {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+  }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 8px 8px 8px 44px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+  }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 8px; top: 8px;
+    width: 24px; height: 24px;
+    background: var(--teams);
+    color: #fff;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--mono);
+  }
+
+  /* JSON pretty boxes */
+  details.json-box {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 12px 0 20px;
+    overflow: hidden;
+  }
+  details.json-box summary {
+    padding: 10px 14px;
+    background: var(--bg-side);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    user-select: none;
+  }
+  details.json-box[open] summary { border-bottom-color: var(--border); }
+  details.json-box pre { margin: 0; border-radius: 0; border: none; }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge.new { background: #d1fae5; color: #047857; }
+  .badge.edit { background: #fef3c7; color: #b45309; }
+  .badge.const { background: #e0e7ff; color: #4338ca; }
+  .badge.test { background: #f3e8ff; color: #6b21a8; }
+
+  /* Inline diff */
+  .diff {
+    background: #0f172a; color: var(--code-fg);
+    padding: 14px 16px;
+    border-radius: 8px; font-family: var(--mono); font-size: 12.5px;
+    line-height: 1.55;
+    margin: 12px 0 20px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .diff .add { color: #6ee7b7; }
+  .diff .del { color: #fca5a5; }
+  .diff .ctx { color: #cbd5e1; }
+</style>
+</head>
+
+<body>
+<div class="shell">
+
+  <!-- ============= TOC ============= -->
+  <aside class="toc">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#scope">Scope</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#data-model">Data model</a></li>
+      <li><a href="#modules">Module layout</a></li>
+      <li><a href="#webhook-client">Teams webhook client</a></li>
+      <li><a href="#card-renderer">Card renderer</a></li>
+      <li><a href="#evaluator">Alert evaluator</a></li>
+      <li><a href="#integration">Cron integration</a></li>
+      <li><a href="#config">Configuration</a></li>
+      <li><a href="#payloads">Card payloads</a></li>
+      <li><a href="#failure">Failure modes</a></li>
+      <li><a href="#tests">Test plan</a></li>
+      <li><a href="#rollout">Rollout</a></li>
+      <li><a href="#open">Open questions</a></li>
+    </ol>
+  </aside>
+
+  <!-- ============= DOC ============= -->
+  <main class="doc">
+
+    <header class="doc-header">
+      <div class="crumb">Spec 030 · Claude Spend → Microsoft Teams</div>
+      <h1>Implementation Plan — Option 1</h1>
+      <p class="subtitle">
+        Post Adaptive Cards into a Microsoft Teams channel from the existing hourly Anthropic sync via an
+        incoming Workflows webhook. Three card types: hourly digest, threshold-breach alert, forecast-at-risk
+        alert. No bot, no Teams app manifest, no Entra registration.
+      </p>
+      <div class="meta-grid">
+        <div class="cell"><div class="k">Feature</div><div class="v">030</div></div>
+        <div class="cell"><div class="k">Status</div><div class="v">Plan · rev 2</div></div>
+        <div class="cell"><div class="k">Effort</div><div class="v">~1.5 days</div></div>
+        <div class="cell"><div class="k">Risk</div><div class="v">Low</div></div>
+      </div>
+
+      <div class="callout warn" style="margin-top:20px;">
+        <span class="label">Revisions in this pass</span>
+        Self-review found three structural issues that would have hit during implementation. The plan now reflects the fixes —
+        sections marked <strong>(rev 2)</strong> below contain the updates.
+        <ul style="margin: 8px 0 0; padding-left: 22px;">
+          <li><strong>Auth mismatch.</strong> Cron has no NextAuth session — every existing server action would return empty data. Solved by extracting an auth-free data layer at <code>src/lib/anthropic/queries.ts</code>.</li>
+          <li><strong>Forecast &amp; data sourcing.</strong> The existing <code>forecastBudget()</code> is for annual budgets, not workspace-monthly caps. Several card fields had no source. New <code>forecastWorkspaceMonth()</code> + "Top model" deferred to Phase 1.5.</li>
+          <li><strong>Threshold model.</strong> Overlapping <code>[80,100)</code>/<code>[100,120)</code>/<code>[≥120)</code> ranges with an <code>active</code> boolean produced confusing semantics. Replaced with one row per workspace per month + three nullable "first-fired-at" timestamps. Each threshold fires exactly once per workspace per billing month.</li>
+        </ul>
+      </div>
+    </header>
+
+    <!-- ============= 1. SCOPE ============= -->
+    <h2 class="section" id="scope">Scope</h2>
+
+    <h3>In scope</h3>
+    <ul>
+      <li>One outbound POST to a Teams Workflows webhook URL per <em>relevant</em> event, fired at the end of the existing hourly Anthropic cost sync (<code>/api/sync/anthropic-api-costs</code>).</li>
+      <li>Three Adaptive Card v1.4 templates: <strong>hourly digest</strong>, <strong>threshold-breach</strong> (80% / 100% / 120%), <strong>forecast at-risk</strong> (state transition <code>on_track → at_risk</code> or back).</li>
+      <li>New table <code>anthropic_alert_state</code> for idempotency — alerts are edge-triggered, not level-triggered.</li>
+      <li>Stale-data guard: if the sync is stale, post a single stale-data warning instead of the digest.</li>
+      <li>Env-driven enable/disable. No UI changes in v1.</li>
+      <li>Tests: unit for the renderer, integration for the evaluator + state machine, manual test for an end-to-end webhook POST against a real channel.</li>
+    </ul>
+
+    <h3>Out of scope (deferred)</h3>
+    <ul>
+      <li>Bot Framework / Universal Action <code>refresh</code> / auto-refreshing cards.</li>
+      <li>Per-user Activity Feed pings.</li>
+      <li>Teams personal tab embedding the dashboard.</li>
+      <li>Settings UI to toggle Teams posting, mute card types, or test a webhook (Phase 1.5).</li>
+      <li>Cards beyond the three above — see <code>specs/030-claude-spend-teams-alerts/mockup.html</code> for the visual contract and the &quot;explore additional information&quot; thread for backlog items.</li>
+      <li>Cross-product cards (Copilot, invoices, licenses) — deferred to a later spec.</li>
+    </ul>
+
+    <div class="callout note">
+      <span class="label">Freshness ceiling</span>
+      The sync runs hourly. &quot;Real-time&quot; here means &quot;seconds after the hourly cron lands.&quot; Anthropic does not expose
+      webhooks for billing/usage events, so polling is the only architecture available.
+    </div>
+
+    <!-- ============= 2. ARCHITECTURE ============= -->
+    <h2 class="section" id="architecture">Architecture</h2>
+
+    <p>The integration is an additive post-step on the existing sync. No new cron, no new route, no new auth.</p>
+
+    <div class="arch">┌──────────────────────────────────────────────────────────────────────────────────┐
+│  GET /api/sync/anthropic-api-costs   (Vercel Cron, hourly)                       │
+│  └─ makeCronSyncRoute(run, "Anthropic API costs")          [existing]            │
+│     └─ requireCronSecret(req)                              [existing]            │
+│     └─ run()                                               [existing, +1 step]   │
+│        ├─ withSyncLock(...) → fetch Anthropic → upsert anthropic_workspace_costs │
+│        ├─ on success → stamp anthropic_sync_status         [existing]            │
+│        └─ on success → evaluateAndPostTeamsAlerts()        [NEW, try/catch]      │
+│           ├─ if !env.TEAMS_WEBHOOK_URL → return            [no-op]               │
+│           ├─ loadSyncStatus()                              [NEW · queries.ts]    │
+│           ├─ loadDashboardKpis(month)                      [NEW · queries.ts]    │
+│           ├─ loadWorkspaceList()                           [NEW · queries.ts]    │
+│           ├─ forecastWorkspaceMonth(ws, month)             [NEW · per workspace] │
+│           ├─ diff against anthropic_alert_state            [NEW table]           │
+│           ├─ build card payload(s):                                              │
+│           │    • hourly digest          (always, unless stale)                   │
+│           │    • threshold breach       (per workspace × threshold, 1×/month)    │
+│           │    • forecast at-risk       (per workspace, on edge transition)      │
+│           │    • stale-data warning     (if isStale)                             │
+│           └─ for each payload: postCard(env.TEAMS_WEBHOOK_URL, payload)          │
+│              └─ retryWithBackoff() — handle 429 / 5xx                            │
+└──────────────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+                       https://prod-XX.<region>.logic.azure.com/...
+                            (Workflows incoming webhook)
+                                       │
+                                       ▼
+                       Microsoft Teams channel: Claude Spend Alerts
+
+──── Data layer (rev 2) ──────────────────────────────────────────────────────────
+  src/lib/anthropic/queries.ts        ← auth-free pure DB queries (NEW)
+       │
+       ├──→ called directly by the evaluator (no session, no admin gate)
+       └──→ wrapped by src/actions/anthropic-global.ts for admin UI
+            (requireAdmin + unstable_cache stay there, but no DB code below them)</div>
+
+    <h4>Design choices</h4>
+    <ul>
+      <li><strong>Piggyback the sync, don&apos;t add a cron.</strong> Same freshness, one less moving part, no new auth.</li>
+      <li><strong>Alert evaluation is non-blocking.</strong> Wrapped in <code>try/catch</code>; a failure logs but does not flip the sync to <code>partial</code>/<code>failed</code>. The sync&apos;s job is data integrity; alerts are a side effect.</li>
+      <li><strong>Edge-triggered alerts.</strong> A workspace stuck at 110% does not spam the channel every hour — it posts once when it first crosses, and again only if it drops &lt; 80% and rises again, or crosses a higher threshold.</li>
+      <li><strong>Workflows webhook only — no bot, no Entra app.</strong> Confirmed: <code>Action.Execute</code>, <code>Action.Submit</code>, and <code>refresh</code> all require a bot. We use <code>Action.OpenUrl</code> exclusively.</li>
+    </ul>
+
+    <!-- ============= 3. DATA MODEL ============= -->
+    <h2 class="section" id="data-model">Data model</h2>
+
+    <p>One new table. No new enums (the original tier enum was dropped — see <strong>rev 2</strong> below). No changes to existing tables.</p>
+
+    <h3>New table: <code>anthropic_alert_state</code> <span class="badge edit">rev 2</span></h3>
+    <p>
+      One row per <code>(workspace_id, billing_month)</code> — the idempotency ledger. Each threshold has a nullable
+      <code>*_fired_at</code> timestamp: NULL means &quot;never fired this month&quot;, non-NULL means &quot;already fired, don&apos;t
+      fire again&quot;. Forecast tracking is stored as a boolean + timestamp pair on the same row (it&apos;s edge-triggered;
+      thresholds are not).
+    </p>
+
+<pre><span class="filepath">src/lib/db/schema.ts (edit)</span><span class="c">// No new enum — the previous threshold enum is replaced by three nullable timestamp columns.</span>
+
+export const <span class="k">anthropicAlertState</span> = pgTable(<span class="s">"anthropic_alert_state"</span>, {
+  id:                   serial(<span class="s">"id"</span>).primaryKey(),
+
+  <span class="c">// workspaceId is varchar(64) NOT NULL. For the special "default" workspace</span>
+  <span class="c">// (where Anthropic returns workspace_id = null), we coalesce to "__default__"</span>
+  <span class="c">// before insert — see queries.ts. This sidesteps Postgres's NULL-is-not-equal-NULL</span>
+  <span class="c">// gotcha on the unique index.</span>
+  workspaceId:          varchar(<span class="s">"workspace_id"</span>, { length: <span class="n">64</span> }).notNull(),
+  billingMonth:         varchar(<span class="s">"billing_month"</span>, { length: <span class="n">7</span> }).notNull(),  <span class="c">// YYYY-MM</span>
+
+  <span class="c">// Threshold alerts: fire-once-per-month, never re-fire.</span>
+  threshold80FiredAt:   timestamp(<span class="s">"threshold_80_fired_at"</span>),
+  threshold100FiredAt:  timestamp(<span class="s">"threshold_100_fired_at"</span>),
+  threshold120FiredAt:  timestamp(<span class="s">"threshold_120_fired_at"</span>),
+
+  <span class="c">// Forecast: edge-triggered. Fires when forecastAtRisk transitions false → true.</span>
+  forecastAtRisk:       boolean(<span class="s">"forecast_at_risk"</span>).notNull().default(<span class="kw">false</span>),
+  forecastChangedAt:    timestamp(<span class="s">"forecast_changed_at"</span>),
+
+  createdAt:            timestamp(<span class="s">"created_at"</span>).notNull().defaultNow(),
+  updatedAt:            timestamp(<span class="s">"updated_at"</span>).notNull().defaultNow(),
+}, (t) =&gt; [
+  uniqueIndex(<span class="s">"alert_state_workspace_month_idx"</span>).on(t.workspaceId, t.billingMonth),
+]);</pre>
+
+    <table>
+      <tr><th>Column</th><th>Purpose</th></tr>
+      <tr><td><code>threshold_80_fired_at</code> / <code>_100_</code> / <code>_120_</code></td><td>NULL until that threshold first crosses this month. Once set, never re-fires for the same (workspace, month).</td></tr>
+      <tr><td><code>forecast_at_risk</code></td><td>Current state of the forecast. Used to detect <code>false → true</code> edges (and optionally back).</td></tr>
+      <tr><td><code>forecast_changed_at</code></td><td>Timestamp of the last state flip. Lets the card show &quot;status changed N minutes ago&quot;.</td></tr>
+      <tr><td>composite unique</td><td><code>(workspace_id, billing_month)</code> — exactly one row per workspace per month.</td></tr>
+    </table>
+
+    <div class="callout note">
+      <span class="label">Why fire-once-per-month for thresholds</span>
+      A workspace stuck at 110% does not need a fresh card every hour, every day, or every time it dips to 79% and pops
+      back. The breach event is &quot;crossed for the first time this month&quot; — once an operator has seen it, more cards add
+      noise, not signal. Forecast cards remain edge-triggered because forecast flips are themselves rare and meaningful.
+    </div>
+
+    <h4>Migration command</h4>
+    <pre>pnpm db:generate   <span class="c"># produces .migrations/XXXX_*.sql</span>
+pnpm db:migrate    <span class="c"># applies to DATABASE_URL</span></pre>
+
+    <div class="callout warn">
+      <span class="label">Migration review</span>
+      Run the <strong>drizzle-migration-reviewer</strong> agent on the generated SQL before applying to production —
+      this is a brand-new table with no FK references, so risk is minimal, but the policy applies.
+    </div>
+
+    <!-- ============= 4. MODULE LAYOUT ============= -->
+    <h2 class="section" id="modules">Module layout</h2>
+
+    <p>
+      Two new namespaces — <code>src/lib/anthropic/</code> for the auth-free data layer
+      (used by both the existing server actions and the new evaluator) and <code>src/lib/teams/</code> for the
+      Teams-specific code — plus one schema edit and one source-handler edit.
+      <span class="badge edit">rev 2</span>
+    </p>
+
+<pre>src/
+├── actions/
+│   └── anthropic-global.ts                              <span class="tag-edit">refactor: actions delegate to queries.ts (no behavior change for UI)</span>
+├── lib/
+│   ├── db/
+│   │   └── schema.ts                                    <span class="tag-edit">+ anthropicAlertState (rev 2 shape)</span>
+│   ├── env.ts                                           <span class="tag-edit">+ TEAMS_WEBHOOK_URL, TEAMS_DASHBOARD_BASE_URL</span>
+│   ├── sync/
+│   │   └── sources/
+│   │       └── anthropic-workspace.ts                   <span class="tag-edit">+ call evaluateAndPostTeamsAlerts() on success</span>
+│   ├── anthropic/                                       <span class="tag-new">NEW namespace — auth-free data layer</span>
+│   │   ├── queries.ts                                   <span class="tag-new">loadSyncStatus(), loadDashboardKpis(month), loadWorkspaceList()</span>
+│   │   └── forecast-workspace.ts                        <span class="tag-new">forecastWorkspaceMonth(ws, month, today) — trailing-rate, not OLS</span>
+│   └── teams/
+│       ├── webhook.ts                                   <span class="tag-new">postCard() — fetch wrapper w/ retry</span>
+│       ├── cards.ts                                     <span class="tag-new">renderDigestCard(), renderBreachCard(), renderForecastCard(), renderStaleCard()</span>
+│       ├── evaluator.ts                                 <span class="tag-new">evaluateAndPostTeamsAlerts() — pure orchestration</span>
+│       ├── state.ts                                     <span class="tag-new">readAlertState(month), upsertAlertState(diff)</span>
+│       ├── format.ts                                    <span class="tag-new">tiny helpers: $, %, ago()</span>
+│       └── types.ts                                     <span class="tag-new">card-input types, AlertEvaluation, CardEnvelope</span>
+
+tests/
+├── unit/
+│   └── teams/
+│       ├── cards.test.ts                                <span class="tag-new">snapshot tests for each card variant</span>
+│       └── format.test.ts                               <span class="tag-new">$, %, ago()</span>
+└── integration/
+    ├── anthropic/
+    │   └── forecast-workspace.test.ts                   <span class="tag-new">trailing-rate math against seeded daily costs</span>
+    └── teams/
+        ├── evaluator.test.ts                            <span class="tag-new">fire-once-per-month invariants + forecast edges</span>
+        └── webhook.test.ts                              <span class="tag-new">postCard against a mocked fetch</span></pre>
+
+    <h4>Server-action refactor (no UI behavior change)</h4>
+    <p>
+      The existing <code>getSyncStatus()</code>, <code>getDashboardKpis()</code>, <code>getWorkspaceList()</code>
+      keep their signatures and their <code>requireAdmin() + unstable_cache()</code> wrappers. Their
+      <em>bodies</em> shrink to a single call into <code>src/lib/anthropic/queries.ts</code>. The DB queries
+      themselves move into the queries module. Both surfaces (UI server actions and the cron-time evaluator) read from
+      the same source — actions enforce the admin gate, the evaluator skips it because it runs under
+      <code>CRON_SECRET</code>.
+    </p>
+
+    <h4>Security hardening for the auth-free data layer</h4>
+    <p>
+      Hoisting org-financial queries above the auth boundary creates a footgun: a future route handler that imports a
+      <code>load*</code> function and forgets to gate would publicly expose spend KPIs. The mitigations below make
+      misuse hard to commit and easy to catch in review.
+    </p>
+    <ul>
+      <li><strong><code>import &quot;server-only&quot;</code></strong> at the top of <code>src/lib/anthropic/queries.ts</code>. Next.js throws a build error if any client-side code tries to import the module, preventing accidental browser bundling.</li>
+      <li><strong>Top-of-file contract comment</strong> naming the two and only two allowed callers (server actions, cron-time evaluator) and stating &quot;callers must enforce authorization themselves.&quot;</li>
+      <li><strong>Naming convention</strong>: queries are <code>load*()</code> (not <code>get*()</code>) to flag &quot;auth-free, caller&apos;s responsibility&quot; distinct from action-style getters.</li>
+      <li><strong>Mandatory review</strong> by the <code>nextauth-security-reviewer</code> sub-agent before merge — explicitly added to the rollout step list.</li>
+      <li><strong>No middleware import</strong> — the queries module must not be imported from <code>middleware.ts</code> or any edge runtime path.</li>
+    </ul>
+    <p style="margin-top: 8px;">
+      Residual risk after mitigations: a hand-written new route that explicitly imports a load function and skips auth.
+      That requires an intentional act and is the kind of regression code review catches. Net assessment: <strong>small
+      incremental risk vs. the original &quot;auth at the boundary&quot; pattern, materially lower than the cost of leaving the
+      cron caller broken.</strong>
+    </p>
+
+    <div class="callout warn">
+      <span class="label">CRON_SECRET blast radius</span>
+      A leaked <code>CRON_SECRET</code> previously gave an attacker the ability to trigger syncs. After this change it
+      also gives them the ability to fire Teams posts to whatever channel <code>TEAMS_WEBHOOK_URL</code> points at. No
+      data exfil (the attacker would need both secrets to read responses), low real value, but worth noting.
+    </div>
+
+    <h4>Why a workspace-monthly forecast module separate from <code>forecastBudget()</code></h4>
+    <p>
+      <code>src/lib/forecast.ts</code>&apos;s <code>forecastBudget()</code> is designed for the annual budget tracker
+      (input: <code>MonthlySpend[]</code> over many months; output: annual projection via OLS). The Teams use case
+      needs <em>monthly</em> projection from <em>daily</em> data over a partial month. Different domain.
+      <code>forecastWorkspaceMonth()</code> uses a 7-day trailing rate scaled to days-remaining-in-month — well-suited
+      for a 30-day cycle and produces the &quot;Crosses 100% on YYYY-MM-DD&quot; date the forecast card needs.
+    </p>
+
+    <!-- ============= 5. WEBHOOK CLIENT ============= -->
+    <h2 class="section" id="webhook-client">Teams webhook client</h2>
+
+    <p>
+      A thin wrapper around <code>fetch</code> that POSTs an Adaptive Card envelope, honors 429 <code>Retry-After</code>,
+      and retries on 412/502/504 per Microsoft&apos;s guidance. Reuses <code>retryWithBackoff()</code> from
+      <code>src/lib/sync/framework.ts</code>.
+    </p>
+
+<pre><span class="filepath">src/lib/teams/webhook.ts (new)</span><span class="kw">import</span> { env } <span class="kw">from</span> <span class="s">"@/lib/env"</span>;
+<span class="kw">import</span> { retryWithBackoff } <span class="kw">from</span> <span class="s">"@/lib/sync/framework"</span>;
+<span class="kw">import type</span> { CardEnvelope } <span class="kw">from</span> <span class="s">"./types"</span>;
+
+<span class="k">const</span> RETRIABLE = <span class="kw">new</span> Set([<span class="n">412</span>, <span class="n">429</span>, <span class="n">502</span>, <span class="n">504</span>]);
+
+<span class="kw">export async function</span> <span class="k">postCard</span>(webhookUrl: string, envelope: CardEnvelope): Promise&lt;void&gt; {
+  <span class="kw">await</span> retryWithBackoff(<span class="kw">async</span> () =&gt; {
+    <span class="k">const</span> res = <span class="kw">await</span> fetch(webhookUrl, {
+      method: <span class="s">"POST"</span>,
+      headers: { <span class="s">"content-type"</span>: <span class="s">"application/json"</span> },
+      body: JSON.stringify(envelope),
+    });
+    <span class="kw">if</span> (res.ok) <span class="kw">return</span>;
+
+    <span class="kw">if</span> (RETRIABLE.has(res.status)) {
+      <span class="k">const</span> retryAfter = Number(res.headers.get(<span class="s">"retry-after"</span>) ?? <span class="n">0</span>);
+      <span class="kw">throw new</span> RetriableError(<span class="s">`Teams webhook ${res.status}`</span>, retryAfter * <span class="n">1000</span>);
+    }
+    <span class="k">const</span> body = <span class="kw">await</span> res.text();
+    <span class="kw">throw new</span> Error(<span class="s">`Teams webhook ${res.status}: ${body.slice(0, 500)}`</span>);
+  }, { maxAttempts: <span class="n">3</span>, baseDelayMs: <span class="n">2000</span>, maxDelayMs: <span class="n">20000</span>, jitterPct: <span class="n">0.2</span> });
+}</pre>
+
+    <div class="callout note">
+      <span class="label">Limits we&apos;re designing under</span>
+      Per-webhook throttle is <strong>4 req/sec</strong>, per-channel cap is <strong>1800 messages/hour</strong>,
+      max payload <strong>28 KB</strong>. Hourly cadence with ≤ 5 cards per run sits at &lt; 0.3% of the per-hour cap.
+    </div>
+
+    <!-- ============= 6. CARD RENDERER ============= -->
+    <h2 class="section" id="card-renderer">Card renderer</h2>
+
+    <p>
+      Pure functions: <code>(input) =&gt; CardEnvelope</code>. No DB access, no side effects, no clock reads — the caller
+      passes in <code>now</code>. This makes snapshot tests trivial and makes the cards reproducible.
+    </p>
+
+    <h4>Renderer module shape</h4>
+<pre><span class="filepath">src/lib/teams/cards.ts (new)</span><span class="kw">export</span> <span class="kw">function</span> <span class="k">renderDigestCard</span>(input: DigestInput): CardEnvelope;
+<span class="kw">export</span> <span class="kw">function</span> <span class="k">renderBreachCard</span>(input: BreachInput): CardEnvelope;
+<span class="kw">export</span> <span class="kw">function</span> <span class="k">renderForecastCard</span>(input: ForecastInput): CardEnvelope;
+<span class="kw">export</span> <span class="kw">function</span> <span class="k">renderStaleCard</span>(input: StaleInput): CardEnvelope;</pre>
+
+    <h4>Input types</h4>
+<pre><span class="filepath">src/lib/teams/types.ts (new)</span><span class="kw">export type</span> <span class="k">DigestInput</span> = {
+  kpis: DashboardKpis;             <span class="c">// from getDashboardKpis()</span>
+  topWorkspaces: WorkspaceListItem[]; <span class="c">// top 5 by utilization, from getWorkspaceList()</span>
+  sync: SyncStatus;                <span class="c">// from getSyncStatus()</span>
+  month: string;                   <span class="c">// "2026-05"</span>
+  dashboardUrl: string;
+};
+
+<span class="kw">export type</span> <span class="k">BreachInput</span> = {
+  workspace: WorkspaceListItem;
+  threshold: <span class="s">"threshold_80"</span> | <span class="s">"threshold_100"</span> | <span class="s">"threshold_120"</span>;
+  projectedMonthEndCents: number;
+  topModel: { name: string; sharePct: number } | <span class="kw">null</span>;
+  workspaceUrl: string;
+  raiseLimitUrl: string;
+};
+
+<span class="kw">export type</span> <span class="k">ForecastInput</span> = {
+  workspace: WorkspaceListItem;
+  forecast: BudgetForecast;        <span class="c">// from forecastBudget()</span>
+  crossesCapOn: Date | <span class="kw">null</span>;
+  runRate7dCents: number;
+  runRateWoWPct: number;
+  workspaceUrl: string;
+};
+
+<span class="kw">export type</span> <span class="k">CardEnvelope</span> = {
+  type: <span class="s">"message"</span>;
+  attachments: [{
+    contentType: <span class="s">"application/vnd.microsoft.card.adaptive"</span>;
+    contentUrl: <span class="kw">null</span>;
+    content: AdaptiveCard;
+  }];
+};</pre>
+
+    <h4>Visual contract</h4>
+    <p>
+      Cards must match the mockup at <code>specs/030-claude-spend-teams-alerts/mockup.html</code>. Notable rendering
+      constraints from the Teams contract investigation:
+    </p>
+    <ul>
+      <li>Use Adaptive Card <code>version: "1.4"</code> for mobile rendering compatibility (1.5 is desktop-only).</li>
+      <li>Only <code>Action.OpenUrl</code> is supported via Workflows webhook. No Submit/Execute, no refresh.</li>
+      <li><strong>SVG and animated GIF are not supported</strong> by Adaptive Card <code>Image</code>. Render utilization bars as nested <code>ColumnSet</code> with weighted widths and tinted <code>Container.style</code> (default / good / warning / attention).</li>
+      <li>Payload ceiling is 28 KB — well above the ~3-5 KB our cards land at.</li>
+      <li>Action buttons in the mockup that imply server-side actions (Pause workspace, Raise limit, Snooze) become <code>Action.OpenUrl</code> deep-links into the in-app dashboard. The button label stays the same; the click flow is &quot;open the page where you can do it&quot;.</li>
+    </ul>
+
+    <div class="callout danger">
+      <span class="label">Don&apos;t leak secrets</span>
+      The webhook URL <em>is</em> the secret. The HMAC <code>sig=</code> in the query string authenticates anyone holding it.
+      Never log the URL, never echo it back in error messages, never include it in <code>sync_events.errorMessage</code>.
+    </div>
+
+    <!-- ============= 7. EVALUATOR ============= -->
+    <h2 class="section" id="evaluator">Alert evaluator</h2>
+
+    <p>
+      The orchestration layer. Pulls data via the auth-free queries module, diffs against the alert-state ledger,
+      emits zero or more cards, persists the new state.
+      <span class="badge edit">rev 2</span>
+    </p>
+
+<pre><span class="filepath">src/lib/teams/evaluator.ts (new)</span><span class="kw">import</span> { loadSyncStatus, loadDashboardKpis, loadWorkspaceList } <span class="kw">from</span> <span class="s">"@/lib/anthropic/queries"</span>;
+<span class="kw">import</span> { forecastWorkspaceMonth } <span class="kw">from</span> <span class="s">"@/lib/anthropic/forecast-workspace"</span>;
+<span class="kw">import</span> { readAlertState, upsertAlertState } <span class="kw">from</span> <span class="s">"./state"</span>;
+<span class="kw">import</span> { postCard } <span class="kw">from</span> <span class="s">"./webhook"</span>;
+<span class="kw">import</span> { env } <span class="kw">from</span> <span class="s">"@/lib/env"</span>;
+
+<span class="kw">export async function</span> <span class="k">evaluateAndPostTeamsAlerts</span>(opts?: {
+  now?: Date;
+}): Promise&lt;{ posted: number; skipped: string[] }&gt; {
+  <span class="kw">if</span> (!env.TEAMS_WEBHOOK_URL) <span class="kw">return</span> { posted: <span class="n">0</span>, skipped: [<span class="s">"webhook_disabled"</span>] };
+
+  <span class="k">const</span> now = opts?.now ?? <span class="kw">new</span> Date();
+  <span class="k">const</span> month = getCurrentMonth(now);
+  <span class="k">const</span> sync = <span class="kw">await</span> loadSyncStatus();
+
+  <span class="c">// Stale guard — short-circuit before doing any other work.</span>
+  <span class="kw">if</span> (sync.isStale) {
+    <span class="kw">await</span> postCard(env.TEAMS_WEBHOOK_URL, renderStaleCard({ sync, month }));
+    <span class="kw">return</span> { posted: <span class="n">1</span>, skipped: [<span class="s">"digest_skipped_stale"</span>] };
+  }
+
+  <span class="k">const</span> [kpis, workspaces, state] = <span class="kw">await</span> Promise.all([
+    loadDashboardKpis(month),
+    loadWorkspaceList(),
+    readAlertState(month),
+  ]);
+
+  <span class="c">// Per-workspace forecasts run in parallel; the call is cheap (single SQL aggregation).</span>
+  <span class="k">const</span> forecasts = <span class="kw">await</span> Promise.all(
+    workspaces.filter(w =&gt; w.workspaceId !== <span class="kw">null</span> &amp;&amp; w.limitCents !== <span class="kw">null</span>).map(w =&gt;
+      forecastWorkspaceMonth(w.workspaceId!, month, now).then(f =&gt; ({ workspace: w, forecast: f }))
+    ),
+  );
+
+  <span class="k">const</span> diff = computeAlertDiff({ workspaces, forecasts, state, now });
+  <span class="k">const</span> envelopes: CardEnvelope[] = [];
+
+  <span class="c">// 1) Hourly digest — always (unless stale).</span>
+  envelopes.push(renderDigestCard({ kpis, topWorkspaces: top5(workspaces), sync, month, dashboardUrl: dashUrl() }));
+
+  <span class="c">// 2) Threshold breaches — only thresholds with no firedAt timestamp yet this month.</span>
+  <span class="kw">for</span> (<span class="k">const</span> b <span class="kw">of</span> diff.thresholdsToFire) {
+    envelopes.push(renderBreachCard(toBreachInput(b)));
+  }
+
+  <span class="c">// 3) Forecast edges — false → true (and optionally true → false).</span>
+  <span class="kw">for</span> (<span class="k">const</span> f <span class="kw">of</span> diff.forecastEdges) {
+    envelopes.push(renderForecastCard(toForecastInput(f)));
+  }
+
+  <span class="c">// Post serially to stay under 4 req/sec.</span>
+  <span class="kw">for</span> (<span class="k">const</span> envelope <span class="kw">of</span> envelopes) {
+    <span class="kw">await</span> postCard(env.TEAMS_WEBHOOK_URL, envelope);
+  }
+
+  <span class="c">// Persist new state only after all cards have posted successfully.</span>
+  <span class="kw">await</span> upsertAlertState(diff, now);
+  <span class="kw">return</span> { posted: envelopes.length, skipped: [] };
+}</pre>
+
+    <h4>State rules (rev 2)</h4>
+    <p>For each <code>(workspaceId, billingMonth)</code> row, the evaluator decides per-column:</p>
+    <table>
+      <tr><th>Column</th><th>Condition</th><th>Action</th><th>Card?</th></tr>
+      <tr><td><code>threshold_80_fired_at</code></td><td><code>NULL</code> AND <code>pct ≥ 80</code></td><td>set to <code>now</code></td><td><strong>yes</strong></td></tr>
+      <tr><td><code>threshold_80_fired_at</code></td><td>non-NULL (any pct)</td><td>no-op</td><td>—</td></tr>
+      <tr><td><code>threshold_100_fired_at</code></td><td><code>NULL</code> AND <code>pct ≥ 100</code></td><td>set to <code>now</code></td><td><strong>yes</strong></td></tr>
+      <tr><td><code>threshold_120_fired_at</code></td><td><code>NULL</code> AND <code>pct ≥ 120</code></td><td>set to <code>now</code></td><td><strong>yes</strong></td></tr>
+      <tr><td><code>forecast_at_risk</code></td><td>was <code>false</code>, now <code>true</code></td><td>flip + stamp <code>forecast_changed_at</code></td><td><strong>yes</strong></td></tr>
+      <tr><td><code>forecast_at_risk</code></td><td>was <code>true</code>, now <code>false</code></td><td>flip + stamp <code>forecast_changed_at</code></td><td>see Q1</td></tr>
+    </table>
+
+    <h4>Threshold semantics</h4>
+    <ul>
+      <li>Each threshold fires <strong>exactly once per (workspace, billing month)</strong>. No fall-then-rise re-fires.</li>
+      <li>A workspace going 0% → 105% in one hour fires both <code>threshold_80</code> and <code>threshold_100</code> in the same evaluation — two cards.</li>
+      <li>A workspace at 110% for 720 hours produces zero new cards after the initial breach.</li>
+      <li>New billing month = new row = thresholds re-armed.</li>
+      <li>Workspaces with <code>limitCents === null</code> are skipped for thresholds. Forecast still runs (no cap = no overshoot, but the run-rate / projection is still computed).</li>
+    </ul>
+
+    <!-- ============= 8. INTEGRATION ============= -->
+    <h2 class="section" id="integration">Cron integration</h2>
+
+    <p>
+      The only change to the existing cron path is a single try-wrapped call at the end of <code>run()</code>, after the
+      sync-status sentinel is stamped.
+    </p>
+
+    <div class="diff">  <span class="ctx">export async function run(triggeredBy?: number, opts?: RunOpts): Promise&lt;{ eventId: number }&gt; {</span>
+  <span class="ctx">    const result = await withSyncLock(</span>
+  <span class="ctx">      { sourceType: "anthropic_api_costs", triggeredBy, operationType: opts?.operationType },</span>
+  <span class="ctx">      async (eventId) =&gt; { /* ...existing... */ return counts; }</span>
+  <span class="ctx">    );</span>
+  <span class="ctx">    if (counts.errorCount === 0) {</span>
+  <span class="ctx">      await db.insert(anthropicSyncStatus).values({ /* sentinel */ }).onConflictDoUpdate(...);</span>
+<span class="add">+     try {</span>
+<span class="add">+       const { posted, skipped } = await evaluateAndPostTeamsAlerts();</span>
+<span class="add">+       console.log(`[teams] posted=${posted} skipped=${skipped.join(",") || "-"}`);</span>
+<span class="add">+     } catch (err) {</span>
+<span class="add">+       console.error("[teams] evaluation failed (non-fatal):", err);</span>
+<span class="add">+     }</span>
+  <span class="ctx">    }</span>
+  <span class="ctx">    return result;</span>
+  <span class="ctx">  }</span></div>
+
+    <ul>
+      <li>Runs only when <code>counts.errorCount === 0</code> — partial-failure syncs don&apos;t post (data may be incomplete).</li>
+      <li>Wrapped in <code>try/catch</code> — Teams posting can never fail the sync.</li>
+      <li>Logs to <code>console</code> per house convention. No new logging infrastructure.</li>
+      <li>No change to <code>makeCronSyncRoute</code>, <code>withSyncLock</code>, or <code>sync_events</code>.</li>
+    </ul>
+
+    <h4>Manual trigger</h4>
+    <p>
+      A dev or admin can re-fire the evaluator without re-running the upstream sync by calling
+      <code>evaluateAndPostTeamsAlerts()</code> from a one-off script (e.g., <code>scripts/teams-test.ts</code>). This is
+      not exposed as an API route in v1.
+    </p>
+
+    <!-- ============= 9. CONFIG ============= -->
+    <h2 class="section" id="config">Configuration</h2>
+
+    <h3>New env vars</h3>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Required</th><th>Purpose</th></tr>
+      <tr>
+        <td><code>TEAMS_WEBHOOK_URL</code></td>
+        <td>URL</td>
+        <td>No</td>
+        <td>If unset, the evaluator no-ops. This is the kill switch.</td>
+      </tr>
+      <tr>
+        <td><code>TEAMS_DASHBOARD_BASE_URL</code></td>
+        <td>URL</td>
+        <td>No (defaults to <code>NEXTAUTH_URL</code>)</td>
+        <td>Base URL used to build deep links in card buttons.</td>
+      </tr>
+    </table>
+
+    <h4>Zod additions in <code>src/lib/env.ts</code></h4>
+<pre><span class="filepath">src/lib/env.ts (edit)</span><span class="k">const</span> envSchema = z.object({
+  <span class="c">/* ...existing... */</span>
+<span class="add">  TEAMS_WEBHOOK_URL: z.string().url().optional(),</span>
+<span class="add">  TEAMS_DASHBOARD_BASE_URL: z.string().url().optional(),</span>
+});</pre>
+
+    <div class="callout note">
+      <span class="label">Vercel env</span>
+      Add <code>TEAMS_WEBHOOK_URL</code> in Vercel Project Settings → Environment Variables, scoped to Production only
+      at first. <code>vercel env pull</code> on local will pick it up. Treat the URL as a secret — it&apos;s an HMAC-signed
+      Logic Apps trigger and is auth by possession.
+    </div>
+
+    <!-- ============= 10. CARD PAYLOADS ============= -->
+    <h2 class="section" id="payloads">Card payloads</h2>
+
+    <p>
+      Three Adaptive Card v1.4 payloads, wrapped in the Workflows envelope. These are the contract — the renderer must
+      produce JSON that matches this shape.
+    </p>
+
+    <h3>(a) Hourly digest</h3>
+    <details class="json-box" open>
+      <summary>POST <code>$TEAMS_WEBHOOK_URL</code> — digest payload</summary>
+<pre>{
+  <span class="k">"type"</span>: <span class="s">"message"</span>,
+  <span class="k">"attachments"</span>: [
+    {
+      <span class="k">"contentType"</span>: <span class="s">"application/vnd.microsoft.card.adaptive"</span>,
+      <span class="k">"contentUrl"</span>: <span class="kw">null</span>,
+      <span class="k">"content"</span>: {
+        <span class="k">"$schema"</span>: <span class="s">"http://adaptivecards.io/schemas/adaptive-card.json"</span>,
+        <span class="k">"type"</span>: <span class="s">"AdaptiveCard"</span>,
+        <span class="k">"version"</span>: <span class="s">"1.4"</span>,
+        <span class="k">"body"</span>: [
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"Claude API spend · hourly digest"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"size"</span>: <span class="s">"Large"</span>, <span class="k">"wrap"</span>: <span class="kw">true</span> },
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"May 2026 MTD · synced 14:01 CET · 1 min old"</span>, <span class="k">"isSubtle"</span>: <span class="kw">true</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span>, <span class="k">"wrap"</span>: <span class="kw">true</span> },
+          { <span class="k">"type"</span>: <span class="s">"ColumnSet"</span>, <span class="k">"spacing"</span>: <span class="s">"Medium"</span>, <span class="k">"columns"</span>: [
+            { <span class="k">"type"</span>: <span class="s">"Column"</span>, <span class="k">"width"</span>: <span class="s">"stretch"</span>, <span class="k">"items"</span>: [
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"MTD spend"</span>, <span class="k">"isSubtle"</span>: <span class="kw">true</span>, <span class="k">"size"</span>: <span class="s">"Small"</span> },
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"$18,420"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"size"</span>: <span class="s">"ExtraLarge"</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span> },
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"▲ 12% vs same day last month"</span>, <span class="k">"color"</span>: <span class="s">"Attention"</span>, <span class="k">"size"</span>: <span class="s">"Small"</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span> }
+            ]},
+            { <span class="k">"type"</span>: <span class="s">"Column"</span>, <span class="k">"width"</span>: <span class="s">"stretch"</span>, <span class="k">"items"</span>: [
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"Workspaces &gt; 80%"</span>, <span class="k">"isSubtle"</span>: <span class="kw">true</span>, <span class="k">"size"</span>: <span class="s">"Small"</span> },
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"3 of 11"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"size"</span>: <span class="s">"ExtraLarge"</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span> }
+            ]},
+            { <span class="k">"type"</span>: <span class="s">"Column"</span>, <span class="k">"width"</span>: <span class="s">"stretch"</span>, <span class="k">"items"</span>: [
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"Forecast"</span>, <span class="k">"isSubtle"</span>: <span class="kw">true</span>, <span class="k">"size"</span>: <span class="s">"Small"</span> },
+              { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"At risk"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"size"</span>: <span class="s">"ExtraLarge"</span>, <span class="k">"color"</span>: <span class="s">"Attention"</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span> }
+            ]}
+          ]},
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"Top utilization"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"spacing"</span>: <span class="s">"Medium"</span> },
+
+          <span class="c">/* repeat per workspace: name+pct, then a two-column "bar" */</span>
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"research-claude · 102% · $5,120 / $5,000"</span>, <span class="k">"spacing"</span>: <span class="s">"Small"</span>, <span class="k">"wrap"</span>: <span class="kw">true</span> },
+          { <span class="k">"type"</span>: <span class="s">"ColumnSet"</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span>, <span class="k">"columns"</span>: [
+            { <span class="k">"type"</span>: <span class="s">"Column"</span>, <span class="k">"width"</span>: <span class="n">100</span>, <span class="k">"items"</span>: [{ <span class="k">"type"</span>: <span class="s">"Container"</span>, <span class="k">"style"</span>: <span class="s">"attention"</span>, <span class="k">"minHeight"</span>: <span class="s">"6px"</span>, <span class="k">"items"</span>: [{ <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">" "</span> }]}]}
+          ]}
+          <span class="c">/* ...repeat for the remaining 4 workspaces... */</span>
+        ],
+        <span class="k">"actions"</span>: [
+          { <span class="k">"type"</span>: <span class="s">"Action.OpenUrl"</span>, <span class="k">"title"</span>: <span class="s">"Open dashboard"</span>, <span class="k">"url"</span>: <span class="s">"https://hub.unic.com/anthropic"</span> },
+          { <span class="k">"type"</span>: <span class="s">"Action.OpenUrl"</span>, <span class="k">"title"</span>: <span class="s">"View all workspaces"</span>, <span class="k">"url"</span>: <span class="s">"https://hub.unic.com/anthropic/workspaces"</span> }
+        ]
+      }
+    }
+  ]
+}</pre>
+    </details>
+
+    <h3>(b) Threshold breach</h3>
+    <details class="json-box">
+      <summary>POST <code>$TEAMS_WEBHOOK_URL</code> — breach payload (truncated for brevity)</summary>
+<pre>{
+  <span class="k">"type"</span>: <span class="s">"message"</span>,
+  <span class="k">"attachments"</span>: [{
+    <span class="k">"contentType"</span>: <span class="s">"application/vnd.microsoft.card.adaptive"</span>,
+    <span class="k">"contentUrl"</span>: <span class="kw">null</span>,
+    <span class="k">"content"</span>: {
+      <span class="k">"$schema"</span>: <span class="s">"http://adaptivecards.io/schemas/adaptive-card.json"</span>,
+      <span class="k">"type"</span>: <span class="s">"AdaptiveCard"</span>,
+      <span class="k">"version"</span>: <span class="s">"1.4"</span>,
+      <span class="k">"body"</span>: [
+        { <span class="k">"type"</span>: <span class="s">"Container"</span>, <span class="k">"style"</span>: <span class="s">"attention"</span>, <span class="k">"bleed"</span>: <span class="kw">true</span>, <span class="k">"items"</span>: [
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"⚠ Workspace over budget · research-claude"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"size"</span>: <span class="s">"Large"</span>, <span class="k">"color"</span>: <span class="s">"Attention"</span>, <span class="k">"wrap"</span>: <span class="kw">true</span> },
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"Crossed 100% at 13:58 CET · first breach this month"</span>, <span class="k">"isSubtle"</span>: <span class="kw">true</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span>, <span class="k">"wrap"</span>: <span class="kw">true</span> }
+        ]},
+        { <span class="k">"type"</span>: <span class="s">"FactSet"</span>, <span class="k">"facts"</span>: [
+          { <span class="k">"title"</span>: <span class="s">"Workspace"</span>, <span class="k">"value"</span>: <span class="s">"research-claude"</span> },
+          { <span class="k">"title"</span>: <span class="s">"Monthly limit"</span>, <span class="k">"value"</span>: <span class="s">"$5,000.00"</span> },
+          { <span class="k">"title"</span>: <span class="s">"Spend MTD"</span>, <span class="k">"value"</span>: <span class="s">"$5,120.40 · 102%"</span> },
+          { <span class="k">"title"</span>: <span class="s">"7-day run rate"</span>, <span class="k">"value"</span>: <span class="s">"$612/day · 3.4× the 30-day avg"</span> },
+          { <span class="k">"title"</span>: <span class="s">"Projected EOM"</span>, <span class="k">"value"</span>: <span class="s">"$8,940 · +$3,940 over"</span> }
+          <span class="c">/* "Top model" intentionally omitted in v1 — no per-workspace × model join</span>
+<span class="c">             available. Deferred to Phase 1.5 once we wire anthropic_usage_metrics</span>
+<span class="c">             into a workspace-attributed aggregation. */</span>
+        ]}
+      ],
+      <span class="k">"actions"</span>: [
+        { <span class="k">"type"</span>: <span class="s">"Action.OpenUrl"</span>, <span class="k">"title"</span>: <span class="s">"Open workspace"</span>, <span class="k">"url"</span>: <span class="s">"https://hub.unic.com/anthropic/workspaces/research-claude"</span> },
+        { <span class="k">"type"</span>: <span class="s">"Action.OpenUrl"</span>, <span class="k">"title"</span>: <span class="s">"Adjust limit"</span>, <span class="k">"url"</span>: <span class="s">"https://hub.unic.com/anthropic/workspaces/research-claude/limit"</span> }
+      ]
+    }
+  }]
+}</pre>
+    </details>
+
+    <h3>(c) Forecast at-risk</h3>
+    <details class="json-box">
+      <summary>POST <code>$TEAMS_WEBHOOK_URL</code> — forecast payload (truncated)</summary>
+<pre>{
+  <span class="k">"type"</span>: <span class="s">"message"</span>,
+  <span class="k">"attachments"</span>: [{
+    <span class="k">"contentType"</span>: <span class="s">"application/vnd.microsoft.card.adaptive"</span>,
+    <span class="k">"contentUrl"</span>: <span class="kw">null</span>,
+    <span class="k">"content"</span>: {
+      <span class="k">"$schema"</span>: <span class="s">"http://adaptivecards.io/schemas/adaptive-card.json"</span>,
+      <span class="k">"type"</span>: <span class="s">"AdaptiveCard"</span>,
+      <span class="k">"version"</span>: <span class="s">"1.4"</span>,
+      <span class="k">"body"</span>: [
+        { <span class="k">"type"</span>: <span class="s">"Container"</span>, <span class="k">"style"</span>: <span class="s">"warning"</span>, <span class="k">"bleed"</span>: <span class="kw">true</span>, <span class="k">"items"</span>: [
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"Forecast: product-ai projected to overshoot"</span>, <span class="k">"weight"</span>: <span class="s">"Bolder"</span>, <span class="k">"size"</span>: <span class="s">"Medium"</span>, <span class="k">"color"</span>: <span class="s">"Warning"</span>, <span class="k">"wrap"</span>: <span class="kw">true</span> },
+          { <span class="k">"type"</span>: <span class="s">"TextBlock"</span>, <span class="k">"text"</span>: <span class="s">"OLS on last 14 days · status flipped to at_risk"</span>, <span class="k">"isSubtle"</span>: <span class="kw">true</span>, <span class="k">"spacing"</span>: <span class="s">"None"</span> }
+        ]},
+        { <span class="k">"type"</span>: <span class="s">"FactSet"</span>, <span class="k">"facts"</span>: [
+          { <span class="k">"title"</span>: <span class="s">"Spend MTD"</span>, <span class="k">"value"</span>: <span class="s">"$4,200 · 84%"</span> },
+          { <span class="k">"title"</span>: <span class="s">"7-day run rate"</span>, <span class="k">"value"</span>: <span class="s">"$210/day · ▲ 28% WoW"</span> },
+          { <span class="k">"title"</span>: <span class="s">"Projected EOM"</span>, <span class="k">"value"</span>: <span class="s">"$5,890 · +$890 over"</span> },
+          { <span class="k">"title"</span>: <span class="s">"Crosses 100% on"</span>, <span class="k">"value"</span>: <span class="s">"28 May 2026 · in 7 days"</span> }
+        ]}
+      ],
+      <span class="k">"actions"</span>: [
+        { <span class="k">"type"</span>: <span class="s">"Action.OpenUrl"</span>, <span class="k">"title"</span>: <span class="s">"Open forecast"</span>, <span class="k">"url"</span>: <span class="s">"https://hub.unic.com/anthropic/workspaces/product-ai/forecast"</span> }
+      ]
+    }
+  }]
+}</pre>
+    </details>
+
+    <!-- ============= 11. FAILURE MODES ============= -->
+    <h2 class="section" id="failure">Failure modes &amp; edge cases</h2>
+
+    <table>
+      <tr><th>Scenario</th><th>Behavior</th></tr>
+      <tr>
+        <td>Webhook returns 429</td>
+        <td><code>retryWithBackoff</code> honors <code>Retry-After</code>, up to 3 attempts, max 20s delay.</td>
+      </tr>
+      <tr>
+        <td>Webhook returns 4xx (non-429)</td>
+        <td>No retry. Log error (without URL). Sync still marked success — alerts are best-effort.</td>
+      </tr>
+      <tr>
+        <td>Workflow URL revoked / O365 connector retired</td>
+        <td>All POSTs fail. Operator removes <code>TEAMS_WEBHOOK_URL</code> until a new Workflows URL is provisioned.</td>
+      </tr>
+      <tr>
+        <td>Sync stale (&gt; 70 min)</td>
+        <td>Digest skipped. Stale-data card posted instead. Breach/forecast cards skipped entirely.</td>
+      </tr>
+      <tr>
+        <td>Anthropic workspace removed upstream</td>
+        <td>Workspace drops out of <code>getWorkspaceList()</code>. Its alert-state row goes dormant (<code>active=false</code> next eval).</td>
+      </tr>
+      <tr>
+        <td>New billing month</td>
+        <td>Eval queries <code>WHERE billing_month = '2026-06'</code>. No rows exist; everything is treated as fresh. May → June rollover emits a fresh set of breach cards if conditions persist.</td>
+      </tr>
+      <tr>
+        <td>Limit increased mid-month (utilization drops below threshold)</td>
+        <td>Row flips <code>active=false</code>. Next time utilization crosses again, a new card fires. No spam.</td>
+      </tr>
+      <tr>
+        <td>Limit removed entirely</td>
+        <td>Workspace has no <code>limitCents</code>. Excluded from threshold evaluation. Forecast still runs if monthly history is sufficient.</td>
+      </tr>
+      <tr>
+        <td>Card &gt; 28 KB</td>
+        <td>Renderer caps the digest at top-5 workspaces; theoretical max is well under 6 KB. If somehow exceeded, the POST fails with 413 and the operator sees the error in cron logs.</td>
+      </tr>
+      <tr>
+        <td>Concurrent sync runs</td>
+        <td><code>withSyncLock</code> prevents concurrency. Evaluator runs only after the lock releases.</td>
+      </tr>
+      <tr>
+        <td>Partial sync (errorCount &gt; 0)</td>
+        <td>Evaluator skipped. Sync data may be incomplete; better silence than misleading alerts.</td>
+      </tr>
+    </table>
+
+    <!-- ============= 12. TESTS ============= -->
+    <h2 class="section" id="tests">Test plan</h2>
+
+    <h3>Unit <span class="badge test">Vitest</span></h3>
+    <ul>
+      <li><code>tests/unit/teams/cards.test.ts</code> — one snapshot per card variant. Catches accidental schema breakage.</li>
+      <li><code>tests/unit/teams/format.test.ts</code> — money/percent/relative-time helpers.</li>
+      <li>Validate the snapshot JSON against an Adaptive Card schema validator (one-time check; not in CI loop).</li>
+    </ul>
+
+    <h3>Integration <span class="badge test">Vitest + real Neon branch</span></h3>
+    <ul>
+      <li><code>tests/integration/teams/evaluator.test.ts</code> <span class="badge edit">rev 2</span>:
+        <ul>
+          <li>Empty state, no workspaces over threshold → exactly 1 envelope (digest).</li>
+          <li>One workspace newly at 85% → digest + 1 breach card; <code>threshold_80_fired_at</code> is set.</li>
+          <li>Same workspace next hour, still 85% → digest only, no re-fire.</li>
+          <li>Same workspace, now 110% → digest + 1 new <code>threshold_100</code> card; <code>threshold_100_fired_at</code> set.</li>
+          <li>Drops to 60% → digest only; <em>no</em> recovery card; timestamps remain set.</li>
+          <li>Back up to 85% → digest only; <code>threshold_80_fired_at</code> already non-NULL, so no re-fire.</li>
+          <li>Month rollover → new row inserted with all timestamps NULL; same 85% breach emits a fresh card.</li>
+          <li>Forecast flips <code>on_track → at_risk</code> → forecast card posted; <code>forecast_at_risk = true</code>, <code>forecast_changed_at</code> stamped.</li>
+          <li>Forecast flips back <code>at_risk → on_track</code> → optional recovery card per Q1 default (no card).</li>
+          <li>Stale sync → only stale card posted; thresholds and forecasts not evaluated.</li>
+          <li>Workspace with <code>limitCents = null</code> → thresholds skipped, forecast still computed.</li>
+          <li>Default workspace (<code>workspaceId = null</code>) → coalesced to <code>"__default__"</code> in the ledger, unique index satisfied.</li>
+        </ul>
+      </li>
+      <li><code>tests/integration/anthropic/forecast-workspace.test.ts</code> <span class="badge new">new</span> — seed 14 days of <code>anthropic_workspace_costs</code>, assert: 7-day run rate, week-over-week %, projected EOM cents, crosses-cap date (or NULL when on-track).</li>
+      <li><code>tests/integration/teams/webhook.test.ts</code> — mock <code>fetch</code> to assert: envelope shape, retry on 429 with <code>Retry-After</code>, no retry on 400, never logs the URL.</li>
+    </ul>
+
+    <h3>Manual</h3>
+    <ol>
+      <li>Provision a real Workflows webhook in a staging channel.</li>
+      <li>Seed a workspace with a synthetic 110% utilization in staging DB.</li>
+      <li>Run the script <code>pnpm tsx scripts/teams-test.ts</code> → digest + breach card appear in the channel within seconds.</li>
+      <li>Re-run the script → only the digest re-appears (idempotency proof).</li>
+      <li>Trigger the cron via <code>curl -H "Authorization: Bearer $CRON_SECRET" .../api/sync/anthropic-api-costs</code>.</li>
+    </ol>
+
+    <!-- ============= 13. ROLLOUT ============= -->
+    <h2 class="section" id="rollout">Rollout</h2>
+
+    <ol class="steps">
+      <li>
+        <strong>Spec freeze</strong> — review this plan with the AI-FinOps stakeholder. Confirm channel + audience.
+      </li>
+      <li>
+        <strong>Branch &amp; Neon branch</strong> — create feature branch, spin a Neon worktree branch for schema work.
+      </li>
+      <li>
+        <strong>Schema migration</strong> — add <code>anthropic_alert_type</code> enum + <code>anthropic_alert_state</code> table. Generate, review with <code>drizzle-migration-reviewer</code>, apply.
+      </li>
+      <li>
+        <strong>Extract data layer</strong> — move DB queries from <code>src/actions/anthropic-global.ts</code> into new <code>src/lib/anthropic/queries.ts</code>. Server actions stay as thin admin-gated + cached wrappers. UI behavior unchanged; verify by running the existing dashboard against staging.
+      </li>
+      <li>
+        <strong>Add <code>forecastWorkspaceMonth()</code></strong> in <code>src/lib/anthropic/forecast-workspace.ts</code> with an integration test.
+      </li>
+      <li>
+        <strong>Implement Teams modules</strong> in order: <code>types.ts</code> → <code>format.ts</code> → <code>cards.ts</code> → <code>webhook.ts</code> → <code>state.ts</code> → <code>evaluator.ts</code>. Each lands with unit tests.
+      </li>
+      <li>
+        <strong>Wire into sync</strong> — edit <code>src/lib/sync/sources/anthropic-workspace.ts</code> with the try-wrapped call.
+      </li>
+      <li>
+        <strong>Integration tests</strong> — run against the Neon branch; assert state-machine behavior.
+      </li>
+      <li>
+        <strong>Staging webhook</strong> — provision in a private staging Teams channel. Push branch to a Vercel preview. Set <code>TEAMS_WEBHOOK_URL</code> on the preview only.
+      </li>
+      <li>
+        <strong>Smoke test</strong> — seed a synthetic over-limit workspace, trigger the cron, observe the channel.
+      </li>
+      <li>
+        <strong>Security review</strong> — run the <code>nextauth-security-reviewer</code> sub-agent against the diff. Focus on <code>src/lib/anthropic/queries.ts</code> (server-only marker, no client imports), the cron handler, and any newly-touched session-handling code.
+      </li>
+      <li>
+        <strong>Code review</strong> — merge to <code>main</code>.
+      </li>
+      <li>
+        <strong>Production webhook</strong> — channel owner provisions a Workflows webhook in the production channel. Add <code>TEAMS_WEBHOOK_URL</code> to Vercel Production.
+      </li>
+      <li>
+        <strong>Watch for 24h</strong> — confirm one digest per hour, no duplicate breach cards on cron re-runs, no errors in cron logs.
+      </li>
+      <li>
+        <strong>Close spec</strong> — link the merged PRs from <code>specs/030-claude-spend-teams-alerts/README.html</code> (to be added later).
+      </li>
+    </ol>
+
+    <h4>Backout</h4>
+    <p>
+      Remove or unset <code>TEAMS_WEBHOOK_URL</code> in Vercel. No code rollback needed — the evaluator early-returns when the var is missing.
+      Schema migration is additive (a new table) and safe to keep even when the feature is off.
+    </p>
+
+    <!-- ============= 14. OPEN QUESTIONS ============= -->
+    <h2 class="section" id="open">Open questions</h2>
+
+    <table>
+      <tr><th>#</th><th>Question</th><th>Default if no answer</th></tr>
+      <tr>
+        <td>Q1</td>
+        <td>Post a recovery card when <em>forecast</em> flips <code>at_risk → on_track</code>? (Thresholds are fire-once-per-month by design and don&apos;t apply.)</td>
+        <td><strong>No</strong> in v1 — reduces noise. The flip is recorded in the ledger and visible in the next digest. Reconsider after a month of real usage.</td>
+      </tr>
+      <tr>
+        <td>Q2</td>
+        <td>One channel for everything, or split &quot;digest&quot; vs &quot;alerts&quot;?</td>
+        <td><strong>One channel</strong> (<code>TEAMS_WEBHOOK_URL</code>). Add a second var (<code>TEAMS_WEBHOOK_URL_ALERTS</code>) later if signal-to-noise becomes an issue.</td>
+      </tr>
+      <tr>
+        <td>Q3</td>
+        <td>Should the digest post even when nothing has changed?</td>
+        <td><strong>Yes</strong> — the digest is the heartbeat. If it disappears, ops knows the sync is broken.</td>
+      </tr>
+      <tr>
+        <td>Q4</td>
+        <td>Currency and time-zone formatting — USD + CET, or per-tenant config?</td>
+        <td><strong>USD + CET</strong> hard-coded in v1; pull from a settings module when there&apos;s more than one tenant.</td>
+      </tr>
+      <tr>
+        <td>Q5</td>
+        <td>Hourly cadence too noisy?</td>
+        <td>Keep hourly. The digest is one message; only edge-triggered breach/forecast cards add extra posts, and they&apos;re by definition uncommon.</td>
+      </tr>
+      <tr>
+        <td>Q6</td>
+        <td>Where do the deep-link buttons point? Are there per-workspace pages today (<code>/anthropic/workspaces/:id</code>)?</td>
+        <td>Confirm against the routing under <code>src/app/(authed)/anthropic/</code> during implementation. If the per-workspace page doesn&apos;t exist, link to the global dashboard with an anchor.</td>
+      </tr>
+    </table>
+
+  </main>
+</div>
+</body>
+</html>

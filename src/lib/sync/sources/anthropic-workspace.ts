@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
 import { env } from "@/lib/env";
+import { evaluateAndPostTeamsAlerts } from "@/lib/teams/evaluator";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -332,6 +333,21 @@ export async function run(
             target: [anthropicSyncStatus.userId],
             set: { workspaceSyncCompletedAt: new Date() },
           });
+
+        // Spec 030 — Microsoft Teams alerts. Best-effort: a posting failure
+        // must never fail the sync. The evaluator no-ops when TEAMS_WEBHOOK_URL
+        // is unset.
+        try {
+          const { posted, skipped } = await evaluateAndPostTeamsAlerts();
+          console.log(
+            `[anthropic-api-costs] teams alerts posted=${posted} skipped=${skipped.join(",") || "-"}`,
+          );
+        } catch (err) {
+          console.error(
+            "[anthropic-api-costs] teams alert evaluation failed (non-fatal):",
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
 
       return counts;
