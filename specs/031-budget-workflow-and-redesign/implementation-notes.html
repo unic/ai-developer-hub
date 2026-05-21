@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>031 — Budget Workflow &amp; Detail Redesign · Implementation notes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: {
+        brand: { 300:"#c4dc52", 400:"#a4c400", 500:"#8aa700" },
+        ink: { 700:"#1f1f22", 800:"#18181b", 900:"#101012", 950:"#09090b" },
+      } } },
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #09090b; color: #e4e4e7; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+    .prose-spec { max-width: 1280px; }
+    .prose-spec h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+    .prose-spec h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2.5rem; margin-bottom: 0.5rem; letter-spacing: -0.01em; color: #fafafa; }
+    .prose-spec h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.4rem; color: #fafafa; }
+    .prose-spec p { color: #a1a1aa; line-height: 1.6; }
+    .prose-spec li { color: #a1a1aa; line-height: 1.55; margin: 0.18rem 0; }
+    .prose-spec strong { color: #fafafa; font-weight: 600; }
+    .prose-spec em { color: #d4d4d8; font-style: italic; }
+    .prose-spec code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(63,63,70,0.5); color: #e4e4e7; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+    .prose-spec a { color: #c4dc52; text-decoration: none; border-bottom: 1px dotted rgba(196,220,82,0.4); }
+    .prose-spec a:hover { color: #a4c400; }
+    .prose-spec ul { padding-left: 1.25rem; list-style: disc; }
+    .prose-spec ol { padding-left: 1.4rem; }
+    .card { background: rgba(24,24,27,0.65); border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; }
+    .grid-bg {
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(164,196,0,0.06), transparent 60%),
+        radial-gradient(800px 500px at 100% 0%, rgba(124,158,255,0.03), transparent 60%),
+        #09090b;
+    }
+    .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:500; line-height: 18px; vertical-align: middle; }
+    .tag-decision { background: rgba(164,196,0,0.15); color:#c4dc52; }
+    .tag-deviation { background: rgba(250,204,21,0.12); color:#fde68a; }
+    .tag-tradeoff { background: rgba(124,158,255,0.15); color:#a5b4fc; }
+    .tag-open { background: rgba(240,171,252,0.18); color:#f0abfc; }
+    .callout { border-left: 3px solid #a4c400; background: rgba(164,196,0,0.06); padding: 0.85rem 1rem; border-radius: 0 8px 8px 0; margin-top: 0.6rem; }
+    .callout-warn { border-left-color: #facc15; background: rgba(250,204,21,0.06); }
+    .callout-info { border-left-color: #7c9eff; background: rgba(124,158,255,0.06); }
+    .callout-open { border-left-color: #f0abfc; background: rgba(240,171,252,0.06); }
+    .callout p { color: #e4e4e7; margin: 0; }
+    .entry { border: 1px solid rgba(63,63,70,0.55); border-radius: 10px; padding: 0.85rem 1rem; background: rgba(24,24,27,0.5); margin-top: 0.6rem; }
+    .entry h3 { margin-top: 0; }
+    .file { font-family: ui-monospace, monospace; font-size: 12.5px; color: #c4dc52; }
+    .meta { font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: 0.08em; }
+  </style>
+</head>
+<body class="grid-bg antialiased">
+  <div class="mx-auto px-6 lg:px-10 py-10 prose-spec">
+
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div class="text-xs uppercase tracking-[0.18em] text-zinc-500">Spec 031 · Implementation notes · running</div>
+        <h1 class="mt-1">Budget Workflow &amp; Detail Redesign</h1>
+        <p class="mt-2 text-zinc-400 max-w-2xl">
+          Live log of decisions, deviations, tradeoffs, and open questions captured while implementing the
+          plan. Append-only — each entry timestamped relative to the implementation steps in
+          <a href="plan.html">plan.html</a>.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="tag tag-decision">decision</span>
+        <span class="tag tag-deviation">deviation</span>
+        <span class="tag tag-tradeoff">tradeoff</span>
+        <span class="tag tag-open">open</span>
+      </div>
+    </div>
+
+    <h2>Pre-flight</h2>
+
+    <div class="entry">
+      <div class="meta">decision · 2026-05-21 · setup</div>
+      <h3>Neon branch <code>wt/budget-v2</code> created from <code>main</code></h3>
+      <p>
+        Project <code>broad-shadow-82397229</code> (ai-developer-hub). Branch id
+        <code>br-super-shape-alb020w6</code>, pooled host <code>ep-broad-fog-alsijtby-pooler</code>.
+        Worktree <code>.env.local</code> was missing — copied from main checkout and swapped to the branch
+        URLs. Verified DATABASE_URL host does NOT match production (<code>ep-little-frost-alw6tlsf</code>).
+      </p>
+    </div>
+
+    <h2>Step-by-step</h2>
+
+    <div class="entry">
+      <div class="meta">decision · step 1 · dialog extraction</div>
+      <h3>Dialogs share a tiny <code>billed-cost-form.ts</code> module for the form-state type</h3>
+      <p>
+        The plan specified extracting three dialog components. Both Add and Edit dialogs use an identical
+        <code>BilledCostFormState</code> shape — I put the type + <code>emptyBilledCostForm</code> constant
+        in <span class="file">src/app/budget/components/dialogs/billed-cost-form.ts</span> rather than
+        duplicating them in two dialog files or hoisting them into the parent. The parent imports the type
+        for its <code>useState</code> generics; both dialogs accept <code>BilledCostFormState</code> in their
+        props. Pure ergonomics — keeps each file under 120 lines without duplication.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">tradeoff · step 1</div>
+      <h3>Controlled dialogs: parent still owns all state</h3>
+      <p>
+        Each dialog takes <code>open</code>, <code>onOpenChange</code>, <code>form</code>,
+        <code>onFormChange</code>, <code>onSubmit</code>, <code>saving</code>. I considered moving form
+        state inside the dialogs themselves (one less prop drilled), but the parent already owns submit
+        handlers (<code>handleAddBilledCost</code> etc.) that need to read the form values, and the
+        Edit dialog needs the parent to seed the form when an entry is opened. Keeping state lifted
+        means no extra <code>useEffect</code> dance.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · step 1</div>
+      <h3>Imports use the <code>@/app/budget/...</code> alias, not relative paths</h3>
+      <p>
+        The plan implied relative imports from <span class="file">[id]/budget-detail-client.tsx</span>.
+        Tried <code>../../components/dialogs</code> first — wrong (only one level up needed). Switched to
+        the project's <code>@/...</code> alias, which is what every other component file in this codebase
+        uses. Avoids the dynamic-segment-folder confusion and matches existing style.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 2 · period table extraction</div>
+      <h3>Table is fully controlled — parent owns allocation state, table owns expand-state</h3>
+      <p>
+        The extracted <code>PeriodAllocationsTable</code> receives <code>allocations</code> +
+        <code>onAllocationChange(periodId, cents)</code> from the parent (so saving still hits the parent's
+        single submit handler), but <code>expandedPeriods</code> stays inside the table — no parent cares
+        which rows are open. This is a deliberate boundary: parent owns the persistable state, table owns
+        the ephemeral UI state. Plan didn't specify either way.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 3 · BudgetHealthHero</div>
+      <h3>Status thresholds inline as a top-of-file constant</h3>
+      <p>
+        Per the plan's <em>Open question</em> on status-pill thresholds, used the proposed defaults:
+        under (&lt;95%), on-track (≤105%), at-risk (≤115%), over (&gt;115%). Defined as a single
+        <code>STATUS_THRESHOLDS</code> object at the top of <span class="file">budget-health-hero.tsx</span>
+        so a future tweak is one diff. <strong>Open question:</strong> are these the right cutoffs? See
+        bottom of file for the standing TBD.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">tradeoff · step 3</div>
+      <h3>Multi-marker bar is hand-rolled, not based on <code>SpendProgressBar</code></h3>
+      <p>
+        The shared <code>SpendProgressBar</code> renders 2 markers (actual + ceiling). The hero needs 4
+        visual layers (allocated background + actual fill + planned-YTD tick + expected-YTD tick) plus a
+        ceiling annotation. Rather than overload the shared component with optional props nobody else
+        uses, inlined a small <code>MultiMarkerBar</code> in the hero. Future Reports tab might want
+        something similar; if so we lift it then.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 3 · projection</div>
+      <h3>Year-end projection uses simple average-of-completed-periods, not the Reports forecaster</h3>
+      <p>
+        The Reports <code>getBudgetForecast()</code> uses linear regression on actual spend, but it needs
+        a forecast pipeline the budget page doesn't otherwise touch. For the hero's "Projected year-end"
+        tile, I derive <code>avgPerCompletedPeriod × totalPeriods</code>. Coarser, but matches what a
+        non-stats-y reader expects ("if we keep spending at this rate…") and avoids a server-side
+        forecast call on every hero render. If finer projection is wanted later, swap to the existing
+        forecaster — same component contract.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 4 · spotlight</div>
+      <h3>Spotlight ships <em>without</em> the drivers section</h3>
+      <p>
+        The existing <span class="file">reports/budget/past-month-spotlight.tsx</span> includes a "Top
+        per-tool changes vs last month" driver list. That section depends on per-tool MoM computation
+        (license-derived spend at two points in time) which is part of the Reports pipeline and not
+        cheaply available on the budget detail page. The new budget-page spotlight shows the 4 core
+        tiles (Planned / Expected / Actual / Variance) only. If we ever want drivers here, we route the
+        Reports data in.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · step 4</div>
+      <h3>Spotlight requires <em>billed or running</em> &gt; 0 to surface</h3>
+      <p>
+        The plan said <em>endDate &lt; today AND (billed &gt; 0 OR running &gt; 0)</em>. Sticking with
+        that — a closed period that genuinely had no spend (e.g. tool was disabled all month) wouldn't
+        be useful to spotlight; we'd just be loudly displaying zero. The very-start-of-year case
+        (no completed periods) returns null and the spotlight section disappears entirely.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 5 · period row styling</div>
+      <h3>Closed-and-under periods get a faint green tint, closed-and-over keep <code>bg-destructive/10</code></h3>
+      <p>
+        The plan asked for a "stronger over-budget signal." Rather than amp the destructive tint
+        further (it's already loud), I added a complementary <em>under</em> signal — a very subtle
+        emerald-500/5 — so closed periods read at-a-glance as red/green/neutral. Over-budget also picks
+        up the destructive variant on the % chip in the variance column. Net result: scanning the
+        table tells the story without reading numbers.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 5 · running-cost row</div>
+      <h3>Anthropic API row uses sky-500 tints + a "live" badge</h3>
+      <p>
+        Old row: bright blue-600 text on blue-50 background. Replaced with sky-500/5 background +
+        sky-700 (dark: sky-300) text + an outline-style "live" badge next to the label. Reads as a
+        running/in-flight value rather than a hard error/warning. Workspace breakdown rows inherit the
+        same family at half opacity.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 5 · future-period treatment</div>
+      <h3>Future periods get muted-foreground text + an em-dash in the % column when expected is 0</h3>
+      <p>
+        Per the plan's "future class for rows with <code>startDate &gt; today</code> (muted text,
+        em-dash placeholders)". Implemented exactly. The chevron and Add-billed-cost button still work
+        on future rows (admin might want to log a pre-paid invoice for an upcoming month).
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 6 · header</div>
+      <h3>Header lifted to its own component, breadcrumb above the H1</h3>
+      <p>
+        The plan's reuse audit included <code>BudgetDetailHeader</code> implicitly via the H1+badge
+        markup left on the page. Lifted it to <span class="file">budget-detail-header.tsx</span>
+        because (a) the empty state needs its own simpler header without the breadcrumb, (b) the
+        archived-detail view will reuse the same component, (c) keeps the parent client under 250 lines.
+        Breadcrumb is rendered above the H1, "All budgets" + "New Budget" buttons sit on the right.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 7 · history page</div>
+      <h3>History page links forward AND back</h3>
+      <p>
+        Added a "Back to active budget" link above the H1 (top-left, ghost button). Without it, the
+        only way back to the active budget from history is the sidebar — and a user who's just clicked
+        a row link, realised it's an old budget, then clicked back via browser would have to navigate
+        twice. Pure ergonomics.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · step 7 · empty list</div>
+      <h3>History page handles the empty-budgets case</h3>
+      <p>
+        Plan didn't explicitly cover "history has no rows at all." Added an inline "No budgets yet"
+        line with a link to <code>/budget/new</code> (admin only). The case will essentially never
+        happen in production (there's always at least the active budget by the time anyone visits
+        history) but it's <em>5 lines of code</em> and prevents an awkward blank DataTable on a fresh
+        DB.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 8 · landing</div>
+      <h3><code>/budget</code> imports the [id] route's client directly</h3>
+      <p>
+        Two routes (<code>/budget</code> and <code>/budget/[id]</code>) both render
+        <code>BudgetDetailClient</code> from <span class="file">[id]/budget-detail-client.tsx</span>.
+        The plan recommended <em>fold, don't redirect</em> — done. The cross-route import is mildly
+        ugly (importing from a sibling dynamic-segment folder) but the alternative (lifting the client
+        into a shared location) would mean renaming the file and updating two import paths for no
+        runtime benefit.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 9 · per-tool drop</div>
+      <h3>Dropped <code>toolBreakdown</code> + <code>ToolSpend</code> + <code>getPerToolSpend</code> call entirely</h3>
+      <p>
+        The plan kept the <code>toolBreakdown</code> prop in <code>BudgetDetailClient</code> for safety;
+        I removed it. Once the JSX that consumes it is gone, the prop is dead weight, and a future
+        maintainer wondering "why does this client take a tool breakdown it never uses?" would be a
+        forced detour. <code>getPerToolSpend</code> stays in <span class="file">src/actions/budget.ts</span> —
+        Reports still uses it.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">decision · step 11 · e2e</div>
+      <h3>Rewrote <span class="file">tests/e2e/budget-period-running-costs.spec.ts</span> to assert the new shape</h3>
+      <p>
+        Old test asserted <code>"Billed"</code> label and clicked the first <code>a[href*='/budget/']</code>
+        link from <code>/budget</code> to reach detail. Both fail post-redesign: the landing now <em>is</em>
+        the detail page, and the hero uses "Billed YTD"/"Actual YTD". Replaced the two tests with a
+        smaller pair that asserts the hero + period table are visible on <code>/budget</code> directly,
+        and that one of the YTD labels renders. No new selectors needed; no follow-up Playwright spec
+        in this PR.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">open · status pill thresholds</div>
+      <div class="callout-open callout">
+        <p>
+          <strong>Confirm status-pill thresholds.</strong> Currently: <code>actual/expected &lt; 0.95</code>
+          = under, ≤ <code>1.05</code> = on-track, ≤ <code>1.15</code> = at-risk, &gt; <code>1.15</code> = over.
+          These are the plan's proposed defaults. If product wants different cutoffs, edit the
+          <code>STATUS_THRESHOLDS</code> constant at the top of
+          <span class="file">src/app/budget/components/budget-health-hero.tsx</span>.
+        </p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="meta">open · linear forecast vs simple average</div>
+      <div class="callout-open callout">
+        <p>
+          <strong>Year-end projection uses simple average.</strong> If you want it to match Reports
+          (linear regression via <code>getBudgetForecast</code>), the hero would need access to that
+          server-side forecast. Cheap to add — wrap the call in <code>page.tsx</code>, pass the result
+          as a prop. Not done yet because the simple version is more intuitive for budget owners and
+          doesn't reduce signal.
+        </p>
+      </div>
+    </div>
+
+    <h2>Verification</h2>
+
+    <div class="entry">
+      <div class="meta">verification · 2026-05-21 · browser smoke</div>
+      <h3>All routes return 200; no console errors</h3>
+      <p>
+        Verified against the worktree Neon branch via a minted agent session + <code>curl</code>:
+      </p>
+      <ul>
+        <li>
+          <code>GET /budget</code> → 200 · renders hero (Annual ceiling, Billed/Actual/Variance/Projected
+          YTD), breadcrumb "All budgets" link, Past month spotlight, Period allocations table, "Current"
+          badge on the in-progress period, "Under" status pill.
+        </li>
+        <li>
+          <code>GET /budget/history</code> → 200 · renders all 5 fiscal years (2022-2026), correct
+          status badges (1 active, 4 archived), "Back to active budget" link.
+        </li>
+        <li>
+          <code>GET /budget/5</code> (archived FY 2022) → 200 · renders period allocations table but
+          <em>no</em> "Save Allocations" button or "Add billed cost" actions — read-only path confirmed.
+        </li>
+        <li>
+          Dev server log: zero errors, zero warnings, all three pages compile.
+        </li>
+      </ul>
+      <p>
+        Visual fidelity vs <code>detail-mock.html</code> not verified pixel-by-pixel (Chrome DevTools MCP
+        was offline this session) — the mockup itself is the design source of truth for review.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">verification · 2026-05-21 · tests</div>
+      <h3>291 unit tests pass · lint clean · typecheck clean</h3>
+      <p>
+        <code>pnpm typecheck</code>, <code>pnpm lint</code> (zero warnings), <code>pnpm test</code>
+        (27 files / 291 tests passing). E2E spec
+        <span class="file">tests/e2e/budget-period-running-costs.spec.ts</span> rewritten to match the
+        new landing-page-is-detail-view shape. E2E suite itself not run in this session — needs the
+        Playwright runner against a running dev server; the new assertions are straightforward enough
+        to verify in CI.
+      </p>
+    </div>
+
+    <h2>Post-review cleanup (xhigh /simplify pass)</h2>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Dropped <code>getPerToolSpend</code> from <span class="file">src/actions/budget.ts</span></h3>
+      <p>
+        The plan said "<code>getPerToolSpend</code> stays in <code>src/actions/budget.ts</code> — Reports
+        still uses it." Audited: <code>grep -r getPerToolSpend src/</code> returns only the export
+        itself. Reports computes its own per-tool breakdown via
+        <code>fetchPerToolByPeriod()</code> in <span class="file">src/actions/reports.ts</span> — a
+        different query. Deleted the action; 26 lines of dead code gone.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · correctness</div>
+      <h3><code>emptyBilledCostForm</code> became <code>makeEmptyBilledCostForm()</code> factory</h3>
+      <p>
+        The constant was evaluated once at module load, freezing <code>invoiceDate</code> to the
+        timestamp of first JS bundle init. Users with the tab open overnight got yesterday's date
+        pre-filled in "Add Billed Cost." Now a function called inside <code>openAddDialog</code> and at
+        <code>useState</code> init.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix · correctness</div>
+      <h3>Spotlight variance no longer prints <code>+-$X</code> for negative variances</h3>
+      <p>
+        Old code: <code>{`${overExpected ? "+" : ""}${formatCurrency(variance)} vs expected`}</code> —
+        but <code>formatCurrency</code> already prints <code>-$X</code> for negatives, producing
+        <code>+-$50</code> when over and the variance was somehow displayed inverted. Replaced
+        hand-rolled prefix with the existing <code>formatVariance</code> helper. Same fix applied to
+        hero's narrative + Variance YTD tile.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Merged <code>AddBilledCostDialog</code> + <code>EditBilledCostDialog</code> → <code>BilledCostDialog</code> with <code>mode: "add" | "edit"</code></h3>
+      <p>
+        Two near-identical ~110-line files collapsed into one ~140-line file driven by a <code>COPY</code>
+        lookup keyed on <code>mode</code>. Same fields, same validation, same submit predicate; only
+        title / description / placeholders / submit label / id prefix differ. Parent client renders the
+        same component twice with different <code>mode</code> props.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Hoisted shared <code>StatTile</code> to <span class="file">src/app/budget/components/stat-tile.tsx</span></h3>
+      <p>
+        Hero's <code>StatTile</code> and spotlight's <code>SpotlightTile</code> were the same component
+        with slightly different prop names (<code>highlight</code> vs <code>tone</code>). Single
+        component takes <code>tone: "default" | "danger" | "success"</code>; the hero passes "danger"
+        where it used to pass <code>highlight={true}</code>.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Moved <code>BudgetDetailClient</code> out of <code>[id]/</code> and dropped the leaky <code>RunningCostData</code> re-export</h3>
+      <p>
+        The client now lives at <span class="file">src/app/budget/components/budget-detail-client.tsx</span>.
+        Both <code>/budget</code> and <code>/budget/[id]</code> import it from there — no more
+        cross-route imports. The <code>RunningCostData</code> type was a re-export of
+        <code>NonNullable&lt;Awaited&lt;ReturnType&lt;typeof getRunningCostsForPeriod&gt;&gt;&gt;</code>
+        that <em>already exists</em> as <code>RunningCostsResult</code> in
+        <span class="file">src/lib/budget-utils.ts</span>. Five files now import the canonical type
+        directly; the re-export is gone.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Breadcrumb hidden on <code>/budget</code>, shown on <code>/budget/[id]</code></h3>
+      <p>
+        The breadcrumb's first segment links to <code>/budget/history</code>, which isn't actually a
+        parent of <code>/budget</code> — the active landing is the top-level Budget page. Added a
+        <code>showBreadcrumb</code> prop (default true). <code>/budget</code> sets it false;
+        <code>/budget/[id]</code> sets it true. The "All budgets →" header link still surfaces history
+        from both routes.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Hero aggregates totals in a single pass + introduces a <code>no_data</code> status</h3>
+      <p>
+        The hero used to run 4 sequential <code>ytdPeriods.reduce</code> calls plus a separate
+        <code>completedPeriods.filter</code>. Now one <code>periods.reduce</code> accumulates all the
+        totals (YTD planned/expected/billed/running + closed actual). Also added a fifth status kind
+        <code>no_data</code> returned when no period has closed yet — the badge previously read
+        "On track" against zero data, which was misleading. Now it reads "No data yet."
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Period table derives its own totals + flattened the row-class ternary</h3>
+      <p>
+        <code>PeriodAllocationsTable</code> dropped 4 props (<code>totalAllocated</code>,
+        <code>totalExpected</code>, <code>totalActual</code>, <code>totalActualVariance</code>) and now
+        computes them internally from data it already receives. Also hoisted <code>today</code> out of
+        the <code>.map</code> callback (was being re-allocated per row). The 4-deep ternary picking
+        <code>rowClass</code> became a small <code>rowClassFor()</code> helper with early returns.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · review fix</div>
+      <h3>Allocation-change handler early-returns when value didn't change</h3>
+      <p>
+        <code>handleAllocationChange</code> now compares <code>prev[periodId] === cents</code> and
+        returns the same reference when unchanged. Prevents needless re-renders of the hero +
+        spotlight on every keystroke when the user types the same digit twice (e.g. retyping a value
+        after selecting all). Small win at 12 periods; necessary at scale.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">considered + skipped · status enum alignment</div>
+      <div class="callout-open callout">
+        <p>
+          The reviewer suggested aligning the new 5-bin <code>StatusKind</code> with the existing
+          2-bin <code>BudgetForecast.status</code>. Skipped: they answer different questions.
+          <code>BudgetForecast.status</code> classifies projected annual total vs ceiling (binary).
+          The hero classifies actual YTD vs expected YTD (5 bins, including the new <code>no_data</code>).
+          Forcing convergence would degrade one of them.
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-12 pt-6 border-t border-zinc-800 text-[11px] text-zinc-600">
+      Spec 031 · Implementation notes ·
+      <span class="file">specs/031-budget-workflow-and-redesign/implementation-notes.html</span>
+    </div>
+  </div>
+</body>
+</html>

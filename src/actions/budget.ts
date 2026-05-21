@@ -646,33 +646,3 @@ export async function fetchActualByPeriod(
   });
   return actualByPeriod;
 }
-
-
-// US5: Per-tool spending breakdown for a period
-export async function getPerToolSpend(startDate: string, endDate: string) {
-  const result = await db
-    .select({
-      toolId: aiTools.id,
-      toolName: aiTools.name,
-      totalCents: sum(licenseAssignments.costAtAssignmentCents),
-      assignmentCount: count(licenseAssignments.id),
-    })
-    .from(licenseAssignments)
-    .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
-    .where(
-      and(
-        eq(licenseAssignments.status, "active"),
-        lte(licenseAssignments.assignedAt, new Date(endDate)),
-        or(
-          isNull(licenseAssignments.revokedAt),
-          gte(licenseAssignments.revokedAt, new Date(startDate))
-        )
-      )
-    )
-    .groupBy(aiTools.id, aiTools.name);
-
-  return result.map((r) => ({
-    ...r,
-    totalCents: Number(r.totalCents ?? 0),
-  }));
-}
