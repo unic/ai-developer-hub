@@ -11,12 +11,15 @@ export default async function ToolsPage() {
   const tools = await getTools();
   const isAdmin = session?.user.role === "admin";
 
-  const toolsWithCounts = await Promise.all(
-    tools.map(async (tool) => ({
-      ...tool,
-      activeLicenses: await getActiveAssignmentCountForTool(tool.id),
-    }))
-  );
+  // Viewers don't see the license count column, so don't run the N queries.
+  const toolsWithCounts = isAdmin
+    ? await Promise.all(
+        tools.map(async (tool) => ({
+          ...tool,
+          activeLicenses: await getActiveAssignmentCountForTool(tool.id),
+        }))
+      )
+    : tools.map((tool) => ({ ...tool, activeLicenses: 0 }));
 
   return (
     <AuthGuard>

@@ -47,6 +47,10 @@ function ToolRowActions({
 }) {
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
 
+  // Viewers have no tool-detail access (page is admin-guarded) and no actions
+  // to take here, so the entire actions column is hidden for them.
+  if (!isAdmin) return null;
+
   return (
     <div className="flex items-center gap-1">
       <Tooltip>
@@ -59,19 +63,17 @@ function ToolRowActions({
         </TooltipTrigger>
         <TooltipContent>View</TooltipContent>
       </Tooltip>
-      {isAdmin && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
-              <Link href={`/tools/${row.id}`}>
-                <Pencil className="size-4" />
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Edit</TooltipContent>
-        </Tooltip>
-      )}
-      {isAdmin && row.status === "active" && (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button size="sm" variant="ghost" aria-label={`Edit ${row.name}`} asChild>
+            <Link href={`/tools/${row.id}`}>
+              <Pencil className="size-4" />
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Edit</TooltipContent>
+      </Tooltip>
+      {row.status === "active" && (
         <>
           <DropdownMenu>
             <Tooltip>
@@ -138,26 +140,33 @@ function getColumns(isAdmin: boolean, onArchived: () => void): ColumnDef<ToolRow
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
-      cell: ({ row }) => (
-        <Link
-          href={`/tools/${row.original.id}`}
-          className="font-medium hover:underline"
-        >
-          {row.getValue("name")}
-        </Link>
-      ),
+      cell: ({ row }) =>
+        isAdmin ? (
+          <Link
+            href={`/tools/${row.original.id}`}
+            className="font-medium hover:underline"
+          >
+            {row.getValue("name")}
+          </Link>
+        ) : (
+          <span className="font-medium">{row.getValue("name")}</span>
+        ),
     },
     {
       accessorKey: "vendor",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Vendor" />,
       filterFn: arrayIncludesFilterFn,
     },
-    {
-      accessorKey: "activeLicenses",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Active Licenses" />
-      ),
-    },
+    ...(isAdmin
+      ? [
+          {
+            accessorKey: "activeLicenses",
+            header: ({ column }: { column: import("@tanstack/react-table").Column<ToolRow> }) => (
+              <DataTableColumnHeader column={column} title="Active Licenses" />
+            ),
+          } as ColumnDef<ToolRow>,
+        ]
+      : []),
     {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
