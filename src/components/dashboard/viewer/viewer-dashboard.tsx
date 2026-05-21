@@ -5,11 +5,22 @@ import { PersonalKpis } from "./personal-kpis";
 import { MyToolsTable } from "./my-tools-table";
 import { PersonalActivity } from "./personal-activity";
 import { CatalogLinkCard } from "./catalog-link-card";
+import { ViewAsToggle } from "@/components/dashboard/view-as-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 import Link from "next/link";
 
-export async function ViewerDashboard({ userId }: { userId: number }) {
+interface ViewerDashboardProps {
+  userId: number;
+  /** Set when an admin is previewing the viewer dashboard via ?as=viewer. */
+  isAdminPreview?: boolean;
+}
+
+export async function ViewerDashboard({
+  userId,
+  isAdminPreview = false,
+}: ViewerDashboardProps) {
   if (!Number.isFinite(userId) || userId <= 0) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -44,6 +55,17 @@ export async function ViewerDashboard({ userId }: { userId: number }) {
 
   return (
     <div className="space-y-6">
+      {isAdminPreview && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+          <span className="flex items-center gap-2 text-primary">
+            <Eye className="size-3.5" />
+            Admin preview · seeing the viewer dashboard rendered with your own
+            account data.
+          </span>
+          <ViewAsToggle mode="to-admin" />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">

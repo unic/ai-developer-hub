@@ -166,6 +166,37 @@
       Currently two entries appear for an assignment that was both granted and revoked. Some users may prefer "Granted X · revoked 4 days later". Easy to change in <code>getRecentDashboardActivity</code> and the viewer equivalent.
     </div>
 
+    <h2>Follow-up: admin preview toggle</h2>
+
+    <div class="note">
+      <span class="tag tag-decision">decision</span>
+      <strong>Added a <code>?as=viewer</code> query-param toggle.</strong>
+      Admins now get a "Preview as viewer" pill next to the sync chip on the admin dashboard. Clicking it
+      navigates to <code>/?as=viewer</code>; the page reads the search param, validates the caller is admin, and renders
+      <code>&lt;ViewerDashboard userId={session.user.id} isAdminPreview /&gt;</code>. The viewer page shows a green
+      "Admin preview" banner with a "Back to admin view" link. Viewers cannot promote themselves — the search param
+      is ignored unless the session role is already admin.
+    </div>
+
+    <div class="note tradeoff">
+      <span class="tag tag-tradeoff">tradeoff</span>
+      <strong>Preview uses the admin's own user id, not a real viewer.</strong>
+      Admins rarely have their own license assignment with an Anthropic API key, so the preview lands in the
+      empty-state path ("Claude API not configured", "no tools assigned", "—" KPI placeholders). That's the actual
+      experience a fresh viewer gets, so it's still useful — but it's not a way to inspect what a richly-populated
+      viewer dashboard looks like. Doing that needs a real viewer's data, which would require either a "view as viewer X"
+      user picker or temporarily logging in as that viewer.
+    </div>
+
+    <div class="note open">
+      <span class="tag tag-open">open</span>
+      <strong>Identity card still shows "Admin" badge in preview mode.</strong>
+      Because the underlying data is the admin's own row, the role badge in <code>IdentityCard</code> reads "Admin"
+      even though we're rendering the viewer layout. The banner at the top makes the context obvious, but this is a
+      mild inconsistency worth confirming you're okay with. Alternative: force the badge to "Viewer" during preview.
+      Going with what the data says.
+    </div>
+
     <h2>What was verified in browser</h2>
     <ul>
       <li>Admin dashboard at <code>/</code>: budget health hero (at-risk, with stacked YTD bar and ceiling tick), this-month card, 4 KPIs (users / tools / licenses / expected monthly), spend-over-time stacked chart with PR #91 tooltip pattern, 4 insight cards including workspace limit + sync freshness, top-tools table with MoM badges, recent-activity timeline merging invoice ingestions + assignment events, jump-to footer. Screenshot: <code>admin-live.png</code>.</li>

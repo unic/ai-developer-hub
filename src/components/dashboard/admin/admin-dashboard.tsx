@@ -8,6 +8,7 @@ import { TopToolsCard } from "./top-tools-card";
 import { ActivityTimeline } from "./activity-timeline";
 import { JumpToRow } from "./jump-to-row";
 import { Card, CardContent } from "@/components/ui/card";
+import { ViewAsToggle } from "@/components/dashboard/view-as-toggle";
 import { formatDistanceToNow } from "date-fns";
 
 export async function AdminDashboard() {
@@ -39,10 +40,13 @@ export async function AdminDashboard() {
             AI spend, licenses, and adoption — month-to-date and YTD context.
           </p>
         </div>
-        <SyncChip
-          lastSyncedAt={data.sync.lastSyncedAt}
-          isStale={data.sync.isStale}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewAsToggle mode="to-viewer" />
+          <SyncChip
+            lastSyncedAt={data.sync.lastSyncedAt}
+            isStale={data.sync.isStale}
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
