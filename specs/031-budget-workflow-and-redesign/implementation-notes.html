@@ -496,6 +496,76 @@
       </p>
     </div>
 
+    <h2>Projection + variance redesign (follow-up on PR #98)</h2>
+
+    <div class="entry">
+      <div class="meta">deviation · projection</div>
+      <h3>Year-end projection is now anchored on actual spend, not <code>avg × total</code></h3>
+      <p>
+        The old formula was <code>avgPerClosed × periods.length</code>: it averaged closed periods
+        and replayed that average across every period — including periods that had already happened.
+        That re-projected the past and was deaf to the current month's pace.
+      </p>
+      <p>
+        New formula:
+        <code>closedActual + currentContribution + remainingCount × avgPerClosed</code>
+        where <code>currentContribution = max(currentRunning / elapsedFraction, avgPerClosed)</code>
+        once we're at least 20% into the current period, otherwise <code>avgPerClosed</code>. Closed
+        months are taken at their actual; the in-progress month extrapolates from its own pace but
+        won't drop below the historical average (so a slow first week doesn't optimistically pull the
+        projection down); future months extrapolate from the historical average. The 20%
+        elapsed-fraction threshold prevents divide-by-very-small-numbers at the start of a period.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · variance</div>
+      <h3>"Variance YTD" replaced with "Variance through {lastClosedLabel}"</h3>
+      <p>
+        The old YTD variance summed the current period's full <code>expectedSpendCents</code>
+        against its partial actual, which made the number creep less-negative through the month and
+        snap on month-end. The new tile is closed-only: <code>closedActual − closedExpected</code>,
+        labeled with the most recently closed period (e.g. "Variance through Apr"). The status pill
+        and the bullet under it follow the same window. Mid-month the tile is stable — what changed
+        is the projection, not the variance.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · narrative</div>
+      <h3>Narrative pairs the closed window with a current-period burn-rate signal</h3>
+      <p>
+        The first sentence covers the closed window (status + closed variance + projection); a
+        second sentence — added when there's a current period — describes the in-progress one
+        ("May 2026 is pacing 53% above the historical average ($58k projected vs $38k)" or "May
+        2026 is tracking the historical average ($38k projected)"). When we're under the 20% elapsed
+        threshold the second sentence falls back to a non-projection phrasing ("May is 12% through
+        ($4.5k so far)").
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · progress bar</div>
+      <h3>Expected marker on the multi-marker bar now tracks the closed window</h3>
+      <p>
+        Previously the blue expected tick marked <code>expectedYtd</code> (including the current
+        period's full month). For consistency with the variance tile + status pill, it now marks
+        <code>closedExpected</code> ("Expected through Apr"). Disappears when there are no closed
+        periods.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">tradeoff · considered</div>
+      <h3>Pro-rated current expected — not adopted</h3>
+      <p>
+        Considered: scale current's <code>expectedSpendCents</code> by <code>elapsedFraction</code>
+        and keep variance "YTD-including-current". Rejected — invoices land lumpy (vendor renewal on
+        day 1 of the month), so a linear-time proration would routinely overstate or understate
+        without telling the user. The closed-window approach is honest about what it measures.
+      </p>
+    </div>
+
     <h2>Post-review fixes (Copilot review on PR #98)</h2>
 
     <div class="entry">
