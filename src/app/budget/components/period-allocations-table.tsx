@@ -79,24 +79,30 @@ export function PeriodAllocationsTable({
 
   const canEdit = isAdmin && !isArchived;
 
-  // Footer aggregates everything ever allocated (planned), but only the
-  // expected/actual numbers for periods that have started — otherwise the
-  // variance line would compare YTD actual against full-year expected and
-  // always read as a massive negative.
-  const totals = periods.reduce(
-    (a, p) => {
-      const running = runningCosts[p.id]?.runningCostCents ?? 0;
-      const isFuture = classifyPeriod(p, today) === "future";
-      a.allocated += allocations[p.id] ?? 0;
-      if (!isFuture) {
-        a.expectedToDate += p.expectedSpendCents;
-        a.actualToDate += p.billedTotalCents + running;
-      }
-      return a;
-    },
-    { allocated: 0, expectedToDate: 0, actualToDate: 0 }
-  );
-  const totalVariance = totals.actualToDate - totals.expectedToDate;
+  // Footer scopes expected/actual/variance to the closed window — the same
+  // window the hero's "Variance through {lastClosed}" tile uses. A partial
+  // current period vs full-month expected is a misleading variance; future
+  // periods contribute zero on both sides and just dilute the signal.
+  // Allocated stays as the sum of every period's planned amount (it answers
+  // "what have I committed to spend over the year", which is meaningful
+  // independent of phase).
+  let allocatedTotal = 0;
+  let closedExpected = 0;
+  let closedActual = 0;
+  let lastClosedLabel: string | null = null;
+  let lastClosedEndDate = "";
+  for (const p of periods) {
+    allocatedTotal += allocations[p.id] ?? 0;
+    if (classifyPeriod(p, today) !== "past") continue;
+    closedExpected += p.expectedSpendCents;
+    closedActual +=
+      p.billedTotalCents + (runningCosts[p.id]?.runningCostCents ?? 0);
+    if (p.endDate > lastClosedEndDate) {
+      lastClosedEndDate = p.endDate;
+      lastClosedLabel = p.periodLabel;
+    }
+  }
+  const closedVariance = closedActual - closedExpected;
 
   return (
     <>
@@ -211,18 +217,22 @@ export function PeriodAllocationsTable({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className={varianceClassName(variance)}>
-                      {formatVariance(variance)}
+                    <TableCell
+                      className={
+                        isClosed ? varianceClassName(variance) : "text-muted-foreground"
+                      }
+                    >
+                      {isClosed ? formatVariance(variance) : "—"}
                     </TableCell>
                     <TableCell>
                       {isOverExpected ? (
                         <Badge variant="destructive">{pctDiff}%</Badge>
                       ) : isUnderExpected ? (
                         <Badge variant="secondary">{pctDiff}%</Badge>
-                      ) : isFuture && expected === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
+                      ) : isClosed ? (
                         <span>{pctDiff}%</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     {canEdit && (
@@ -360,12 +370,34 @@ export function PeriodAllocationsTable({
             })}
             <TableRow className="font-bold">
               <TableCell />
-              <TableCell>YTD Total</TableCell>
-              <TableCell>{formatCurrency(totals.allocated)}</TableCell>
-              <TableCell>{formatCurrency(totals.expectedToDate)}</TableCell>
-              <TableCell>{formatCurrency(totals.actualToDate)}</TableCell>
-              <TableCell className={varianceClassName(totalVariance)}>
-                {formatVariance(totalVariance)}
+              <TableCell>
+                {lastClosedLabel
+                  ? `Total through ${lastClosedLabel}`
+                  : "Total"}
+              </TableCell>
+              <TableCell>{formatCurrency(allocatedTotal)}</TableCell>
+              <TableCell>
+                {lastClosedLabel ? (
+                  formatCurrency(closedExpected)
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {lastClosedLabel ? (
+                  formatCurrency(closedActual)
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell
+                className={
+                  lastClosedLabel
+                    ? varianceClassName(closedVariance)
+                    : "text-muted-foreground"
+                }
+              >
+                {lastClosedLabel ? formatVariance(closedVariance) : "—"}
               </TableCell>
               <TableCell />
               {canEdit && <TableCell />}
@@ -378,10 +410,10 @@ export function PeriodAllocationsTable({
           <Button onClick={onSaveAllocations} disabled={saving}>
             {saving ? "Saving..." : "Save Allocations"}
           </Button>
-          {totals.allocated > budget.totalAmountCents && (
+          {allocatedTotal > budget.totalAmountCents && (
             <p className="text-sm text-destructive">
               Allocations exceed budget by{" "}
-              {formatCurrency(totals.allocated - budget.totalAmountCents)}
+              {formatCurrency(allocatedTotal - budget.totalAmountCents)}
             </p>
           )}
         </div>

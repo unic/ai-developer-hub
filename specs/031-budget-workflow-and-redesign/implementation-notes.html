@@ -496,6 +496,36 @@
       </p>
     </div>
 
+    <h2>Period-table variance + footer (follow-up on PR #98)</h2>
+
+    <div class="entry">
+      <div class="meta">deviation · period table</div>
+      <h3>Variance / % cells render "—" for current and future periods</h3>
+      <p>
+        After moving the hero to a closed-window variance, the per-row variance column was
+        still painting numbers for the in-progress month (partial actual vs full-month expected,
+        always negative) and for future months (zero vs zero, useless). Both now render
+        <code>—</code> with muted-foreground styling. Only past (closed) periods show a real
+        variance and a % diff badge — exactly the rows where the number is meaningful.
+      </p>
+    </div>
+
+    <div class="entry">
+      <div class="meta">deviation · period table footer</div>
+      <h3>"YTD Total" footer became "Total through {lastClosedLabel}"</h3>
+      <p>
+        Footer Expected / Actual / Variance now sum only the closed window, matching the hero's
+        Variance tile. The label is dynamic — e.g. "Total through Apr 2026" — so the reader
+        knows exactly what window the numbers cover. When no period has closed yet, the label
+        falls back to "Total" and the three numeric cells render <code>—</code>.
+      </p>
+      <p>
+        Allocated stays as the sum across all periods. That's the "what have I committed for the
+        year" number and remains useful independent of phase; the "exceeds budget" warning under
+        the Save button still works against it.
+      </p>
+    </div>
+
     <h2>Projection + variance redesign (follow-up on PR #98)</h2>
 
     <div class="entry">
