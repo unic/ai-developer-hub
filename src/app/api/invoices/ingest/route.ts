@@ -84,6 +84,20 @@ export async function POST(request: NextRequest) {
     } else if (contentType.toLowerCase().startsWith("multipart/form-data")) {
       // Existing multipart path — preserved for browser uploads and any
       // callers already sending properly-formed multipart bodies.
+      const boundaryMatch = contentType.match(/;\s*boundary=(?:"([^"]+)"|([^;]+))/i);
+      const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2]?.trim();
+
+      if (!boundary) {
+        const error =
+          "Content-Type multipart/form-data is missing a boundary parameter.";
+        await logIngestionAttempt({
+          outcome: "failed",
+          errorMessage: error,
+          channel: "api",
+        });
+        return NextResponse.json({ success: false, error }, { status: 400 });
+      }
+
       const formData = await request.formData();
       const file = formData.get("invoice");
 
