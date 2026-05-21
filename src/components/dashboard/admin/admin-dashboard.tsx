@@ -66,13 +66,12 @@ export async function AdminDashboard() {
         toolCount={data.overview.totalActiveTools}
       />
 
-      <SpendTrendCard
-        spendSeries={data.spendSeries}
-        billedYtdCents={data.billedYtdCents}
-      />
-
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="space-y-4 lg:col-span-2">
+          <SpendTrendCard
+            spendSeries={data.spendSeries}
+            billedYtdCents={data.billedYtdCents}
+          />
           <InsightsGrid
             overview={data.overview}
             toolSummary={data.toolSummary}
