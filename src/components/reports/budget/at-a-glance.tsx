@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { SpendProgressBar } from "@/components/shared/spend-progress-bar";
 import type { BudgetForecast, BudgetWithCosts, PeriodWithActual } from "@/types";
 
 interface AtAGlanceProps {
@@ -59,7 +60,7 @@ export function AtAGlance({ budget, periods, forecast }: AtAGlanceProps) {
         </Badge>
       </CardHeader>
       <CardContent className="space-y-5">
-        <ProgressBar
+        <SpendProgressBar
           actualYtd={actualYtd}
           ceiling={ceiling}
           projectedAnnualTotal={forecast.projectedAnnualTotalCents}
@@ -145,65 +146,3 @@ function StatTile({
   );
 }
 
-function ProgressBar({
-  actualYtd,
-  ceiling,
-  projectedAnnualTotal,
-}: {
-  actualYtd: number;
-  ceiling: number;
-  projectedAnnualTotal: number;
-}) {
-  if (ceiling === 0) return null;
-  // When projected exceeds the ceiling, scale the bar to fit the projected
-  // total instead of the ceiling so the overage stays inside the card. The
-  // ceiling becomes a tick mark inside the bar.
-  const scale = Math.max(ceiling, projectedAnnualTotal);
-  const actualPct = (actualYtd / scale) * 100;
-  const projectedPct = (projectedAnnualTotal / scale) * 100;
-  const ceilingPct = (ceiling / scale) * 100;
-  const over = projectedAnnualTotal > ceiling;
-
-  return (
-    <div>
-      <div className="flex items-baseline justify-between text-xs text-muted-foreground">
-        <span>$0</span>
-        <span>
-          <span className="font-medium text-foreground">
-            {formatCurrency(scale)}
-          </span>{" "}
-          {over ? "projected" : "ceiling"}
-        </span>
-      </div>
-      <div className="relative mt-2 pt-4">
-        <div className="relative h-3 overflow-hidden rounded-full bg-muted">
-          {over && (
-            <div
-              className="absolute inset-y-0 left-0 bg-destructive/40"
-              style={{ width: `${projectedPct}%` }}
-              aria-hidden
-            />
-          )}
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-primary"
-            style={{ width: `${actualPct}%` }}
-            aria-label={`Actual ${((actualYtd / ceiling) * 100).toFixed(1)}% of ceiling`}
-          />
-        </div>
-        {over && (
-          <div
-            className="pointer-events-none absolute -top-1 bottom-0 flex flex-col items-center"
-            style={{ left: `${ceilingPct}%`, transform: "translateX(-50%)" }}
-            aria-hidden
-            title={`Ceiling ${formatCurrency(ceiling)}`}
-          >
-            <span className="mb-0.5 whitespace-nowrap rounded bg-foreground px-1.5 py-px text-[10px] font-medium leading-none text-background">
-              ceiling {formatCurrency(ceiling)}
-            </span>
-            <div className="w-0.5 flex-1 bg-foreground" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}

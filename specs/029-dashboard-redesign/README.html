@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>029 — Dashboard Redesign · README</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: {
+        brand: { 300:"#c4dc52", 400:"#a4c400", 500:"#8aa700" },
+        ink: { 700:"#1f1f22", 800:"#18181b", 900:"#101012", 950:"#09090b" },
+      } } },
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #09090b; color: #e4e4e7; }
+    .prose-spec { max-width: 980px; }
+    .prose-spec h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+    .prose-spec h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2.25rem; margin-bottom: 0.5rem; letter-spacing: -0.01em; color: #fafafa; }
+    .prose-spec h3 { font-size: 1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #fafafa; }
+    .prose-spec p, .prose-spec li { color: #a1a1aa; line-height: 1.6; }
+    .prose-spec li { margin: 0.25rem 0; }
+    .prose-spec strong { color: #fafafa; font-weight: 600; }
+    .prose-spec code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(63,63,70,0.5); color: #e4e4e7; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+    .prose-spec a { color: #c4dc52; text-decoration: none; border-bottom: 1px dotted rgba(196,220,82,0.4); }
+    .prose-spec a:hover { color: #a4c400; border-bottom-color: #a4c400; }
+    .prose-spec ul { padding-left: 1.25rem; list-style: disc; }
+    .prose-spec table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+    .prose-spec th, .prose-spec td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(63,63,70,0.55); font-size: 13.5px; }
+    .prose-spec th { color: #fafafa; font-weight: 600; background: rgba(24,24,27,0.5); }
+    .prose-spec td { color: #d4d4d8; }
+    .card { background: rgba(24,24,27,0.65); border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; font-size:11px; background: rgba(164,196,0,0.12); color:#c4dc52; border: 1px solid rgba(164,196,0,0.25); }
+    .grid-bg {
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(164,196,0,0.06), transparent 60%),
+        radial-gradient(800px 500px at 100% 0%, rgba(124,158,255,0.03), transparent 60%),
+        #09090b;
+    }
+    .preview-frame { border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; overflow: hidden; background: #09090b; }
+    .preview-frame img { display:block; width:100%; height:auto; }
+    .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:500; }
+    .tag-reuse { background: rgba(164,196,0,0.15); color:#c4dc52; }
+    .tag-new   { background: rgba(124,158,255,0.15); color:#a5b4fc; }
+    .tag-admin { background: rgba(248,113,113,0.12); color:#fca5a5; }
+    .tag-viewer{ background: rgba(74,222,128,0.12); color:#86efac; }
+    .callout { border-left: 2px solid #a4c400; background: rgba(164,196,0,0.05); padding: 0.75rem 1rem; border-radius: 0 8px 8px 0; }
+  </style>
+</head>
+<body class="grid-bg antialiased">
+  <div class="mx-auto px-6 lg:px-10 py-10 prose-spec">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div class="text-xs uppercase tracking-[0.18em] text-zinc-500">Feature 029 · Visual exploration</div>
+        <h1 class="mt-1">Dashboard Redesign</h1>
+        <p class="mt-2 text-zinc-400 max-w-2xl">
+          Two mockups — one for admins, one for viewers — that bring the storytelling and density of the
+          recently-redesigned reports (PR #91, #92) to the dashboard landing page, without overloading it.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="pill"><span class="size-1.5 rounded-full bg-brand-400"></span>Mockup only</span>
+        <span class="pill">No schema changes</span>
+      </div>
+    </div>
+
+    <!-- Quick links -->
+    <div class="mt-6 grid gap-3 sm:grid-cols-2">
+      <a href="admin.html" class="card p-4 hover:border-brand-400/40 transition no-underline">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-semibold text-zinc-100">Admin dashboard</div>
+            <div class="text-[11px] text-zinc-500 mt-0.5">Org-wide spend, budget, anomalies, activity</div>
+          </div>
+          <span class="tag tag-admin">admin</span>
+        </div>
+      </a>
+      <a href="viewer.html" class="card p-4 hover:border-brand-400/40 transition no-underline">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-semibold text-zinc-100">Viewer dashboard</div>
+            <div class="text-[11px] text-zinc-500 mt-0.5">My tools, my API usage, my activity</div>
+          </div>
+          <span class="tag tag-viewer">viewer</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Why -->
+    <h2>Why</h2>
+    <p>
+      The current dashboard (<code>src/app/page.tsx</code>) is functional but flat. The admin variant shows five plain KPI cards
+      and four navigation tiles — no trends, no anomalies, no story. The viewer variant shows three KPI cards plus a 5-row
+      "recent assignments" list — useful, but it ignores the rich per-user signal we now collect (Claude API usage,
+      cache efficiency, per-model spend, key health).
+    </p>
+    <p>
+      The recently-redesigned reports prove the design system can carry much higher density. This spec brings the same
+      patterns to the dashboard — but tuned per role: <em>admins get the org-wide telescope, viewers get the personal mirror.</em>
+    </p>
+
+    <!-- Admin section -->
+    <h2 id="admin">Admin dashboard <span class="tag tag-admin align-middle ml-2">admin</span></h2>
+
+    <div class="preview-frame mt-3">
+      <a href="admin.html"><img src="admin-preview.png" alt="Admin dashboard mockup preview"/></a>
+    </div>
+    <p class="text-[11px] text-zinc-500 mt-2">Click the preview to open <code>admin.html</code>.</p>
+
+    <h3>Layout</h3>
+    <ol class="list-decimal pl-6 text-zinc-300 text-[14px] space-y-1">
+      <li><strong>Greeting + context bar</strong> — date-range pill, "all sources synced 12 min ago" chip, export.</li>
+      <li><strong>Hero row (2/3 + 1/3)</strong> — Budget Health Hero with a YTD-vs-projected stacked bar across the 12 months and a ceiling tick; <em>This Month at a Glance</em> with a 30-day spend area and "today" marker.</li>
+      <li><strong>KPI grid (4 cards)</strong> — Active users, Active licenses (with utilization bar), Spend this month, Copilot acceptance. Each with delta badge, comparison line, sparkline / mini-bar series.</li>
+      <li><strong>Spend over time</strong> — single stacked monthly chart (Licenses · Anthropic API · Copilot seats), 12 months with the last 7 fading as forecast. Right rail shows YTD total + per-series share.</li>
+      <li><strong>What's happening (4 cards)</strong> — auto-generated insights: biggest mover, workspace approaching its limit, license capacity, sync health.</li>
+      <li><strong>Top tools + Recent activity (2/3 + 1/3)</strong> — top-5 tools (MoM badge, 12-mo sparkline, monthly cost, "running API" badge for Anthropic); 24h timeline of invoice ingestions, assignment changes, workspace thresholds, budget period closes.</li>
+      <li><strong>Jump to</strong> (slim footer) — the old navigation tiles compressed, each with a one-line health hint.</li>
+    </ol>
+
+    <!-- Viewer section -->
+    <h2 id="viewer">Viewer dashboard <span class="tag tag-viewer align-middle ml-2">viewer</span></h2>
+
+    <div class="preview-frame mt-3">
+      <a href="viewer.html"><img src="viewer-preview.png" alt="Viewer dashboard mockup preview"/></a>
+    </div>
+    <p class="text-[11px] text-zinc-500 mt-2">Click the preview to open <code>viewer.html</code>.</p>
+
+    <div class="callout mt-3">
+      <p class="text-zinc-200 text-sm">
+        <strong>Design principle:</strong> the viewer dashboard is a <em>personal mirror</em>, not a stripped-down admin view.
+        Don't hide admin widgets behind permission checks — replace them with information that's relevant to one person:
+        my spend, my key, my tools, my activity. No org rollups, no peer comparisons, no totals I can't act on.
+      </p>
+    </div>
+
+    <h3>What viewers can access (per role enforcement)</h3>
+    <ul>
+      <li><strong>User-scoped, read-allowed:</strong> own assignments (<code>getAssignmentsForUser</code>), own Claude API usage (<code>getUserCostData</code>), own profile / cost data (<code>getProfileData</code>), theme preference.</li>
+      <li><strong>Admin-only, hidden:</strong> all-user lists, budgets/forecasts, Copilot org metrics, workspace alerts, ingestion/sync settings, invoices, claude/* admin pages.</li>
+      <li><strong>Source:</strong> guarded by <code>AuthGuard</code> (<code>src/components/auth-guard.tsx:23</code>) and <code>requireAdmin()</code> (<code>src/lib/auth-helpers.ts:12</code>); cost actions self-check at <code>src/actions/anthropic-usage.ts:47-56</code>.</li>
+    </ul>
+
+    <h3>Layout</h3>
+    <ol class="list-decimal pl-6 text-zinc-300 text-[14px] space-y-1">
+      <li><strong>Greeting + key-health chip</strong> — "Hi Tobias", plus a live <em>"Claude API · key healthy · last call 8 min ago"</em> chip, plus a profile shortcut. Today the dashboard doesn't tell a viewer whether their key still works — this is the #1 thing to fix.</li>
+      <li><strong>Hero row (1/3 + 2/3)</strong>
+        <ul>
+          <li><strong>Identity card</strong> — avatar, name, email, role/profile/circle badges, "tools assigned" and "active licenses" tiles, plus a green "key configured and healthy" callout with a self-service rotate link.</li>
+          <li><strong>My Claude API usage (30-day area chart)</strong> — daily spend, "today" marker, the same PR #91 tooltip pattern (color swatches, currency values per model). Right rail breaks the 30-day total by model (Sonnet / Opus / Haiku) with mini-bars + token counts + cache savings footer.</li>
+        </ul>
+      </li>
+      <li><strong>KPI strip (4 cards)</strong> — Spend this month (with MoM delta + sparkline + license/API split footer), Tokens used 30d (with input/output mini-bar), My tools (count + initials chips), Today (current-day cost + per-hour micro-bar). All user-scoped.</li>
+      <li><strong>My tools &amp; licenses table</strong> — tool, tier, status (active / trial-Nd-left), monthly cost, assigned date. The trial badge surfaces an expiring trial that today's plain list buries.</li>
+      <li><strong>Recent activity on your account (2/3) + Available tools (1/3)</strong>
+        <ul>
+          <li><em>Recent activity</em> is the same timeline pattern as the admin dashboard, but filtered to events that involve the current user: assignments granted/revoked, tier changes, key rotations, profile updates.</li>
+          <li><em>Available tools</em> is new — a short list of tools the user doesn't have, with a "Request" button. Replaces the empty space where admin sees org-wide insights.</li>
+        </ul>
+      </li>
+      <li><strong>Tip footer</strong> — a single contextual hint (e.g. "Caching cut your Sonnet costs by ~38% — keep system prompts stable") generated from the user's own usage data.</li>
+    </ol>
+
+    <h3>What's intentionally absent for viewers</h3>
+    <ul>
+      <li>No org spend / budget / forecast — viewer has no business with the CHF 180k ceiling.</li>
+      <li>No "biggest mover" / workspace alerts / sync health — admin-only signals.</li>
+      <li>No Copilot acceptance KPI — Copilot data is org-wide and currently admin-gated; per-user Copilot stats would need a new query.</li>
+      <li>No "all users / top spenders" — never visible to viewers.</li>
+    </ul>
+
+    <!-- Components mapping -->
+    <h2>Patterns: reuse vs new</h2>
+    <table>
+      <thead>
+        <tr><th>Pattern</th><th>Used on</th><th>Source</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Budget Health Hero</td><td>Admin</td><td><code>reports/overview/budget-health-hero.tsx</code></td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>KPI with MoM + sparkline</td><td>Admin · Viewer</td><td><code>reports/overview/kpi-with-mom.tsx</code> + <code>sparkline.tsx</code></td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>Chart tooltip (swatch + total + share)</td><td>Admin · Viewer</td><td><code>components/ui/chart.tsx</code> (PR #91)</td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>Tool adoption / spend table</td><td>Admin</td><td><code>reports/reports-charts-panel.tsx:153-217</code></td><td><span class="tag tag-reuse">reuse</span></td></tr>
+        <tr><td>What Changed insight cards</td><td>Admin</td><td><code>reports/overview/what-changed.tsx</code></td><td><span class="tag tag-reuse">reuse</span> + 2 new insight types</td></tr>
+        <tr><td>Stacked monthly spend chart with forecast bars</td><td>Admin</td><td>—</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>Identity / profile card</td><td>Viewer</td><td>—</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>API key health chip + callout</td><td>Viewer</td><td>—</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>My usage 30-day chart with per-model rail</td><td>Viewer</td><td>derived from profile page</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>"My tools &amp; licenses" table with trial badge</td><td>Viewer</td><td>extends current viewer list</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>Recent activity timeline</td><td>Admin (org) · Viewer (self)</td><td>—</td><td><span class="tag tag-new">new</span></td></tr>
+        <tr><td>"Available tools / Request access"</td><td>Viewer</td><td>—</td><td><span class="tag tag-new">new</span> · needs workflow</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Data wiring -->
+    <h2>Data wiring (sketch)</h2>
+    <p>All numbers can come from existing actions; no schema changes are needed.</p>
+
+    <h3>Admin</h3>
+    <ul>
+      <li><strong>Budget hero, progress bar, projection</strong> → <code>getBudgetReportData()</code> (reuse forecast).</li>
+      <li><strong>This-month snapshot</strong> → same source, current period only.</li>
+      <li><strong>KPI grid</strong> → <code>getReportOverviewData()</code> already returns <code>totalActiveUsers/Licenses</code>, MoM previous, and <code>expectedMonthlySparkline</code>. Add a 28-day acceptance series from <code>getCopilotOverview()</code>.</li>
+      <li><strong>Spend over time</strong> → <code>periodsWithActual</code> (licenses + running API) + monthly Copilot snapshots; forecast from <code>src/lib/forecast.ts</code>.</li>
+      <li><strong>Insights</strong> — biggest-mover &amp; capacity already in <code>getStaticInsights()</code>; workspace-limit insight from <code>getActiveAlerts()</code> (already exists, just not surfaced here); sync health from <code>syncEvents</code> (currently untapped).</li>
+      <li><strong>Recent activity</strong> → union of <code>ingestionLog</code> (newest 5), <code>licenseAssignments</code> (newest 3), <code>syncEvents</code> warnings, <code>budgetPeriods</code> close events.</li>
+    </ul>
+
+    <h3>Viewer</h3>
+    <ul>
+      <li><strong>Identity card + badges</strong> → <code>getProfileData(userId)</code> (<code>src/lib/profile-data.ts:184</code>) returns name, email, role, circle, profile.</li>
+      <li><strong>Key health chip + green callout</strong> → derive from <code>licenseAssignments.apiKeyEncrypted</code> presence + most recent <code>anthropicUsageMetrics</code> timestamp. <em>"Last call N min ago"</em> needs a tiny new query: latest <code>requestedAt</code> for this user.</li>
+      <li><strong>30-day usage area</strong> → <code>getUserCostData(userId)</code> already returns <code>dailyBreakdown</code> with <code>{date, models[{model, costCents, inputTokens, outputTokens}]}</code>.</li>
+      <li><strong>By-model rail (Sonnet/Opus/Haiku)</strong> → roll up <code>dailyBreakdown</code> by <code>model</code>.</li>
+      <li><strong>Cache savings footer</strong> → derive from <code>cacheReadInputTokens</code> vs <code>uncachedInputTokens</code> on <code>anthropicUsageMetrics</code> (currently untapped per-user signal).</li>
+      <li><strong>KPI strip</strong> → all derived from <code>getUserCostData</code> + <code>getAssignmentsForUser</code>; "Today" is <code>dailyBreakdown</code> last entry.</li>
+      <li><strong>My tools &amp; licenses table</strong> → <code>getAssignmentsForUser(userId)</code>. Add trial badge by checking tier name or a new boolean (out of scope here).</li>
+      <li><strong>Personal activity timeline</strong> → <code>changeHistory</code> filtered to entries where <code>userId = current</code>, ordered DESC; small new selector needed.</li>
+      <li><strong>Available tools</strong> → <code>getTools()</code> minus user's assigned <code>toolId</code>s. "Request" needs a new lightweight workflow (out of scope for the mockup — could be an email or a row in a new <code>access_requests</code> table).</li>
+    </ul>
+
+    <!-- Out of scope -->
+    <h2>Intentionally one click away</h2>
+    <p>So the dashboard stays a landing page and not a second reports page:</p>
+    <ul>
+      <li>Per-workspace Anthropic detail and model-level breakdown (admin: <code>/claude</code>; viewer: <code>/profile</code>).</li>
+      <li>Plan-vs-actual + forecast cumulative charts (admin <code>/reports/budget</code>).</li>
+      <li>Spend-by-circle table (admin <code>/reports</code>).</li>
+      <li>Full sortable Copilot table (admin <code>/copilot/analytics</code>).</li>
+      <li>Full ingestion history (admin <code>/admin/ingestion</code>).</li>
+      <li>Full personal assignment / activity history (viewer <code>/assignments</code> + <code>/profile</code>).</li>
+    </ul>
+
+    <!-- Open questions -->
+    <h2>Open questions</h2>
+    <ul>
+      <li>Should the viewer dashboard be the new default landing for non-admins, or should we keep the "redirect viewers to /profile" pattern some other apps use? Mockup assumes the former.</li>
+      <li>Is the <em>"Available tools · Request access"</em> panel worth the new workflow it implies (notification, approval state, history)? If not, drop it and widen the activity timeline.</li>
+      <li>"Last call N min ago" requires either a tiny new query or a value precomputed during the Anthropic sync. Which?</li>
+      <li>For non-Anthropic users (no API key), the whole hero collapses to mostly empty state. Need a designed empty state: "You don't have Claude API access — here's what you can still do."</li>
+      <li>Date-range selector on the admin dashboard, or always "current month + YTD context"? Mockup assumes the latter; viewer keeps a 7/30/90d switcher because the usage chart is the centerpiece.</li>
+    </ul>
+
+    <!-- Files -->
+    <h2>Files in this spec</h2>
+    <ul>
+      <li><a href="admin.html"><code>admin.html</code></a> — admin dashboard mockup (self-contained, Tailwind via CDN).</li>
+      <li><a href="viewer.html"><code>viewer.html</code></a> — viewer dashboard mockup.</li>
+      <li><code>admin-preview.png</code>, <code>viewer-preview.png</code> — full-page screenshots at 1440×900.</li>
+      <li><code>README.html</code> — this document.</li>
+    </ul>
+
+    <div class="mt-12 pt-6 border-t border-zinc-800 text-[11px] text-zinc-600">
+      Feature 029 · Dashboard Redesign · Mockup only · No code changes proposed yet.
+    </div>
+  </div>
+</body>
+</html>

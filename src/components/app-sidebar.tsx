@@ -49,7 +49,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "viewer"] },
-  { title: "Tools", href: "/tools", icon: Wrench, roles: ["admin"] },
+  { title: "Tools", href: "/tools", icon: Wrench, roles: ["admin", "viewer"] },
   { title: "Users", href: "/users", icon: Users, roles: ["admin"] },
   { title: "Assignments", href: "/assignments", icon: KeyRound, roles: ["admin", "viewer"] },
   { title: "Budget", href: "/budget", icon: DollarSign, roles: ["admin"] },

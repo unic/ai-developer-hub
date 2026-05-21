@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { KpiWithMom } from "./overview/kpi-with-mom";
+import { buildDelta, buildPctDelta } from "@/lib/format-delta";
 import { BudgetHealthHero } from "./overview/budget-health-hero";
 import { WhatChanged } from "./overview/what-changed";
 import { formatCurrency, NO_CIRCLE_SENTINEL } from "@/lib/utils";
@@ -270,30 +271,6 @@ export function OverviewPanel({
       </Card>
     </div>
   );
-}
-
-function buildDelta(delta: number): {
-  label: string;
-  variant: "up" | "down" | "flat";
-} {
-  if (delta === 0) return { label: "±0", variant: "flat" };
-  return {
-    label: `${delta > 0 ? "+" : ""}${delta}`,
-    variant: delta > 0 ? "up" : "down",
-  };
-}
-
-function buildPctDelta(
-  delta: number,
-  base: number
-): { label: string; variant: "up" | "down" | "flat" } {
-  if (base === 0) return { label: "±0%", variant: "flat" };
-  const pct = (delta / base) * 100;
-  if (Math.abs(pct) < 0.05) return { label: "±0%", variant: "flat" };
-  return {
-    label: `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`,
-    variant: pct > 0 ? "up" : "down",
-  };
 }
 
 function trendComparison(d: ReportOverviewData): string | undefined {
