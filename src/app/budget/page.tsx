@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getActiveBudget, getBudgetWithCosts } from "@/actions/budget";
+import { getTools } from "@/actions/tools";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import type { RunningCostsResult } from "@/lib/budget-utils";
 import { AuthGuard } from "@/components/auth-guard";
@@ -31,9 +32,10 @@ export default async function BudgetPage() {
     );
   }
 
-  const runningCostsResults = await Promise.all(
-    budget.periods.map((p) => getRunningCostsForPeriod(p.id))
-  );
+  const [runningCostsResults, allTools] = await Promise.all([
+    Promise.all(budget.periods.map((p) => getRunningCostsForPeriod(p.id))),
+    getTools(),
+  ]);
   const runningCosts: Record<number, RunningCostsResult> = {};
   budget.periods.forEach((p, i) => {
     const result = runningCostsResults[i];
@@ -41,6 +43,11 @@ export default async function BudgetPage() {
       runningCosts[p.id] = result;
     }
   });
+  // Strip down to just what the dialog needs — the full AiTool shape carries
+  // server-only timestamps and lots of fields the client doesn't read.
+  const tools = allTools
+    .filter((t) => t.status === "active")
+    .map((t) => ({ id: t.id, name: t.name }));
 
   return (
     <AuthGuard requiredRole="admin">
@@ -48,6 +55,7 @@ export default async function BudgetPage() {
         budget={budget}
         isAdmin={isAdmin}
         runningCosts={runningCosts}
+        tools={tools}
         showBreadcrumb={false}
       />
     </AuthGuard>

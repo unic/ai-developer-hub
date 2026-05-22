@@ -85,6 +85,20 @@ export function ForecastCumulativeChart({
             fill: "var(--muted-foreground)",
           }}
         />
+        {forecast.originalCeilingCents !== forecast.budgetCeilingCents && (
+          <ReferenceLine
+            y={forecast.originalCeilingCents}
+            stroke="var(--muted-foreground)"
+            strokeDasharray="2 4"
+            strokeOpacity={0.7}
+            label={{
+              value: `Original baseline ${formatCurrency(forecast.originalCeilingCents)}`,
+              position: "insideBottomRight",
+              fontSize: 11,
+              fill: "var(--muted-foreground)",
+            }}
+          />
+        )}
         <ChartTooltip
           content={
             <ChartTooltipContent
