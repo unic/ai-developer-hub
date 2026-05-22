@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -25,6 +25,12 @@ interface Props {
 export function RejectionDialog({ open, onOpenChange, detail, onSuccess }: Props) {
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
+
+  // Clear the draft note every time the dialog opens — matches the
+  // reset-on-open behavior of CompletionDialog and ApprovalDialog.
+  useEffect(() => {
+    if (open) setNote("");
+  }, [open]);
 
   function handleSend() {
     startTransition(async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -291,14 +291,12 @@ function FormPayloadList({
             <dd className="whitespace-pre-wrap">{stringValue}</dd>
           </div>
         ) : (
-          <>
-            <dt key={`${key}-k`} className="text-muted-foreground">
-              {prettifyKey(key)}
-            </dt>
-            <dd key={`${key}-v`} className="font-mono text-xs">
-              {stringValue}
-            </dd>
-          </>
+          // Fragment with a key — keys on the inner <dt>/<dd> don't satisfy
+          // React's array-element key requirement.
+          <Fragment key={key}>
+            <dt className="text-muted-foreground">{prettifyKey(key)}</dt>
+            <dd className="font-mono text-xs">{stringValue}</dd>
+          </Fragment>
         );
       })}
     </dl>

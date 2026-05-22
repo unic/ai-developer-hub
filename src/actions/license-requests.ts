@@ -341,6 +341,12 @@ export async function completeRequest(
   const apiKeyEncrypted =
     licenseCode && licenseCode !== "" ? await encryptApiKey(licenseCode) : null;
 
+  // Sentinel for the first-write-wins race: the inner transaction returns
+  // `null` when the status-conditioned UPDATE matched 0 rows, the outer
+  // function converts that into a structured ActionResult so the caller never
+  // sees a 500.
+  const RACE_LOST = Symbol("race-lost");
+
   // Atomic: create assignment, link to request, transition status.
   const result = await db.transaction(async (tx) => {
     const [assignment] = await tx
@@ -377,11 +383,23 @@ export async function completeRequest(
       .returning({ id: licenseRequests.id });
 
     if (updated.length === 0) {
-      throw new Error("Race condition: request status changed before completion");
+      // Throw to trigger the Drizzle rollback of the assignment insert above —
+      // then catch outside and surface a clean ActionResult.
+      throw RACE_LOST;
     }
 
     return { assignmentId: assignment.id };
+  }).catch((err) => {
+    if (err === RACE_LOST) return null;
+    throw err;
   });
+
+  if (result === null) {
+    return {
+      success: false,
+      error: "This request was actioned by another admin while you were entering details. Refresh to see the latest state.",
+    };
+  }
 
   await postToTeamsSafe({
     teamId: req.teamsTeamId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -46,6 +46,12 @@ export function ApprovalDialog({
   const [bodyMd, setBodyMd] = useState(initialBody);
   const [pending, startTransition] = useTransition();
   const previewHtml = markdownToTeamsHtml(bodyMd);
+
+  // Reset to the freshly-rendered template every time the dialog opens —
+  // otherwise edits from a prior open-then-cancel session persist.
+  useEffect(() => {
+    if (open) setBodyMd(initialBody);
+  }, [open, initialBody]);
 
   function handleSend() {
     startTransition(async () => {

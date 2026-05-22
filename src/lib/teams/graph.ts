@@ -165,11 +165,18 @@ async function graphPost(path: string, body: unknown): Promise<unknown> {
           await new Promise((r) => setTimeout(r, retryAfterMs));
           continue;
         }
+      } else if (res.status === 401) {
+        // Token was invalidated mid-flight. Clear the cache and mark this
+        // attempt as retriable — the next iteration will re-acquire a fresh
+        // token and retry the POST. Only retry once for 401 (subsequent 401s
+        // age out via the normal MAX_ATTEMPTS cap).
+        cached = null;
+        lastError = new GraphApiError(
+          `Graph POST ${path} returned 401 (token invalidated, retrying)`,
+          true,
+          401,
+        );
       } else {
-        // 401 specifically: token may have been invalidated mid-flight; invalidate
-        // cache and let the next attempt re-acquire. Still non-retriable for the
-        // outer loop on this attempt — we don't recursively retry within one call.
-        if (res.status === 401) cached = null;
         throw new GraphApiError(
           `Graph POST ${path} returned ${res.status}`,
           false,

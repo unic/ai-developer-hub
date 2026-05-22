@@ -144,7 +144,7 @@ export function CompletionDialog({
               <Textarea
                 value={licenseCode}
                 onChange={(e) => setLicenseCode(e.target.value)}
-                placeholder="Paste the key — stored encrypted in license_assignments.apiKey"
+                placeholder="Paste the key — encrypted via encryptApiKey() and stored in license_assignments.api_key_encrypted"
                 className="font-mono text-xs min-h-[80px]"
               />
               <p className="text-xs text-muted-foreground">
