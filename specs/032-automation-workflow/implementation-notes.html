@@ -187,6 +187,20 @@ uniqueIndex("message_templates_tool_tier_kind_idx")
   <p>Next.js logs "We detected multiple lockfiles and selected the directory of C:\Repos\ai-developer-hub\pnpm-lock.yaml as the root directory" on every dev start. Set <code>outputFileTracingRoot</code> in <code>next.config.ts</code> to silence — or remove the worktree's <code>pnpm-lock.yaml</code> if it's redundant with the main checkout's. Not blocking; cosmetic.</p>
 </div>
 
+<div class="phase-divider">Post-review patch (2026-05-22, after self-review)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Three must-fix findings patched before review feedback</h3>
+  <p class="where"><code>src/actions/license-requests.ts</code>, <code>src/app/requests/[id]/page.tsx</code>, <code>src/app/requests/[id]/{approval,completion}-dialog.tsx</code></p>
+  <p>A self-review surfaced three real bugs. All three patched in one follow-up commit on the same branch:</p>
+  <ul>
+    <li class="note"><strong>License code encryption restored</strong> — <code>completeRequest()</code> now runs the license code through <code>encryptApiKey()</code> from <code>@/lib/crypto</code> before writing to <code>license_assignments.apiKeyEncrypted</code>, matching the manual-assignment flow in <code>src/actions/assignments.ts</code>. This closes the open question flagged in the original implementation-notes.</li>
+    <li class="note"><strong><code>{{approver.*}}</code> now resolves</strong> — the detail page reads the current admin from <code>auth()</code>, derives a first name, and passes <code>approver: { name, firstName }</code> down through <code>RequestDetailClient</code> into both dialogs' <code>buildContext()</code>. The seeded default templates' trailing <code>— {{approver.firstName}}</code> now renders the admin's name in the message sent to Teams.</li>
+    <li class="note"><strong>Duplicate active-assignment guard</strong> — <code>completeRequest()</code> queries <code>license_assignments</code> for any existing <code>(userId, toolId, status='active')</code> row before inserting; returns a clear error pointing at the existing assignment id if one exists. No DB-level unique constraint (different tiers / API keys are legitimate parallel rows), so this app-level check is the only line of defense against double-counting in cost reports.</li>
+  </ul>
+  <p>All 359 tests still pass; typecheck + lint clean.</p>
+</div>
+
 <footer>
   Appended to as implementation progresses. Each entry tagged Decision / Deviation / Tradeoff / Open.
 </footer>

@@ -8,9 +8,10 @@ import {
   accessTiers,
   users,
 } from "@/lib/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { encryptApiKey } from "@/lib/crypto";
 import {
   approveRequestSchema,
   rejectRequestSchema,
@@ -314,6 +315,32 @@ export async function completeRequest(
     return { success: false, error: "Tier does not belong to the requested tool." };
   }
 
+  // Block accidental duplicate seats: if the requester already has an active
+  // assignment for this tool, fail loudly. The DB has no unique constraint
+  // here (different tiers / API keys are legitimate parallel rows), so this
+  // is the only check that prevents the workflow from silently double-counting
+  // a seat in cost reports.
+  const existingActive = await db.query.licenseAssignments.findFirst({
+    where: and(
+      eq(licenseAssignments.userId, req.requesterUserId),
+      eq(licenseAssignments.toolId, req.requestedToolId),
+      eq(licenseAssignments.status, "active"),
+    ),
+    columns: { id: true, tierId: true },
+  });
+  if (existingActive) {
+    return {
+      success: false,
+      error: `Requester already has an active assignment for this tool (assignment #${existingActive.id}). Revoke the existing assignment first, or cancel this request.`,
+    };
+  }
+
+  // Encrypt the license code with the same helper the manual-assignment flow uses.
+  // Anything stored in apiKeyEncrypted MUST go through encryptApiKey() — the
+  // column is read back via decryptApiKey() in the assignment detail view.
+  const apiKeyEncrypted =
+    licenseCode && licenseCode !== "" ? await encryptApiKey(licenseCode) : null;
+
   // Atomic: create assignment, link to request, transition status.
   const result = await db.transaction(async (tx) => {
     const [assignment] = await tx
@@ -324,7 +351,7 @@ export async function completeRequest(
         tierId,
         costAtAssignmentCents: tier.monthlyCostCents,
         assignedAt: new Date(`${assignedAt}T00:00:00Z`),
-        apiKeyEncrypted: licenseCode ?? null,
+        apiKeyEncrypted,
         source: "license-request-workflow",
       })
       .returning({ id: licenseAssignments.id });

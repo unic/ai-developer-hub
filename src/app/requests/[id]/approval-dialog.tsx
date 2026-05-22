@@ -25,6 +25,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   detail: LicenseRequestDetail;
   template: string | null;
+  approver: { name: string; firstName: string };
   onSuccess: () => void;
 }
 
@@ -33,13 +34,14 @@ export function ApprovalDialog({
   onOpenChange,
   detail,
   template,
+  approver,
   onSuccess,
 }: Props) {
   const initialBody = useMemo(() => {
     if (!template) return "";
-    const ctx = buildContext(detail);
+    const ctx = buildContext(detail, approver);
     return renderTemplate(template, ctx).rendered;
-  }, [detail, template]);
+  }, [detail, template, approver]);
 
   const [bodyMd, setBodyMd] = useState(initialBody);
   const [pending, startTransition] = useTransition();
@@ -117,7 +119,10 @@ export function ApprovalDialog({
   );
 }
 
-function buildContext(detail: LicenseRequestDetail): TemplateContext {
+function buildContext(
+  detail: LicenseRequestDetail,
+  approver: { name: string; firstName: string },
+): TemplateContext {
   const firstName = detail.requesterName.split(/\s+/)[0] ?? detail.requesterName;
   return {
     requester: {
@@ -127,6 +132,7 @@ function buildContext(detail: LicenseRequestDetail): TemplateContext {
     },
     tool: { name: detail.requestedToolName },
     tier: detail.requestedTierName ? { name: detail.requestedTierName } : null,
+    approver,
     requestUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/requests/${detail.id}`,
     form: detail.formPayload,
   };

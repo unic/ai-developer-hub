@@ -27,6 +27,8 @@ interface Props {
   tiers: { id: number; name: string; monthlyCostCents: number }[];
   approvalTemplate: string | null;
   completionTemplate: string | null;
+  /** Current admin's identity — used to resolve {{approver.*}} in templates. */
+  approver: { name: string; firstName: string };
 }
 
 const STATUS_LABELS: Record<LicenseRequestDetail["status"], string> = {
@@ -53,6 +55,7 @@ export function RequestDetailClient({
   tiers,
   approvalTemplate,
   completionTemplate,
+  approver,
 }: Props) {
   const router = useRouter();
   const [approveOpen, setApproveOpen] = useState(false);
@@ -224,6 +227,7 @@ export function RequestDetailClient({
             onOpenChange={setApproveOpen}
             detail={detail}
             template={approvalTemplate}
+            approver={approver}
             onSuccess={() => router.refresh()}
           />
           <RejectionDialog
@@ -241,6 +245,7 @@ export function RequestDetailClient({
           detail={detail}
           tiers={tiers}
           template={completionTemplate}
+          approver={approver}
           onSuccess={() => router.refresh()}
         />
       )}
