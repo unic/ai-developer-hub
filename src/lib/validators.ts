@@ -409,3 +409,70 @@ export type CreateIngestionFilterInput = z.infer<
 export type UpdateIngestionFilterInput = z.infer<
   typeof updateIngestionFilterSchema
 >;
+
+// License Request — spec 032-automation-workflow
+//
+// Power Automate POSTs this payload to /api/license-requests/ingest after a
+// Microsoft Form is submitted. PA sends tool / tier by NAME (what the form
+// shows the requester) and the Hub resolves to IDs — Form display values
+// don't change as often as DB IDs, so name-matching is the more stable contract.
+export const licenseRequestIngestSchema = z.object({
+  formResponseId: z.string().min(1).max(255),
+  requesterEmail: z.string().email(),
+  requesterName: z.string().min(1).max(255),
+  // Tool / tier — accept name or id. ID takes precedence when both supplied.
+  toolId: z.number().int().positive().optional(),
+  toolName: z.string().min(1).max(255).optional(),
+  tierId: z.number().int().positive().optional(),
+  tierName: z.string().min(1).max(255).optional(),
+  // Variable per tier; raw form payload, keyed by Form question identifier.
+  formPayload: z.record(z.string(), z.unknown()),
+  // Teams context — PA must forward these from the existing channel-post +
+  // create-chat actions so the Hub can post threaded replies + group-chat
+  // updates via Microsoft Graph.
+  teamsTeamId: z.string().min(1),
+  teamsChannelId: z.string().min(1),
+  teamsParentMessageId: z.string().min(1),
+  teamsChatId: z.string().min(1),
+}).refine(
+  (d) => d.toolId !== undefined || (d.toolName !== undefined && d.toolName.length > 0),
+  { message: "toolId or toolName is required", path: ["toolName"] },
+);
+
+export type LicenseRequestIngestInput = z.infer<typeof licenseRequestIngestSchema>;
+
+export const messageTemplateSchema = z.object({
+  toolId: z.number().int().positive(),
+  // null = tool-wide default; positive integer = tier-specific override.
+  tierId: z.number().int().positive().nullable(),
+  kind: z.enum(["approval", "completion"]),
+  bodyMd: z.string().min(1).max(8000),
+});
+
+export type MessageTemplateInput = z.infer<typeof messageTemplateSchema>;
+
+export const approveRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+  bodyMd: z.string().min(1).max(8000),
+});
+export type ApproveRequestInput = z.infer<typeof approveRequestSchema>;
+
+export const rejectRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+  decisionNote: z.string().min(1).max(2000),
+});
+export type RejectRequestInput = z.infer<typeof rejectRequestSchema>;
+
+export const completeRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+  tierId: z.number().int().positive(),
+  licenseCode: z.string().min(1).max(700).optional(),
+  assignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date YYYY-MM-DD"),
+  bodyMd: z.string().min(1).max(8000),
+});
+export type CompleteRequestInput = z.infer<typeof completeRequestSchema>;
+
+export const cancelRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+});
+export type CancelRequestInput = z.infer<typeof cancelRequestSchema>;

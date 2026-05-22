@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — Automation Workflow (P2.2)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 32px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+    pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 800px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .badge.warn { color: var(--warn); border-color: rgba(252,211,77,0.3); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row.between { justify-content: space-between; }
+    .flow { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; white-space: pre; overflow-x: auto; color: var(--fg-muted); }
+    .flow .em { color: var(--fg); }
+    .flow .ok { color: var(--good); }
+    .flow .accent { color: var(--accent); }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    li.check::marker { content: "☐ "; color: var(--fg-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.good { background: rgba(134,239,172,0.12); color: var(--good); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent); background: rgba(125,211,252,0.04); }
+    .step { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 8px 0; align-items: start; }
+    .step-num { font-family: var(--mono); font-size: 12px; color: var(--fg-dim); padding-top: 2px; }
+    .phase { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; }
+    .phase-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .phase-head h3 { font-size: 20px; margin: 0; }
+    .phase-meta { color: var(--fg-dim); font-family: var(--mono); font-size: 12px; }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Implementation plan</span>
+    <span class="badge">spec/032-automation-workflow</span>
+    <span class="badge good">P2.2 — locked</span>
+  </div>
+  <h1>Automation workflow — implementation plan</h1>
+  <p class="lede">
+    Concrete, file-level plan for shipping the multi-approver license-request workflow on top of the existing AI Hub.
+    Companion to <a href="./proposals.html">proposals.html</a> — that doc is the <em>why</em>; this is the <em>how</em>.
+    Visual references in <a href="./mockups.html">mockups.html</a>.
+  </p>
+  <p class="meta">Drafted 2026-05-22 · author: T. Studer · estimate: ~6–7 dev days + IT lead time for Entra app</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>UI mockups available.</strong> See <a href="./mockups.html">mockups.html</a> for every screen and dialog this plan touches — queue, detail page (pending + completed states), approval / completion / rejection modals, template list, template editor, and the Teams adaptive card. Each phase below links to the relevant section.
+</div>
+
+<h2>Scope reminder</h2>
+
+<div class="card accent-2">
+  <p>
+    Three boundaries from the locked direction in <a href="./proposals.html#refined">P2.2</a>:
+  </p>
+  <ul>
+    <li class="note"><strong>Procurement stays manual</strong> — the Hub never calls Copilot / Anthropic admin APIs. It records what humans did.</li>
+    <li class="note"><strong>The Hub owns all outbound Teams comms after ingest</strong> — via Microsoft Graph. PA's only new responsibility is forwarding the Forms response.</li>
+    <li class="note"><strong>Approvals are multi-user, first-write-wins</strong> — any Hub admin can claim any pending request from the queue.</li>
+  </ul>
+</div>
+
+<h2>Phasing at a glance</h2>
+
+<div class="card">
+  <div class="flow"><span class="accent">Phase 0</span>  Pre-work (parallel)         IT files Entra app · env vars · pick markdown libs
+                                       │
+<span class="accent">Phase 1</span>  Schema                       <span class="em">license_requests + message_templates + 2 enums</span>
+                                       │
+<span class="accent">Phase 2</span>  Ingest endpoint              <span class="em">POST /api/license-requests/ingest</span> (PA calls this)
+                                       │
+<span class="accent">Phase 3</span>  Graph helper                 <span class="em">src/lib/teams/graph.ts</span> + token cache
+                                       │
+<span class="accent">Phase 4</span>  Template rendering           mustache subst + variable contract
+                                       │
+<span class="accent">Phase 5</span>  Template settings UI         <span class="em">/settings/license-templates</span>
+                                       │
+<span class="accent">Phase 6</span>  Queue + detail + modals      <span class="em">/requests</span>, <span class="em">/requests/[id]</span>
+                                       │
+<span class="accent">Phase 7</span>  PA flow extension            one new HTTP action in existing flow
+                                       │
+<span class="accent">Phase 8</span>  Tests &amp; rollout              Vitest, smoke test, seed templates</div>
+</div>
+
+<h2>Reusable patterns at a glance</h2>
+
+<p style="color: var(--fg-muted);">
+  Every new piece has an existing analogue in the codebase. The agents that explored the repo identified these mappings — follow them rather than inventing new patterns.
+</p>
+
+<table>
+  <thead>
+    <tr><th>New piece</th><th>Closest existing pattern</th><th>Use for</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>POST /api/license-requests/ingest</code></td>
+      <td><code>src/app/api/invoices/ingest/route.ts</code></td>
+      <td>Bearer-secret auth, response shape, error flow</td>
+    </tr>
+    <tr>
+      <td>Bearer-secret auth check</td>
+      <td><code>requireBearerSecret()</code> in <code>src/lib/auth-helpers.ts</code></td>
+      <td>Direct reuse — pass <code>"LICENSE_REQUEST_INGEST_SECRET"</code></td>
+    </tr>
+    <tr>
+      <td>Ingestion logging</td>
+      <td><code>logIngestionAttempt()</code> + <code>ingestion_log</code> table</td>
+      <td>Mirror with <code>channel: "api"</code> + license-specific fields</td>
+    </tr>
+    <tr>
+      <td><code>src/lib/teams/graph.ts</code></td>
+      <td><code>src/lib/teams/webhook.ts</code></td>
+      <td>Retry/backoff, custom error class, pure-function style</td>
+    </tr>
+    <tr>
+      <td>Card builders for Graph posts</td>
+      <td><code>src/lib/teams/cards.ts</code></td>
+      <td>Pure functions returning typed envelopes</td>
+    </tr>
+    <tr>
+      <td>Admin-gated page</td>
+      <td><code>&lt;AuthGuard requiredRole="admin"&gt;</code> (e.g. <code>/users/page.tsx</code>)</td>
+      <td>Wrap <code>/requests</code> + <code>/settings/license-templates</code></td>
+    </tr>
+    <tr>
+      <td>Server-action admin check</td>
+      <td><code>requireAdmin()</code> from <code>@/lib/auth-helpers</code></td>
+      <td>Top of every new server action</td>
+    </tr>
+    <tr>
+      <td>Queue table</td>
+      <td><code>src/app/users/users-table.tsx</code> + <code>src/components/data-table.tsx</code></td>
+      <td><code>/requests</code> queue with status filter</td>
+    </tr>
+    <tr>
+      <td>Detail page with action buttons</td>
+      <td><code>src/app/assignments/[id]/assignment-detail-client.tsx</code></td>
+      <td><code>/requests/[id]</code> with Approve / Reject / Complete</td>
+    </tr>
+    <tr>
+      <td>Action modal</td>
+      <td><code>src/components/edit-user-dialog.tsx</code></td>
+      <td>Approval / Completion modals with markdown editor</td>
+    </tr>
+    <tr>
+      <td>RHF + Zod form</td>
+      <td><code>src/app/users/new/new-user-form.tsx</code></td>
+      <td>Template editor form, completion form</td>
+    </tr>
+    <tr>
+      <td>Server action return shape</td>
+      <td><code>ActionResult&lt;T&gt;</code> in <code>src/types/index.ts</code></td>
+      <td>All new actions</td>
+    </tr>
+    <tr>
+      <td>Validators</td>
+      <td><code>src/lib/validators.ts</code></td>
+      <td>Add new Zod schemas there, not colocated</td>
+    </tr>
+    <tr>
+      <td>Settings tab</td>
+      <td><code>src/app/settings/settings-nav.tsx</code> <code>adminTabs</code></td>
+      <td>Add one entry for "License templates"</td>
+    </tr>
+    <tr>
+      <td>Sidebar nav</td>
+      <td><code>src/components/app-sidebar.tsx</code> <code>navItems</code></td>
+      <td>Add one entry for "Requests"</td>
+    </tr>
+    <tr>
+      <td>Toast</td>
+      <td><code>sonner</code> via <code>toast.success/error</code></td>
+      <td>On every action result</td>
+    </tr>
+    <tr>
+      <td>Markdown rendering</td>
+      <td><strong>No existing component</strong></td>
+      <td>Add <code>react-markdown</code> (one dep)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Phase 0 — Pre-work</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>0 · Pre-work (start day one, runs in parallel)</h3>
+    <span class="phase-meta">~0.5 day · blocks Phase 3</span>
+  </div>
+
+  <ul>
+    <li class="check"><strong>File the IT ticket</strong> — done: <a href="https://uniccom.atlassian.net/browse/IT-112678">IT-112678</a>. This is the only external lead-time item.</li>
+    <li class="check"><strong>Add env vars to Vercel + <code>.env.local.example</code></strong>:
+      <ul>
+        <li class="note"><code>LICENSE_REQUEST_INGEST_SECRET</code> — bearer secret PA uses to call <code>/ingest</code>. Generate with <code>openssl rand -hex 32</code>.</li>
+        <li class="note"><code>GRAPH_TENANT_ID</code> — from IT once they create the Entra app</li>
+        <li class="note"><code>GRAPH_CLIENT_ID</code> — same</li>
+        <li class="note"><code>GRAPH_CLIENT_SECRET</code> — same</li>
+      </ul>
+    </li>
+    <li class="check"><strong>Pick library deps</strong>:
+      <ul>
+        <li class="note"><code>@azure/msal-node</code> — Microsoft auth client-credentials flow. Standard pick.</li>
+        <li class="note"><code>react-markdown</code> — preview rendering in the modal. Tiny, single-purpose.</li>
+        <li class="note">No mustache library — substitution is ~30 lines of regex; not worth a dep.</li>
+      </ul>
+    </li>
+    <li class="check"><strong>Document one PA env detail</strong>: confirm with the existing PA flow what variables it has in scope today (team ID, channel ID, parent message ID, group chat ID). If any are missing, add a one-action lookup before phase 7. See <a href="./proposals.html">open question in proposals.html</a>.</li>
+  </ul>
+</div>
+
+<h2>Phase 1 — Schema</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>1 · Database schema additions</h3>
+    <span class="phase-meta">~0.5 day · unblocks everything downstream</span>
+  </div>
+
+  <p>Two new enums + two new tables in <code>src/lib/db/schema.ts</code>. Conventions mirrored exactly from the existing <code>licenseAssignments</code> table: <code>serial</code> PKs, <code>pgEnum</code> at top of file, <code>created_at</code>/<code>updated_at</code> with <code>.notNull().defaultNow()</code>, snake_case DB / camelCase TS, JSONB with <code>.$type&lt;T&gt;()</code>, FK <code>onDelete: "restrict"</code> for required refs and <code>"set null"</code> for nullable ones.</p>
+
+  <h4>Add to the enum block (top of <code>schema.ts</code>, after the existing enums)</h4>
+  <pre><code>export const licenseRequestStatusEnum = pgEnum("license_request_status", [
+  "pending_review",
+  "approved",
+  "rejected",
+  "completed",
+  "cancelled",
+]);
+
+export const messageTemplateKindEnum = pgEnum("message_template_kind", [
+  "approval",
+  "completion",
+]);</code></pre>
+
+  <h4>Add two tables (before the Relations section)</h4>
+  <pre><code>export const licenseRequests = pgTable(
+  "license_requests",
+  {
+    id: serial("id").primaryKey(),
+    formResponseId: text("form_response_id").notNull().unique(),
+    requesterEmail: text("requester_email").notNull(),
+    requesterName: text("requester_name").notNull(),
+    requesterUserId: integer("requester_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    requestedToolId: integer("requested_tool_id")
+      .notNull()
+      .references(() => aiTools.id, { onDelete: "restrict" }),
+    requestedTierId: integer("requested_tier_id").references(
+      () => accessTiers.id,
+      { onDelete: "set null" },
+    ),
+    formPayload: jsonb("form_payload")
+      .$type&lt;Record&lt;string, unknown&gt;&gt;()
+      .notNull(),
+    teamsTeamId: text("teams_team_id").notNull(),
+    teamsChannelId: text("teams_channel_id").notNull(),
+    teamsParentMessageId: text("teams_parent_message_id").notNull(),
+    teamsChatId: text("teams_chat_id").notNull(),
+    status: licenseRequestStatusEnum("status")
+      .notNull()
+      .default("pending_review"),
+    decidedBy: integer("decided_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at"),
+    decisionNote: text("decision_note"),
+    completedBy: integer("completed_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvalMessageMd: text("approval_message_md"),
+    completionMessageMd: text("completion_message_md"),
+    completedAt: timestamp("completed_at"),
+    assignmentId: integer("assignment_id").references(
+      () => licenseAssignments.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("license_requests_form_response_id_idx").on(table.formResponseId),
+    index("license_requests_requester_user_id_idx").on(table.requesterUserId),
+    index("license_requests_requested_tool_id_idx").on(table.requestedToolId),
+    index("license_requests_status_idx").on(table.status),
+    index("license_requests_decided_by_idx").on(table.decidedBy),
+    index("license_requests_assignment_id_idx").on(table.assignmentId),
+  ],
+);
+
+export const messageTemplates = pgTable(
+  "message_templates",
+  {
+    id: serial("id").primaryKey(),
+    toolId: integer("tool_id")
+      .notNull()
+      .references(() => aiTools.id, { onDelete: "cascade" }),
+    tierId: integer("tier_id").references(() => accessTiers.id, {
+      onDelete: "cascade",
+    }),
+    kind: messageTemplateKindEnum("kind").notNull(),
+    bodyMd: text("body_md").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("message_templates_tool_id_idx").on(table.toolId),
+    index("message_templates_tier_id_idx").on(table.tierId),
+    uniqueIndex("message_templates_tool_tier_kind_idx").on(
+      table.toolId,
+      table.tierId,
+      table.kind,
+    ),
+  ],
+);</code></pre>
+
+  <h4>Add to the Relations section</h4>
+  <pre><code>export const licenseRequestsRelations = relations(
+  licenseRequests,
+  ({ one }) => ({
+    requesterUser: one(users, {
+      fields: [licenseRequests.requesterUserId],
+      references: [users.id],
+    }),
+    requestedTool: one(aiTools, {
+      fields: [licenseRequests.requestedToolId],
+      references: [aiTools.id],
+    }),
+    requestedTier: one(accessTiers, {
+      fields: [licenseRequests.requestedTierId],
+      references: [accessTiers.id],
+    }),
+    decidedByUser: one(users, {
+      fields: [licenseRequests.decidedBy],
+      references: [users.id],
+    }),
+    completedByUser: one(users, {
+      fields: [licenseRequests.completedBy],
+      references: [users.id],
+    }),
+    assignment: one(licenseAssignments, {
+      fields: [licenseRequests.assignmentId],
+      references: [licenseAssignments.id],
+    }),
+  }),
+);
+
+export const messageTemplatesRelations = relations(
+  messageTemplates,
+  ({ one }) => ({
+    tool: one(aiTools, {
+      fields: [messageTemplates.toolId],
+      references: [aiTools.id],
+    }),
+    tier: one(accessTiers, {
+      fields: [messageTemplates.tierId],
+      references: [accessTiers.id],
+    }),
+  }),
+);</code></pre>
+
+  <h4>Generate and apply</h4>
+  <pre><code>pnpm db:generate     # generates SQL migration file
+pnpm db:migrate      # applies to dev DB</code></pre>
+
+  <div class="callout info">
+    <strong>Tip:</strong> unique constraint on <code>(tool_id, tier_id, kind)</code> with a nullable <code>tier_id</code> — Postgres treats NULLs as distinct by default. If you want only one tool-default per kind, that's already the behaviour we want (NULL = wildcard). Confirm in psql after migration that no duplicate (tool_id, NULL, kind) rows can be inserted at the app layer.
+  </div>
+</div>
+
+<h2>Phase 2 — Ingest endpoint</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>2 · <code>POST /api/license-requests/ingest</code></h3>
+    <span class="phase-meta">~0.5 day · clones the invoice ingest pattern</span>
+  </div>
+
+  <h4>Files</h4>
+  <ul>
+    <li class="check"><code>src/app/api/license-requests/ingest/route.ts</code> — new</li>
+    <li class="check"><code>src/lib/validators.ts</code> — add <code>licenseRequestIngestSchema</code></li>
+  </ul>
+
+  <h4>Auth + body validation</h4>
+  <p>
+    Reuse <code>requireBearerSecret(request, "LICENSE_REQUEST_INGEST_SECRET")</code> from <code>src/lib/auth-helpers.ts</code> — do not reimplement. Then parse body with Zod:
+  </p>
+  <pre><code>// src/lib/validators.ts
+export const licenseRequestIngestSchema = z.object({
+  formResponseId: z.string().min(1),         // idempotency key
+  requesterEmail: z.string().email(),
+  requesterName: z.string().min(1),
+  requestedToolId: z.number().int().positive(),
+  requestedTierId: z.number().int().positive().optional(),
+  formPayload: z.record(z.string(), z.unknown()),
+  teamsTeamId: z.string().min(1),
+  teamsChannelId: z.string().min(1),
+  teamsParentMessageId: z.string().min(1),
+  teamsChatId: z.string().min(1),
+});
+
+export type LicenseRequestIngestInput = z.infer&lt;typeof licenseRequestIngestSchema&gt;;</code></pre>
+
+  <h4>Response shape (mirrors invoice ingest)</h4>
+  <ul>
+    <li class="note"><strong>201 Created</strong> on new request: <code>{ success: true, data: { requestId, hubUrl } }</code></li>
+    <li class="note"><strong>200 OK</strong> on duplicate <code>formResponseId</code>: <code>{ success: true, data: { requestId, hubUrl, deduped: true } }</code> — idempotent so PA retries are safe</li>
+    <li class="note"><strong>401</strong> on bad bearer: <code>{ success: false, error: "Unauthorized" }</code></li>
+    <li class="note"><strong>400</strong> on Zod validation failure: <code>{ success: false, error: &lt;message&gt; }</code></li>
+    <li class="note"><strong>413</strong> on body &gt; 64 KB (sanity cap per <a href="./proposals.html">open question</a>)</li>
+    <li class="note"><strong>500</strong> on env var unset or DB error: <code>{ success: false, error: "An unexpected error occurred. Please try again." }</code></li>
+  </ul>
+
+  <h4>Handler shape</h4>
+  <pre><code>// src/app/api/license-requests/ingest/route.ts
+export async function POST(request: Request) {
+  const authError = await requireBearerSecret(request, "LICENSE_REQUEST_INGEST_SECRET");
+  if (authError) return Response.json(authError, { status: authError.error === "Unauthorized" ? 401 : 500 });
+
+  const body = await request.json();
+  const parsed = licenseRequestIngestSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ success: false, error: parsed.error.issues[0]?.message ?? "Invalid payload" }, { status: 400 });
+  }
+
+  // 1. dedupe on formResponseId
+  // 2. insert license_requests row
+  // 3. log to ingestion_log with channel: "api"
+  // 4. fire-and-forget: postChannelReply(...) with the adaptive card
+  //    (don't await — return to PA quickly; failure is recoverable from /requests UI)
+  // 5. return { success: true, data: { requestId, hubUrl } }
+}</code></pre>
+
+  <h4>Logging</h4>
+  <p>
+    Mirror invoices: call <code>logIngestionAttempt({ channel: "api", outcome, ... })</code> from <code>src/lib/ingestion-logger.ts</code> for every accepted, deduped, or failed request. The existing <code>ingestion_log</code> table is flexible enough — pass <code>filename: null</code>, repurpose <code>invoiceNumber</code> for the form_response_id, and put domain-specific data in <code>errorMessage</code> for failures.
+  </p>
+  <p style="color: var(--fg-muted); font-size: 13.5px;">
+    If <code>ingestion_log</code> turns out to be too invoice-coloured, add a separate <code>license_request_ingestion_log</code> table later. Don't over-design now.
+  </p>
+</div>
+
+<h2>Phase 3 — Graph helper</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>3 · <code>src/lib/teams/graph.ts</code></h3>
+    <span class="phase-meta">~1 day · blocked by IT's Entra app (Phase 0)</span>
+  </div>
+
+  <p>New module sits alongside <code>src/lib/teams/webhook.ts</code>. Mirror its conventions: pure-ish functions, custom error class with <code>retriable</code> boolean, exponential backoff with jitter on 412/429/502/504 + <code>Retry-After</code> honored, throw on failure (don't return error objects), no logging — observability is via thrown errors.</p>
+
+  <h4>Files</h4>
+  <ul>
+    <li class="check"><code>src/lib/teams/graph.ts</code> — new module</li>
+    <li class="check"><code>src/lib/teams/types.ts</code> — extend with <code>ChannelReplyInput</code>, <code>ChatMessageInput</code></li>
+  </ul>
+
+  <h4>Public surface</h4>
+  <pre><code>// Custom error mirrors TeamsWebhookError in webhook.ts
+export class GraphApiError extends Error {
+  constructor(message: string, public retriable: boolean, public status?: number) {
+    super(message);
+    this.name = "GraphApiError";
+  }
+}
+
+export interface ChannelReplyInput {
+  teamId: string;
+  channelId: string;
+  parentMessageId: string;
+  bodyMarkdown: string;
+}
+
+export interface ChatMessageInput {
+  chatId: string;
+  bodyMarkdown: string;
+}
+
+export async function postChannelReply(input: ChannelReplyInput): Promise&lt;void&gt;;
+export async function postChatMessage(input: ChatMessageInput): Promise&lt;void&gt;;</code></pre>
+
+  <h4>Internal: token cache + MSAL</h4>
+  <pre><code>// In-module cache. Tokens last ~60min; refresh on miss or expiry-within-60s.
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function getGraphToken(): Promise&lt;string&gt; {
+  if (cachedToken && cachedToken.expiresAt - Date.now() &gt; 60_000) {
+    return cachedToken.value;
+  }
+  const cca = new ConfidentialClientApplication({
+    auth: {
+      clientId: process.env.GRAPH_CLIENT_ID!,
+      authority: `https://login.microsoftonline.com/${process.env.GRAPH_TENANT_ID}`,
+      clientSecret: process.env.GRAPH_CLIENT_SECRET!,
+    },
+  });
+  const result = await cca.acquireTokenByClientCredential({
+    scopes: ["https://graph.microsoft.com/.default"],
+  });
+  if (!result?.accessToken) throw new GraphApiError("Failed to acquire Graph token", false);
+  cachedToken = { value: result.accessToken, expiresAt: result.expiresOn!.getTime() };
+  return result.accessToken;
+}</code></pre>
+
+  <h4>Retry/backoff — copy from <code>webhook.ts</code></h4>
+  <p>
+    Retriable codes: <code>[412, 429, 502, 504]</code>. Max 3 attempts. Exponential <code>base * 2^(n-1)</code> with ±20% jitter, capped at 20s. Honor <code>Retry-After</code> when present. Throw <code>GraphApiError(retriable: true)</code> on transient failures (caught + retried internally), throw <code>GraphApiError(retriable: false)</code> on 4xx (immediate abort). On final attempt, re-throw the last retriable error.
+  </p>
+
+  <h4>Body shape for Graph</h4>
+  <pre><code>// channel reply
+POST /v1.0/teams/{teamId}/channels/{channelId}/messages/{parentMessageId}/replies
+{
+  body: { contentType: "html", content: &lt;markdown rendered to safe HTML&gt; }
+}
+
+// chat message
+POST /v1.0/chats/{chatId}/messages
+{
+  body: { contentType: "html", content: &lt;same&gt; }
+}</code></pre>
+  <p>
+    Graph accepts <code>contentType: "html"</code> or <code>"text"</code>. Render the stored markdown via <code>react-markdown</code>'s <code>marked</code>-style serializer, or simpler: a small <code>markdownToTeamsHtml(md)</code> in <code>src/lib/teams/format.ts</code> that handles bold / italic / lists / links / code spans (which is all Teams renders anyway). Strip anything fancier — Teams will silently drop unsupported HTML.
+  </p>
+
+  <h4>Adaptive card on ingest</h4>
+  <p>
+    The initial card posted on ingest is the only Graph call that's not a plain text body — it uses Teams' Adaptive Card schema embedded in the message. <a href="./mockups.html#teams-card">See mockup</a>. Add a card builder in <code>src/lib/teams/cards.ts</code> (mirrors the existing <code>renderDigestCard</code> etc.):
+  </p>
+  <pre><code>// src/lib/teams/cards.ts
+export function renderLicenseRequestCard(input: {
+  requesterName: string;
+  toolName: string;
+  tierName: string | null;
+  hubUrl: string;
+}): TeamsMessageWithCard;</code></pre>
+  <p>The card has the request summary + a single <code>Action.OpenUrl</code> button pointing at <code>hubUrl</code>. Graph requires wrapping the card in a specific message attachment structure — see Graph docs for <code>chatMessage</code> with attachments.</p>
+
+  <h4>Tests</h4>
+  <p>
+    There are no existing tests in <code>src/lib/teams/</code>. Skip exhaustive coverage; add one Vitest unit test for <code>markdownToTeamsHtml()</code> (round-trip a few cases) and one for the retry-after parsing logic if you carve it into a pure helper. End-to-end is verified manually in Phase 8 smoke test.
+  </p>
+</div>
+
+<h2>Phase 4 — Template rendering</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>4 · Mustache substitution + variable contract</h3>
+    <span class="phase-meta">~0.5 day · pure module, easy to test</span>
+  </div>
+
+  <p>Tiny module — no dependency required. ~30 lines.</p>
+
+  <h4>File</h4>
+  <ul>
+    <li class="check"><code>src/lib/license-requests/render-template.ts</code> — new</li>
+  </ul>
+
+  <h4>Variable contract</h4>
+  <pre><code>export interface TemplateContext {
+  requester: { name: string; firstName: string; email: string };
+  tool: { name: string };
+  tier: { name: string } | null;
+  licenseCode?: string;         // completion only
+  requestUrl: string;
+  form: Record&lt;string, unknown&gt;; // raw form_payload
+}
+
+export function renderTemplate(bodyMd: string, ctx: TemplateContext): {
+  rendered: string;
+  missingVariables: string[];   // surfaced in template editor as warnings
+};</code></pre>
+
+  <h4>Substitution rules</h4>
+  <ul>
+    <li class="note">Match <code>{{ path.to.value }}</code> with optional whitespace.</li>
+    <li class="note">Dotted paths resolve into the context object (deep get).</li>
+    <li class="note"><code>{{form.&lt;key&gt;}}</code> indexes into the JSONB payload — values are stringified with <code>String(v)</code>; objects/arrays render as JSON.</li>
+    <li class="note">Missing variables: leave the literal <code>{{path}}</code> in place AND record the path in <code>missingVariables</code>. The template editor uses this to warn (per <a href="./proposals.html">the silent-break risk</a> from MS Forms key renames).</li>
+    <li class="note">HTML escaping happens later, in <code>markdownToTeamsHtml()</code> — render-template returns plain markdown.</li>
+  </ul>
+
+  <h4>Template resolution</h4>
+  <p>Lookup order in <code>src/lib/license-requests/templates.ts</code>:</p>
+  <pre><code>async function findTemplate(
+  toolId: number,
+  tierId: number | null,
+  kind: "approval" | "completion"
+): Promise&lt;string | null&gt; {
+  // 1. exact (tool, tier, kind)
+  // 2. fallback (tool, NULL, kind)  — tool-wide default
+  // 3. null  — editor opens empty
+}</code></pre>
+</div>
+
+<h2>Phase 5 — Template management UI</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>5 · <code>/settings/license-templates</code></h3>
+    <span class="phase-meta">~1 day · <a href="./mockups.html#templates-settings">list mockup</a> · <a href="./mockups.html#template-editor">editor mockup</a></span>
+  </div>
+
+  <h4>Files</h4>
+  <ul>
+    <li class="check"><code>src/app/settings/license-templates/page.tsx</code> — server component, <code>AuthGuard requiredRole="admin"</code></li>
+    <li class="check"><code>src/app/settings/license-templates/templates-table.tsx</code> — client, uses <code>DataTable</code></li>
+    <li class="check"><code>src/app/settings/license-templates/template-editor-dialog.tsx</code> — modal with markdown editor</li>
+    <li class="check"><code>src/app/settings/settings-nav.tsx</code> — add tab entry under <code>adminTabs</code></li>
+    <li class="check"><code>src/actions/license-templates.ts</code> — server actions: <code>upsertTemplate</code>, <code>deleteTemplate</code></li>
+    <li class="check"><code>src/lib/validators.ts</code> — add <code>messageTemplateSchema</code></li>
+  </ul>
+
+  <h4>UI shape</h4>
+  <p>Table of (tool, tier, kind, last updated). Each tool has 4 rows by default (default approval, default completion, plus a "+ Add override" affordance per tier). Click a row to open the editor dialog.</p>
+
+  <h4>Editor dialog — two-pane</h4>
+  <ul>
+    <li class="note"><strong>Left</strong>: <code>&lt;Textarea&gt;</code> with the markdown source.</li>
+    <li class="note"><strong>Right</strong>: live preview via <code>react-markdown</code>. Renders the template with a fake context (sample requester / tool / tier) so the admin sees what real output looks like.</li>
+    <li class="note"><strong>Sidebar</strong>: list of available variables (<code>{{requester.firstName}}</code>, …, <code>{{form.*}}</code>). Click to insert at cursor.</li>
+    <li class="note"><strong>Unknown-variable warning</strong>: under the textarea, list any <code>{{form.*}}</code> the template uses that wasn't seen in the last N <code>form_payload</code> samples from <code>license_requests</code> for this tool. Soft warning, not a block.</li>
+  </ul>
+
+  <h4>Seeding</h4>
+  <p>
+    Add a small seed script (<code>scripts/seed-message-templates.ts</code>) that inserts a default approval + completion template for every existing tool, with placeholder copy referencing the standard variables. Tobias edits in the UI after.
+  </p>
+</div>
+
+<h2>Phase 6 — Queue + detail + modals</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>6 · <code>/requests</code> &amp; <code>/requests/[id]</code></h3>
+    <span class="phase-meta">~2 days · mockups: <a href="./mockups.html#queue">queue</a> · <a href="./mockups.html#detail-pending">detail (pending)</a> · <a href="./mockups.html#detail-completed">detail (completed)</a> · <a href="./mockups.html#approve-modal">approve</a> · <a href="./mockups.html#complete-modal">complete</a> · <a href="./mockups.html#reject-modal">reject</a></span>
+  </div>
+
+  <h4>Files</h4>
+  <ul>
+    <li class="check"><code>src/app/requests/page.tsx</code> — server component, <code>AuthGuard requiredRole="admin"</code></li>
+    <li class="check"><code>src/app/requests/requests-table.tsx</code> — client, uses <code>DataTable</code> with status filter</li>
+    <li class="check"><code>src/app/requests/[id]/page.tsx</code> — server fetches request + payload + tool + tier</li>
+    <li class="check"><code>src/app/requests/[id]/request-detail-client.tsx</code> — orchestrates approve/reject/complete</li>
+    <li class="check"><code>src/app/requests/[id]/approval-dialog.tsx</code> — modal with markdown editor for approval message</li>
+    <li class="check"><code>src/app/requests/[id]/completion-dialog.tsx</code> — modal: tier/code/date form + completion message editor</li>
+    <li class="check"><code>src/app/requests/[id]/rejection-dialog.tsx</code> — simple textarea (no template)</li>
+    <li class="check"><code>src/components/markdown-editor.tsx</code> — new shared component (textarea + preview pane)</li>
+    <li class="check"><code>src/actions/license-requests.ts</code> — <code>approveRequest</code>, <code>rejectRequest</code>, <code>completeRequest</code>, <code>cancelRequest</code></li>
+  </ul>
+
+  <h4>Queue (<code>/requests</code>)</h4>
+  <p>Mirror <code>src/app/users/users-table.tsx</code>:</p>
+  <ul>
+    <li class="note">Columns: created_at, requester, tool, tier, status, decided_by, age. Click row → <code>/requests/[id]</code>.</li>
+    <li class="note">Faceted filter on status (default: <code>pending_review</code> + <code>approved</code>).</li>
+    <li class="note">Global search by requester name / email.</li>
+    <li class="note">Row-level dropdown: "Open in new tab", "Mark cancelled".</li>
+  </ul>
+
+  <h4>Detail page (<code>/requests/[id]</code>)</h4>
+  <ul>
+    <li class="note">Top: requester card (name, email, matched user if any).</li>
+    <li class="note">Form payload card: definition list rendered from <code>form_payload</code> with <code>snake_case</code> → <code>Title Case</code> prettification. Long values (&gt;120 chars) render as paragraphs.</li>
+    <li class="note">Status timeline: created → (decided_by, decided_at) → (completed_by, completed_at). Reuse a horizontal step pattern if one exists; otherwise simple chips.</li>
+    <li class="note">Action buttons at the bottom, shown conditionally on <code>status</code>:
+      <ul>
+        <li class="note"><code>pending_review</code>: Approve, Reject, Cancel</li>
+        <li class="note"><code>approved</code>: Complete, Cancel</li>
+        <li class="note"><code>completed</code> / <code>rejected</code> / <code>cancelled</code>: read-only</li>
+      </ul>
+    </li>
+    <li class="note">Sent messages card: shows the actual <code>approval_message_md</code> + <code>completion_message_md</code> for audit.</li>
+  </ul>
+
+  <h4>Approval modal flow</h4>
+  <ol>
+    <li>Admin clicks Approve.</li>
+    <li>Modal opens. Server fetches the relevant template (per tool + tier) via <code>findTemplate()</code>, renders it with <code>TemplateContext</code> built from the request.</li>
+    <li>Rendered markdown lands in the <code>MarkdownEditor</code> (textarea + live preview).</li>
+    <li>Admin edits, hits Send.</li>
+    <li>Server action <code>approveRequest({ id, bodyMd })</code>:
+      <ul>
+        <li class="note"><code>requireAdmin()</code> guard.</li>
+        <li class="note"><strong>First-write-wins</strong>: <code>UPDATE license_requests SET status='approved', decided_by=$1, ... WHERE id=$2 AND status='pending_review'</code>. If 0 rows affected, return <code>{ success: false, error: "Already actioned by another admin — refresh" }</code>.</li>
+        <li class="note"><code>postChannelReply()</code> + <code>postChatMessage()</code> with rendered HTML.</li>
+        <li class="note"><code>revalidatePath("/requests")</code> + <code>revalidatePath("/requests/[id]", "page")</code>.</li>
+        <li class="note">Return <code>{ success: true, data: { ... } }</code>.</li>
+      </ul>
+    </li>
+    <li>On success: toast + dialog closes + page refresh.</li>
+  </ol>
+
+  <h4>Completion modal flow</h4>
+  <p>
+    Two-step inside one dialog. Step 1: tier (select), license code (textarea — encrypted via existing pattern), assignment date (date picker). Step 2 (auto-rendered on Step 1 submit): completion template rendered with <code>licenseCode</code> + selected tier in context, drop into <code>MarkdownEditor</code>, send. Server action <code>completeRequest()</code> writes the <code>license_assignments</code> row, sets <code>completion_message_md</code> + <code>assignment_id</code>, posts via Graph.
+  </p>
+
+  <h4>Rejection modal flow</h4>
+  <p>
+    Simpler: single textarea (free-text). No template. Server action <code>rejectRequest({ id, note })</code> writes <code>decision_note</code> + posts the note as the channel/chat message.
+  </p>
+
+  <h4>Sidebar nav</h4>
+  <p>Add to <code>src/components/app-sidebar.tsx</code> <code>navItems</code> — <a href="./mockups.html#nav-changes">see mockup</a>:</p>
+  <pre><code>{ title: "Requests", href: "/requests", icon: FileText, roles: ["admin"] },</code></pre>
+</div>
+
+<h2>Phase 7 — PA flow extension</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>7 · Extend the existing Power Automate flow</h3>
+    <span class="phase-meta">~0.5 day · one new action</span>
+  </div>
+
+  <p>Tobias-owned, outside the Hub codebase. Documented here for completeness.</p>
+
+  <h4>What to add</h4>
+  <ul>
+    <li class="note">A single new <strong>HTTP</strong> action at the end of the existing flow.</li>
+    <li class="note">Method: <code>POST</code></li>
+    <li class="note">URI: <code>https://&lt;hub-host&gt;/api/license-requests/ingest</code></li>
+    <li class="note">Headers: <code>Authorization: Bearer @{variables('LICENSE_INGEST_SECRET')}</code> (store the secret as a PA variable or pull from a secure connection reference)</li>
+    <li class="note">Body: JSON with the fields from <code>licenseRequestIngestSchema</code>. Map from PA variables already in scope.</li>
+  </ul>
+
+  <h4>What's in scope from the existing flow</h4>
+  <p>Confirm before wiring:</p>
+  <ul>
+    <li class="note"><strong>teamsTeamId</strong> — from the channel-post action's output</li>
+    <li class="note"><strong>teamsChannelId</strong> — same</li>
+    <li class="note"><strong>teamsParentMessageId</strong> — from the channel-post action's <code>messageId</code> output</li>
+    <li class="note"><strong>teamsChatId</strong> — from the create-chat action's output</li>
+    <li class="note"><strong>requesterEmail</strong>, <strong>requesterName</strong> — from the Forms response</li>
+    <li class="note"><strong>formResponseId</strong> — from the Forms response trigger ID</li>
+    <li class="note"><strong>formPayload</strong> — pass through all answer fields as JSON</li>
+    <li class="note"><strong>requestedToolId / requestedTierId</strong> — only if the Form question maps cleanly to an internal ID. Otherwise pass tool / tier names and let the Hub resolve them (add a resolution layer in the ingest handler).</li>
+  </ul>
+
+  <div class="callout">
+    <strong>Form question → tool/tier mapping.</strong> If the MS Form lets requesters pick "Copilot Business" by display name, the Hub needs a way to map that label to <code>aiTools.id</code>. Options: (a) hard-code a mapping table; (b) add a <code>aiTools.formLabel</code> column; (c) match by case-insensitive name. Pick (c) for v1 — least disruption; revisit if names drift.
+  </div>
+</div>
+
+<h2>Phase 8 — Tests &amp; rollout</h2>
+
+<div class="phase">
+  <div class="phase-head">
+    <h3>8 · Tests &amp; smoke + rollout</h3>
+    <span class="phase-meta">~0.5 day</span>
+  </div>
+
+  <h4>Vitest unit (where most worth it)</h4>
+  <ul>
+    <li class="check"><code>tests/unit/lib/license-requests/render-template.test.ts</code> — variable substitution, missing-variable detection, deep dotted paths, <code>{{form.*}}</code> indexing, empty context graceful handling.</li>
+    <li class="check"><code>tests/unit/lib/teams/format.test.ts</code> — markdown → Teams-compatible HTML.</li>
+    <li class="check"><code>tests/unit/lib/license-requests/templates.test.ts</code> — resolution priority (tier-specific → tool-default → null).</li>
+  </ul>
+
+  <h4>Vitest integration (real DB, the existing pattern)</h4>
+  <ul>
+    <li class="check"><code>tests/integration/api/license-requests/ingest.test.ts</code> — 401 on bad bearer, 400 on bad body, 201 on new, 200 on duplicate <code>formResponseId</code>, row written, ingestion_log written.</li>
+    <li class="check"><code>tests/integration/actions/license-requests.test.ts</code> — approve transitions only from <code>pending_review</code>; concurrent approve returns "already actioned"; complete writes <code>license_assignments</code> row + <code>assignment_id</code>; reject sets <code>decision_note</code>.</li>
+  </ul>
+
+  <h4>Manual smoke (the only thing that actually proves it works)</h4>
+  <ol>
+    <li>Submit a real test MS Form response.</li>
+    <li>Confirm PA posted the channel notice + group chat + <code>POST /ingest</code> succeeded.</li>
+    <li>Confirm the Hub posted the adaptive card as a reply in the channel thread.</li>
+    <li>Click the deep link → land on <code>/requests/[id]</code>.</li>
+    <li>Approve → confirm message appears in channel thread AND group chat.</li>
+    <li>Complete → same.</li>
+    <li>Verify <code>license_assignments</code> row exists and is linked back to the request.</li>
+  </ol>
+
+  <h4>Rollout</h4>
+  <ul>
+    <li class="check">Behind a feature flag if available, or just hidden from the nav until smoke passes.</li>
+    <li class="check">Seed templates (Phase 5 seeding) BEFORE the first real request lands, otherwise the first approval modal opens empty.</li>
+    <li class="check">Document the new <code>LICENSE_REQUEST_INGEST_SECRET</code> in the runbook for PA configuration.</li>
+  </ul>
+</div>
+
+<h2>File-by-file checklist</h2>
+
+<div class="card">
+  <h4>Schema &amp; migration</h4>
+  <ul>
+    <li class="check"><code>src/lib/db/schema.ts</code> — add 2 enums, 2 tables, 2 relations blocks</li>
+    <li class="check"><code>src/lib/db/migrations/</code> — generated SQL file (auto)</li>
+  </ul>
+
+  <h4>API</h4>
+  <ul>
+    <li class="check"><code>src/app/api/license-requests/ingest/route.ts</code></li>
+  </ul>
+
+  <h4>Lib</h4>
+  <ul>
+    <li class="check"><code>src/lib/teams/graph.ts</code></li>
+    <li class="check"><code>src/lib/teams/format.ts</code> — markdownToTeamsHtml</li>
+    <li class="check"><code>src/lib/teams/types.ts</code> — extend with new input types</li>
+    <li class="check"><code>src/lib/teams/cards.ts</code> — add renderLicenseRequestCard</li>
+    <li class="check"><code>src/lib/license-requests/render-template.ts</code></li>
+    <li class="check"><code>src/lib/license-requests/templates.ts</code></li>
+    <li class="check"><code>src/lib/validators.ts</code> — extend with new schemas</li>
+  </ul>
+
+  <h4>Actions</h4>
+  <ul>
+    <li class="check"><code>src/actions/license-requests.ts</code> — approve / reject / complete / cancel</li>
+    <li class="check"><code>src/actions/license-templates.ts</code> — upsert / delete</li>
+  </ul>
+
+  <h4>UI — requests</h4>
+  <ul>
+    <li class="check"><code>src/app/requests/page.tsx</code></li>
+    <li class="check"><code>src/app/requests/requests-table.tsx</code></li>
+    <li class="check"><code>src/app/requests/[id]/page.tsx</code></li>
+    <li class="check"><code>src/app/requests/[id]/request-detail-client.tsx</code></li>
+    <li class="check"><code>src/app/requests/[id]/approval-dialog.tsx</code></li>
+    <li class="check"><code>src/app/requests/[id]/completion-dialog.tsx</code></li>
+    <li class="check"><code>src/app/requests/[id]/rejection-dialog.tsx</code></li>
+  </ul>
+
+  <h4>UI — settings</h4>
+  <ul>
+    <li class="check"><code>src/app/settings/license-templates/page.tsx</code></li>
+    <li class="check"><code>src/app/settings/license-templates/templates-table.tsx</code></li>
+    <li class="check"><code>src/app/settings/license-templates/template-editor-dialog.tsx</code></li>
+    <li class="check"><code>src/app/settings/settings-nav.tsx</code> — add "License templates" tab</li>
+  </ul>
+
+  <h4>Shared components</h4>
+  <ul>
+    <li class="check"><code>src/components/markdown-editor.tsx</code> — textarea + live preview</li>
+    <li class="check"><code>src/components/app-sidebar.tsx</code> — add "Requests" nav item</li>
+  </ul>
+
+  <h4>Tests</h4>
+  <ul>
+    <li class="check">3 unit suites (render-template, format, templates resolution)</li>
+    <li class="check">2 integration suites (ingest, actions)</li>
+  </ul>
+
+  <h4>Config</h4>
+  <ul>
+    <li class="check"><code>.env.local.example</code> — add 4 new vars</li>
+    <li class="check"><code>package.json</code> — add <code>@azure/msal-node</code>, <code>react-markdown</code></li>
+    <li class="check"><code>scripts/seed-message-templates.ts</code> — seed default templates per tool</li>
+  </ul>
+</div>
+
+<h2>Definition of done</h2>
+
+<div class="card accent">
+  <ul>
+    <li class="note">A real MS Form submission produces a <code>license_requests</code> row, an adaptive card in the Teams channel thread, and an open ticket in the <code>/requests</code> queue.</li>
+    <li class="note">Two admins clicking Approve at the same time: one wins, the other sees "already actioned by &lt;name&gt; — refresh."</li>
+    <li class="note">Approve → channel thread reply visible to admins, group chat message visible to requester, both rendered from the per-tool template Tobias edited.</li>
+    <li class="note">Complete → license_assignments row exists, linked back via <code>assignment_id</code>, visible in the requester's profile if they're a Hub user.</li>
+    <li class="note">Reject → free-text note saved + posted; status terminal.</li>
+    <li class="note">Reading any past request's detail page shows the actual messages sent (audit).</li>
+    <li class="note">CI green: <code>pnpm lint &amp;&amp; pnpm typecheck &amp;&amp; pnpm test &amp;&amp; pnpm test:integration</code>.</li>
+  </ul>
+</div>
+
+<h2>Known risks &amp; deferred items</h2>
+
+<div class="card">
+  <ul>
+    <li class="note"><strong>IT lead time</strong> for the Entra app (IT-112678) — the single critical path item. If it slips past ~1 week, consider the P2.1 fallback documented in <a href="./proposals.html">proposals.html</a>.</li>
+    <li class="note"><strong>Adaptive card payload size</strong> — Graph rejects card bodies &gt; ~28 KB. For huge form_payloads, the card just links to the Hub (no inline rendering). Not a concern in practice.</li>
+    <li class="note"><strong>MS Forms question identifier stability</strong> — <code>{{form.&lt;key&gt;}}</code> breaks silently when a Form question is renamed. The template editor's unknown-variable warning is the safety net. Don't promise more than that in v1.</li>
+    <li class="note"><strong>Soft-claim UI</strong> — first-write-wins is the v1 default; "in review by X" indicator is Phase 2 polish.</li>
+    <li class="note"><strong>Tool-routing rules</strong> — any admin can approve any tool. Per-tool required approvers (<code>ai_tools.required_approver_id</code>) is Phase 2.</li>
+    <li class="note"><strong>Stale-request nudges</strong> — if pending_review sits for N days, no automatic ping today. Add a cron later if the queue grows.</li>
+  </ul>
+</div>
+
+<footer>
+  Drafted by Claude (Opus 4.7) for spec/032-automation-workflow. Builds on proposals.html (P2.2) + four codebase exploration agents.<br/>
+  Not a contract — push back on any decision that doesn't fit how you want to actually build it.
+</footer>
+
+</main>
+</body>
+</html>
