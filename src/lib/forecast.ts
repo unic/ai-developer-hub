@@ -10,7 +10,15 @@ export interface ForecastOptions {
   monthsToProject?: number;
   totalPeriodsRemaining?: number;
   actualSpendToDateCents: number;
+  /** The live (extended) ceiling — used for at-risk evaluation and the main ceiling line. */
   budgetCeilingCents: number;
+  /**
+   * The original (pre-extension) ceiling. Equal to budgetCeilingCents when the
+   * budget has not been extended. Surfaced so the forecast chart can render a
+   * dashed reference line at the original baseline. Defaults to budgetCeilingCents
+   * when omitted (the un-extended case, which is what unit tests want).
+   */
+  originalCeilingCents?: number;
   today: Date;
 }
 
@@ -57,7 +65,14 @@ function olsRegression(xs: number[], ys: number[]): { slope: number; intercept: 
 }
 
 export function forecastBudget(options: ForecastOptions): BudgetForecast {
-  const { history, actualSpendToDateCents, budgetCeilingCents, today } = options;
+  const {
+    history,
+    actualSpendToDateCents,
+    budgetCeilingCents,
+    today,
+  } = options;
+  const originalCeilingCents =
+    options.originalCeilingCents ?? budgetCeilingCents;
   const monthsToProject = Math.min(Math.max(options.monthsToProject ?? 3, 3), 6);
 
   if (history.length < 3) {
@@ -70,6 +85,7 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
       actualSpendToDateCents,
       projectedAnnualTotalCents,
       budgetCeilingCents,
+      originalCeilingCents,
       status: projectedAnnualTotalCents <= budgetCeilingCents ? "on_track" : "at_risk",
       insufficientData: `Need at least 3 months of history (currently ${history.length})`,
     };
@@ -118,6 +134,7 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
     actualSpendToDateCents,
     projectedAnnualTotalCents,
     budgetCeilingCents,
+    originalCeilingCents,
     status: projectedAnnualTotalCents <= budgetCeilingCents ? "on_track" : "at_risk",
   };
 }
@@ -152,6 +169,7 @@ export function buildBudgetForecast(
     totalPeriodsRemaining: remainingPeriods.length,
     actualSpendToDateCents,
     budgetCeilingCents: budget.totalAmountCents,
+    originalCeilingCents: budget.originalAmountCents,
     today,
   });
 }

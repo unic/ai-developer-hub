@@ -155,6 +155,13 @@
       "when": 1779438571112,
       "tag": "0021_wise_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779452177083,
+      "tag": "0022_far_aaron_stack",
+      "breakpoints": true
     }
   ]
 }
