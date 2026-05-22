@@ -159,8 +159,15 @@
     {
       "idx": 22,
       "version": "7",
-      "when": 1779452177083,
-      "tag": "0022_far_aaron_stack",
+      "when": 1779449159989,
+      "tag": "0022_serious_tomas",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779457407552,
+      "tag": "0023_white_gauntlet",
       "breakpoints": true
     }
   ]

@@ -123,6 +123,20 @@ export const syncOperationTypeEnum = pgEnum("sync_operation_type", [
   "backfill",
 ]);
 
+// License request enums (032-automation-workflow)
+export const licenseRequestStatusEnum = pgEnum("license_request_status", [
+  "pending_review",
+  "approved",
+  "rejected",
+  "completed",
+  "cancelled",
+]);
+
+export const messageTemplateKindEnum = pgEnum("message_template_kind", [
+  "approval",
+  "completion",
+]);
+
 // Users
 export const users = pgTable(
   "users",
@@ -868,6 +882,94 @@ export const anthropicAlertState = pgTable(
   ]
 );
 
+// License Requests (032-automation-workflow)
+export const licenseRequests = pgTable(
+  "license_requests",
+  {
+    id: serial("id").primaryKey(),
+    formResponseId: text("form_response_id").notNull().unique(),
+    requesterEmail: text("requester_email").notNull(),
+    requesterName: text("requester_name").notNull(),
+    requesterUserId: integer("requester_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    requestedToolId: integer("requested_tool_id")
+      .notNull()
+      .references(() => aiTools.id, { onDelete: "restrict" }),
+    requestedTierId: integer("requested_tier_id").references(
+      () => accessTiers.id,
+      { onDelete: "set null" }
+    ),
+    formPayload: jsonb("form_payload")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    teamsTeamId: text("teams_team_id").notNull(),
+    teamsChannelId: text("teams_channel_id").notNull(),
+    teamsParentMessageId: text("teams_parent_message_id").notNull(),
+    teamsChatId: text("teams_chat_id").notNull(),
+    status: licenseRequestStatusEnum("status")
+      .notNull()
+      .default("pending_review"),
+    decidedBy: integer("decided_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at"),
+    decisionNote: text("decision_note"),
+    completedBy: integer("completed_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvalMessageMd: text("approval_message_md"),
+    completionMessageMd: text("completion_message_md"),
+    completedAt: timestamp("completed_at"),
+    assignmentId: integer("assignment_id").references(
+      () => licenseAssignments.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("license_requests_requester_user_id_idx").on(table.requesterUserId),
+    index("license_requests_requested_tool_id_idx").on(table.requestedToolId),
+    index("license_requests_status_idx").on(table.status),
+    index("license_requests_decided_by_idx").on(table.decidedBy),
+    index("license_requests_assignment_id_idx").on(table.assignmentId),
+    index("license_requests_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// Message Templates (032-automation-workflow)
+export const messageTemplates = pgTable(
+  "message_templates",
+  {
+    id: serial("id").primaryKey(),
+    toolId: integer("tool_id")
+      .notNull()
+      .references(() => aiTools.id, { onDelete: "cascade" }),
+    tierId: integer("tier_id").references(() => accessTiers.id, {
+      onDelete: "cascade",
+    }),
+    kind: messageTemplateKindEnum("kind").notNull(),
+    bodyMd: text("body_md").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("message_templates_tool_id_idx").on(table.toolId),
+    index("message_templates_tier_id_idx").on(table.tierId),
+    // Postgres treats NULL values as distinct in unique indexes by default,
+    // which means multiple (toolId, NULL, kind) tool-default rows would not
+    // collide. Use a partial index + a NULLS-NOT-DISTINCT variant to enforce
+    // "one tool-default per kind" and "one tier-override per (tool, tier, kind)".
+    uniqueIndex("message_templates_tool_default_kind_idx")
+      .on(table.toolId, table.kind)
+      .where(sql`${table.tierId} IS NULL`),
+    uniqueIndex("message_templates_tool_tier_kind_idx")
+      .on(table.toolId, table.tierId, table.kind)
+      .where(sql`${table.tierId} IS NOT NULL`),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
@@ -1133,3 +1235,45 @@ export const ingestionFiltersRelations = relations(
     }),
   })
 );
+
+// License Requests / Message Templates relations (032-automation-workflow)
+export const licenseRequestsRelations = relations(licenseRequests, ({ one }) => ({
+  requesterUser: one(users, {
+    fields: [licenseRequests.requesterUserId],
+    references: [users.id],
+    relationName: "license_request_requester",
+  }),
+  requestedTool: one(aiTools, {
+    fields: [licenseRequests.requestedToolId],
+    references: [aiTools.id],
+  }),
+  requestedTier: one(accessTiers, {
+    fields: [licenseRequests.requestedTierId],
+    references: [accessTiers.id],
+  }),
+  decidedByUser: one(users, {
+    fields: [licenseRequests.decidedBy],
+    references: [users.id],
+    relationName: "license_request_decided_by",
+  }),
+  completedByUser: one(users, {
+    fields: [licenseRequests.completedBy],
+    references: [users.id],
+    relationName: "license_request_completed_by",
+  }),
+  assignment: one(licenseAssignments, {
+    fields: [licenseRequests.assignmentId],
+    references: [licenseAssignments.id],
+  }),
+}));
+
+export const messageTemplatesRelations = relations(messageTemplates, ({ one }) => ({
+  tool: one(aiTools, {
+    fields: [messageTemplates.toolId],
+    references: [aiTools.id],
+  }),
+  tier: one(accessTiers, {
+    fields: [messageTemplates.tierId],
+    references: [accessTiers.id],
+  }),
+}));

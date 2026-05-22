@@ -1,6 +1,6 @@
 {
-  "id": "911fa1e9-9a12-4665-9904-b06a4f4ea35f",
-  "prevId": "747d42ea-2f1b-44e2-abaa-3fa2636319ee",
+  "id": "95802b74-b79e-4813-a187-f6aaeb9cf43c",
+  "prevId": "911fa1e9-9a12-4665-9904-b06a4f4ea35f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -233,6 +233,12 @@
         },
         "total_amount_cents": {
           "name": "total_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_amount_cents": {
+          "name": "original_amount_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -1335,6 +1341,302 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.budget_extension_period_allocations": {
+      "name": "budget_extension_period_allocations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "extension_id": {
+          "name": "extension_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_id": {
+          "name": "period_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "bepa_unique_ext_period": {
+          "name": "bepa_unique_ext_period",
+          "columns": [
+            {
+              "expression": "extension_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bepa_period_idx": {
+          "name": "bepa_period_idx",
+          "columns": [
+            {
+              "expression": "period_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "budget_extension_period_allocations_extension_id_budget_extensions_id_fk": {
+          "name": "budget_extension_period_allocations_extension_id_budget_extensions_id_fk",
+          "tableFrom": "budget_extension_period_allocations",
+          "tableTo": "budget_extensions",
+          "columnsFrom": [
+            "extension_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "budget_extension_period_allocations_period_id_budget_periods_id_fk": {
+          "name": "budget_extension_period_allocations_period_id_budget_periods_id_fk",
+          "tableFrom": "budget_extension_period_allocations",
+          "tableTo": "budget_periods",
+          "columnsFrom": [
+            "period_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.budget_extensions": {
+      "name": "budget_extensions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "budget_id": {
+          "name": "budget_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "budget_extension_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "linked_tool_id": {
+          "name": "linked_tool_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_date": {
+          "name": "effective_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "budget_extensions_budget_idx": {
+          "name": "budget_extensions_budget_idx",
+          "columns": [
+            {
+              "expression": "budget_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "budget_extensions_effective_idx": {
+          "name": "budget_extensions_effective_idx",
+          "columns": [
+            {
+              "expression": "effective_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "budget_extensions_linked_tool_idx": {
+          "name": "budget_extensions_linked_tool_idx",
+          "columns": [
+            {
+              "expression": "linked_tool_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "budget_extensions_created_by_idx": {
+          "name": "budget_extensions_created_by_idx",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "budget_extensions_budget_id_annual_budgets_id_fk": {
+          "name": "budget_extensions_budget_id_annual_budgets_id_fk",
+          "tableFrom": "budget_extensions",
+          "tableTo": "annual_budgets",
+          "columnsFrom": [
+            "budget_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "budget_extensions_linked_tool_id_ai_tools_id_fk": {
+          "name": "budget_extensions_linked_tool_id_ai_tools_id_fk",
+          "tableFrom": "budget_extensions",
+          "tableTo": "ai_tools",
+          "columnsFrom": [
+            "linked_tool_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "budget_extensions_created_by_users_id_fk": {
+          "name": "budget_extensions_created_by_users_id_fk",
+          "tableFrom": "budget_extensions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "budget_extensions_amount_non_zero": {
+          "name": "budget_extensions_amount_non_zero",
+          "value": "\"budget_extensions\".\"amount_cents\" <> 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.budget_periods": {
@@ -4086,6 +4388,18 @@
       "values": [
         "active",
         "inactive"
+      ]
+    },
+    "public.budget_extension_category": {
+      "name": "budget_extension_category",
+      "schema": "public",
+      "values": [
+        "new_tool",
+        "scope_increase",
+        "seat_increase",
+        "vendor_price_increase",
+        "reallocation",
+        "other"
       ]
     },
     "public.budget_status": {
