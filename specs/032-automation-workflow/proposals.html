@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Automation Workflow Proposals — AI Developer Hub</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 34px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 780px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .badge.warn { color: var(--warn); border-color: rgba(252,211,77,0.3); }
+    .badge.bad  { color: var(--bad);  border-color: rgba(252,165,165,0.3); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .card.accent-3 { border-left: 3px solid var(--good); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row.between { justify-content: space-between; }
+    .flow { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; white-space: pre; overflow-x: auto; color: var(--fg-muted); }
+    .flow .hot { color: var(--bad); }
+    .flow .cool { color: var(--accent); }
+    .flow .ok { color: var(--good); }
+    .flow .em { color: var(--fg); }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    tr:hover td { background: rgba(255,255,255,0.015); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.good { background: rgba(134,239,172,0.12); color: var(--good); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.bad  { background: rgba(252,165,165,0.12); color: var(--bad);  }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent); background: rgba(125,211,252,0.04); }
+    .step { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 8px 0; align-items: start; }
+    .step-num { font-family: var(--mono); font-size: 12px; color: var(--fg-dim); padding-top: 2px; }
+    .step-body { font-size: 14px; }
+    .step-body strong { color: var(--fg); font-weight: 600; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 16px; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+    .pain { color: var(--bad); }
+    .gain { color: var(--good); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Brainstorm</span>
+    <span class="badge">spec/032-automation-workflow</span>
+    <span class="badge good">Direction chosen · P2.2</span>
+  </div>
+  <h1>Automating the tool-license request workflow</h1>
+  <p class="lede">
+    Three architectures for replacing the manual Forms-review-provision-notify loop. Each represents a distinct trade between
+    licensing cost, time-to-ship, and how much logic lives inside the AI Developer Hub itself.
+  </p>
+  <p class="meta">Drafted 2026-05-22 · revised 2026-05-22 (three times) · author: T. Studer · status: P2.2 chosen</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>Update — current direction is P2.2.</strong> Three scope decisions are locked in:
+  <strong>(1)</strong> procurement and tool admin API calls stay 100% manual — the Hub records what humans did, it does not call Copilot / Anthropic admin APIs;
+  <strong>(2)</strong> the Hub owns all outbound Teams communication after ingest — PA's only new responsibility is forwarding the Forms response to <code>/api/license-requests/ingest</code>. The Hub posts the adaptive card directly as a reply to the channel notice and every subsequent approval / completion message via Microsoft Graph. No PA callback infrastructure;
+  <strong>(3)</strong> approvals are multi-user — the existing PA flow's group chat already contains the requester, Tobias, and at least one additional approver (all Hub admins). Any admin can claim any pending request from the Hub's queue; first-write-wins.
+  See <a href="#refined">Refined direction</a> below.
+</div>
+
+<h2>Today's workflow (the pain)</h2>
+
+<div class="card">
+  <div class="flow"><span class="cool">[requester]</span>     fills out Microsoft Forms
+     │
+     ▼
+<span class="cool">[Forms]</span>         response lands in Tobias's inbox / Forms results
+     │
+     ▼  <span class="hot">MANUAL</span>
+<span class="em">[Tobias]</span>        reads request, decides approve / reject
+     │
+     ▼  <span class="hot">MANUAL</span>
+<span class="em">[Tobias]</span>        opens the target tool's admin UI
+                creates or updates the user, assigns a seat
+     │
+     ▼  <span class="hot">MANUAL</span>
+<span class="em">[Tobias]</span>        opens Microsoft Teams, finds the requester,
+                types a confirmation message
+     │
+     ▼
+<span class="cool">[requester]</span>     hears back (eventually)</div>
+
+  <h4>Cost of the status quo</h4>
+  <ul>
+    <li class="con">Three manual context switches per request (Forms → tool admin → Teams).</li>
+    <li class="con">Latency is bounded by Tobias's attention, not the request itself.</li>
+    <li class="con">No audit trail in the Hub — license assignments created in the tool drift from what the Hub knows about.</li>
+    <li class="con">Bus factor 1. If Tobias is on PTO, requests pile up.</li>
+  </ul>
+</div>
+
+<h2>What we already have to build on</h2>
+
+<div class="card">
+  <p>The Hub is not a greenfield project for this. The following pieces already exist and are reusable rather than throwaway:</p>
+  <div class="grid-2">
+    <div>
+      <h4>Data model</h4>
+      <ul>
+        <li class="note"><code>users</code>, <code>aiTools</code>, <code>accessTiers</code>, <code>licenseAssignments</code> already track every dimension a request would need.</li>
+        <li class="note"><code>licenseAssignments.source</code> is already an enum — add <code>"workflow"</code> and every automated provision becomes traceable.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Outbound Teams</h4>
+      <ul>
+        <li class="note"><code>src/lib/teams/webhook.ts</code> already posts Adaptive Cards to a Teams Workflow webhook with retry/backoff.</li>
+        <li class="note">Card builders in <code>src/lib/teams/cards.ts</code> — proven pattern to extend with an approval card.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Inbound webhook pattern</h4>
+      <ul>
+        <li class="note"><code>POST /api/invoices/ingest</code> shows the bearer-secret + logging + size-limit pattern. A request-intake endpoint is a near-direct clone.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>User invite + email</h4>
+      <ul>
+        <li class="note"><code>createUser()</code> + <code>createInviteTokenForUser()</code> + Resend email template are wired up (017-first-login-experience).</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Cron + sync framework</h4>
+      <ul>
+        <li class="note"><code>makeCronSyncRoute()</code>, <code>withSyncLock()</code>, retry helpers — extensible for backfill / reconciliation jobs.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Tool APIs</h4>
+      <ul>
+        <li class="note"><strong>GitHub Copilot</strong>: full provisioning automatable — <code>POST /orgs/{org}/copilot/billing/selected_users</code>.</li>
+        <li class="note"><strong>Anthropic</strong>: <code>POST /v1/organizations/invites</code> + workspace member endpoints (Admin API, separate <code>sk-ant-admin-…</code> key).</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>Heads-up on Teams webhooks.</strong>
+  Office 365 Connector "Incoming Webhook" URLs in Teams are being disabled this week (May 18–22 2026). The Hub already
+  uses the <em>Workflows</em>-style webhook helper, so we are on the supported replacement path — but any new automation
+  that adds Teams output should be on Workflows or Graph API, never the legacy connector.
+</div>
+
+<h2>Proposal 1 — Low-code: Power Automate owns the flow</h2>
+
+<div class="card accent">
+  <div class="row between">
+    <h3>P1: "Power Automate as the conductor"</h3>
+    <div class="row">
+      <span class="pill good">Fastest to ship</span>
+      <span class="pill warn">Premium connector cost</span>
+      <span class="pill bad">Logic outside the Hub</span>
+    </div>
+  </div>
+
+  <h4>Shape</h4>
+  <div class="flow"><span class="cool">[Forms]</span> ─▶ <span class="em">Power Automate</span> ─▶ <span class="em">Approval card to Tobias in Teams</span>
+                       │
+                       ▼ <span class="ok">on Approve</span>
+                <span class="em">Power Automate</span> calls Hub <code>POST /api/license-requests/provision</code>
+                       │
+                       ▼
+                <span class="em">Hub</span> calls Copilot / Anthropic admin APIs
+                inserts <code>licenseAssignments</code> row
+                       │
+                       ▼
+                <span class="em">Power Automate</span> sends Teams DM to requester</div>
+
+  <h4>Why it's tempting</h4>
+  <ul>
+    <li class="pro">Almost no new app code — one new POST handler in the Hub plus an enum value.</li>
+    <li class="pro">Reuses Power Automate's built-in "Start and wait for an approval" UX — Tobias gets a tidy approve/reject card in Teams without us building one.</li>
+    <li class="pro">Branchy logic (tool A vs tool B, tier defaults, escalation) lives in a visual flow editor that a non-developer can adjust.</li>
+  </ul>
+
+  <h4>Why I'd hesitate</h4>
+  <ul>
+    <li class="con"><strong>Generic HTTP action is Premium</strong> ($15/user/month per-user, or a per-flow plan). One license for Tobias is fine; mandatory if the Hub is to be called from PA.</li>
+    <li class="con">Business logic is split across two systems. Debugging "why did this person get the wrong tier?" means opening Power Automate run history <em>and</em> the Hub logs.</li>
+    <li class="con">No test coverage. Power Automate flows don't have unit tests; behaviour changes are tested by triggering real requests.</li>
+    <li class="con">Power Automate is the single point of failure between the Form and any provisioning. If a connector breaks, the whole pipeline stalls silently until someone notices.</li>
+  </ul>
+
+  <h4>Effort</h4>
+  <p>≈ 2–3 days. One Power Automate flow (Forms trigger → approval → HTTP → DM), one Hub endpoint, one Drizzle table for request audit log, one Adaptive Card layout.</p>
+</div>
+
+<h2>Proposal 2 — Hybrid: PA is a dumb bridge, the Hub is the brain</h2>
+
+<div class="card accent-2">
+  <div class="row between">
+    <h3>P2: "Forms forwards, the Hub orchestrates"</h3>
+    <div class="row">
+      <span class="pill good">Balanced</span>
+      <span class="pill good">Full audit trail in-app</span>
+      <span class="pill warn">Needs Graph app registration</span>
+    </div>
+  </div>
+
+  <h4>Shape</h4>
+  <div class="flow"><span class="cool">[Forms]</span> ─▶ <span class="em">Power Automate</span> (only role: forward the response)
+                       │
+                       ▼
+                <span class="em">Hub</span> <code>POST /api/license-requests/ingest</code>  (bearer-secret, clone of invoice pattern)
+                       │
+                       ▼
+                <span class="em">Hub</span> stores <code>licenseRequests</code> row (status=pending)
+                <span class="em">Hub</span> posts Adaptive Card to Tobias via existing Teams Workflow webhook
+                       │
+                       ▼ <span class="ok">Tobias clicks Approve</span> (card's Action.Execute hits a Hub callback)
+                <span class="em">Hub</span> calls Copilot/Anthropic APIs, writes <code>licenseAssignments</code>,
+                Hub sends confirmation DM to requester via Graph <code>POST /chats/.../messages</code>
+                       │
+                       ▼
+                Audit log + per-tool sync runs (reuse existing cron + sync framework)</div>
+
+  <h4>Why this is the strongest middle path</h4>
+  <ul>
+    <li class="pro"><strong>No Premium connector needed.</strong> Power Automate's only job is "Forms → standard Teams Workflow webhook" (or the Hub uses the Forms-via-Graph beta API directly). Avoids the Premium HTTP action.</li>
+    <li class="pro">All branching, idempotency, retry, and tool-API logic lives in TypeScript — testable with Vitest, deployable with the rest of the Hub.</li>
+    <li class="pro">Reuses three existing pieces nearly verbatim: invoice-ingest pattern, Teams Workflow webhook helper, Resend invite email.</li>
+    <li class="pro">Single source of truth. Every request, every approval, every provisioning result is a row in the Hub's DB — visible in the existing UI without writing a new dashboard.</li>
+    <li class="pro">Easy to add an "AI triage" pass later: when a request lands, run a quick LLM call to pre-fill the suggested tool/tier and flag duplicates. Doesn't change the architecture, just adds a step.</li>
+  </ul>
+
+  <h4>What it costs us</h4>
+  <ul>
+    <li class="con">One-time Entra app registration with <code>ChatMessage.Send</code> (application permission, admin-consented) to DM the requester from the Hub. Non-trivial but documented and one-shot.</li>
+    <li class="con">Need to wire up the Adaptive Card's <em>response</em> path — Tobias's click has to land somewhere. Two routes: PA flow listens for "user responded to approval" (free), or we register a Teams bot endpoint (more work, more flexible).</li>
+    <li class="con">More moving parts than P1. Worth it only if we want the audit trail and testability.</li>
+  </ul>
+
+  <h4>Effort</h4>
+  <p>≈ 5–7 days. New <code>licenseRequests</code> table, ingest endpoint, approval card + callback, Graph DM helper (next to the Teams webhook one), provisioning service per tool (Copilot first, Anthropic second), basic UI on <code>/requests</code> for fallback / history.</p>
+</div>
+
+<h2>Proposal 3 — Skip Forms entirely</h2>
+
+<div class="card accent-3">
+  <div class="row between">
+    <h3>P3: "The Hub <em>is</em> the request form"</h3>
+    <div class="row">
+      <span class="pill good">No Power Automate</span>
+      <span class="pill good">Cleanest architecture</span>
+      <span class="pill warn">Asks employees to learn a new entrypoint</span>
+    </div>
+  </div>
+
+  <h4>Shape</h4>
+  <div class="flow"><span class="cool">[requester]</span> ─▶ Hub <code>/request-access</code> (SSO-gated intake page)
+                       │
+                       ▼
+                <span class="em">Hub</span> stores request, posts Adaptive Card to Tobias via Teams Workflow webhook
+                       │
+                       ▼ <span class="ok">approve in-app or in-Teams</span>
+                <span class="em">Hub</span> provisions via tool APIs, DMs requester via Graph
+                       │
+                       ▼
+                everything is one system; nothing leaves TypeScript-land</div>
+
+  <h4>Upside</h4>
+  <ul>
+    <li class="pro">Zero Power Automate dependency. Zero Premium licensing. Zero cross-system debugging.</li>
+    <li class="pro">Validation happens client-side with Zod + React Hook Form — no more bad inputs reaching the approval queue.</li>
+    <li class="pro">Pre-fill from the requester's identity: their name, manager, cost center come from the existing user record. Forms can't do that.</li>
+    <li class="pro">Naturally supports re-requests, cancellations, status checks, tier upgrades — all just extra screens on the same model.</li>
+  </ul>
+
+  <h4>Downside</h4>
+  <ul>
+    <li class="con"><strong>Behaviour change.</strong> People know "fill out the Forms link." Pointing them at a new URL is a change-management task, not a code task.</li>
+    <li class="con">Requires that anyone who can request a tool already has SSO access to the Hub. If today's Forms surface is used by people who don't have Hub accounts, P3 won't fit without an additional anonymous-intake mode.</li>
+    <li class="con">More UI work than the other two — though it pays off as the Hub's "front door" beyond just this workflow.</li>
+  </ul>
+
+  <h4>Effort</h4>
+  <p>≈ 8–10 days. Public-ish intake page, requester self-service status page, same approval/provisioning back end as P2, plus the change-management work to retire the Forms link.</p>
+</div>
+
+<h2>Side-by-side</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dimension</th>
+      <th>P1 · Power Automate-led</th>
+      <th>P2 · Hub-led hybrid</th>
+      <th>P3 · Hub-only</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Time to first working flow</td>
+      <td><span class="pill good">2–3 days</span></td>
+      <td><span class="pill warn">5–7 days</span></td>
+      <td><span class="pill bad">8–10 days</span></td>
+    </tr>
+    <tr>
+      <td>Ongoing licensing cost</td>
+      <td><span class="pill warn">Premium PA seat (~$15/mo)</span></td>
+      <td><span class="pill good">Standard PA only</span></td>
+      <td><span class="pill good">None</span></td>
+    </tr>
+    <tr>
+      <td>Audit trail in the Hub</td>
+      <td><span class="pill bad">Partial (provision step only)</span></td>
+      <td><span class="pill good">Complete</span></td>
+      <td><span class="pill good">Complete</span></td>
+    </tr>
+    <tr>
+      <td>Testability (Vitest)</td>
+      <td><span class="pill bad">Flow logic is untestable</span></td>
+      <td><span class="pill good">All core logic in TS</span></td>
+      <td><span class="pill good">All core logic in TS</span></td>
+    </tr>
+    <tr>
+      <td>Single source of truth</td>
+      <td><span class="pill bad">Split PA / Hub</span></td>
+      <td><span class="pill good">Hub DB</span></td>
+      <td><span class="pill good">Hub DB</span></td>
+    </tr>
+    <tr>
+      <td>Requester experience</td>
+      <td><span class="pill good">Same MS Form</span></td>
+      <td><span class="pill good">Same MS Form</span></td>
+      <td><span class="pill warn">New URL to learn</span></td>
+    </tr>
+    <tr>
+      <td>Failure blast radius</td>
+      <td><span class="pill warn">Silent PA failures</span></td>
+      <td><span class="pill good">Hub logs + alerts</span></td>
+      <td><span class="pill good">Hub logs + alerts</span></td>
+    </tr>
+    <tr>
+      <td>Bus factor</td>
+      <td><span class="pill warn">PA flow tribal knowledge</span></td>
+      <td><span class="pill good">Code in repo</span></td>
+      <td><span class="pill good">Code in repo</span></td>
+    </tr>
+    <tr>
+      <td>Fits the existing app's grain</td>
+      <td><span class="pill warn">Loosely</span></td>
+      <td><span class="pill good">Strongly — clones invoice pattern</span></td>
+      <td><span class="pill good">Strongly</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="refined">Refined direction (P2.2)</h2>
+
+<div class="card accent-2">
+  <h3>P2, with three locked decisions</h3>
+  <p>After three rounds of refinement, the agreed shape:</p>
+  <ul>
+    <li class="note"><strong>Procurement and license codes stay 100% manual.</strong> No Copilot or Anthropic admin API calls from the Hub. The Hub records what humans did; it does not provision. Tool admin credentials never enter the Hub.</li>
+    <li class="note"><strong>The Hub owns all outbound Teams communication after ingest.</strong> PA's existing actions stay (post the channel notice + open the group chat). PA gets <em>one</em> new action: forward the Forms response to the Hub /ingest endpoint. After that, every Teams message — the adaptive card reply, approval message, completion message — comes from the Hub directly via Microsoft Graph. No callback to PA.</li>
+    <li class="note"><strong>Approvals are multi-user, first-write-wins.</strong> The existing PA flow's group chat already contains the requester, Tobias, and at least one additional approver — all of whom are Hub admins. The private Teams channel is also visible to admins. The Hub doesn't maintain a separate approver list; any admin can pick up any pending request from the <code>/requests</code> queue. Whoever commits the action first wins; concurrent admins get "already actioned by X" and refresh.</li>
+  </ul>
+  <p>
+    The Hub's job: <strong>intake → post the adaptive card reply → approval queue (visible to all admins) → completion form → all outbound Teams messaging → audit log.</strong>
+    Cost: one-time Entra app registration with Graph API permissions. Gain: single source of truth, testable code instead of PA flows, no callback dance.
+  </p>
+</div>
+
+<h2>The P2.2 shape</h2>
+
+<div class="card accent-2">
+  <h4>Sequence</h4>
+  <div class="flow"><span class="cool">[Forms]</span>
+   │
+   ▼   <span class="ok">EXISTING PA FLOW (one new action only)</span>
+<span class="em">[Power Automate]</span>
+   ├─ post request notice in private Teams channel        <span style="color:var(--fg-dim)">(already)</span>
+   │     channel members: all Hub admins / approvers
+   ├─ open / find <em>group chat</em>                            <span style="color:var(--fg-dim)">(already)</span>
+   │     chat members: requester + Tobias + additional approver(s)
+   └─ <span class="ok">NEW</span> POST /api/license-requests/ingest to the Hub
+            payload: full form fields (variable per tier),
+                     requester email,
+                     team ID, channel ID, parent message ID,
+                     group chat ID
+
+<span class="em">[Hub]</span>  ◀── synchronously on ingest
+   └─ posts adaptive card as <em>reply</em> to the parent message
+      via Graph POST .../messages/{parent}/replies
+            button → opens Hub /requests/[id]
+
+<span class="em">[Any admin in the channel / group chat]</span>
+   ▼  clicks the deep link in Teams
+<span class="em">[Hub /requests/[id]]</span>
+   ├─ admin signs in (existing admin-role check)
+   ├─ reviews the variable form payload (rendered per tier)
+   ├─ hits Approve  <span style="color:var(--fg-dim)">(first-write-wins claim — concurrent</span>
+   │                <span style="color:var(--fg-dim)"> admins see "already actioned by X")</span>
+   │      modal: approval template for this tool/tier,
+   │             pre-rendered with variables,
+   │             shown in a markdown editor + live preview
+   │             approver edits, hits Send
+   ├─ <code>approval_message_md</code> + <code>decided_by</code> saved
+   └─ status: pending_review → approved
+   ▼
+<span class="em">[Hub]</span> posts approval message <em>directly</em> via Graph
+   ├─ as a reply in the channel thread     <span style="color:var(--fg-dim)">(visible to admins)</span>
+   └─ as a message in the group chat       <span style="color:var(--fg-dim)">(visible to requester too)</span>
+   ▼
+<span class="em">[Approver — manual, in the tool's admin UI]</span>
+   ├─ creates / updates user
+   ├─ assigns the seat / tier
+   └─ generates the license code or API key
+   ▼
+<span class="em">[Hub /requests/[id]]</span>
+   ├─ approver enters tier, license code, assignment date
+   ├─ Hub renders the completion template with those values,
+   │   shows it in the markdown editor; approver edits, sends
+   ├─ <code>completion_message_md</code> + <code>completed_by</code> saved
+   ├─ <code>license_assignments</code> row created
+   └─ status: approved → completed
+   ▼
+<span class="em">[Hub]</span> posts completion message <em>directly</em> via Graph
+   ├─ as a reply in the channel thread
+   └─ as a message in the group chat</div>
+
+  <h4>Why this shape</h4>
+  <ul>
+    <li class="pro">Single source of truth — the Hub owns everything after ingest. Request state, audit, and outbound Teams messaging all in one place.</li>
+    <li class="pro">No callback dance. PA does one thing (forward the Forms response) and is done. The Hub never waits on PA to confirm a message went out.</li>
+    <li class="pro">Threading falls out naturally: PA passes the parent message ID along; the Hub posts replies straight to that thread.</li>
+    <li class="pro">All Hub-side logic lives in TypeScript — testable with Vitest, version-controlled, reviewable in PRs. No business logic hidden in Power Automate flow editor.</li>
+    <li class="pro">"Manual procurement" is a first-class state — the workflow models reality, doesn't paper over it.</li>
+    <li class="pro">Hub never holds a tool admin credential. Smallest possible blast radius on the procurement side.</li>
+  </ul>
+  <p style="color: var(--fg-muted); font-size: 13.5px; margin-top: 12px;">
+    Cost: one-time Entra app registration with Graph <code>ChannelMessage.Send</code> + <code>ChatMessage.Send</code> application permissions (admin consent required). See <a href="#graph-setup">Microsoft Graph setup</a> below.
+  </p>
+</div>
+
+<h2>The boundary — automated vs. human</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h4 style="color: var(--good);">Automated by the Hub + PA</h4>
+    <ul>
+      <li class="pro">Receiving the Forms submission (PA, already)</li>
+      <li class="pro">Channel notice (to admins) + group chat with requester + approvers (PA, already)</li>
+      <li class="pro">Forwarding the form payload to the Hub (PA, one new action)</li>
+      <li class="pro">Recording the request as a typed row in the Hub</li>
+      <li class="pro">Deduplicating against recent identical requests</li>
+      <li class="pro"><strong>Posting the adaptive card as a threaded reply (Hub → Graph, new)</strong></li>
+      <li class="pro">Multi-admin approval queue + first-write-wins claim semantics (Hub)</li>
+      <li class="pro">Tying the resulting assignment back to budgets / reports (Hub, automatic)</li>
+      <li class="pro"><strong>Approval and completion messages — channel reply (admins) + group chat post (requester sees too), direct from Hub via Graph</strong></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4 style="color: var(--warn);">Stays manual — by design</h4>
+    <ul>
+      <li class="con">Opening the tool's admin UI to provision the user</li>
+      <li class="con">Generating / copying the API key or license code</li>
+      <li class="con">Choosing the access tier when the request is ambiguous</li>
+      <li class="con">Any conversation with procurement or finance</li>
+      <li class="con">Tobias entering the completed assignment details back into the Hub</li>
+    </ul>
+    <p style="margin-top: 12px; color: var(--fg-muted); font-size: 13.5px;">
+      Tool admin credentials and license codes are sensitive enough that automating them buys little speed and meaningfully widens the blast radius. Manual procurement is the high-trust core; the Hub wraps it in a structured workflow.
+    </p>
+  </div>
+</div>
+
+<h2>Hub-side data model deltas</h2>
+
+<div class="card">
+  <h4>New table: <code>license_requests</code></h4>
+  <ul>
+    <li class="note"><code>id</code>, <code>created_at</code>, <code>updated_at</code></li>
+    <li class="note"><code>form_response_id</code> — unique; idempotency key for the ingest endpoint</li>
+    <li class="note"><code>requester_email</code>, <code>requester_name</code>, optional <code>requester_user_id</code> (FK to <code>users</code>, when matched)</li>
+    <li class="note"><code>requested_tool_id</code> (FK), <code>requested_tier_id</code> (FK, nullable when ambiguous)</li>
+    <li class="note"><code>form_payload</code> — JSONB. The full set of fields submitted to MS Forms, keyed by the Form's question identifiers. <strong>Variable per tier</strong> — Basic might be just <code>github_username</code>, Max might include justification, intended workload, manager, etc.</li>
+    <li class="note"><code>teams_team_id</code>, <code>teams_channel_id</code>, <code>teams_parent_message_id</code>, <code>teams_chat_id</code> — passed in by PA so the Hub can post replies and group-chat messages directly via Graph. Graph requires team + channel + parent message IDs for channel replies; chat ID for posting to the group chat. The <code>teams_chat_id</code> points at the group chat (requester + Tobias + additional approvers) that PA's existing flow already creates.</li>
+    <li class="note"><code>status</code> enum: <code>pending_review</code> | <code>approved</code> | <code>rejected</code> | <code>completed</code> | <code>cancelled</code></li>
+    <li class="note"><code>decided_by</code> (FK to <code>users</code>) — whichever admin claimed the approve/reject action (first-write-wins). <code>decided_at</code>, <code>decision_note</code>.</li>
+    <li class="note"><code>completed_by</code> (FK to <code>users</code>) — whichever admin recorded the manual procurement result. Often but not necessarily the same person as <code>decided_by</code>.</li>
+    <li class="note"><code>approval_message_md</code> — markdown. The actual approval text sent (template + the approver's edits). Empty until status = <code>approved</code>.</li>
+    <li class="note"><code>completion_message_md</code> — markdown. Same idea, at completion time.</li>
+    <li class="note"><code>completed_at</code>, <code>assignment_id</code> (FK to <code>license_assignments</code>, set when the manual provisioning result is recorded)</li>
+  </ul>
+
+  <h4>New table: <code>message_templates</code></h4>
+  <ul>
+    <li class="note"><code>id</code>, <code>created_at</code>, <code>updated_at</code></li>
+    <li class="note"><code>tool_id</code> (FK), <code>tier_id</code> (FK, <em>nullable</em> — null = tool-wide default)</li>
+    <li class="note"><code>kind</code> enum: <code>approval</code> | <code>completion</code></li>
+    <li class="note"><code>body_md</code> — markdown source with mustache variables</li>
+    <li class="note">Unique on <code>(tool_id, tier_id, kind)</code></li>
+  </ul>
+  <p style="color: var(--fg-muted); font-size: 13.5px;">
+    Resolution order at render time: <code>(tool, tier, kind)</code> → <code>(tool, NULL, kind)</code> → empty editor.
+  </p>
+
+  <h4>Two endpoints</h4>
+  <ul>
+    <li class="note"><code>POST /api/license-requests/ingest</code> — bearer-secret, called by PA. Idempotent on <code>form_response_id</code>. Stores the full form payload as <code>form_payload</code>. Returns <code>{ id, hubUrl }</code>.</li>
+    <li class="note"><code>POST /api/license-requests/[id]/approve</code> and <code>/reject</code> and <code>/complete</code> — internal, called from Hub UI. Each writes the appropriate <code>*_message_md</code>, transitions state, and fires the PA callback.</li>
+  </ul>
+
+  <h4>Outbound to Microsoft Graph (not PA)</h4>
+  <ul>
+    <li class="note">On ingest: Hub posts the adaptive card via Graph <code>POST /teams/{teamId}/channels/{channelId}/messages/{parentMessageId}/replies</code>.</li>
+    <li class="note">On approve / complete: same channel-reply endpoint with the rendered message body (Tobias's edited markdown).</li>
+    <li class="note">Optional DM to requester: <code>POST /chats/{chatId}/messages</code> using the chat ID PA already created.</li>
+    <li class="note">All Graph calls go through a single helper module — see <a href="#graph-setup">Microsoft Graph setup</a> below.</li>
+  </ul>
+</div>
+
+<h2 id="graph-setup">Microsoft Graph setup (one-time)</h2>
+
+<div class="card">
+  <p>
+    Because the Hub posts directly to Teams, it needs a Microsoft Graph app registration with the right permissions.
+    This is a one-time setup; after it's done, no ongoing IT involvement is required.
+  </p>
+
+  <h4>Entra (Azure AD) app registration</h4>
+  <ul>
+    <li class="note">Register a new app in Entra ID for the Hub.</li>
+    <li class="note">Generate a client secret; store as <code>GRAPH_CLIENT_SECRET</code>.</li>
+    <li class="note">Store the tenant ID and client ID as <code>GRAPH_TENANT_ID</code> and <code>GRAPH_CLIENT_ID</code>.</li>
+  </ul>
+
+  <h4>Required application permissions (admin consent)</h4>
+  <ul>
+    <li class="note"><code>ChannelMessage.Send</code> — required. Used to reply in the private Teams channel (visible to admins / approvers).</li>
+    <li class="note"><code>ChatMessage.Send</code> — <strong>also required</strong>. The requester is not in the private channel; they only see updates in the group chat PA created. Without this scope, the requester never learns the outcome from Teams.</li>
+    <li class="note">Both can be narrowed via <strong>Resource-Specific Consent (RSC)</strong> if tenant policy disallows tenant-wide scopes — adds an app manifest install in the target team but limits the blast radius.</li>
+  </ul>
+
+  <h4>New helper: <code>src/lib/teams/graph.ts</code></h4>
+  <ul>
+    <li class="note">Sits alongside the existing <code>src/lib/teams/webhook.ts</code> (which stays in use for the alert/digest paths).</li>
+    <li class="note">MSAL client-credentials token flow with in-memory caching (tokens expire ~1 hour; lazy refresh on miss).</li>
+    <li class="note"><code>postChannelReply(teamId, channelId, parentMessageId, bodyMarkdown)</code></li>
+    <li class="note"><code>postChatMessage(chatId, bodyMarkdown)</code></li>
+    <li class="note">Retry with backoff on 429 / 5xx, mirroring the existing webhook helper.</li>
+  </ul>
+
+  <p style="color: var(--fg-muted); font-size: 13.5px;">
+    The Entra app registration + admin consent is the single longest-lead-time item — worth filing for it on day one of the build so it's ready when the helper module needs to be wired in.
+  </p>
+</div>
+
+<h2>Templates and variable form payloads</h2>
+
+<div class="card">
+  <h3>Per-tool / per-tier message templates</h3>
+  <p>
+    Approval and completion messages differ meaningfully by tool ("Welcome to Copilot — IDE setup steps inside" vs. "Your Claude workspace is ready — here's your API key"). Encode that as templates stored per tool, with optional per-tier overrides when a tier needs different copy (Basic vs. Max).
+  </p>
+
+  <h4>Variables available in templates</h4>
+  <p>Mustache-style <code>{{...}}</code>. The renderer has access to:</p>
+  <ul>
+    <li class="note"><code>{{requester.name}}</code>, <code>{{requester.firstName}}</code>, <code>{{requester.email}}</code></li>
+    <li class="note"><code>{{tool.name}}</code>, <code>{{tier.name}}</code></li>
+    <li class="note"><code>{{licenseCode}}</code> — present only at completion, when Tobias has entered it</li>
+    <li class="note"><code>{{form.fieldName}}</code> — any field from the request's <code>form_payload</code> (e.g. <code>{{form.github_username}}</code>)</li>
+    <li class="note"><code>{{requestUrl}}</code> — deep link back to the Hub request (useful in approval messages)</li>
+  </ul>
+
+  <h4>Why markdown, not WYSIWYG</h4>
+  <p>
+    Messages flow Hub → PA → Teams. Markdown round-trips cleanly through Teams chat, diffs nicely in PRs, and is trivial to template. A WYSIWYG editor (TipTap, Lexical) is overkill for the formatting actually needed (bold, lists, links). Use a <code>&lt;textarea&gt;</code> + <code>react-markdown</code> preview side-by-side. If Tobias later wants WYSIWYG, swap the input component without changing storage.
+  </p>
+
+  <h4>The approve and complete flow</h4>
+  <p>Both actions are confirm-and-edit, not fire-and-forget:</p>
+  <ul>
+    <li class="note"><strong>Approve</strong> opens a modal. The approval template for the request's tool+tier is rendered with current variables into a markdown editor with live preview. Tobias edits or accepts, hits Send. The final text is stored on the request as <code>approval_message_md</code> and shipped to PA via the callback.</li>
+    <li class="note"><strong>Complete</strong> first asks for tier + license code + assignment date. Once entered, those values flow into the completion template's variables; the rendered text appears in the same editor. Same edit-and-send pattern, stored as <code>completion_message_md</code>.</li>
+    <li class="note"><strong>Reject</strong> uses a free-text note (no template) — small enough that template machinery would be overhead.</li>
+  </ul>
+
+  <h4>Template management UI</h4>
+  <p>
+    A settings page at <code>/settings/license-templates</code>: list of (tool × tier × kind) rows with the markdown source. Per-tier override is created lazily — if no row exists, the tool default is shown as inherited and a "Customize for this tier" button creates the override.
+  </p>
+</div>
+
+<div class="card">
+  <h3>Variable form payloads (per tier)</h3>
+  <p>
+    Different tiers ask for different things — Basic might collect only a GitHub username; Max collects justification, intended workload, manager approval. The Hub can't predict the field set, so PA forwards the full submission verbatim and the Hub stores and renders it as-is.
+  </p>
+
+  <h4>Storage</h4>
+  <p>
+    <code>license_requests.form_payload</code> JSONB, keyed by the Form's field names. No upfront schema — schema-by-convention from what MS Forms actually submitted.
+  </p>
+
+  <h4>Rendering in the request detail view</h4>
+  <p>
+    Default: a definition list with light prettification (<code>snake_case</code> → Title Case). Long-form fields (>120 chars) render as paragraphs; short fields as inline rows. Good enough for V1.
+  </p>
+
+  <h4>Phase 2 (optional, only if needed)</h4>
+  <p>
+    A <code>field_schema</code> JSONB on <code>access_tiers</code> mapping raw form keys to display labels + render hints (e.g. <code>{ "github_username": { "label": "GitHub username", "type": "github_link" } }</code>). Skip until the default rendering proves insufficient — over-specifying upfront tends to lock in a structure that the Forms side then drifts away from.
+  </p>
+</div>
+
+<h2>Execution slices</h2>
+
+<div class="card">
+  <div class="step"><div class="step-num">00</div><div class="step-body"><strong>File the Entra app registration.</strong> Day one, before any code. Request the Graph permissions (<code>ChannelMessage.Send</code>, optionally <code>ChatMessage.Send</code>) so admin consent is in flight while the rest is being built. This is the only piece with external lead time.</div></div>
+  <div class="step"><div class="step-num">01</div><div class="step-body"><strong>Schema + ingest endpoint.</strong> Add <code>license_requests</code> (with <code>form_payload</code> JSONB, the two <code>*_message_md</code> columns, and the four <code>teams_*_id</code> columns) and <code>message_templates</code> tables. Zod validator. Clone the invoice-ingest bearer-secret + size-limit + logging pattern. Idempotent on <code>form_response_id</code>.</div></div>
+  <div class="step"><div class="step-num">02</div><div class="step-body"><strong>Extend the existing PA flow with one action.</strong> Single HTTP POST to <code>/api/license-requests/ingest</code>, forwarding the form payload and the team / channel / parent-message / chat IDs already in scope. That's it for PA — no card posting, no callback receiver.</div></div>
+  <div class="step"><div class="step-num">03</div><div class="step-body"><strong>Microsoft Graph helper.</strong> New <code>src/lib/teams/graph.ts</code> with MSAL client-credentials token caching, <code>postChannelReply()</code>, <code>postChatMessage()</code>, and retry-with-backoff matching the existing webhook helper. Wire the initial-card post into the ingest endpoint so a freshly ingested request immediately replies in the channel.</div></div>
+  <div class="step"><div class="step-num">04</div><div class="step-body"><strong>Template management UI.</strong> A <code>/settings/license-templates</code> page: list of tool × tier × kind rows with markdown source. Lazy per-tier override creation. Markdown editor + live preview, sidebar listing available variables (<code>{{requester.firstName}}</code>, <code>{{tool.name}}</code>, <code>{{licenseCode}}</code>, <code>{{form.*}}</code>). Seed initial templates for each existing tool.</div></div>
+  <div class="step"><div class="step-num">05</div><div class="step-body"><strong>Approval queue + detail UI.</strong> Route <code>/requests</code> with a queue table. Detail page <code>/requests/[id]</code> renders the variable <code>form_payload</code> as a definition list (snake_case → Title Case). Approve and Complete each open a modal: pre-render the relevant template, drop into a markdown editor with preview, store the edited body, then call <code>postChannelReply()</code> and optionally <code>postChatMessage()</code>. Reject is a single textarea — no template.</div></div>
+  <div class="step"><div class="step-num">06</div><div class="step-body"><strong>Edge cases + optional AI triage.</strong> Duplicate warnings, Tobias-initiated cancellations, re-applies after rejection (new request linked to the prior). Optional: one LLM call on ingest to suggest tool/tier from the form payload and surface obvious anomalies.</div></div>
+</div>
+
+<p style="color: var(--fg-muted); font-size: 13.5px;">
+  Revised estimate: ≈ 5–7 days of build, plus the Entra registration lead time which runs in parallel. The Graph helper adds ~half a day vs. P2.1's PA-callback path, but removes the callback-receiver wiring and centralizes everything in TypeScript — net wash in code, net gain in operability.
+</p>
+
+<h2>Open questions</h2>
+
+<div class="card">
+  <h4>Microsoft Graph &amp; Entra</h4>
+  <ul>
+    <li class="note"><strong>Tenant policy on Graph scopes:</strong> does your tenant allow tenant-wide <code>ChannelMessage.Send</code> + <code>ChatMessage.Send</code> application permissions, or does IT require Resource-Specific Consent (RSC)? RSC narrows blast radius (specific team only) but adds an app-manifest install step. Big setup-time delta.</li>
+    <li class="note"><strong>Secret rotation:</strong> client secrets expire (default 24 months). Plan to use Azure Key Vault, or just rotate in Vercel env vars when needed? Worth a calendar reminder.</li>
+  </ul>
+
+  <h4>PA flow</h4>
+  <ul>
+    <li class="note"><strong>IDs in scope:</strong> does the existing flow already capture the <em>team ID</em>, <em>channel ID</em>, <em>parent message ID</em>, and <em>group chat ID</em> as variables ready to forward? The first three usually come back from the "Post message in a channel" action; the chat ID from "Create a chat." If any are missing we add a lookup, but no missing piece is fatal.</li>
+    <li class="note"><strong>HTTP action licensing:</strong> the generic HTTP connector is Premium PA. Still one call (the /ingest forward), so if your tenant isn't already Premium, this single action is what would trigger the licensing requirement. Worth confirming before step 02.</li>
+  </ul>
+
+  <h4>Multi-approver</h4>
+  <ul>
+    <li class="note"><strong>Tool-specific routing:</strong> first-write-wins is the default — any admin can approve any tool. Does any tool need a stricter rule (e.g. "only Mathias can approve Sitecore licenses")? If yes, model as a <code>required_approver_id</code> on <code>ai_tools</code>. Phase 2 unless there's a known case today.</li>
+    <li class="note"><strong>Soft-claim UI:</strong> when an admin opens the approval modal, should the Hub mark the request as "in review by X" so other admins see it's being handled? Phase 2 polish — first-write-wins is fine for low-volume.</li>
+    <li class="note"><strong>Identity of the approver in messages:</strong> templates can reference <code>{{approver.firstName}}</code> so the approval message says "Approved by Anna" rather than just "Approved." Default: include it. Confirm.</li>
+    <li class="note"><strong>Notification to the requester when nobody acts:</strong> if a request sits in <code>pending_review</code> for N days, should the Hub nudge the channel? Worth deciding what stale looks like before the queue starts to build up.</li>
+  </ul>
+
+  <h4>Approval &amp; assignment</h4>
+  <ul>
+    <li class="note"><strong>Requester identity matching:</strong> match by email against existing <code>users</code>, or create a stub row? Affects whether the assignment shows up in the requester's existing Hub profile and reports.</li>
+    <li class="note"><strong>License code storage:</strong> the existing <code>license_assignments.apiKey</code> column is encrypted — natural fit. Confirm that's where the code lives (vs. a separate "license code" column).</li>
+  </ul>
+
+  <h4>Templates &amp; form payload</h4>
+  <ul>
+    <li class="note"><strong>Template inheritance:</strong> per-tool default + optional per-tier override. Granular enough, or do we need anything beyond that?</li>
+    <li class="note"><strong>Variable contract with MS Forms:</strong> <code>{{form.*}}</code> variables only work if Form question identifiers are stable. Whenever a Form question is renamed, referencing templates break silently. Worth confirming that PA forwards question keys (not labels) and that the template editor flags unknown variables.</li>
+    <li class="note"><strong>Rejection template:</strong> P2.2 says reject is free-text only, no template. Confirm — or add a per-tool rejection template if some tools have a stock "denied because budget" message worth canning.</li>
+    <li class="note"><strong>Card content in Teams:</strong> minimal "review in Hub" link, or richer card showing requester / tool / tier inline so Tobias can sometimes decide without leaving Teams? Affects whether the click-through is required or optional.</li>
+    <li class="note"><strong>Form payload size cap:</strong> JSONB has no practical limit, but a 64 KB sanity bound at the ingest endpoint prevents a runaway MS Forms misconfiguration from filling the table.</li>
+    <li class="note"><strong>Card updates vs. new replies:</strong> P2.2 posts a fresh reply for each event (approval, completion). Alternative: edit/refresh the original card to show latest status via Graph <code>PATCH .../messages/{id}</code>. More elegant but harder to thread the conversation. Stick with "new replies" for v1.</li>
+  </ul>
+</div>
+
+<footer>
+  Drafted by Claude (Opus 4.7) as a brainstorm for spec/032-automation-workflow.<br/>
+  Not a plan, not a commitment — input for a conversation. Push back on any assumption.
+</footer>
+
+</main>
+</body>
+</html>

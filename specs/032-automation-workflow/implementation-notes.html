@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Notes — Automation Workflow</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    h2 { font-size: 20px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 15px; margin: 16px 0 4px; }
+    p { margin: 0 0 10px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; line-height: 1.5; }
+    .lede { color: var(--fg-muted); font-size: 15px; max-width: 760px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .entry { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 12px 0; }
+    .entry.decision { border-left: 3px solid var(--accent); }
+    .entry.deviation { border-left: 3px solid var(--warn); }
+    .entry.tradeoff { border-left: 3px solid var(--accent-2); }
+    .entry.open { border-left: 3px solid var(--bad); }
+    .entry h3 { margin-top: 0; font-size: 15px; }
+    .entry .kind { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--bg-elev); text-transform: uppercase; letter-spacing: 0.06em; margin-right: 8px; }
+    .entry .kind.decision { color: var(--accent); }
+    .entry .kind.deviation { color: var(--warn); }
+    .entry .kind.tradeoff { color: var(--accent-2); }
+    .entry .kind.open { color: var(--bad); }
+    .entry .where { color: var(--fg-dim); font-size: 12px; font-family: var(--mono); margin: 4px 0 8px; }
+    ul { padding-left: 20px; margin: 6px 0 10px; }
+    li { margin: 3px 0; }
+    .phase-divider { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.1em; margin: 32px 0 8px; padding: 8px 0; border-top: 1px dashed var(--border); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Implementation notes</h1>
+  <p class="lede">
+    Running log of decisions, deviations, trade-offs, and open questions encountered while implementing
+    <a href="./implementation-plan.html">implementation-plan.html</a>. Append-only — earlier entries are not retroactively edited.
+  </p>
+  <p class="meta">Started 2026-05-22 · branch: wt/automation-workflow · author: Claude (Opus 4.7)</p>
+</header>
+
+<div class="phase-divider">Phase 0 — Setup</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Neon DB branch <code>wt/automation-workflow</code> created from main</h3>
+  <p class="where">Branch ID <code>br-icy-shadow-all7tba6</code> · parent <code>br-quiet-brook-al03w27g</code> (main)</p>
+  <p>Created a fresh worktree-isolated Neon branch via the <code>neon-worktree-branch</code> skill so migrations don't touch production. The worktree's <code>.env.local</code> was created with both pooled and unpooled URLs pointing at the new branch host (<code>ep-polished-recipe-al8esbvh</code>). The main checkout's <code>.env.local</code> is untouched.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Graph env vars left empty in the worktree's <code>.env.local</code></h3>
+  <p class="where">Spec calls for <code>GRAPH_TENANT_ID</code> / <code>GRAPH_CLIENT_ID</code> / <code>GRAPH_CLIENT_SECRET</code></p>
+  <p>IT-112678 is still open, so we don't have real Entra app credentials yet. The Graph helper (Phase 3) will be implemented to <strong>fail gracefully</strong> when these are unset — the request state machine still works, but Teams posts are skipped with a console warning. This lets us develop and demo the workflow end-to-end without waiting on IT.</p>
+</div>
+
+<div class="phase-divider">Phase 1 — Schema</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Partial unique indexes for <code>message_templates</code> instead of plain unique</h3>
+  <p class="where"><code>src/lib/db/schema.ts</code> (messageTemplates indexes)</p>
+  <p>The plan's "unique on (tool_id, tier_id, kind)" sounds simple but Postgres treats NULLs as distinct in unique indexes by default — so multiple (tool_id, NULL, kind) rows could be inserted, defeating the "one tool-default per kind" invariant. Solved with two partial unique indexes:</p>
+  <pre><code>// "one tool-default per kind" — when tier_id IS NULL
+uniqueIndex("message_templates_tool_default_kind_idx")
+  .on(toolId, kind)
+  .where(sql`tier_id IS NULL`);
+
+// "one override per (tool, tier, kind)" — when tier_id IS NOT NULL
+uniqueIndex("message_templates_tool_tier_kind_idx")
+  .on(toolId, tierId, kind)
+  .where(sql`tier_id IS NOT NULL`);</code></pre>
+  <p>Net effect: identical to "NULLS NOT DISTINCT" semantics but works on Postgres 15+ without depending on that newer syntax.</p>
+</div>
+
+<div class="phase-divider">Phase 2 — Ingest endpoint</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Repurpose <code>ingestion_log.invoice_number</code> as the form-response-id key</h3>
+  <p class="where"><code>src/app/api/license-requests/ingest/route.ts</code></p>
+  <p>The plan suggested either extending <code>ingestion_log</code> or adding a separate <code>license_request_ingestion_log</code> table. I went with the lighter-weight path: log into the existing table using <code>invoiceNumber</code> as the idempotency key and <code>linkedInvoiceId</code> as the resulting <code>license_request_id</code>. Pragmatic overload — both columns are nullable and not invoice-specific in schema, just by naming. If/when this becomes confusing, a rename or a dedicated table is a follow-up.</p>
+</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Public ingest route had to be added to middleware matcher</h3>
+  <p class="where"><code>src/middleware.ts</code></p>
+  <p>The plan's Phase 2 didn't call out that the middleware matcher needs an explicit exclusion. <code>/api/invoices/ingest</code> is already excluded; I added <code>/api/license-requests/ingest</code> alongside it. Without this, the route would redirect to <code>/login</code> for unauthenticated callers (i.e. all PA calls). Caught during smoke testing.</p>
+</div>
+
+<div class="phase-divider">Phase 3 — Graph helper</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Fetch-based token acquisition instead of <code>@azure/msal-node</code></h3>
+  <p class="where"><code>src/lib/teams/graph.ts</code></p>
+  <p>The plan called for <code>@azure/msal-node</code>. Replaced with a ~25-line fetch-based POST to the token endpoint. Reasoning:</p>
+  <ul>
+    <li class="note">For 2 endpoints (channel reply + chat message) using client-credentials, the full MSAL library is overkill — we use ~5% of its surface.</li>
+    <li class="note">Adds a 2 MB transitive dep tree to avoid.</li>
+    <li class="note">Token caching is trivial enough to roll (one mutable variable + expiry check).</li>
+    <li class="note">Failure modes are identical from the caller's POV — both throw on token-acquire errors.</li>
+  </ul>
+  <p>Trade-off: if Microsoft ever adds advanced auth flows (token binding, certificate auth), we'd have to extend manually. For now: simpler, fewer deps, less attack surface.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Graph helper no-ops when env vars are unset (graceful degradation)</h3>
+  <p class="where"><code>src/lib/teams/graph.ts</code> <code>isGraphConfigured()</code> + <code>graphPost()</code></p>
+  <p>When any of <code>GRAPH_TENANT_ID</code> / <code>GRAPH_CLIENT_ID</code> / <code>GRAPH_CLIENT_SECRET</code> is missing, every Graph call logs <code>[graph] skipping POST &lt;path&gt; — Graph env vars not set (IT-112678 pending)</code> and returns. This keeps the request state machine functional in dev and after deploy-before-IT-finishes. Once IT-112678 lands and env vars are filled in, the same code path activates with no other change.</p>
+</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Extracted <code>markdownToTeamsHtml</code> into its own module (<code>markdown.ts</code>)</h3>
+  <p class="where"><code>src/lib/teams/markdown.ts</code> (new), <code>src/lib/teams/graph.ts</code> (re-exports)</p>
+  <p>Caught during smoke verification: client components (approval/completion/template-editor dialogs) need to render the live preview with the same renderer that's used server-side for Graph posts. But <code>graph.ts</code> has <code>import "server-only"</code> at the top, which Next.js refuses to bundle into client components. Solution: pure markdown converter lives in <code>markdown.ts</code> (no server-only marker, safe on both sides), <code>graph.ts</code> re-exports it for server-only consumers, client components import from <code>markdown.ts</code> directly.</p>
+</div>
+
+<div class="phase-divider">Phase 5 / 6 — UI</div>
+
+<div class="entry tradeoff">
+  <h3><span class="kind tradeoff">Trade-off</span>No <code>react-markdown</code> dep — used the in-house renderer for previews</h3>
+  <p class="where">All three approve/complete/template-editor dialogs + the detail page audit-message render</p>
+  <p>The implementation plan suggested adding <code>react-markdown</code> for live preview. I dropped it because <code>markdownToTeamsHtml</code> already exists and gives <em>identical</em> output to what Teams actually receives — the preview is now WYSIWYG vs. the real send (react-markdown would have shown a slightly different render). Side benefit: zero new dependencies for this phase. Limitation: the preview renders the same minimal subset that Teams renders (bold / italic / lists / links / inline code), no headings or images. That matches reality.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Completion requires the requester to be a Hub user (not a stub)</h3>
+  <p class="where"><code>completeRequest()</code> in <code>src/actions/license-requests.ts</code></p>
+  <p>The open question in the plan asked whether to match by email or create a stub. I went with: <strong>require a matched user before completion can proceed</strong>. Reasoning: <code>license_assignments.userId</code> is <code>NOT NULL ON DELETE RESTRICT</code>, so we can't fudge it. If the requester isn't in <code>users</code>, the completion UI surfaces a clear error and points to <code>/users</code>. This pushes user-creation upstream where it belongs (existing invite flow) instead of silently creating stub users that may never get cleaned up.</p>
+</div>
+
+<div class="entry tradeoff">
+  <h3><span class="kind tradeoff">Trade-off</span>License code stored in the existing <code>license_assignments.apiKey</code> column without re-encryption</h3>
+  <p class="where"><code>completeRequest()</code></p>
+  <p>The plan noted the existing <code>apiKey</code> column is "already encrypted." I confirmed it's a <code>varchar(700)</code> intended for encrypted blobs — but the actual encryption is applied elsewhere in the codebase (when assignments are created through the UI). For this v1, I'm storing the entered code in <code>apiKeyEncrypted</code> <strong>without</strong> running it through any encryption step — matching what the schema column's name promises is a follow-up. Concretely: today, the column should be renamed or the value should be encrypted by the action. Flagged as an open question below.</p>
+</div>
+
+<div class="phase-divider">Phase 8 — Tests + smoke</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Unit tests only — no integration tests this round</h3>
+  <p class="where"><code>tests/unit/license-requests/render-template.test.ts</code>, <code>tests/unit/teams/graph-format.test.ts</code></p>
+  <p>20 unit tests cover the two pure modules where bugs would silently corrupt outputs (template substitution + markdown rendering). Integration tests for the ingest endpoint and the server actions were planned but deferred — the live smoke test against the branched DB exercised: bearer auth (3 cases), idempotency on duplicate <code>formResponseId</code>, unknown-tool 422 path, queue page rendering with real data, detail page with form_payload list, templates settings page with all three tools. The integration suites are listed as a "fast-follow" in the open questions below.</p>
+</div>
+
+<div class="phase-divider">Open questions</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>Should the license code be encrypted by <code>completeRequest()</code>?</h3>
+  <p>The column is named <code>apiKeyEncrypted</code>, but this action stores the entered text as-is. Look at how <code>src/actions/assignments.ts</code> handles the encryption today and mirror — there's an <code>encrypt()</code> helper somewhere that likely uses <code>API_KEY_ENCRYPTION_SECRET</code>. Quick fix; flagged because it's a real security gap until done.</p>
+</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>Add integration tests for ingest + actions before merging to main?</h3>
+  <p>The plan called for two integration suites (<code>tests/integration/api/license-requests/ingest.test.ts</code> and <code>tests/integration/actions/license-requests.test.ts</code>). The live smoke test on the branched DB confirms the happy paths work, but unit coverage for the first-write-wins logic + the completion transaction would catch regressions earlier. Suggested follow-up PR.</p>
+</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>Seed default templates?</h3>
+  <p>Phase 5 in the plan suggested a <code>scripts/seed-message-templates.ts</code> that pre-fills approval + completion defaults per tool on first deploy. Skipped for this PR — the editor surfaces "no template yet" inline messaging and the modal opens with a sensible fallback body, so the first approval still works. Adding the seed script is a one-pager follow-up if you want a smoother first-run.</p>
+</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>Workspace-root warning from Next.js</h3>
+  <p>Next.js logs "We detected multiple lockfiles and selected the directory of C:\Repos\ai-developer-hub\pnpm-lock.yaml as the root directory" on every dev start. Set <code>outputFileTracingRoot</code> in <code>next.config.ts</code> to silence — or remove the worktree's <code>pnpm-lock.yaml</code> if it's redundant with the main checkout's. Not blocking; cosmetic.</p>
+</div>
+
+<div class="phase-divider">Post-review patch (2026-05-22, after self-review)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Three must-fix findings patched before review feedback</h3>
+  <p class="where"><code>src/actions/license-requests.ts</code>, <code>src/app/requests/[id]/page.tsx</code>, <code>src/app/requests/[id]/{approval,completion}-dialog.tsx</code></p>
+  <p>A self-review surfaced three real bugs. All three patched in one follow-up commit on the same branch:</p>
+  <ul>
+    <li class="note"><strong>License code encryption restored</strong> — <code>completeRequest()</code> now runs the license code through <code>encryptApiKey()</code> from <code>@/lib/crypto</code> before writing to <code>license_assignments.apiKeyEncrypted</code>, matching the manual-assignment flow in <code>src/actions/assignments.ts</code>. This closes the open question flagged in the original implementation-notes.</li>
+    <li class="note"><strong><code>{{approver.*}}</code> now resolves</strong> — the detail page reads the current admin from <code>auth()</code>, derives a first name, and passes <code>approver: { name, firstName }</code> down through <code>RequestDetailClient</code> into both dialogs' <code>buildContext()</code>. The seeded default templates' trailing <code>— {{approver.firstName}}</code> now renders the admin's name in the message sent to Teams.</li>
+    <li class="note"><strong>Duplicate active-assignment guard</strong> — <code>completeRequest()</code> queries <code>license_assignments</code> for any existing <code>(userId, toolId, status='active')</code> row before inserting; returns a clear error pointing at the existing assignment id if one exists. No DB-level unique constraint (different tiers / API keys are legitimate parallel rows), so this app-level check is the only line of defense against double-counting in cost reports.</li>
+  </ul>
+  <p>All 359 tests still pass; typecheck + lint clean.</p>
+</div>
+
+<div class="phase-divider">Merge with main (2026-05-22)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Migration renumbered 0021 → 0022 after collision with PR #100 on main</h3>
+  <p class="where"><code>src/lib/db/migrations/0022_serious_tomas.sql</code> (was <code>0021_wakeful_speed.sql</code>)</p>
+  <p>PR #100 (<code>feat(users): introduce discipline</code>) merged to main while this PR was in review, claiming migration index 0021 (<code>0021_wise_vindicator.sql</code>). Merge resolution:</p>
+  <ul>
+    <li class="note">Deleted my <code>0021_wakeful_speed.sql</code>.</li>
+    <li class="note">Accepted main's <code>0021_wise_vindicator.sql</code> + its <code>meta/0021_snapshot.json</code> verbatim via <code>git checkout --theirs</code>.</li>
+    <li class="note">Accepted main's journal entry verbatim, then re-ran <code>pnpm db:generate</code> against the merged schema.ts (which now has both main's <code>discipline</code> column on <code>users</code> AND my <code>license_requests</code> + <code>message_templates</code>). Drizzle produced <code>0022_serious_tomas.sql</code> containing only my additions — the discipline column is correctly absent because main's 0021 already snapshots it.</li>
+    <li class="note"><strong>Heads-up:</strong> the worktree's Neon branch <code>wt/automation-workflow</code> still has the old <code>0021_wakeful_speed</code> applied. Before the next round of local smoke testing, the branch needs to be reset (drop + recreate from current main, then <code>pnpm db:migrate</code>) — otherwise <code>db:migrate</code> will fail with "relation already exists" when it tries to apply 0022 over the pre-existing tables. CI / production are unaffected: they apply migrations in journal order against fresh DBs.</li>
+  </ul>
+  <p>typecheck / lint / 359 tests still all green on the merged code.</p>
+</div>
+
+<footer>
+  Appended to as implementation progresses. Each entry tagged Decision / Deviation / Tradeoff / Open.
+</footer>
+
+</main>
+</body>
+</html>

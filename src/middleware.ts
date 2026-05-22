@@ -41,6 +41,6 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|api/sync|api/invoices/ingest|api/profile|api/agent/session).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|api/sync|api/invoices/ingest|api/license-requests/ingest|api/profile|api/agent/session).*)",
   ],
 };

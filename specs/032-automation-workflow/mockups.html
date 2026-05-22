@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UI Mockups — Automation Workflow</title>
+  <style>
+    :root {
+      /* page chrome */
+      --page-bg: #f4f5f7;
+      --page-fg: #1a1d26;
+      --page-muted: #6b7280;
+      --page-border: #e4e6ea;
+
+      /* app chrome (mockup) */
+      --app-bg: #ffffff;
+      --app-fg: #0f172a;
+      --app-muted: #64748b;
+      --app-dim: #94a3b8;
+      --app-border: #e2e8f0;
+      --app-border-strong: #cbd5e1;
+      --app-hover: #f8fafc;
+      --app-elev: #f1f5f9;
+
+      --primary: #4f46e5;
+      --primary-fg: #ffffff;
+      --primary-soft: #eef2ff;
+      --primary-soft-fg: #4338ca;
+
+      --good: #16a34a;
+      --good-soft: #dcfce7;
+      --good-soft-fg: #15803d;
+      --warn: #d97706;
+      --warn-soft: #fef3c7;
+      --warn-soft-fg: #b45309;
+      --bad: #dc2626;
+      --bad-soft: #fee2e2;
+      --bad-soft-fg: #b91c1c;
+      --gray-soft: #f1f5f9;
+      --gray-soft-fg: #475569;
+
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--page-bg); color: var(--page-fg); font-family: var(--sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+    /* page layout */
+    .page { max-width: 1240px; margin: 0 auto; padding: 32px 24px 96px; }
+    .page > header { margin-bottom: 24px; }
+    .page > header h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    .page > header p { color: var(--page-muted); margin: 0; }
+    .page-meta { color: var(--page-muted); font-size: 13px; font-family: var(--mono); margin-top: 6px; }
+
+    nav.toc { position: sticky; top: 0; z-index: 50; background: var(--page-bg); padding: 12px 0; margin: 16px 0 24px; border-bottom: 1px solid var(--page-border); display: flex; flex-wrap: wrap; gap: 4px; }
+    nav.toc a { color: var(--page-fg); text-decoration: none; font-size: 12.5px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--page-border); background: #fff; }
+    nav.toc a:hover { background: var(--app-elev); }
+
+    section.mockup-section { margin: 48px 0; scroll-margin-top: 80px; }
+    section.mockup-section > h2 { font-size: 19px; margin: 0 0 4px; letter-spacing: -0.005em; }
+    section.mockup-section > .section-meta { color: var(--page-muted); font-size: 13.5px; margin: 0 0 16px; }
+    section.mockup-section > .section-meta code { font-family: var(--mono); font-size: 12px; background: #fff; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--page-border); }
+    .annotation { background: #fff8e1; border-left: 3px solid #f59e0b; border-radius: 6px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; color: #78350f; }
+    .annotation strong { color: #78350f; }
+
+    /* mockup frame — simulates a browser/modal screenshot */
+    .frame { background: var(--app-bg); border: 1px solid var(--app-border); border-radius: 10px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); overflow: hidden; }
+    .frame .frame-titlebar { display: flex; align-items: center; justify-content: space-between; background: var(--app-elev); padding: 8px 14px; border-bottom: 1px solid var(--app-border); font-family: var(--mono); font-size: 12px; color: var(--app-muted); }
+    .frame .frame-titlebar .dots { display: flex; gap: 6px; }
+    .frame .frame-titlebar .dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--app-border-strong); display: block; }
+    .frame .frame-content { padding: 0; }
+
+    /* — app shell (sidebar + content) — */
+    .app-shell { display: grid; grid-template-columns: 224px 1fr; min-height: 560px; }
+    .app-sidebar { background: #fafbfc; border-right: 1px solid var(--app-border); padding: 16px 12px; }
+    .app-brand { display: flex; align-items: center; gap: 8px; padding: 4px 8px 14px; border-bottom: 1px solid var(--app-border); margin-bottom: 12px; }
+    .app-brand-mark { width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+    .app-brand-name { font-weight: 600; font-size: 14px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px; font-size: 13.5px; color: var(--app-fg); cursor: default; }
+    .nav-item:hover { background: var(--app-elev); }
+    .nav-item.active { background: var(--primary-soft); color: var(--primary-soft-fg); font-weight: 500; }
+    .nav-item .nav-icon { width: 16px; height: 16px; display: inline-block; }
+    .nav-section { font-size: 11px; color: var(--app-dim); text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 8px 4px; }
+    .app-main { padding: 24px 28px; overflow: hidden; }
+    .app-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; gap: 16px; }
+    .app-title { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.005em; }
+    .app-subtitle { color: var(--app-muted); font-size: 13.5px; margin: 4px 0 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--app-muted); margin-bottom: 6px; }
+    .breadcrumb a { color: var(--app-muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--app-fg); }
+
+    /* buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; font-weight: 500; border-radius: 6px; border: 1px solid var(--app-border-strong); background: #fff; color: var(--app-fg); cursor: default; }
+    .btn:hover { background: var(--app-elev); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
+    .btn.primary:hover { background: #4338ca; }
+    .btn.ghost { border-color: transparent; background: transparent; }
+    .btn.danger { color: var(--bad); border-color: var(--app-border-strong); }
+    .btn.sm { padding: 4px 10px; font-size: 12px; }
+    .btn-group { display: inline-flex; gap: 8px; }
+
+    /* badges / pills */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11.5px; font-weight: 500; font-family: var(--sans); }
+    .badge.pending { background: var(--warn-soft); color: var(--warn-soft-fg); }
+    .badge.approved { background: var(--primary-soft); color: var(--primary-soft-fg); }
+    .badge.completed { background: var(--good-soft); color: var(--good-soft-fg); }
+    .badge.rejected { background: var(--bad-soft); color: var(--bad-soft-fg); }
+    .badge.cancelled { background: var(--gray-soft); color: var(--gray-soft-fg); }
+    .badge.tier { background: var(--app-elev); color: var(--app-muted); border: 1px solid var(--app-border); font-weight: 400; }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* filter bar */
+    .filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .input { padding: 6px 10px; font-size: 13px; border: 1px solid var(--app-border-strong); border-radius: 6px; background: #fff; min-width: 240px; }
+    .input::placeholder { color: var(--app-dim); }
+    .select { padding: 6px 28px 6px 10px; font-size: 13px; border: 1px solid var(--app-border-strong); border-radius: 6px; background: #fff url("data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'&gt;&lt;path d='M1 1l4 4 4-4' stroke='%2364748b' fill='none'/&gt;&lt;/svg&gt;") no-repeat right 10px center; appearance: none; }
+
+    /* table */
+    table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    table.data thead th { text-align: left; padding: 10px 12px; font-weight: 500; color: var(--app-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--app-elev); border-bottom: 1px solid var(--app-border); }
+    table.data tbody td { padding: 12px; border-bottom: 1px solid var(--app-border); vertical-align: middle; }
+    table.data tbody tr:hover td { background: var(--app-hover); }
+    table.data .col-id { font-family: var(--mono); font-size: 12px; color: var(--app-muted); }
+    table.data .col-name strong { font-weight: 500; }
+    table.data .col-name .email { color: var(--app-muted); font-size: 12px; display: block; }
+    .table-wrap { border: 1px solid var(--app-border); border-radius: 8px; overflow: hidden; }
+    .pagination { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-top: 1px solid var(--app-border); background: var(--app-elev); font-size: 12.5px; color: var(--app-muted); }
+    .pagination .page-btns { display: flex; gap: 6px; }
+    .pagination .pg-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--app-border-strong); border-radius: 6px; background: #fff; font-size: 12px; }
+    .pagination .pg-btn.active { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+
+    /* stats */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .stat { background: #fff; border: 1px solid var(--app-border); border-radius: 8px; padding: 14px 16px; }
+    .stat-label { font-size: 12px; color: var(--app-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; letter-spacing: -0.01em; }
+    .stat-trend { font-size: 12px; color: var(--app-muted); margin-top: 2px; }
+
+    /* cards / sections inside content */
+    .card { background: #fff; border: 1px solid var(--app-border); border-radius: 8px; padding: 18px 20px; margin-bottom: 14px; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .card-title { font-size: 14px; font-weight: 600; margin: 0; }
+    .card-subtitle { font-size: 12.5px; color: var(--app-muted); margin: 0; }
+
+    /* definition list */
+    dl.def { display: grid; grid-template-columns: 200px 1fr; gap: 10px 16px; margin: 0; font-size: 13.5px; }
+    dl.def dt { color: var(--app-muted); }
+    dl.def dd { margin: 0; color: var(--app-fg); }
+    dl.def dd code { font-family: var(--mono); font-size: 12px; background: var(--app-elev); padding: 1px 5px; border-radius: 4px; }
+    dl.def dd.long { grid-column: 1 / -1; padding-top: 4px; border-top: 1px dashed var(--app-border); margin-top: 4px; }
+    dl.def dd.long .field-label { display: block; color: var(--app-muted); font-size: 12px; margin-bottom: 4px; }
+
+    /* timeline */
+    .timeline { display: flex; align-items: center; gap: 0; margin: 8px 0 4px; }
+    .timeline .step { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; }
+    .timeline .step-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--app-border-strong); flex: 0 0 12px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--app-border-strong); }
+    .timeline .step.done .step-dot { background: var(--good); box-shadow: 0 0 0 1px var(--good); }
+    .timeline .step.current .step-dot { background: var(--warn); box-shadow: 0 0 0 1px var(--warn); }
+    .timeline .step-label { font-size: 12.5px; }
+    .timeline .step-meta { font-size: 11.5px; color: var(--app-muted); display: block; }
+    .timeline .step-connector { width: 60px; height: 1px; background: var(--app-border-strong); margin: 0 12px; }
+    .timeline .step-connector.done { background: var(--good); }
+
+    /* action bar */
+    .action-bar { display: flex; gap: 10px; padding: 16px 20px; background: var(--app-elev); border: 1px solid var(--app-border); border-radius: 8px; margin-top: 16px; justify-content: space-between; align-items: center; }
+    .action-bar .action-meta { font-size: 13px; color: var(--app-muted); }
+
+    /* messages card */
+    .msg-block { padding: 12px 14px; border-left: 3px solid var(--app-border-strong); margin-bottom: 10px; background: var(--app-elev); border-radius: 0 6px 6px 0; }
+    .msg-block.approve { border-left-color: var(--primary); }
+    .msg-block.complete { border-left-color: var(--good); }
+    .msg-meta { font-size: 11.5px; color: var(--app-muted); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; }
+    .msg-body { font-size: 13.5px; white-space: pre-wrap; line-height: 1.55; }
+
+    /* modal */
+    .modal-overlay { background: rgba(15,23,42,0.45); padding: 36px 24px; min-height: 100%; display: flex; justify-content: center; align-items: flex-start; }
+    .modal { background: #fff; border-radius: 10px; box-shadow: 0 20px 50px rgba(15,23,42,0.18); width: 100%; max-width: 920px; overflow: hidden; }
+    .modal.small { max-width: 520px; }
+    .modal-header { padding: 16px 22px; border-bottom: 1px solid var(--app-border); }
+    .modal-title { font-size: 16px; font-weight: 600; margin: 0; }
+    .modal-subtitle { font-size: 13px; color: var(--app-muted); margin: 4px 0 0; }
+    .modal-body { padding: 18px 22px; }
+    .modal-footer { padding: 12px 22px; border-top: 1px solid var(--app-border); background: var(--app-elev); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .modal-footer .footer-hint { font-size: 12px; color: var(--app-muted); }
+
+    /* markdown editor two-pane */
+    .md-editor-wrap { display: grid; grid-template-columns: 1fr 1fr 200px; gap: 0; border: 1px solid var(--app-border); border-radius: 8px; overflow: hidden; min-height: 320px; }
+    .md-pane { padding: 12px 14px; font-size: 13px; }
+    .md-pane.source { background: #fafbfc; border-right: 1px solid var(--app-border); font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; min-height: 320px; }
+    .md-pane.source .var { background: var(--primary-soft); color: var(--primary-soft-fg); padding: 1px 3px; border-radius: 3px; }
+    .md-pane.source .var.unknown { background: var(--bad-soft); color: var(--bad-soft-fg); }
+    .md-pane.preview { background: #fff; border-right: 1px solid var(--app-border); }
+    .md-pane.preview h1, .md-pane.preview h2, .md-pane.preview h3 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+    .md-pane.preview p { margin: 0 0 8px; }
+    .md-pane.preview ul { margin: 0 0 8px; padding-left: 18px; }
+    .md-pane.preview code { font-family: var(--mono); font-size: 11.5px; background: var(--app-elev); padding: 1px 5px; border-radius: 3px; }
+    .md-pane.preview a { color: var(--primary); }
+    .md-pane.vars { background: #fafbfc; padding: 12px 14px; }
+    .md-pane.vars h4 { font-size: 11px; color: var(--app-muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .md-pane.vars .var-item { display: block; font-family: var(--mono); font-size: 11.5px; color: var(--primary-soft-fg); padding: 4px 6px; border-radius: 4px; cursor: default; }
+    .md-pane.vars .var-item:hover { background: var(--primary-soft); }
+    .md-pane.vars .var-group { font-size: 11px; color: var(--app-muted); margin: 10px 0 4px; padding-left: 6px; }
+    .md-pane.vars .var-item:first-child { margin-top: 0; }
+    .editor-tag { font-size: 11px; color: var(--app-muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 14px; background: var(--app-elev); border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between; align-items: center; }
+    .editor-warning { padding: 10px 14px; background: var(--bad-soft); color: var(--bad-soft-fg); font-size: 12.5px; border-top: 1px solid var(--app-border); }
+    .editor-warning code { font-family: var(--mono); font-size: 11.5px; background: rgba(220,38,38,0.08); padding: 1px 4px; border-radius: 3px; }
+
+    /* form fields */
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+    .field .hint { font-size: 12px; color: var(--app-muted); margin-top: 4px; }
+    .field input, .field textarea, .field .select { width: 100%; padding: 7px 10px; font-size: 13.5px; border: 1px solid var(--app-border-strong); border-radius: 6px; font-family: inherit; }
+    .field textarea { min-height: 96px; resize: vertical; font-family: var(--mono); font-size: 12.5px; }
+
+    /* step indicator (for completion dialog) */
+    .step-indicator { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--app-border); }
+    .step-indicator .s { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .step-indicator .s-num { width: 22px; height: 22px; border-radius: 50%; background: var(--app-elev); color: var(--app-muted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; }
+    .step-indicator .s.active .s-num { background: var(--primary); color: var(--primary-fg); }
+    .step-indicator .s.done .s-num { background: var(--good); color: #fff; }
+    .step-indicator .connector { flex: 1; height: 1px; background: var(--app-border); }
+
+    /* settings tabs */
+    .settings-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--app-border); margin-bottom: 22px; }
+    .settings-tab { padding: 9px 14px; font-size: 13.5px; color: var(--app-muted); border-bottom: 2px solid transparent; cursor: default; }
+    .settings-tab:hover { color: var(--app-fg); }
+    .settings-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+
+    /* templates table — grouped by tool */
+    .tpl-group { background: #fff; border: 1px solid var(--app-border); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+    .tpl-group-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--app-elev); border-bottom: 1px solid var(--app-border); }
+    .tpl-group-name { font-weight: 600; font-size: 14px; }
+    .tpl-group-meta { font-size: 12px; color: var(--app-muted); }
+    .tpl-row { display: grid; grid-template-columns: 160px 120px 1fr 110px auto; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--app-border); font-size: 13px; }
+    .tpl-row:last-child { border-bottom: none; }
+    .tpl-row:hover { background: var(--app-hover); }
+    .tpl-tier { color: var(--app-fg); }
+    .tpl-tier.default { color: var(--app-muted); font-style: italic; }
+    .tpl-kind { font-size: 12px; }
+    .tpl-snippet { color: var(--app-muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+    .tpl-updated { font-size: 12px; color: var(--app-muted); }
+    .tpl-state-default { font-size: 11.5px; color: var(--app-dim); font-style: italic; }
+    .tpl-state-override { font-size: 11.5px; color: var(--primary); font-weight: 500; }
+
+    /* Teams card mockup */
+    .teams-frame { background: #2a2a2a; padding: 16px; border-radius: 10px; }
+    .teams-chat-header { color: #f3f4f6; font-size: 13px; padding-bottom: 12px; border-bottom: 1px solid #404040; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .teams-channel-icon { width: 26px; height: 26px; border-radius: 4px; background: linear-gradient(135deg, #6264a7, #464775); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 600; }
+    .teams-channel-name { font-weight: 600; }
+    .teams-channel-sub { color: #b3b3b3; font-size: 11px; }
+    .teams-msg { background: #ffffff; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+    .teams-msg-author { font-size: 12.5px; font-weight: 600; color: #252423; margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+    .teams-msg-time { color: #616161; font-size: 11px; font-weight: 400; }
+    .teams-msg-body { font-size: 13px; color: #252423; }
+    .teams-reply { background: #fff; border-radius: 8px; padding: 12px 14px; margin: 0 0 8px 32px; border-left: 3px solid #6264a7; }
+    .teams-card { background: #fff; border-radius: 6px; border: 1px solid #e1dfdd; padding: 14px 16px; margin-top: 6px; }
+    .teams-card-title { font-size: 14px; font-weight: 600; color: #252423; margin-bottom: 4px; }
+    .teams-card-fact { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: 12.5px; margin: 8px 0 12px; }
+    .teams-card-fact .k { color: #616161; }
+    .teams-card-btn { display: inline-flex; align-items: center; padding: 6px 14px; background: #6264a7; color: #fff; border-radius: 4px; font-size: 13px; font-weight: 500; }
+
+    /* utility */
+    .muted { color: var(--app-muted); }
+    .mono { font-family: var(--mono); font-size: 0.9em; }
+    .hr { height: 1px; background: var(--app-border); margin: 14px 0; border: 0; }
+    .gap-row { display: flex; gap: 10px; align-items: center; }
+    .pill-soft { background: var(--app-elev); color: var(--app-muted); padding: 1px 8px; border-radius: 9999px; font-size: 11.5px; }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+<header>
+  <h1>UI Mockups — License Request Workflow</h1>
+  <p>Layout and content references for all screens listed in <a href="./implementation-plan.html">implementation-plan.html</a> Phase 5 and Phase 6.</p>
+  <p class="page-meta">Drafted 2026-05-22 · spec/032-automation-workflow · representative, not pixel-perfect</p>
+</header>
+
+<nav class="toc">
+  <a href="#queue">Queue</a>
+  <a href="#detail-pending">Detail (pending)</a>
+  <a href="#detail-completed">Detail (completed)</a>
+  <a href="#approve-modal">Approve modal</a>
+  <a href="#complete-modal">Complete modal</a>
+  <a href="#reject-modal">Reject modal</a>
+  <a href="#templates-settings">Templates list</a>
+  <a href="#template-editor">Template editor</a>
+  <a href="#teams-card">Teams card</a>
+  <a href="#nav-changes">Nav additions</a>
+</nav>
+
+<!-- ============================== QUEUE ============================== -->
+
+<section class="mockup-section" id="queue">
+  <h2>1 · Requests queue</h2>
+  <p class="section-meta">Route: <code>/requests</code> · Page: <code>src/app/requests/page.tsx</code> + <code>requests-table.tsx</code></p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests</span>
+      <span></span>
+    </div>
+    <div class="frame-content">
+      <div class="app-shell">
+
+        <aside class="app-sidebar">
+          <div class="app-brand">
+            <div class="app-brand-mark"></div>
+            <div class="app-brand-name">AI Hub</div>
+          </div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">🔧 Tools</div>
+          <div class="nav-item">👥 Users</div>
+          <div class="nav-item">📋 Assignments</div>
+          <div class="nav-item active">📥 Requests <span style="margin-left:auto;background:var(--bad);color:#fff;padding:0 6px;border-radius:9999px;font-size:11px;">3</span></div>
+          <div class="nav-item">💰 Budget</div>
+          <div class="nav-item">📈 Reports</div>
+          <div class="nav-section">Account</div>
+          <div class="nav-item">⚙️ Settings</div>
+          <div class="nav-item">🚪 Sign out</div>
+        </aside>
+
+        <main class="app-main">
+          <div class="app-header">
+            <div>
+              <h2 class="app-title">License requests</h2>
+              <p class="app-subtitle">Approve, reject, or complete requests routed from the Microsoft Form.</p>
+            </div>
+            <div class="btn-group">
+              <button class="btn">Export CSV</button>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat">
+              <div class="stat-label">Pending review</div>
+              <div class="stat-value" style="color: var(--warn-soft-fg);">3</div>
+              <div class="stat-trend">Oldest: 2h ago</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Approved · awaiting procurement</div>
+              <div class="stat-value">2</div>
+              <div class="stat-trend">↑ 1 this week</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Completed (30d)</div>
+              <div class="stat-value">14</div>
+              <div class="stat-trend">Median time: 2.4 days</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Rejected (30d)</div>
+              <div class="stat-value">1</div>
+              <div class="stat-trend">—</div>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <input class="input" placeholder="Search by requester name or email…" />
+            <select class="select"><option>Status: Active (pending + approved)</option><option>All</option><option>Pending review</option><option>Approved</option><option>Completed</option><option>Rejected</option><option>Cancelled</option></select>
+            <select class="select"><option>Tool: All</option></select>
+            <span style="margin-left:auto;font-size:12.5px;color:var(--app-muted);">5 of 47 requests</span>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">ID</th>
+                  <th>Requester</th>
+                  <th>Tool / tier</th>
+                  <th>Status</th>
+                  <th>Decided by</th>
+                  <th>Age</th>
+                  <th style="width: 50px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="col-id">REQ-047</td>
+                  <td class="col-name"><strong>Sofia Berger</strong><span class="email">sofia.berger@unic.com</span></td>
+                  <td>Cursor <span class="badge tier">Pro</span></td>
+                  <td><span class="badge pending"><span class="badge-dot"></span>Pending review</span></td>
+                  <td class="muted">—</td>
+                  <td class="muted">2h ago</td>
+                  <td class="muted">⋯</td>
+                </tr>
+                <tr>
+                  <td class="col-id">REQ-046</td>
+                  <td class="col-name"><strong>Marco Rossi</strong><span class="email">marco.rossi@unic.com</span></td>
+                  <td>Claude <span class="badge tier">Team</span></td>
+                  <td><span class="badge approved"><span class="badge-dot"></span>Approved</span></td>
+                  <td>Mathias I.</td>
+                  <td class="muted">8h ago</td>
+                  <td class="muted">⋯</td>
+                </tr>
+                <tr>
+                  <td class="col-id">REQ-045</td>
+                  <td class="col-name"><strong>Anna Schmid</strong><span class="email">anna.schmid@unic.com</span></td>
+                  <td>GitHub Copilot <span class="badge tier">Business</span></td>
+                  <td><span class="badge completed"><span class="badge-dot"></span>Completed</span></td>
+                  <td>Tobias S.</td>
+                  <td class="muted">1d ago</td>
+                  <td class="muted">⋯</td>
+                </tr>
+                <tr>
+                  <td class="col-id">REQ-044</td>
+                  <td class="col-name"><strong>Daniel Müller</strong><span class="email">daniel.mueller@unic.com</span></td>
+                  <td>GitHub Copilot <span class="badge tier">Business</span></td>
+                  <td><span class="badge rejected"><span class="badge-dot"></span>Rejected</span></td>
+                  <td>Tobias S.</td>
+                  <td class="muted">2d ago</td>
+                  <td class="muted">⋯</td>
+                </tr>
+                <tr>
+                  <td class="col-id">REQ-043</td>
+                  <td class="col-name"><strong>Lena König</strong><span class="email">lena.koenig@unic.com</span></td>
+                  <td>Cursor <span class="badge tier">Pro</span></td>
+                  <td><span class="badge cancelled"><span class="badge-dot"></span>Cancelled</span></td>
+                  <td class="muted">—</td>
+                  <td class="muted">3d ago</td>
+                  <td class="muted">⋯</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="pagination">
+              <span>Showing 1–5 of 47</span>
+              <div class="page-btns">
+                <span class="pg-btn">‹</span>
+                <span class="pg-btn active">1</span>
+                <span class="pg-btn">2</span>
+                <span class="pg-btn">3</span>
+                <span class="pg-btn">…</span>
+                <span class="pg-btn">10</span>
+                <span class="pg-btn">›</span>
+              </div>
+            </div>
+          </div>
+        </main>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Stats row at top is optional — useful for the operator but not strictly required for v1. Faceted status filter defaults to "Active" (pending + approved) so admins see actionable items first. Clicking a row navigates to the detail page. The row dropdown (⋯) offers: Open in new tab, Mark cancelled (admin only).
+  </div>
+</section>
+
+<!-- ============================== DETAIL PENDING ============================== -->
+
+<section class="mockup-section" id="detail-pending">
+  <h2>2a · Request detail — pending review</h2>
+  <p class="section-meta">Route: <code>/requests/[id]</code> · Components: <code>page.tsx</code> + <code>request-detail-client.tsx</code></p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests/47</span>
+      <span></span>
+    </div>
+    <div class="frame-content">
+      <div class="app-shell">
+
+        <aside class="app-sidebar">
+          <div class="app-brand"><div class="app-brand-mark"></div><div class="app-brand-name">AI Hub</div></div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">🔧 Tools</div>
+          <div class="nav-item">👥 Users</div>
+          <div class="nav-item">📋 Assignments</div>
+          <div class="nav-item active">📥 Requests</div>
+          <div class="nav-item">💰 Budget</div>
+          <div class="nav-item">📈 Reports</div>
+          <div class="nav-section">Account</div>
+          <div class="nav-item">⚙️ Settings</div>
+        </aside>
+
+        <main class="app-main">
+          <div class="breadcrumb"><a href="#">Requests</a> / <span style="color:var(--app-fg);">REQ-047</span></div>
+          <div class="app-header">
+            <div>
+              <h2 class="app-title">Request REQ-047 <span class="badge pending" style="margin-left:8px;vertical-align:middle;"><span class="badge-dot"></span>Pending review</span></h2>
+              <p class="app-subtitle">Submitted 2026-05-22 09:14 · via Microsoft Forms → Power Automate</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Requester</h3>
+                <p class="card-subtitle">Identity from the Forms submission</p>
+              </div>
+              <a href="#" style="font-size:12.5px;color:var(--primary);text-decoration:none;">Matched Hub user →</a>
+            </div>
+            <dl class="def">
+              <dt>Name</dt><dd>Sofia Berger</dd>
+              <dt>Email</dt><dd>sofia.berger@unic.com</dd>
+              <dt>Hub user</dt><dd>Yes — <code>user_id 184</code> (Designer, Engineering)</dd>
+            </dl>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Request</h3>
+                <p class="card-subtitle">Form fields submitted — varies by tier</p>
+              </div>
+              <span class="pill-soft">5 fields</span>
+            </div>
+            <dl class="def">
+              <dt>Tool</dt><dd>Cursor <span class="badge tier">Pro</span></dd>
+              <dt>GitHub username</dt><dd><code>sofiaberger</code></dd>
+              <dt>Intended workload</dt><dd>~10 hrs / week</dd>
+              <dt>Manager email</dt><dd>tobias.studer@unic.com</dd>
+              <dd class="long">
+                <span class="field-label">Justification</span>
+                I'm starting on the new design-system rebuild next sprint and want Cursor's AI-assisted refactoring for the migration work. Free tier ran out last month and I've been bottlenecked since. Manager has signed off (Tobias).
+              </dd>
+            </dl>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Status timeline</h3>
+              </div>
+            </div>
+            <div class="timeline">
+              <div class="step done">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Submitted</div>
+                  <span class="step-meta">2026-05-22 09:14</span>
+                </div>
+              </div>
+              <div class="step-connector"></div>
+              <div class="step current">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Pending review</div>
+                  <span class="step-meta">2h ago</span>
+                </div>
+              </div>
+              <div class="step-connector"></div>
+              <div class="step">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Approved</div>
+                  <span class="step-meta">—</span>
+                </div>
+              </div>
+              <div class="step-connector"></div>
+              <div class="step">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Completed</div>
+                  <span class="step-meta">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="background:var(--app-elev);">
+            <div class="card-head"><div><h3 class="card-title">Sent messages</h3><p class="card-subtitle">Audit log of what was posted to Teams</p></div></div>
+            <p style="color: var(--app-muted); font-size: 13px; margin: 0;">No messages sent yet. The approval / completion messages will appear here once an admin acts.</p>
+          </div>
+
+          <div class="action-bar">
+            <div class="action-meta">Any admin in the channel or group chat can act on this request. First-write-wins.</div>
+            <div class="btn-group">
+              <button class="btn ghost">Cancel request</button>
+              <button class="btn danger">Reject</button>
+              <button class="btn primary">Approve</button>
+            </div>
+          </div>
+        </main>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Form payload renders as a definition list with <code>snake_case → Title Case</code> prettification. Long fields (&gt;120 chars) move below into a paragraph block. The timeline is a horizontal step indicator. Action bar at the bottom is sticky-feeling but not actually sticky in v1.
+  </div>
+</section>
+
+<!-- ============================== DETAIL COMPLETED ============================== -->
+
+<section class="mockup-section" id="detail-completed">
+  <h2>2b · Request detail — completed</h2>
+  <p class="section-meta">Same route, terminal state — read-only with audit content</p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests/45</span>
+      <span></span>
+    </div>
+    <div class="frame-content">
+      <div class="app-shell">
+
+        <aside class="app-sidebar">
+          <div class="app-brand"><div class="app-brand-mark"></div><div class="app-brand-name">AI Hub</div></div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">🔧 Tools</div>
+          <div class="nav-item">👥 Users</div>
+          <div class="nav-item">📋 Assignments</div>
+          <div class="nav-item active">📥 Requests</div>
+          <div class="nav-item">💰 Budget</div>
+          <div class="nav-item">📈 Reports</div>
+          <div class="nav-section">Account</div>
+          <div class="nav-item">⚙️ Settings</div>
+        </aside>
+
+        <main class="app-main">
+          <div class="breadcrumb"><a href="#">Requests</a> / <span style="color:var(--app-fg);">REQ-045</span></div>
+          <div class="app-header">
+            <div>
+              <h2 class="app-title">Request REQ-045 <span class="badge completed" style="margin-left:8px;vertical-align:middle;"><span class="badge-dot"></span>Completed</span></h2>
+              <p class="app-subtitle">Submitted 2026-05-21 11:32 · Approved by Mathias I. · Completed by Tobias S.</p>
+            </div>
+            <a href="#" class="btn">View assignment →</a>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3 class="card-title">Requester</h3></div></div>
+            <dl class="def">
+              <dt>Name</dt><dd>Anna Schmid</dd>
+              <dt>Email</dt><dd>anna.schmid@unic.com</dd>
+              <dt>Hub user</dt><dd>Yes — <code>user_id 92</code></dd>
+              <dt>Assignment</dt><dd><a href="#" style="color:var(--primary);text-decoration:none;">#A-318 — GitHub Copilot Business</a> · seat assigned 2026-05-22</dd>
+            </dl>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3 class="card-title">Status timeline</h3></div></div>
+            <div class="timeline">
+              <div class="step done">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Submitted</div>
+                  <span class="step-meta">2026-05-21 11:32</span>
+                </div>
+              </div>
+              <div class="step-connector done"></div>
+              <div class="step done">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Approved · Mathias I.</div>
+                  <span class="step-meta">2026-05-21 14:08</span>
+                </div>
+              </div>
+              <div class="step-connector done"></div>
+              <div class="step done">
+                <div class="step-dot"></div>
+                <div>
+                  <div class="step-label">Completed · Tobias S.</div>
+                  <span class="step-meta">2026-05-22 08:47</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3 class="card-title">Sent messages</h3><p class="card-subtitle">Audit — exactly what was posted to Teams</p></div></div>
+            <div class="msg-block approve">
+              <div class="msg-meta"><strong>Approval message</strong> · sent by Mathias I. · 2026-05-21 14:08 · channel reply + group chat</div>
+              <div class="msg-body">Hey Anna,
+
+Your request for GitHub Copilot Business is approved. Procurement is in progress — you'll get a follow-up message once your seat is assigned, which is usually within one working day.
+
+— Mathias</div>
+            </div>
+            <div class="msg-block complete">
+              <div class="msg-meta"><strong>Completion message</strong> · sent by Tobias S. · 2026-05-22 08:47 · channel reply + group chat</div>
+              <div class="msg-body">Hi Anna,
+
+Your GitHub Copilot Business seat is ready. You should already see the Copilot menu in VS Code — sign in with your Unic GitHub account and you're good to go. Setup notes: https://aihub.unic.com/docs/copilot
+
+Welcome aboard!
+— Tobias</div>
+            </div>
+          </div>
+        </main>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Terminal states (completed, rejected, cancelled) show no action buttons — just the audit. The "View assignment" link in the header is shown only for completed requests with an <code>assignment_id</code>. Rejected and cancelled variants are visually identical to this layout but with a single decision message instead of two.
+  </div>
+</section>
+
+<!-- ============================== APPROVAL MODAL ============================== -->
+
+<section class="mockup-section" id="approve-modal">
+  <h2>3 · Approve dialog</h2>
+  <p class="section-meta">Component: <code>src/app/requests/[id]/approval-dialog.tsx</code></p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests/47 · Approve modal open</span>
+      <span></span>
+    </div>
+    <div class="frame-content" style="background: #e2e8f0;">
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Approve request from Sofia Berger</h3>
+            <p class="modal-subtitle">Cursor · <span class="badge tier">Pro</span> · review and edit the message before sending</p>
+          </div>
+          <div class="modal-body">
+            <div class="editor-tag">
+              <span>Template — Cursor / Pro / Approval</span>
+              <span>2 variables in use</span>
+            </div>
+            <div class="md-editor-wrap">
+              <div class="md-pane source">Hi <span class="var">{{requester.firstName}}</span>,
+
+Your request for <span class="var">{{tool.name}}</span> at the <span class="var">{{tier.name}}</span> tier has been approved. Procurement is in progress — you'll get a follow-up message once your license is ready, typically within one working day.
+
+Track the request here: <span class="var">{{requestUrl}}</span>
+
+— Tobias</div>
+              <div class="md-pane preview">
+                <p>Hi Sofia,</p>
+                <p>Your request for <strong>Cursor</strong> at the <strong>Pro</strong> tier has been approved. Procurement is in progress — you'll get a follow-up message once your license is ready, typically within one working day.</p>
+                <p>Track the request here: <a href="#">https://aihub.unic.com/requests/47</a></p>
+                <p>— Tobias</p>
+              </div>
+              <div class="md-pane vars">
+                <h4>Variables</h4>
+                <div class="var-group">Requester</div>
+                <span class="var-item">{{requester.firstName}}</span>
+                <span class="var-item">{{requester.name}}</span>
+                <span class="var-item">{{requester.email}}</span>
+                <div class="var-group">Request</div>
+                <span class="var-item">{{tool.name}}</span>
+                <span class="var-item">{{tier.name}}</span>
+                <span class="var-item">{{requestUrl}}</span>
+                <div class="var-group">Form fields</div>
+                <span class="var-item">{{form.github_username}}</span>
+                <span class="var-item">{{form.justification}}</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="footer-hint">Will post to channel thread + group chat. Markdown supported.</div>
+            <div class="btn-group">
+              <button class="btn">Cancel</button>
+              <button class="btn primary">Send approval →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Three-pane layout: markdown source (left), live preview (right), variable picker (sidebar). Variables click-to-insert at cursor. The template is pre-resolved per tool + tier; if no override exists for this tier, the tool-default loads with a small inline note. On send: server action commits state transition (first-write-wins via <code>UPDATE … WHERE status='pending_review'</code>), then calls Graph helpers, then closes modal. Errors bubble to a sonner toast.
+  </div>
+</section>
+
+<!-- ============================== COMPLETE MODAL ============================== -->
+
+<section class="mockup-section" id="complete-modal">
+  <h2>4 · Complete dialog (two steps)</h2>
+  <p class="section-meta">Component: <code>src/app/requests/[id]/completion-dialog.tsx</code></p>
+
+  <h3 style="margin: 16px 0 6px; font-size: 15px;">Step 1 — Record the procurement result</h3>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests/46 · Complete modal — step 1 of 2</span>
+      <span></span>
+    </div>
+    <div class="frame-content" style="background: #e2e8f0;">
+      <div class="modal-overlay">
+        <div class="modal small">
+          <div class="modal-header">
+            <h3 class="modal-title">Complete request — Marco Rossi · Claude Team</h3>
+            <p class="modal-subtitle">Enter what was provisioned manually. Next step: edit the completion message.</p>
+          </div>
+          <div class="modal-body">
+            <div class="step-indicator">
+              <div class="s active"><div class="s-num">1</div>Procurement details</div>
+              <div class="connector"></div>
+              <div class="s"><div class="s-num">2</div>Completion message</div>
+            </div>
+
+            <div class="field">
+              <label>Tier <span style="color: var(--app-muted);font-weight:400;font-size:12px;">— requested: Team</span></label>
+              <select class="select" style="width:100%;"><option>Team</option><option>Pro</option><option>Enterprise</option></select>
+            </div>
+            <div class="field">
+              <label>License code / API key</label>
+              <textarea placeholder="Paste the key — will be encrypted at rest" style="height:72px;">sk-ant-prd-eXa8m9pleK3yV4lue7Dt5tAvg***</textarea>
+              <div class="hint">Stored encrypted via the existing <code>license_assignments.apiKey</code> column.</div>
+            </div>
+            <div class="field">
+              <label>Assignment date</label>
+              <input type="date" value="2026-05-22" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="footer-hint">A <code>license_assignments</code> row will be created on submit.</div>
+            <div class="btn-group">
+              <button class="btn">Cancel</button>
+              <button class="btn primary">Continue →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin: 28px 0 6px; font-size: 15px;">Step 2 — Edit the completion message</h3>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests/46 · Complete modal — step 2 of 2</span>
+      <span></span>
+    </div>
+    <div class="frame-content" style="background: #e2e8f0;">
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Complete request — Marco Rossi · Claude Team</h3>
+            <p class="modal-subtitle">Review the completion message. <code>{{licenseCode}}</code> is now bound.</p>
+          </div>
+          <div class="modal-body">
+            <div class="step-indicator">
+              <div class="s done"><div class="s-num">✓</div>Procurement details</div>
+              <div class="connector"></div>
+              <div class="s active"><div class="s-num">2</div>Completion message</div>
+            </div>
+
+            <div class="editor-tag">
+              <span>Template — Claude / Team / Completion</span>
+              <span>3 variables resolved</span>
+            </div>
+            <div class="md-editor-wrap">
+              <div class="md-pane source">Hi <span class="var">{{requester.firstName}}</span>,
+
+Your <span class="var">{{tool.name}}</span> workspace is ready.
+
+**Your API key:** `<span class="var">{{licenseCode}}</span>`
+
+Save it somewhere safe — we can't display it again. Setup docs: https://aihub.unic.com/docs/claude
+
+— Tobias</div>
+              <div class="md-pane preview">
+                <p>Hi Marco,</p>
+                <p>Your <strong>Claude</strong> workspace is ready.</p>
+                <p><strong>Your API key:</strong> <code>sk-ant-prd-eXa8m9pleK3yV4lue7Dt5tAvg***</code></p>
+                <p>Save it somewhere safe — we can't display it again. Setup docs: <a href="#">https://aihub.unic.com/docs/claude</a></p>
+                <p>— Tobias</p>
+              </div>
+              <div class="md-pane vars">
+                <h4>Variables</h4>
+                <div class="var-group">Requester</div>
+                <span class="var-item">{{requester.firstName}}</span>
+                <div class="var-group">Request</div>
+                <span class="var-item">{{tool.name}}</span>
+                <span class="var-item">{{tier.name}}</span>
+                <div class="var-group" style="color: var(--good);">Just bound</div>
+                <span class="var-item">{{licenseCode}}</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="footer-hint">Posts to channel + group chat. Completion writes the assignment row.</div>
+            <div class="btn-group">
+              <button class="btn">← Back</button>
+              <button class="btn primary">Send completion →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Two-step inside one modal — keeps state in memory until step 2 submit. The completion template can reference <code>{{licenseCode}}</code> which only resolves AFTER step 1. The variable sidebar in step 2 visually marks newly-resolved variables (the "Just bound" group). Server action <code>completeRequest()</code> on submit: writes the <code>license_assignments</code> row, sets <code>assignment_id</code> + <code>completion_message_md</code> + <code>completed_at</code> + <code>completed_by</code>, posts via Graph.
+  </div>
+</section>
+
+<!-- ============================== REJECT MODAL ============================== -->
+
+<section class="mockup-section" id="reject-modal">
+  <h2>5 · Reject dialog</h2>
+  <p class="section-meta">Component: <code>src/app/requests/[id]/rejection-dialog.tsx</code> · No template — free text only</p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/requests/47 · Reject modal open</span>
+      <span></span>
+    </div>
+    <div class="frame-content" style="background: #e2e8f0;">
+      <div class="modal-overlay">
+        <div class="modal small">
+          <div class="modal-header">
+            <h3 class="modal-title">Reject request from Sofia Berger</h3>
+            <p class="modal-subtitle">Cursor · Pro · the requester will receive this message</p>
+          </div>
+          <div class="modal-body">
+            <div class="field">
+              <label>Reason</label>
+              <textarea placeholder="e.g. budget exhausted this quarter; please re-apply in Q3" style="height:110px;font-family:inherit;font-size:13.5px;"></textarea>
+              <div class="hint">Plain text — no template, no variables. Sent to the group chat and posted as a thread reply.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="footer-hint">Status will transition to <code>rejected</code>. Terminal — re-applies start a new request.</div>
+            <div class="btn-group">
+              <button class="btn">Cancel</button>
+              <button class="btn danger">Send rejection</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Deliberately simple — no markdown editor, no template machinery. Rejection volume is low and the explanations are case-specific. If a per-tool rejection template ever feels worth it (e.g. canned "denied because of license freeze" copy), that's a Phase 2 add.
+  </div>
+</section>
+
+<!-- ============================== TEMPLATES LIST ============================== -->
+
+<section class="mockup-section" id="templates-settings">
+  <h2>6 · Settings — license templates list</h2>
+  <p class="section-meta">Route: <code>/settings/license-templates</code> · Tab added to <code>settings-nav.tsx</code> under <code>adminTabs</code></p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/settings/license-templates</span>
+      <span></span>
+    </div>
+    <div class="frame-content">
+      <div class="app-shell">
+
+        <aside class="app-sidebar">
+          <div class="app-brand"><div class="app-brand-mark"></div><div class="app-brand-name">AI Hub</div></div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">🔧 Tools</div>
+          <div class="nav-item">👥 Users</div>
+          <div class="nav-item">📋 Assignments</div>
+          <div class="nav-item">📥 Requests</div>
+          <div class="nav-item">💰 Budget</div>
+          <div class="nav-item">📈 Reports</div>
+          <div class="nav-section">Account</div>
+          <div class="nav-item active">⚙️ Settings</div>
+        </aside>
+
+        <main class="app-main">
+          <div class="app-header">
+            <div>
+              <h2 class="app-title">Settings</h2>
+              <p class="app-subtitle">Personal preferences and admin configuration.</p>
+            </div>
+          </div>
+
+          <div class="settings-tabs">
+            <div class="settings-tab">Appearance</div>
+            <div class="settings-tab">Integrations</div>
+            <div class="settings-tab">Sync status</div>
+            <div class="settings-tab">Anthropic config</div>
+            <div class="settings-tab active">License templates</div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+            <div>
+              <h3 style="font-size: 16px; margin: 0 0 4px;">License request templates</h3>
+              <p class="muted" style="font-size: 13px; margin: 0;">Approval and completion messages, customizable per tool and per tier. Tool defaults are inherited unless a tier override exists.</p>
+            </div>
+            <div class="gap-row">
+              <select class="select"><option>All tools</option></select>
+            </div>
+          </div>
+
+          <!-- GitHub Copilot group -->
+          <div class="tpl-group">
+            <div class="tpl-group-head">
+              <div>
+                <span class="tpl-group-name">GitHub Copilot</span>
+                <span class="tpl-group-meta" style="margin-left:8px;">2 tiers · 4 templates</span>
+              </div>
+              <button class="btn sm">＋ Add tier override</button>
+            </div>
+            <div class="tpl-row">
+              <div class="tpl-tier default">(tool default)</div>
+              <div class="tpl-kind"><span class="badge approved">Approval</span></div>
+              <div class="tpl-snippet">Hi {{requester.firstName}}, your request for {{tool.name}}…</div>
+              <div class="tpl-updated">2 days ago</div>
+              <div><button class="btn sm">Edit</button></div>
+            </div>
+            <div class="tpl-row">
+              <div class="tpl-tier default">(tool default)</div>
+              <div class="tpl-kind"><span class="badge completed">Completion</span></div>
+              <div class="tpl-snippet">Your {{tool.name}} seat is ready — sign in with your Unic GitHub account…</div>
+              <div class="tpl-updated">2 days ago</div>
+              <div><button class="btn sm">Edit</button></div>
+            </div>
+            <div class="tpl-row">
+              <div class="tpl-tier">Business <span class="tpl-state-override">override</span></div>
+              <div class="tpl-kind"><span class="badge approved">Approval</span></div>
+              <div class="tpl-snippet">Hi {{requester.firstName}}, you're approved for Copilot Business — note the extra IDE features…</div>
+              <div class="tpl-updated">5h ago</div>
+              <div><button class="btn sm">Edit</button></div>
+            </div>
+            <div class="tpl-row">
+              <div class="tpl-tier">Business <span class="tpl-state-override">override</span></div>
+              <div class="tpl-kind"><span class="badge completed">Completion</span></div>
+              <div class="tpl-snippet">Welcome to Copilot Business. Setup notes for Unic devs: VS Code &gt; Settings…</div>
+              <div class="tpl-updated">5h ago</div>
+              <div><button class="btn sm">Edit</button></div>
+            </div>
+          </div>
+
+          <!-- Claude group -->
+          <div class="tpl-group">
+            <div class="tpl-group-head">
+              <div>
+                <span class="tpl-group-name">Claude (Anthropic)</span>
+                <span class="tpl-group-meta" style="margin-left:8px;">tool defaults only</span>
+              </div>
+              <button class="btn sm">＋ Add tier override</button>
+            </div>
+            <div class="tpl-row">
+              <div class="tpl-tier default">(tool default)</div>
+              <div class="tpl-kind"><span class="badge approved">Approval</span></div>
+              <div class="tpl-snippet">Hi {{requester.firstName}}, your Claude workspace request is approved…</div>
+              <div class="tpl-updated">1 week ago</div>
+              <div><button class="btn sm">Edit</button></div>
+            </div>
+            <div class="tpl-row">
+              <div class="tpl-tier default">(tool default)</div>
+              <div class="tpl-kind"><span class="badge completed">Completion</span></div>
+              <div class="tpl-snippet">Your Claude workspace is ready. Your API key: {{licenseCode}}…</div>
+              <div class="tpl-updated">1 week ago</div>
+              <div><button class="btn sm">Edit</button></div>
+            </div>
+          </div>
+
+          <!-- Cursor group -->
+          <div class="tpl-group">
+            <div class="tpl-group-head">
+              <div>
+                <span class="tpl-group-name">Cursor</span>
+                <span class="tpl-group-meta" style="margin-left:8px;">no templates yet · using fallback</span>
+              </div>
+              <button class="btn sm primary">＋ Create defaults</button>
+            </div>
+            <div class="tpl-row" style="color: var(--app-muted); font-style: italic;">
+              <div class="tpl-tier">—</div>
+              <div class="tpl-kind">—</div>
+              <div>No templates configured yet. The approval modal will open with an empty editor until defaults are created.</div>
+              <div></div>
+              <div></div>
+            </div>
+          </div>
+
+        </main>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Grouped by tool, with the tool-wide defaults first, then any tier overrides. "Add tier override" pops the editor pre-bound to a tier dropdown. The "no templates configured" empty state warns explicitly so it can't be missed before the first request arrives. Seed script in <code>scripts/seed-message-templates.ts</code> populates the defaults on first deploy.
+  </div>
+</section>
+
+<!-- ============================== TEMPLATE EDITOR ============================== -->
+
+<section class="mockup-section" id="template-editor">
+  <h2>7 · Template editor dialog</h2>
+  <p class="section-meta">Component: <code>src/app/settings/license-templates/template-editor-dialog.tsx</code></p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>aihub.unic.com/settings/license-templates · Editor open</span>
+      <span></span>
+    </div>
+    <div class="frame-content" style="background: #e2e8f0;">
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Edit template — GitHub Copilot · Business · Approval</h3>
+            <p class="modal-subtitle">Tier-specific override. Falls back to tool default if deleted.</p>
+          </div>
+          <div class="modal-body">
+            <div class="editor-tag">
+              <span>Markdown source · live preview · variable picker</span>
+              <span>1 unknown variable</span>
+            </div>
+            <div class="md-editor-wrap">
+              <div class="md-pane source">Hi <span class="var">{{requester.firstName}}</span>,
+
+You've been approved for <span class="var">{{tool.name}}</span> at the <span class="var">{{tier.name}}</span> tier.
+
+A few notes specific to Business:
+- Org-managed settings apply — see internal wiki
+- Code suggestions and chat are enabled
+- Your GitHub account: `<span class="var">{{form.github_username}}</span>`
+
+If anything's off, let us know in this thread. Your manager (<span class="var">{{form.manager}}</span>) has been CC'd.
+
+Tracking: <span class="var">{{requestUrl}}</span></div>
+              <div class="md-pane preview">
+                <p style="color: var(--app-muted); font-size: 11.5px; margin-bottom: 8px;"><strong>Preview rendered with sample data:</strong></p>
+                <p>Hi Sample,</p>
+                <p>You've been approved for <strong>GitHub Copilot</strong> at the <strong>Business</strong> tier.</p>
+                <p>A few notes specific to Business:</p>
+                <ul>
+                  <li>Org-managed settings apply — see internal wiki</li>
+                  <li>Code suggestions and chat are enabled</li>
+                  <li>Your GitHub account: <code>sampleuser</code></li>
+                </ul>
+                <p>If anything's off, let us know in this thread. Your manager (<span style="background: var(--bad-soft); color: var(--bad-soft-fg); padding: 0 4px;">{{form.manager}}</span>) has been CC'd.</p>
+                <p>Tracking: <a href="#">https://aihub.unic.com/requests/47</a></p>
+              </div>
+              <div class="md-pane vars">
+                <h4>Variables · click to insert</h4>
+                <div class="var-group">Requester</div>
+                <span class="var-item">{{requester.firstName}}</span>
+                <span class="var-item">{{requester.name}}</span>
+                <span class="var-item">{{requester.email}}</span>
+                <div class="var-group">Request</div>
+                <span class="var-item">{{tool.name}}</span>
+                <span class="var-item">{{tier.name}}</span>
+                <span class="var-item">{{requestUrl}}</span>
+                <div class="var-group">Completion only</div>
+                <span class="var-item">{{licenseCode}}</span>
+                <div class="var-group">Form fields (last 30 requests)</div>
+                <span class="var-item">{{form.github_username}}</span>
+                <span class="var-item">{{form.justification}}</span>
+                <span class="var-item">{{form.workload}}</span>
+                <span class="var-item">{{form.team}}</span>
+              </div>
+            </div>
+            <div class="editor-warning">
+              ⚠ <strong>Unknown variable:</strong> <code>{{form.manager}}</code> wasn't found in any of the last 30 requests for this tool. If a Form question was renamed (e.g. from "Manager" to "Manager email"), update the template. Otherwise this will render as literal text.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="footer-hint">Tier overrides the tool default. Delete to fall back.</div>
+            <div class="btn-group">
+              <button class="btn danger">Delete override</button>
+              <button class="btn">Cancel</button>
+              <button class="btn primary">Save template</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> Same three-pane layout as the approval/completion editors so the muscle memory transfers. The preview renders with sample data (a hardcoded sample context) — Tobias sees what the message looks like before he hits Save. The <strong>unknown-variable warning</strong> is the key safety net against the silent-break risk: when a Form question is renamed, the template will visibly highlight the stale variable both in the preview and as a list at the bottom. Variables under "Form fields" are derived from the last N <code>form_payload</code> samples for this tool, so the picker shows what's actually available.
+  </div>
+</section>
+
+<!-- ============================== TEAMS CARD ============================== -->
+
+<section class="mockup-section" id="teams-card">
+  <h2>8 · Adaptive card in Teams</h2>
+  <p class="section-meta">Posted by the Hub via Graph after ingest. Built in <code>src/lib/teams/cards.ts</code> as <code>renderLicenseRequestCard()</code>.</p>
+
+  <div class="frame">
+    <div class="frame-titlebar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <span>Microsoft Teams · #ai-license-requests (private)</span>
+      <span></span>
+    </div>
+    <div class="frame-content">
+      <div class="teams-frame">
+        <div class="teams-chat-header">
+          <div class="teams-channel-icon">AI</div>
+          <div>
+            <div class="teams-channel-name">AI Hub › ai-license-requests</div>
+            <div class="teams-channel-sub">Private · Tobias, Mathias, Lukas</div>
+          </div>
+        </div>
+
+        <div class="teams-msg">
+          <div class="teams-msg-author">Power Automate <span class="teams-msg-time">· 09:14</span></div>
+          <div class="teams-msg-body">📥 <strong>New license request</strong> from Sofia Berger — Cursor Pro.<br/>Form submitted 09:14 · group chat opened with Sofia + approvers.</div>
+        </div>
+
+        <div class="teams-reply">
+          <div class="teams-msg-author">AI Hub <span class="teams-msg-time">· 09:14</span></div>
+          <div class="teams-msg-body" style="margin-bottom: 4px;">A new license request needs review.</div>
+          <div class="teams-card">
+            <div class="teams-card-title">Request REQ-047</div>
+            <div class="teams-card-fact">
+              <span class="k">Requester</span><span>Sofia Berger</span>
+              <span class="k">Tool</span><span>Cursor</span>
+              <span class="k">Tier</span><span>Pro</span>
+              <span class="k">Workload</span><span>~10 hrs / week</span>
+            </div>
+            <a href="#" class="teams-card-btn">Review in Hub →</a>
+          </div>
+        </div>
+
+        <div class="teams-reply" style="border-left-color: #16a34a; opacity: 0.6;">
+          <div class="teams-msg-author">AI Hub <span class="teams-msg-time">· (will appear here on approve)</span></div>
+          <div class="teams-msg-body" style="color: #616161; font-style: italic;">Approval message will be posted as a reply in this thread. Same content also DMed to the group chat.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <strong>Notes.</strong> The first message (Power Automate's "new license request" notice) already exists today. The Hub's contribution starts at the threaded reply below it — the adaptive card with the action button. Subsequent approval / completion messages from the Hub appear as further replies in the same thread, threading the conversation. The card is intentionally compact (4 fields max) — the deep link is the canonical surface for full detail. Graph rejects cards larger than ~28 KB, but at this size that's not a concern.
+  </div>
+</section>
+
+<!-- ============================== NAV CHANGES ============================== -->
+
+<section class="mockup-section" id="nav-changes">
+  <h2>9 · Nav additions</h2>
+  <p class="section-meta">Sidebar + Settings tab — one-line changes</p>
+
+  <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+
+    <div>
+      <h3 style="font-size: 14px; margin: 0 0 8px;">Sidebar — <code>src/components/app-sidebar.tsx</code></h3>
+      <div class="frame">
+        <div class="frame-titlebar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <span>navItems[]</span>
+          <span></span>
+        </div>
+        <div style="background: #fafbfc; padding: 16px 12px;">
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">🔧 Tools</div>
+          <div class="nav-item">👥 Users</div>
+          <div class="nav-item">📋 Assignments</div>
+          <div class="nav-item active" style="position: relative;">
+            📥 Requests
+            <span style="margin-left:auto;background:var(--bad);color:#fff;padding:0 6px;border-radius:9999px;font-size:11px;">3</span>
+            <span style="position: absolute; right: -8px; top: -8px; background: var(--good); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px;">NEW</span>
+          </div>
+          <div class="nav-item">💰 Budget</div>
+          <div class="nav-item">📈 Reports</div>
+        </div>
+      </div>
+      <p class="muted" style="font-size: 12.5px; margin-top: 8px;">One new entry: <code>{ title: "Requests", href: "/requests", icon: FileText, roles: ["admin"] }</code>. Badge with pending-count is optional — fetched server-side via the same admin layout, cached for the session.</p>
+    </div>
+
+    <div>
+      <h3 style="font-size: 14px; margin: 0 0 8px;">Settings tabs — <code>src/app/settings/settings-nav.tsx</code></h3>
+      <div class="frame">
+        <div class="frame-titlebar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <span>adminTabs[]</span>
+          <span></span>
+        </div>
+        <div style="padding: 16px;">
+          <div class="settings-tabs" style="margin: 0;">
+            <div class="settings-tab">Appearance</div>
+            <div class="settings-tab">Integrations</div>
+            <div class="settings-tab">Sync status</div>
+            <div class="settings-tab">Anthropic config</div>
+            <div class="settings-tab active" style="position: relative;">
+              License templates
+              <span style="position: absolute; right: -10px; top: -8px; background: var(--good); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px;">NEW</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="font-size: 12.5px; margin-top: 8px;">One new entry: <code>{ label: "License templates", href: "/settings/license-templates" }</code> appended to <code>adminTabs</code>.</p>
+    </div>
+
+  </div>
+</section>
+
+<footer style="margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--page-border); color: var(--page-muted); font-size: 12.5px; font-family: var(--mono);">
+  Drafted by Claude (Opus 4.7) for spec/032-automation-workflow. Companion to implementation-plan.html.<br/>
+  These are layout mockups for review, not pixel-perfect specs. Visual polish (icons, exact spacing, color tokens) follows shadcn/ui at build time.
+</footer>
+
+</div>
+
+</body>
+</html>
