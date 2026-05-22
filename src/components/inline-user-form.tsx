@@ -40,11 +40,12 @@ export function InlineUserForm({
     formState: { errors },
   } = useForm<InlineUserCreationInput>({
     resolver: zodResolver(inlineUserCreationSchema),
+    // defaultValues is a DeepPartial<InlineUserCreationInput>, so omitting
+    // discipline is type-safe; the zodResolver still requires it on submit.
     defaultValues: {
       githubLogin,
       name: defaultName,
       email: defaultEmail,
-      discipline: undefined as unknown as InlineUserCreationInput["discipline"],
     },
   });
 

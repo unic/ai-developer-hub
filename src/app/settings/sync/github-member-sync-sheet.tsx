@@ -49,6 +49,7 @@ import type {
   SyncUnmatchedMember,
   SyncUnmatchedSystemUser,
   PendingResolution,
+  UserDiscipline,
 } from "@/types";
 
 interface GitHubMemberSyncSheetProps {
@@ -185,7 +186,7 @@ export function GitHubMemberSyncSheet({
       githubLogin: string;
       name: string;
       email: string;
-      discipline: "developer" | "conception" | "business";
+      discipline: UserDiscipline;
     }> = [];
 
     for (const r of resolutions.values()) {

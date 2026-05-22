@@ -43,13 +43,14 @@ export function NewUserForm() {
 
   const form = useForm<UserInput>({
     resolver: zodResolver(userSchema),
+    // defaultValues is DeepPartial<UserInput>, so omitting discipline is
+    // type-safe; the Select renders the placeholder and the zodResolver
+    // enforces the conscious pick on submit.
     defaultValues: {
       name: "",
       email: "",
       circle: undefined,
       role: "viewer",
-      // No default — force a conscious pick.
-      discipline: undefined as unknown as UserInput["discipline"],
       githubUsername: "",
       profile: undefined,
     },

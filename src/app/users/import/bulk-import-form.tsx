@@ -34,9 +34,13 @@ interface ParsedUser {
   email: string;
   circle: string;
   role: string;
-  /** Discipline value extracted from CSV. Empty string = CSV did not supply a value. */
+  /** Discipline value extracted from CSV (lowercased). Empty string when the
+   *  CSV either has no `discipline` header or the row's cell is blank. */
   discipline: string;
-  /** True when the CSV had a discipline column AND this row populated it. */
+  /** True when this row supplied a non-empty discipline value. Treats
+   *  "column missing entirely" and "column present but blank for this row"
+   *  the same way — both mean "preserve existing on upsert; default to
+   *  developer on insert". */
   disciplineProvided: boolean;
   githubUsername: string;
   profile: string;
