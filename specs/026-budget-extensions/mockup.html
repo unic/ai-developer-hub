@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Budget Extensions — Concept Mockups</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --radius: 0.625rem;
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --popover: oklch(1 0 0);
+      --popover-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.78 0.19 120);
+      --primary-foreground: oklch(0.18 0 0);
+      --secondary: oklch(0.96 0 0);
+      --secondary-foreground: oklch(0.20 0 0);
+      --muted: oklch(0.96 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.95 0.03 120);
+      --accent-foreground: oklch(0.20 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --border: oklch(0.91 0 0);
+      --input: oklch(0.91 0 0);
+      --ring: oklch(0.78 0.19 120);
+      --chart-1: oklch(0.78 0.19 120);
+      --chart-2: oklch(0.55 0.15 250);
+      --sidebar: oklch(0.98 0 0);
+      --sidebar-foreground: oklch(0.145 0 0);
+      --sidebar-border: oklch(0.91 0 0);
+    }
+    .dark {
+      --background: oklch(0.16 0 0);
+      --foreground: oklch(0.97 0 0);
+      --card: oklch(0.21 0 0);
+      --card-foreground: oklch(0.98 0 0);
+      --popover: oklch(0.21 0 0);
+      --popover-foreground: oklch(0.98 0 0);
+      --primary: oklch(0.78 0.19 120);
+      --primary-foreground: oklch(0.18 0 0);
+      --secondary: oklch(0.25 0 0);
+      --secondary-foreground: oklch(0.98 0 0);
+      --muted: oklch(0.25 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --accent: oklch(0.25 0.03 120);
+      --accent-foreground: oklch(0.98 0 0);
+      --destructive: oklch(0.704 0.191 22.216);
+      --border: oklch(1 0 0 / 10%);
+      --input: oklch(1 0 0 / 15%);
+      --ring: oklch(0.78 0.19 120);
+      --chart-1: oklch(0.80 0.19 120);
+      --chart-2: oklch(0.65 0.17 250);
+      --sidebar: oklch(0.21 0 0);
+      --sidebar-foreground: oklch(0.98 0 0);
+      --sidebar-border: oklch(1 0 0 / 10%);
+    }
+    html, body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+    }
+    .card {
+      background: var(--card);
+      color: var(--card-foreground);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    }
+    .input-field {
+      background: var(--background);
+      border: 1px solid var(--input);
+      border-radius: calc(var(--radius) - 4px);
+      color: var(--foreground);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      width: 100%;
+    }
+    .input-field:focus {
+      outline: 2px solid var(--ring);
+      outline-offset: -1px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.875rem;
+      border-radius: calc(var(--radius) - 4px);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: filter 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { filter: brightness(0.95); }
+    .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+    .btn-secondary { background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border); }
+    .btn-ghost { color: var(--foreground); }
+    .btn-ghost:hover { background: var(--muted); }
+    .btn-destructive { background: var(--destructive); color: white; }
+    .btn-outline { border: 1px solid var(--border); color: var(--foreground); background: transparent; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .badge-default { background: var(--primary); color: var(--primary-foreground); }
+    .badge-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+    .badge-destructive { background: var(--destructive); color: white; }
+    .badge-outline { background: transparent; color: var(--foreground); border: 1px solid var(--border); }
+    .badge-accent { background: var(--accent); color: var(--accent-foreground); }
+    .text-muted { color: var(--muted-foreground); }
+    .text-destructive { color: var(--destructive); }
+    .text-primary { color: var(--primary); }
+    .border-default { border-color: var(--border); }
+    .bg-muted-soft { background: color-mix(in oklch, var(--muted) 60%, transparent); }
+    .bg-primary-15 { background: color-mix(in oklch, var(--primary) 15%, transparent); }
+    .bg-accent-soft { background: var(--accent); }
+    .sidebar {
+      background: var(--sidebar);
+      color: var(--sidebar-foreground);
+      border-right: 1px solid var(--sidebar-border);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.4rem 0.625rem;
+      border-radius: calc(var(--radius) - 4px);
+      font-size: 0.875rem;
+      color: var(--sidebar-foreground);
+    }
+    .nav-item:hover { background: color-mix(in oklch, var(--sidebar-foreground) 6%, transparent); }
+    .nav-item-active { background: color-mix(in oklch, var(--primary) 14%, transparent); color: var(--foreground); font-weight: 500; }
+    .topbar {
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      gap: 1rem;
+      background: var(--background);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .section-tag {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      background: var(--accent);
+      color: var(--accent-foreground);
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .divider-soft { border-top: 1px dashed var(--border); }
+    .icon {
+      width: 14px; height: 14px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .modal-overlay {
+      background: color-mix(in oklch, black 50%, transparent);
+    }
+    .table-row + .table-row { border-top: 1px solid var(--border); }
+    summary { list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+  </style>
+</head>
+<body>
+  <!-- =============== PAGE HEADER =============== -->
+  <header class="border-b border-default" style="background:var(--card)">
+    <div class="max-w-[1280px] mx-auto px-6 py-5 flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="section-tag">Concept · spec 026</span>
+          <span class="text-xs text-muted">Mockups · not yet implemented</span>
+        </div>
+        <h1 class="text-2xl font-semibold mt-2">Budget Extensions</h1>
+        <p class="text-sm text-muted mt-1 max-w-2xl">
+          A first-class record of mid-year ceiling changes — with reason, category, optional tool link, and visibility wherever the budget appears.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="#view-detail" class="btn btn-ghost">Budget detail</a>
+        <a href="#view-dialog" class="btn btn-ghost">Add dialog</a>
+        <a href="#view-dashboard" class="btn btn-ghost">Dashboard</a>
+        <a href="#view-reports" class="btn btn-ghost">Reports</a>
+        <a href="#view-history" class="btn btn-ghost">History</a>
+        <button id="theme-toggle" class="btn btn-secondary" title="Toggle theme">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <span>Theme</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1280px] mx-auto px-6 py-10 space-y-16">
+
+    <!-- =============== VIEW 1: BUDGET DETAIL =============== -->
+    <section id="view-detail" class="space-y-4">
+      <div class="flex items-baseline justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold">1 · Budget detail page</h2>
+          <p class="text-sm text-muted">The hero shows baseline + extended, and a new section lists each extension. Period table reveals which periods absorbed the extension.</p>
+        </div>
+        <span class="text-xs text-muted">/budget</span>
+      </div>
+
+      <!-- Faux app shell -->
+      <div class="card overflow-hidden">
+        <!-- Topbar -->
+        <div class="topbar">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+          <div class="ml-2 text-sm font-medium">AI Developer Hub</div>
+          <div class="ml-auto flex items-center gap-3 text-xs text-muted">
+            <span>tobias.studer@unic.com</span>
+            <span class="badge badge-outline">admin</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-[220px_1fr]">
+          <!-- Sidebar -->
+          <aside class="sidebar p-3 space-y-1 text-sm min-h-[920px]">
+            <div class="nav-item">📊 Dashboard</div>
+            <div class="nav-item">🔧 Tools</div>
+            <div class="nav-item">👥 Users</div>
+            <div class="nav-item">🔗 Assignments</div>
+            <div class="nav-item nav-item-active">💰 Budget</div>
+            <div class="nav-item">📈 Reports</div>
+            <div class="nav-item">🤖 Copilot</div>
+            <div class="nav-item">🧠 Claude Console</div>
+            <div class="nav-item">📄 Invoices</div>
+            <div class="nav-item">⚙️ Settings</div>
+          </aside>
+
+          <!-- Main content -->
+          <div class="p-6 space-y-6">
+
+            <!-- Detail header -->
+            <div class="flex items-start justify-between flex-wrap gap-3">
+              <div class="space-y-1">
+                <div class="text-xs text-muted">Budget</div>
+                <h1 class="text-2xl font-semibold">FY 2026 Budget</h1>
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="badge badge-default">active</span>
+                  <span class="text-muted">Monthly allocation</span>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-outline">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>
+                  All budgets
+                </button>
+                <button class="btn btn-secondary">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Add extension
+                </button>
+              </div>
+            </div>
+
+            <!-- Hero card -->
+            <div class="card p-6 space-y-6">
+              <div class="flex items-start justify-between flex-wrap gap-3">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="badge badge-default">On track</span>
+                    <span class="text-sm text-muted tabular">−€420 through Apr 2026</span>
+                  </div>
+                  <p class="text-sm text-muted max-w-xl leading-relaxed">
+                    On pace through the closed window — €420 under expected through Apr 2026, projected to land €1,080 under the ceiling. May 2026 is 71% through (€3,820 so far).
+                  </p>
+                </div>
+
+                <div class="text-right">
+                  <p class="text-xs uppercase tracking-wide text-muted">Annual ceiling</p>
+                  <p class="text-2xl font-semibold tabular">€60,000.00</p>
+                  <!-- New: baseline + extended breakdown -->
+                  <div class="mt-1 flex items-center justify-end gap-1.5">
+                    <span class="text-xs text-muted tabular">€50,000 baseline</span>
+                    <span class="text-xs text-muted">+</span>
+                    <span class="badge badge-accent tabular">
+                      <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                      €10,000 extended
+                    </span>
+                  </div>
+                  <p class="mt-1 text-xs text-muted tabular">€2,140 unallocated</p>
+                </div>
+              </div>
+
+              <!-- Multi-marker bar -->
+              <div class="space-y-3">
+                <div class="relative h-7 w-full overflow-hidden rounded-md border-default border" style="background: color-mix(in oklch, var(--muted) 40%, transparent)">
+                  <div class="absolute inset-y-0 left-0 bg-primary-15" style="width: 96.4%"></div>
+                  <div class="absolute inset-y-0 left-0" style="width: 38%; background: var(--primary);"></div>
+                  <!-- Original baseline marker (dashed) -->
+                  <div class="absolute inset-y-0" style="left:83.33%; border-left: 2px dashed color-mix(in oklch, var(--foreground) 60%, transparent);" title="Original baseline ceiling"></div>
+                  <div class="absolute inset-y-0 w-px" style="left: 41%; background: var(--foreground); opacity:.7;" title="Planned YTD"></div>
+                  <div class="absolute inset-y-0 w-px" style="left: 41.7%; background: oklch(0.55 0.15 250);" title="Expected through Apr 2026"></div>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
+                  <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-sm" style="background:var(--primary)"></span> Actual YTD</span>
+                  <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-sm bg-primary-15"></span> Allocated remaining</span>
+                  <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-px" style="background:var(--foreground); opacity:.7"></span> Planned YTD</span>
+                  <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-px" style="background:oklch(0.55 0.15 250)"></span> Expected through Apr 2026</span>
+                  <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-[2px]" style="border-left: 2px dashed color-mix(in oklch, var(--foreground) 60%, transparent); height:12px"></span> Original baseline (€50k)</span>
+                  <span class="ml-auto tabular">Ceiling €60,000.00</span>
+                </div>
+              </div>
+
+              <!-- Stat tiles -->
+              <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="card p-4">
+                  <p class="text-xs uppercase tracking-wide text-muted">Billed YTD</p>
+                  <p class="text-lg font-semibold tabular">€22,840.00</p>
+                  <p class="text-xs text-muted">+ €640 running API</p>
+                </div>
+                <div class="card p-4">
+                  <p class="text-xs uppercase tracking-wide text-muted">Actual YTD</p>
+                  <p class="text-lg font-semibold tabular">€23,480.00</p>
+                  <p class="text-xs text-muted">€3,820 in May 2026 so far</p>
+                </div>
+                <div class="card p-4">
+                  <p class="text-xs uppercase tracking-wide text-muted">Projected year-end</p>
+                  <p class="text-lg font-semibold tabular">€58,920.00</p>
+                  <p class="text-xs text-muted">€1,080 under ceiling</p>
+                </div>
+                <div class="card p-4">
+                  <p class="text-xs uppercase tracking-wide text-muted">Variance through Apr 2026</p>
+                  <p class="text-lg font-semibold tabular">−€420.00</p>
+                  <p class="text-xs text-muted">€19,000 vs €19,420 expected</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- NEW: Budget Extensions card -->
+            <div class="card p-6 space-y-4">
+              <div class="flex items-start justify-between flex-wrap gap-3">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-base font-semibold">Budget extensions</h3>
+                    <span class="badge badge-secondary tabular">2</span>
+                  </div>
+                  <p class="text-sm text-muted mt-1">Mid-year changes to the annual ceiling. Each extension records why the ceiling moved and (optionally) which tool it funds.</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs uppercase tracking-wide text-muted">Net extended</p>
+                  <p class="text-base font-semibold tabular text-primary">+€10,000.00</p>
+                </div>
+              </div>
+
+              <!-- Extension rows -->
+              <div class="border border-default rounded-md overflow-hidden">
+
+                <!-- Row 1 -->
+                <div class="table-row p-4 grid grid-cols-[1fr_auto] gap-4 items-start">
+                  <div class="space-y-2 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-medium">Add Claude API for engineering team</span>
+                      <span class="badge badge-accent">new tool</span>
+                      <span class="badge badge-outline">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/></svg>
+                        Claude API
+                      </span>
+                    </div>
+                    <p class="text-sm text-muted">Engineering started using Claude for internal tooling work in late April. Initial monthly cost run-rate ~€1,400; covers May through Dec 2026.</p>
+                    <div class="text-xs text-muted">
+                      Added <span class="text-foreground tabular">2026-05-08</span> by <span class="text-foreground">Tobias Studer</span>
+                      · Effective <span class="text-foreground tabular">May 2026</span>
+                      · Distributed across May–Dec (8 periods)
+                    </div>
+                  </div>
+                  <div class="text-right space-y-2 shrink-0">
+                    <p class="text-lg font-semibold tabular text-primary">+€8,000.00</p>
+                    <div class="flex gap-1 justify-end">
+                      <button class="btn btn-ghost" title="Edit details">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button class="btn btn-ghost" title="Delete">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Row 2 -->
+                <div class="table-row p-4 grid grid-cols-[1fr_auto] gap-4 items-start">
+                  <div class="space-y-2 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-medium">Cursor seat expansion — design discipline</span>
+                      <span class="badge badge-accent">seat increase</span>
+                      <span class="badge badge-outline">
+                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>
+                        Cursor
+                      </span>
+                    </div>
+                    <p class="text-sm text-muted">Six designers added to the Cursor team plan in April. Covers seat fees through year-end.</p>
+                    <div class="text-xs text-muted">
+                      Added <span class="text-foreground tabular">2026-04-22</span> by <span class="text-foreground">Tobias Studer</span>
+                      · Effective <span class="text-foreground tabular">Apr 2026</span>
+                      · Left unallocated (absorbed into headroom)
+                    </div>
+                  </div>
+                  <div class="text-right space-y-2 shrink-0">
+                    <p class="text-lg font-semibold tabular text-primary">+€2,000.00</p>
+                    <div class="flex gap-1 justify-end">
+                      <button class="btn btn-ghost" title="Edit details">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button class="btn btn-ghost" title="Delete">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn btn-secondary self-start">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                Add extension
+              </button>
+            </div>
+
+            <!-- Period allocations table (snippet) -->
+            <div class="card p-6 space-y-4">
+              <div>
+                <h3 class="text-base font-semibold">Period allocations</h3>
+                <p class="text-sm text-muted mt-1">Periods that absorbed an extension show a sub-label under the planned amount.</p>
+              </div>
+
+              <div class="border border-default rounded-md overflow-hidden">
+                <div class="grid grid-cols-[1.4fr_1fr_1fr_1fr_0.6fr] text-xs uppercase tracking-wide text-muted px-4 py-2 bg-muted-soft">
+                  <div>Period</div>
+                  <div class="text-right">Planned</div>
+                  <div class="text-right">Actual</div>
+                  <div class="text-right">Variance</div>
+                  <div class="text-right">Status</div>
+                </div>
+
+                <div class="table-row grid grid-cols-[1.4fr_1fr_1fr_1fr_0.6fr] items-center px-4 py-3 text-sm">
+                  <div class="font-medium">Apr 2026</div>
+                  <div class="text-right tabular">€4,500.00</div>
+                  <div class="text-right tabular">€4,820.00</div>
+                  <div class="text-right tabular text-destructive">+€320.00</div>
+                  <div class="text-right"><span class="badge badge-secondary">past</span></div>
+                </div>
+
+                <!-- Current month with extension contribution -->
+                <div class="table-row grid grid-cols-[1.4fr_1fr_1fr_1fr_0.6fr] items-start px-4 py-3 text-sm">
+                  <div>
+                    <div class="font-medium">May 2026 <span class="text-muted">· current</span></div>
+                    <div class="text-xs text-muted mt-0.5">May 1 – May 31</div>
+                  </div>
+                  <div class="text-right tabular">
+                    €5,500.00
+                    <div class="text-xs text-primary mt-0.5">+€1,000 from extension</div>
+                  </div>
+                  <div class="text-right tabular">€3,820.00</div>
+                  <div class="text-right tabular text-muted">—</div>
+                  <div class="text-right"><span class="badge badge-default">current</span></div>
+                </div>
+
+                <div class="table-row grid grid-cols-[1.4fr_1fr_1fr_1fr_0.6fr] items-start px-4 py-3 text-sm">
+                  <div>
+                    <div class="font-medium">Jun 2026</div>
+                  </div>
+                  <div class="text-right tabular">
+                    €5,500.00
+                    <div class="text-xs text-primary mt-0.5">+€1,000 from extension</div>
+                  </div>
+                  <div class="text-right tabular text-muted">—</div>
+                  <div class="text-right tabular text-muted">—</div>
+                  <div class="text-right"><span class="badge badge-outline">future</span></div>
+                </div>
+
+                <div class="table-row grid grid-cols-[1.4fr_1fr_1fr_1fr_0.6fr] items-center px-4 py-3 text-sm text-muted">
+                  <div>… 6 more periods</div>
+                  <div class="text-right tabular">…</div>
+                  <div class="text-right tabular">…</div>
+                  <div class="text-right tabular">—</div>
+                  <div class="text-right"></div>
+                </div>
+              </div>
+
+              <div class="text-xs text-muted">
+                Tip — the <span class="text-primary font-medium">green sub-label</span> identifies where an extension contributed to planned spend; clicking it scrolls to the corresponding entry in the extensions card.
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============== VIEW 2: ADD EXTENSION DIALOG =============== -->
+    <section id="view-dialog" class="space-y-4">
+      <div class="flex items-baseline justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold">2 · Add extension dialog</h2>
+          <p class="text-sm text-muted">Opened from "Add extension" on the budget detail header or extensions card.</p>
+        </div>
+        <span class="text-xs text-muted">modal</span>
+      </div>
+
+      <!-- Modal preview (not actually modal, just visually framed) -->
+      <div class="rounded-lg p-10 modal-overlay">
+        <div class="card max-w-[640px] mx-auto p-6 space-y-5">
+          <div>
+            <h3 class="text-lg font-semibold">Add budget extension</h3>
+            <p class="text-sm text-muted mt-1">Record a change to the annual ceiling. Negative amounts are allowed (reduction).</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1.5 col-span-2">
+              <label class="text-xs font-medium">Reason <span class="text-destructive">*</span></label>
+              <input class="input-field" value="Add Claude API for engineering team" />
+              <p class="text-xs text-muted">Short title shown in lists and history. Max 120 characters.</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium">Amount (€) <span class="text-destructive">*</span></label>
+              <input class="input-field tabular" value="8,000.00" />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium">Effective date <span class="text-destructive">*</span></label>
+              <input class="input-field tabular" value="2026-05-08" />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium">Category <span class="text-destructive">*</span></label>
+              <select class="input-field">
+                <option>New tool</option>
+                <option>Scope increase</option>
+                <option>Seat increase</option>
+                <option>Vendor price increase</option>
+                <option>Reallocation</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium">Linked tool</label>
+              <select class="input-field">
+                <option>Claude API</option>
+                <option>(none)</option>
+                <option>Cursor</option>
+                <option>GitHub Copilot</option>
+              </select>
+              <p class="text-xs text-muted">Optional — attribute this extension to a specific tool.</p>
+            </div>
+
+            <div class="space-y-1.5 col-span-2">
+              <label class="text-xs font-medium">Description</label>
+              <textarea class="input-field" rows="3">Engineering started using Claude for internal tooling work in late April. Initial monthly cost run-rate ~€1,400. Approved by finance via email 2026-05-07.</textarea>
+            </div>
+
+            <div class="space-y-1.5 col-span-2">
+              <label class="text-xs font-medium">Allocate to periods</label>
+              <div class="space-y-2">
+                <label class="flex items-start gap-2 p-3 border border-default rounded-md cursor-pointer" style="background: var(--accent); outline: 2px solid var(--ring); outline-offset: -2px;">
+                  <input type="radio" name="alloc" checked class="mt-1" />
+                  <div>
+                    <div class="text-sm font-medium">Distribute across remaining periods</div>
+                    <div class="text-xs text-muted">Split €8,000 evenly across May–Dec 2026 (8 periods × €1,000).</div>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2 p-3 border border-default rounded-md cursor-pointer">
+                  <input type="radio" name="alloc" class="mt-1" />
+                  <div>
+                    <div class="text-sm font-medium">Add to a single period</div>
+                    <div class="text-xs text-muted">Useful for one-off costs (e.g. annual license).</div>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2 p-3 border border-default rounded-md cursor-pointer">
+                  <input type="radio" name="alloc" class="mt-1" />
+                  <div>
+                    <div class="text-sm font-medium">Leave unallocated</div>
+                    <div class="text-xs text-muted">Raises the ceiling only; allocate manually later.</div>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2 p-3 border border-default rounded-md cursor-pointer">
+                  <input type="radio" name="alloc" class="mt-1" />
+                  <div>
+                    <div class="text-sm font-medium">Custom allocation…</div>
+                    <div class="text-xs text-muted">Opens the period allocation editor with the delta pre-loaded.</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider-soft"></div>
+
+          <!-- Preview of effect -->
+          <div class="bg-accent-soft rounded-md p-4 text-sm space-y-1">
+            <div class="text-xs uppercase tracking-wide text-muted">Effect on FY 2026 budget</div>
+            <div class="flex justify-between tabular">
+              <span>Annual ceiling</span>
+              <span><span class="text-muted">€52,000.00</span> → <span class="font-semibold">€60,000.00</span></span>
+            </div>
+            <div class="flex justify-between tabular">
+              <span>Total allocations</span>
+              <span><span class="text-muted">€49,860.00</span> → <span class="font-semibold">€57,860.00</span></span>
+            </div>
+            <div class="flex justify-between tabular">
+              <span>Unallocated headroom</span>
+              <span class="font-semibold">€2,140.00</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2">
+            <button class="btn btn-ghost">Cancel</button>
+            <button class="btn btn-primary">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+              Add extension
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============== VIEW 3: DASHBOARD WIDGET =============== -->
+    <section id="view-dashboard" class="space-y-4">
+      <div class="flex items-baseline justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold">3 · Dashboard budget widget</h2>
+          <p class="text-sm text-muted">Subtle inline tag — extensions are normal business, not an incident.</p>
+        </div>
+        <span class="text-xs text-muted">/ (dashboard)</span>
+      </div>
+
+      <div class="card p-6 space-y-5 max-w-[560px]">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-base font-semibold">FY 2026 Budget</h3>
+            <p class="text-xs text-muted mt-0.5">Monthly allocation · 5 of 12 periods</p>
+          </div>
+          <span class="badge badge-default">
+            <svg class="icon" viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+            On track
+          </span>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-baseline justify-between">
+            <p class="text-2xl font-semibold tabular">€23,480 <span class="text-sm text-muted font-normal">/ €60,000</span></p>
+            <span class="badge badge-accent tabular">extended +€10k</span>
+          </div>
+          <div class="relative h-2 w-full rounded-full overflow-hidden" style="background: color-mix(in oklch, var(--muted) 60%, transparent)">
+            <div class="absolute inset-y-0 left-0 rounded-full" style="width:39%; background: var(--primary);"></div>
+            <!-- baseline marker -->
+            <div class="absolute inset-y-0" style="left:83.33%; border-left:2px dashed color-mix(in oklch, var(--foreground) 60%, transparent);"></div>
+          </div>
+          <div class="flex justify-between text-xs text-muted">
+            <span>39% used</span>
+            <span class="tabular">Projected year-end €58,920</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 pt-2 border-t border-default">
+          <div>
+            <p class="text-xs text-muted">YTD billed</p>
+            <p class="text-sm font-semibold tabular">€22,840</p>
+          </div>
+          <div>
+            <p class="text-xs text-muted">Running API</p>
+            <p class="text-sm font-semibold tabular">€640</p>
+          </div>
+          <div>
+            <p class="text-xs text-muted">Remaining</p>
+            <p class="text-sm font-semibold tabular">€36,520</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============== VIEW 4: REPORTS =============== -->
+    <section id="view-reports" class="space-y-4">
+      <div class="flex items-baseline justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold">4 · Budget report — forecast chart with baseline reference</h2>
+          <p class="text-sm text-muted">An extra dashed line marks the original baseline so readers can see "how much we extended" at a glance.</p>
+        </div>
+        <span class="text-xs text-muted">/reports/budget</span>
+      </div>
+
+      <div class="card p-6 space-y-4">
+        <div class="flex items-baseline justify-between flex-wrap gap-2">
+          <div>
+            <h3 class="text-base font-semibold">Forecast vs ceiling</h3>
+            <p class="text-xs text-muted">Projected cumulative spend through year-end</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 text-[11px] text-muted">
+            <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-sm" style="background:var(--chart-1)"></span> Actual cumulative</span>
+            <span class="flex items-center gap-1.5"><span class="inline-block size-2 rounded-sm" style="background:var(--chart-2)"></span> Projected cumulative</span>
+            <span class="flex items-center gap-1.5"><span class="inline-block h-px w-4" style="background:var(--foreground); opacity:.85"></span> Ceiling €60,000</span>
+            <span class="flex items-center gap-1.5"><span class="inline-block w-4" style="border-top:2px dashed color-mix(in oklch, var(--foreground) 60%, transparent);"></span> Original baseline €50,000</span>
+          </div>
+        </div>
+
+        <!-- Inline chart sketch -->
+        <div class="rounded-md border border-default p-4">
+          <svg viewBox="0 0 700 260" class="w-full h-[260px]">
+            <!-- y axis labels -->
+            <g font-size="10" fill="currentColor" opacity="0.55">
+              <text x="6" y="20">€60k</text>
+              <text x="6" y="62">€50k</text>
+              <text x="6" y="104">€40k</text>
+              <text x="6" y="146">€30k</text>
+              <text x="6" y="188">€20k</text>
+              <text x="6" y="230">€10k</text>
+              <text x="6" y="252">€0</text>
+            </g>
+            <!-- gridlines -->
+            <g stroke="currentColor" stroke-opacity="0.1">
+              <line x1="40" y1="16" x2="690" y2="16" />
+              <line x1="40" y1="58" x2="690" y2="58" />
+              <line x1="40" y1="100" x2="690" y2="100" />
+              <line x1="40" y1="142" x2="690" y2="142" />
+              <line x1="40" y1="184" x2="690" y2="184" />
+              <line x1="40" y1="226" x2="690" y2="226" />
+              <line x1="40" y1="248" x2="690" y2="248" />
+            </g>
+            <!-- ceiling -->
+            <line x1="40" y1="16" x2="690" y2="16" stroke="currentColor" stroke-opacity="0.85" stroke-width="1.5" />
+            <!-- original baseline -->
+            <line x1="40" y1="58" x2="690" y2="58" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5" stroke-dasharray="6 4" />
+            <!-- actual cumulative -->
+            <polyline fill="none" stroke="var(--chart-1)" stroke-width="2.5"
+              points="40,248 95,235 150,212 205,182 260,150 310,134" />
+            <!-- projected cumulative (continuation) -->
+            <polyline fill="none" stroke="var(--chart-2)" stroke-width="2.5" stroke-dasharray="2 3"
+              points="310,134 370,116 430,98 490,80 550,62 610,42 670,24" />
+            <!-- x labels -->
+            <g font-size="9" fill="currentColor" opacity="0.55">
+              <text x="68" y="262">Jan</text>
+              <text x="123" y="262">Feb</text>
+              <text x="178" y="262">Mar</text>
+              <text x="233" y="262">Apr</text>
+              <text x="288" y="262">May</text>
+              <text x="343" y="262">Jun</text>
+              <text x="398" y="262">Jul</text>
+              <text x="453" y="262">Aug</text>
+              <text x="508" y="262">Sep</text>
+              <text x="563" y="262">Oct</text>
+              <text x="618" y="262">Nov</text>
+              <text x="668" y="262">Dec</text>
+            </g>
+            <!-- "extended" annotation -->
+            <g>
+              <path d="M620 30 L 620 60" stroke="currentColor" stroke-opacity="0.4" stroke-width="1" />
+              <rect x="540" y="-2" width="160" height="20" rx="4" fill="var(--accent)" />
+              <text x="548" y="12" font-size="10" fill="currentColor">+€10,000 extended this year</text>
+            </g>
+          </svg>
+        </div>
+
+        <p class="text-xs text-muted">
+          Projection runs above the original baseline (€50k) because of two approved extensions this year. Without them the year-end projection would be ~€48,920 — under the original plan. See the
+          <span class="text-primary">Extensions</span> section on the budget detail for context.
+        </p>
+      </div>
+    </section>
+
+    <!-- =============== VIEW 5: HISTORY =============== -->
+    <section id="view-history" class="space-y-4">
+      <div class="flex items-baseline justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold">5 · Change history feed</h2>
+          <p class="text-sm text-muted">Extensions appear as structured entries with category badge, amount, and reason — vs the bare "total changed from X to Y" entry today.</p>
+        </div>
+        <span class="text-xs text-muted">change_history table</span>
+      </div>
+
+      <div class="card p-6">
+        <div class="space-y-0">
+
+          <!-- Today: extension created -->
+          <div class="flex gap-4 pb-4">
+            <div class="flex flex-col items-center">
+              <div class="size-8 rounded-full flex items-center justify-center text-white" style="background: var(--primary);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              </div>
+              <div class="w-px flex-1" style="background: var(--border);"></div>
+            </div>
+            <div class="flex-1 pb-4">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-medium text-sm">Budget extension added</span>
+                <span class="badge badge-accent">new tool</span>
+                <span class="badge badge-outline">Claude API</span>
+                <span class="text-xs text-muted ml-auto tabular">2026-05-08 · 10:42</span>
+              </div>
+              <p class="text-sm mt-1">
+                <span class="text-primary font-medium tabular">+€8,000.00</span>
+                — Add Claude API for engineering team
+              </p>
+              <p class="text-xs text-muted mt-1">by Tobias Studer · distributed across May–Dec (8 periods × €1,000)</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 pb-4">
+            <div class="flex flex-col items-center">
+              <div class="size-8 rounded-full flex items-center justify-center" style="background: var(--accent); color: var(--accent-foreground);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+              <div class="w-px flex-1" style="background: var(--border);"></div>
+            </div>
+            <div class="flex-1 pb-4">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-medium text-sm">Allocations updated</span>
+                <span class="text-xs text-muted ml-auto tabular">2026-05-08 · 10:42</span>
+              </div>
+              <p class="text-sm text-muted mt-1">May 2026 +€1,000 · Jun 2026 +€1,000 · … 6 more</p>
+              <p class="text-xs text-muted mt-1">automatic — triggered by extension #4</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 pb-4">
+            <div class="flex flex-col items-center">
+              <div class="size-8 rounded-full flex items-center justify-center text-white" style="background: var(--primary);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              </div>
+              <div class="w-px flex-1" style="background: var(--border);"></div>
+            </div>
+            <div class="flex-1 pb-4">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-medium text-sm">Budget extension added</span>
+                <span class="badge badge-accent">seat increase</span>
+                <span class="badge badge-outline">Cursor</span>
+                <span class="text-xs text-muted ml-auto tabular">2026-04-22 · 14:18</span>
+              </div>
+              <p class="text-sm mt-1">
+                <span class="text-primary font-medium tabular">+€2,000.00</span>
+                — Cursor seat expansion — design discipline
+              </p>
+              <p class="text-xs text-muted mt-1">by Tobias Studer · left unallocated</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 pb-4">
+            <div class="flex flex-col items-center">
+              <div class="size-8 rounded-full flex items-center justify-center" style="background: var(--secondary); color: var(--secondary-foreground);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              </div>
+              <div class="w-px flex-1" style="background: var(--border);"></div>
+            </div>
+            <div class="flex-1 pb-4">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-medium text-sm">Budget created</span>
+                <span class="text-xs text-muted ml-auto tabular">2026-01-04 · 09:02</span>
+              </div>
+              <p class="text-sm text-muted mt-1">FY 2026 · €50,000.00 baseline · monthly allocation</p>
+              <p class="text-xs text-muted mt-1">by Tobias Studer</p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="divider-soft mt-2 pt-3 text-xs text-muted">
+          <strong class="text-foreground">Old behavior (replaced):</strong> the same situation today would produce a single row
+          <code style="background:var(--muted); padding:2px 6px; border-radius:4px;">annual_budget #3 totalAmountCents 5000000 → 6000000</code>
+          — no reason, no category, no attribution.
+        </div>
+      </div>
+    </section>
+
+    <!-- =============== FOOTER NOTES =============== -->
+    <section class="space-y-4">
+      <div>
+        <h2 class="text-xl font-semibold">Design notes</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold mb-2">Why a separate table, not just bumping the total</h3>
+          <p class="text-sm text-muted">A column-edit loses the most important data — the <em>why</em>. A dedicated table makes every change observable, attributable, and reversible while keeping the original baseline intact forever.</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold mb-2">Why no approval workflow in v1</h3>
+          <p class="text-sm text-muted">This app has a single admin role today. A pending/approved state machine would add ceremony without value. The schema is shaped so adding `status` later is non-destructive.</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold mb-2">Why the extension tag is quiet, not loud</h3>
+          <p class="text-sm text-muted">Extensions are normal mid-year business. A red banner would create alarm fatigue. Reductions (negative extensions) get destructive styling — those are unusual and deserve attention.</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold mb-2">What this unlocks later</h3>
+          <p class="text-sm text-muted">Reports can answer "how much did we extend per tool this year?", "how often does the budget move in Q3?", and "which categories drive the most extensions?". The data is already structured the right way.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const btn = document.getElementById("theme-toggle");
+    btn.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+    });
+  </script>
+</body>
+</html>
