@@ -26,12 +26,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Download } from "lucide-react";
 import { toCsv } from "@/lib/csv";
+import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
+import type { UserDiscipline } from "@/types";
 
 interface ParsedUser {
   name: string;
   email: string;
   circle: string;
   role: string;
+  /** Discipline value extracted from CSV. Empty string = CSV did not supply a value. */
+  discipline: string;
+  /** True when the CSV had a discipline column AND this row populated it. */
+  disciplineProvided: boolean;
   githubUsername: string;
   profile: string;
   valid: boolean;
@@ -57,12 +63,16 @@ function parseCSV(text: string): ParsedUser[] {
     const validRoles = ["admin", "viewer"];
     const rawProfile = (row.profile || "").trim().toLowerCase();
     const validProfiles = ["boost", "maxed", "indie"];
+    const rawDiscipline = (row.discipline || "").trim().toLowerCase();
+    const validDisciplines = DISCIPLINES as readonly string[];
 
     const user: ParsedUser = {
       name: row.name || "",
       email: row.email || "",
       circle: row.circle || row.department || "",
       role: rawRole || "viewer",
+      discipline: rawDiscipline,
+      disciplineProvided: rawDiscipline.length > 0,
       githubUsername: row.github_username || row.githubusername || "",
       profile: (row.profile || "").trim().toLowerCase(),
       valid: true,
@@ -80,6 +90,9 @@ function parseCSV(text: string): ParsedUser[] {
     } else if (rawProfile && !validProfiles.includes(rawProfile)) {
       user.valid = false;
       user.error = "Profile must be 'boost', 'maxed', or 'indie'";
+    } else if (rawDiscipline && !validDisciplines.includes(rawDiscipline)) {
+      user.valid = false;
+      user.error = `Discipline must be one of: ${DISCIPLINES.join(", ")}`;
     }
 
     return user;
@@ -141,11 +154,14 @@ export function BulkImportForm() {
   async function handleImport() {
     const validUsers = parsedUsers
       .filter((u) => u.valid)
-      .map(({ name, email, circle, role, githubUsername, profile }) => ({
+      .map(({ name, email, circle, role, discipline, disciplineProvided, githubUsername, profile }) => ({
         name,
         email,
         circle: circle || undefined,
         role,
+        // Pass discipline only when CSV explicitly provided a value so the
+        // server-side upsert preserves the existing value on update.
+        discipline: disciplineProvided ? (discipline as UserDiscipline) : undefined,
         githubUsername: githubUsername || undefined,
         profile: profile || undefined,
       }));
@@ -187,7 +203,9 @@ export function BulkImportForm() {
           <h1 className="text-3xl font-bold">Bulk Import Users</h1>
           <p className="text-muted-foreground">
             Upload a CSV file with columns: name, email (required); circle (or
-            department), role, github_username, profile (optional)
+            department), discipline, role, github_username, profile (optional).
+            New rows without a discipline default to <code>developer</code>;
+            existing rows keep their value when the column is blank.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -271,6 +289,7 @@ export function BulkImportForm() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Circle</TableHead>
+                    <TableHead>Discipline</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>GitHub</TableHead>
                     <TableHead>Profile</TableHead>
@@ -296,6 +315,15 @@ export function BulkImportForm() {
                         <TableCell className={changed.includes("name") ? hl : ""}>{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell className={changed.includes("circle") ? hl : ""}>{user.circle}</TableCell>
+                        <TableCell className={changed.includes("discipline") ? hl : ""}>
+                          {user.disciplineProvided ? (
+                            DISCIPLINE_LABEL[user.discipline as UserDiscipline] ?? user.discipline
+                          ) : user.action === "new" ? (
+                            <span className="text-muted-foreground italic">developer (default)</span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
                         <TableCell className={changed.includes("role") ? hl : ""}>{user.role}</TableCell>
                         <TableCell className={changed.includes("githubUsername") ? hl : ""}>{user.githubUsername || "\u2014"}</TableCell>
                         <TableCell className={changed.includes("profile") ? hl : ""}>{user.profile || "\u2014"}</TableCell>

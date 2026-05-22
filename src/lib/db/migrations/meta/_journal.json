@@ -148,6 +148,13 @@
       "when": 1779433030575,
       "tag": "0020_daily_rachel_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779438571112,
+      "tag": "0021_wise_vindicator",
+      "breakpoints": true
     }
   ]
 }

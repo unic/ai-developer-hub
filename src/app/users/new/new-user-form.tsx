@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { InviteLinkDialog } from "@/components/invite-link-dialog";
+import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
 
 export function NewUserForm() {
   const router = useRouter();
@@ -47,6 +48,8 @@ export function NewUserForm() {
       email: "",
       circle: undefined,
       role: "viewer",
+      // No default — force a conscious pick.
+      discipline: undefined as unknown as UserInput["discipline"],
       githubUsername: "",
       profile: undefined,
     },
@@ -120,6 +123,33 @@ export function NewUserForm() {
                     <FormControl>
                       <Input placeholder="e.g. Engineering" {...field} value={field.value ?? ""} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="discipline"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Discipline</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value ?? ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a discipline" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {DISCIPLINES.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {DISCIPLINE_LABEL[d]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -39,6 +39,7 @@ export type BudgetStatus = "active" | "archived";
 export type PeriodType = "monthly" | "quarterly";
 export type ChangeType = "created" | "updated" | "deleted" | "status_change";
 export type UserProfile = "boost" | "maxed" | "indie";
+export type UserDiscipline = "developer" | "conception" | "business";
 
 // Select types (for reading from DB)
 export type User = InferSelectModel<typeof users>;
@@ -236,6 +237,7 @@ export interface ExistingUserFields {
   role: string;
   githubUsername: string | null;
   profile: string | null;
+  discipline: UserDiscipline;
 }
 
 // Invoice sync types
@@ -353,7 +355,13 @@ export interface SyncPreview {
 export type PendingResolution =
   | { type: "import"; githubLogin: string }
   | { type: "match"; githubLogin: string; userId: number; userName: string }
-  | { type: "create"; githubLogin: string; name: string; email: string }
+  | {
+      type: "create";
+      githubLogin: string;
+      name: string;
+      email: string;
+      discipline: UserDiscipline;
+    }
   | { type: "skip"; githubLogin: string };
 
 export interface MatchSuggestion {
@@ -514,6 +522,7 @@ export type ProfileData = {
     role: "admin" | "viewer";
     circle: string | null;
     profile: "boost" | "maxed" | "indie" | null;
+    discipline: UserDiscipline;
   };
   assignments: {
     id: number;

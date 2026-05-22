@@ -26,6 +26,7 @@ async function seed() {
       passwordHash,
       circle: "Engineering",
       role: "admin",
+      discipline: "developer",
       status: "active",
       mustChangePassword: false,
     })

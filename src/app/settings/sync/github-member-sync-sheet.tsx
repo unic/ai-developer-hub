@@ -185,6 +185,7 @@ export function GitHubMemberSyncSheet({
       githubLogin: string;
       name: string;
       email: string;
+      discipline: "developer" | "conception" | "business";
     }> = [];
 
     for (const r of resolutions.values()) {
@@ -200,6 +201,7 @@ export function GitHubMemberSyncSheet({
             githubLogin: r.githubLogin,
             name: r.name,
             email: r.email,
+            discipline: r.discipline,
           });
           break;
         // skip: nothing to send
@@ -635,6 +637,7 @@ function UnmatchedGitHubResolutionList({
                     githubLogin: data.githubLogin,
                     name: data.name,
                     email: data.email,
+                    discipline: data.discipline,
                   })
                 }
                 onCancel={onCollapse}

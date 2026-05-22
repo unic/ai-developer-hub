@@ -77,6 +77,7 @@ export async function GET(request: NextRequest) {
           role: profileData.user.role,
           circle: profileData.user.circle,
           profile: profileData.user.profile,
+          discipline: profileData.user.discipline,
           status: user.status,
         },
         assignments: profileData.assignments.map((a) => ({

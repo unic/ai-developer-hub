@@ -15,6 +15,7 @@ export async function GET() {
       name: users.name,
       email: users.email,
       circle: users.circle,
+      discipline: users.discipline,
       role: users.role,
       githubUsername: users.githubUsername,
       profile: users.profile,
@@ -26,13 +27,14 @@ export async function GET() {
     row.name,
     row.email,
     row.circle,
+    row.discipline,
     row.role,
     row.githubUsername ?? "",
     row.profile ?? "",
   ]);
 
   const csv = toCsv(
-    ["name", "email", "circle", "role", "github_username", "profile"],
+    ["name", "email", "circle", "discipline", "role", "github_username", "profile"],
     csvRows
   );
 

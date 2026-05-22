@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Implementation notes · User disciplines</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --bg-panel: #ffffff;
+    --bg-side: #f1f1f3;
+    --border: #e4e4e7;
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #a1a1aa;
+    --ok: #047857;
+    --ok-bg: #d1fae5;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --info: #1d4ed8;
+    --info-bg: #dbeafe;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); }
+  main { max-width: 880px; margin: 0 auto; padding: 40px 32px 80px; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+  }
+  header .crumb {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    margin-bottom: 6px;
+  }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
+  p.subtitle {
+    margin: 8px 0 0;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  h2 {
+    margin: 36px 0 12px;
+    font-size: 17px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    margin: 22px 0 8px;
+    font-size: 14px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .entry {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin: 0 0 12px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .entry.decision { border-left-color: var(--info); }
+  .entry.deviation { border-left-color: var(--warn); }
+  .entry.tradeoff { border-left-color: #8b5cf6; }
+  .entry.open { border-left-color: #b91c1c; background: #fef2f2; }
+  .entry .tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    display: inline-block;
+    margin-right: 8px;
+  }
+  .entry .ts {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: var(--mono);
+    float: right;
+  }
+  .entry strong.title {
+    font-weight: 600;
+    color: var(--text);
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--bg-side);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 12px 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 8px 0 0;
+  }
+  ul { line-height: 1.6; font-size: 14px; }
+  .empty { color: var(--text-faint); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="crumb">Spec 032 · User disciplines</div>
+    <h1>Implementation notes</h1>
+    <p class="subtitle">
+      Running log of decisions, deviations, tradeoffs, and open questions captured while implementing
+      <code>specs/032-user-disciplines/plan.html</code>. Entries are appended in chronological order; each is
+      tagged so you can skim by category.
+    </p>
+  </header>
+
+  <h2>Decisions</h2>
+
+  <div class="entry decision">
+    <span class="ts">setup</span>
+    <span class="tag">decision</span>
+    <strong class="title">Use existing main-repo secrets verbatim in the worktree's <code>.env.local</code>.</strong>
+    The plan does not specify how to bootstrap env vars for the worktree. I copied every secret from
+    <code>C:\Repos\ai-developer-hub\.env.local</code> verbatim and only swapped <code>DATABASE_URL</code> /
+    <code>DATABASE_URL_UNPOOLED</code> to the new Neon branch host
+    <code>ep-fragrant-fire-alm1dt17</code> (branch <code>wt/introduce-roles</code>, id
+    <code>br-empty-voice-alx69zhl</code>). The new branch is a copy-on-write fork of the main Neon branch
+    (<code>br-quiet-brook-al03w27g</code>, 184 users at branch time), so schema work is safely isolated.
+  </div>
+
+  <div class="entry decision">
+    <span class="ts">verify</span>
+    <span class="tag">decision</span>
+    <strong class="title">Browser verification — all surfaces green.</strong>
+    Walked through the dev server (localhost:3000) authenticated as the Nighthawk agent. Verified:
+    <ul>
+      <li><code>/users</code> table renders Discipline column with icons; faceted filter present.</li>
+      <li><code>/users/new</code> &mdash; submit without picking discipline shows "Please select a discipline"
+        error and blocks the submit. Picking "Conception" + submitting creates the user with
+        <code>discipline = "conception"</code> in the DB (verified via SQL).</li>
+      <li><code>/users/[id]</code> &mdash; pre-fills the discipline select, the read-only header carries the
+        Conception/Business badge, and editing to "Business" saves and records a change-history row
+        <em>"discipline from "conception" to "business""</em>.</li>
+      <li><code>/api/export/users</code> CSV header reads
+        <code>name,email,circle,discipline,role,github_username,profile</code>; all 184 backfilled users
+        export as <code>discipline=developer</code>.</li>
+      <li><code>/profile</code> renders the agent user's Developer badge alongside the Admin role badge.</li>
+    </ul>
+    Test user id=185 was cleaned up after verification (along with its invite-token and change-history
+    rows). Screenshots in <code>screenshot-users-table.png</code> and <code>screenshot-profile.png</code>.
+  </div>
+
+  <h2>Deviations</h2>
+
+  <div class="entry deviation">
+    <span class="ts">github-sync</span>
+    <span class="tag">deviation</span>
+    <strong class="title">GitHub sync &mdash; "import as-is" path does NOT get a discipline picker.</strong>
+    The plan said both <code>confirmGitHubSync</code> insert sites should pull discipline from input.
+    But there are two distinct flows:
+    <ul>
+      <li><strong>Inline-create</strong> (<code>newUsers</code> in <code>ConfirmSyncInput</code>) &mdash;
+        admin types name + email in <code>inline-user-form.tsx</code>. Here discipline IS captured from
+        the form (per plan).</li>
+      <li><strong>Import as-is</strong> (<code>importGitHubLogins</code> in <code>ConfirmSyncInput</code>) &mdash;
+        admin just ticks a checkbox on the unmatched-member card; there is no form. No place to capture
+        discipline.</li>
+    </ul>
+    For the "import as-is" path I hardcoded <code>discipline: "developer"</code> (matches the existing
+    <code>role: "viewer"</code> hardcoding on the same insert). Adding a discipline picker to the bulk
+    "tick to import" checkbox UI would balloon scope (it's a multi-select grid, not a per-row form).
+    Admins can reclassify any mis-attributed user from <code>/users</code> after the sync. Same fallback
+    the plan uses for the seeded agent user.
+  </div>
+
+  <h2>Tradeoffs</h2>
+
+  <div class="entry tradeoff">
+    <span class="ts">validators</span>
+    <span class="tag">tradeoff</span>
+    <strong class="title">Zod 4 <code>message:</code> over <code>errorMap:</code>.</strong>
+    The plan's Zod sketch used <code>z.enum(values, { errorMap: () =&gt; ({ message: "..." }) })</code>,
+    which is Zod 3 syntax. The project is on Zod 4.3.6 where <code>errorMap</code> was renamed.
+    Switched to <code>{ message: "Please select a discipline" }</code> &mdash; same UX, current API.
+  </div>
+
+  <div class="entry tradeoff">
+    <span class="ts">disciplines.ts</span>
+    <span class="tag">tradeoff</span>
+    <strong class="title">Added <code>isDiscipline()</code> type guard not in the plan.</strong>
+    The plan only listed the const arrays + icon map. I added a one-line type-guard
+    <code>isDiscipline(value)</code> for safe CSV value narrowing. Trivial; kept because the
+    bulk-import path needs to narrow <code>string</code> to <code>UserDiscipline</code> when
+    forwarding to the typed action.
+  </div>
+
+  <div class="entry tradeoff">
+    <span class="ts">change-history</span>
+    <span class="tag">tradeoff</span>
+    <strong class="title">Discipline diffs go through the same <code>changeHistory</code> table as role/circle.</strong>
+    The plan said "matches existing role/circle behavior". Confirmed: <code>updateUser</code> now records
+    a <code>discipline</code> change-history row when the value changes, with old/new values. The
+    user-detail page's history section already renders <code>fieldName + previousValue + newValue</code>
+    generically, so no UI work needed to surface discipline changes there.
+  </div>
+
+  <div class="entry tradeoff">
+    <span class="ts">simplify-review</span>
+    <span class="tag">tradeoff</span>
+    <strong class="title">Defensive <code>asDiscipline()</code> on every icon-lookup site.</strong>
+    The <code>/simplify</code> code review (5 independent finder angles) flagged that
+    <code>DISCIPLINE_ICON[value]</code> and <code>DISCIPLINE_LABEL[value]</code> would crash with
+    <em>"Element type is invalid"</em> if a row ever surfaced an unexpected enum value (future migration
+    landing before the matching frontend bundle, manual SQL insert, stale SSR cache). Today the DB enum
+    constrains values to the three known members, so the bug is latent &mdash; but the fix is cheap:
+    a new <code>asDiscipline(value)</code> helper in <code>src/lib/disciplines.ts</code> falls back to
+    <code>DEFAULT_DISCIPLINE</code> for unrecognized values. Applied at four sites: users-table cell,
+    user-detail-client header, profile-header badge, assignment-detail subline.
+    The other review findings were either pre-existing patterns (naive CSV split, updateUser race),
+    already-documented deviations (GitHub "import as-is" defaults to developer), or behavioral changes
+    already noted in the release-note recommendation (CSV column-order shift). Single defensive fix
+    landed; the rest carry forward as known follow-ups.
+  </div>
+
+  <h2>Open questions</h2>
+
+  <div class="entry open">
+    <span class="ts">analytics</span>
+    <span class="tag">open</span>
+    <strong class="title">Claude analytics pages still hide discipline.</strong>
+    Per plan §8 "out of scope this PR", I left the following unchanged:
+    <ul>
+      <li><code>src/components/claude/users-table.tsx</code> (Claude spend per-user)</li>
+      <li><code>src/app/claude/users/[userId]/page.tsx</code> (Claude user drill-through)</li>
+      <li><code>src/components/copilot/seats-table.tsx</code> (Copilot seat matching)</li>
+      <li>The <code>UserListRow</code> &amp; <code>UserDetail</code> types in <code>src/types/index.ts</code> &mdash; both still
+        carry <code>circle</code> + <code>profile</code> but not <code>discipline</code>.</li>
+    </ul>
+    Confirm this is fine, or queue a follow-up spec to surface discipline as a filter/breakdown in
+    Claude reports. Recommend the follow-up &mdash; it's the natural payoff of capturing the data.
+  </div>
+
+  <div class="entry open">
+    <span class="ts">github-sync</span>
+    <span class="tag">open</span>
+    <strong class="title">"Import as-is" GitHub members default silently to developer.</strong>
+    Detailed in the deviation above. If "import as-is" is heavily used at Unic and most GitHub members
+    are NOT developers, we should add a per-row discipline picker to that flow too &mdash; or change
+    the default to nothing and force admins through the inline-create form. Today's behaviour: defaults
+    to developer, admin reclassifies in <code>/users</code> after the fact.
+  </div>
+
+</main>
+</body>
+</html>

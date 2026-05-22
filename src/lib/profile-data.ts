@@ -222,6 +222,7 @@ export async function fetchProfileDataInternal(
       role: user.role as "admin" | "viewer",
       circle: user.circle,
       profile: user.profile as "boost" | "maxed" | "indie" | null,
+      discipline: user.discipline,
     },
     assignments: assignments.map((a) => ({
       id: a.id,
