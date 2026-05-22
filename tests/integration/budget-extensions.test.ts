@@ -363,6 +363,44 @@ describe("deleteBudgetExtension", () => {
     });
     expect(ext).toBeUndefined();
   });
+
+  it("records a change_history row with changeType=deleted and a previousValue snapshot", async () => {
+    const created = await createBudgetExtension({
+      budgetId: activeBudgetId,
+      amountCents: 12_000,
+      reason: "History snapshot test",
+      category: "other",
+      effectiveDate: `${ACTIVE_FY}-09-15`,
+      allocation: {
+        mode: "single_period",
+        periodId: periodIds[8],
+      },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) return;
+
+    const delResult = await deleteBudgetExtension({
+      extensionId: created.data.id,
+    });
+    expect(delResult.success).toBe(true);
+
+    const rows = await db.query.changeHistory.findMany({
+      where: and(
+        eq(changeHistory.entityType, "budget_extension"),
+        eq(changeHistory.entityId, created.data.id)
+      ),
+    });
+    const deletedRow = rows.find((r) => r.changeType === "deleted");
+    expect(deletedRow).toBeDefined();
+    if (!deletedRow) return;
+    expect(deletedRow.previousValue).toBeTruthy();
+    const snapshot = JSON.parse(deletedRow.previousValue ?? "null");
+    expect(snapshot.amountCents).toBe(12_000);
+    expect(snapshot.reason).toBe("History snapshot test");
+    expect(snapshot.allocations).toHaveLength(1);
+    expect(snapshot.allocations[0].periodId).toBe(periodIds[8]);
+    expect(snapshot.allocations[0].amountCents).toBe(12_000);
+  });
 });
 
 describe("updateBudgetExtension", () => {

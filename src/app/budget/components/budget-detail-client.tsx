@@ -71,20 +71,30 @@ export function BudgetDetailClient({
   const [allocations, setAllocations] = useState<Record<number, number>>(
     Object.fromEntries(periods.map((p) => [p.id, p.plannedAmountCents]))
   );
-  // Re-sync `allocations` whenever the server mutates the budget (extensions,
-  // billed costs, allocation saves). Without this, an extension that bumps
-  // plannedAmountCents would leave the local input state stale — the next
-  // "Save allocations" click would silently write the pre-extension values
-  // back. Tracked via budget.updatedAt which the server bumps on every write.
-  const updatedAtKey = budget.updatedAt.toISOString();
+  // Re-sync `allocations` whenever the server reports new period planned
+  // amounts. Without this, an extension that bumps plannedAmountCents (via
+  // createBudgetExtension) would leave the local input state stale, and the
+  // next "Save allocations" click would silently write the pre-extension
+  // values back.
+  //
+  // The trigger is the per-period planned values themselves, not
+  // budget.updatedAt — only extension create/delete, archiveBudget, and
+  // updateBudgetTotal bump annual_budgets.updated_at, while
+  // updateBudgetAllocations and billed-cost CRUD do not. Hashing the period
+  // values catches every case where the server-side planned amount changed,
+  // including future actions that don't touch annual_budgets.
+  const periodsKey = periods
+    .map((p) => `${p.id}:${p.plannedAmountCents}`)
+    .join("|");
   useEffect(() => {
     setAllocations(
       Object.fromEntries(periods.map((p) => [p.id, p.plannedAmountCents]))
     );
-    // periods is intentionally read at effect-fire-time; the dep is the
-    // mutation timestamp so we don't loop on every render.
+    // `periods` is intentionally re-read at effect-fire-time; the dep is the
+    // value-hash so unrelated re-renders don't cause loops or blow away
+    // unsaved local edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updatedAtKey]);
+  }, [periodsKey]);
   const [saving, setSaving] = useState(false);
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);

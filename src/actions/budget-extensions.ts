@@ -6,6 +6,7 @@ import {
   budgetPeriods,
   budgetExtensions,
   budgetExtensionPeriodAllocations,
+  changeHistory,
 } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -15,7 +16,7 @@ import {
   updateBudgetExtensionSchema,
   deleteBudgetExtensionSchema,
 } from "@/lib/validators";
-import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
+import { recordCreation, recordUpdate } from "@/actions/history";
 import type { ActionResult } from "@/types";
 import { z } from "zod";
 
@@ -376,13 +377,30 @@ export async function deleteBudgetExtension(
       .where(eq(budgetExtensions.id, existing.id));
   });
 
-  await recordStatusChange(
-    "budget_extension",
-    existing.id,
-    Number(admin.id),
-    "active",
-    "deleted"
-  );
+  // Record the deletion with a full snapshot of the row + allocations as the
+  // previousValue, matching the deleteBilledCost pattern in src/actions/budget.ts.
+  // (recordStatusChange isn't right here — budget_extensions has no status
+  // column, so an "active → deleted" transition would imply a field that
+  // doesn't exist.)
+  await db.insert(changeHistory).values({
+    entityType: "budget_extension",
+    entityId: existing.id,
+    changeType: "deleted",
+    previousValue: JSON.stringify({
+      budgetId: existing.budgetId,
+      amountCents: existing.amountCents,
+      reason: existing.reason,
+      description: existing.description,
+      category: existing.category,
+      linkedToolId: existing.linkedToolId,
+      effectiveDate: existing.effectiveDate,
+      allocations: existing.allocations.map((a) => ({
+        periodId: a.periodId,
+        amountCents: a.amountCents,
+      })),
+    }),
+    changedBy: Number(admin.id),
+  });
 
   revalidatePath("/");
   revalidatePath("/budget");

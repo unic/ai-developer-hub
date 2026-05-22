@@ -13,6 +13,15 @@ import {
 import { formatCurrency, formatVariance } from "@/lib/utils";
 import type { BudgetExtensionWithAllocations } from "@/types";
 
+function summarizeReversal(extension: BudgetExtensionWithAllocations): string {
+  if (extension.allocations.length === 0) return "no per-period allocations";
+  // Render allocation magnitudes as positive amounts; the wording above the
+  // list says whether they'll be added back or subtracted.
+  return extension.allocations
+    .map((a) => formatCurrency(Math.abs(a.amountCents)))
+    .join(", ");
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,17 +46,19 @@ export function DeleteExtensionDialog({
             {extension ? (
               <>
                 This will reverse the{" "}
-                <strong>{formatVariance(extension.amountCents)}</strong> change to
-                the annual ceiling and undo the per-period allocations attached
-                to{" "}
+                <strong>{formatVariance(extension.amountCents)}</strong> change
+                to the annual ceiling and undo the per-period allocations
+                attached to{" "}
                 <em className="not-italic font-medium">
                   &ldquo;{extension.reason}&rdquo;
                 </em>
-                . Affected periods will be reduced by{" "}
-                {extension.allocations
-                  .map((a) => formatCurrency(a.amountCents))
-                  .join(", ") || "no per-period allocations"}
-                . This action cannot be undone.
+                .{" "}
+                {extension.allocations.length === 0
+                  ? "No per-period allocations to revert."
+                  : extension.amountCents > 0
+                    ? `Affected periods will be reduced by ${summarizeReversal(extension)}.`
+                    : `Affected periods will be increased by ${summarizeReversal(extension)}.`}{" "}
+                This action cannot be undone.
               </>
             ) : (
               "Loading…"

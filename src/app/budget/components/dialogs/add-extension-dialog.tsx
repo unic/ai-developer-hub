@@ -23,6 +23,8 @@ import { formatCurrency } from "@/lib/utils";
 import type { AiTool, BudgetWithCosts } from "@/types";
 import {
   CATEGORY_OPTIONS,
+  parseExtensionCents,
+  previewDistributeRemaining,
   type AllocationMode,
   type ExtensionFormState,
 } from "./extension-form";
@@ -79,28 +81,29 @@ export function AddExtensionDialog({
     value: ExtensionFormState[K]
   ) => onFormChange({ ...form, [key]: value });
 
-  // Live preview of the effect on the budget
-  const signedCents = (() => {
-    const parsed = parseFloat(form.amountDollars);
-    if (isNaN(parsed) || parsed <= 0) return 0;
-    return Math.round(parsed * 100) * (form.sign === "-" ? -1 : 1);
-  })();
+  // Live preview uses the same parsing as the submit path (parseExtensionCents)
+  // so the preview can never accept a value the server will reject.
+  const parsedPreview = parseExtensionCents(form);
+  const signedCents = parsedPreview.ok ? parsedPreview.cents : 0;
   const nextCeiling = budget.totalAmountCents + signedCents;
   const currentAllocations = budget.periods.reduce(
     (s, p) => s + p.plannedAmountCents,
     0
   );
 
-  // Distribute-remaining math for the preview blurb
+  // Mirror the server's distribute_remaining math (resolveAllocations) so the
+  // preview blurb reflects the actual per-period write — including the remainder
+  // dumped onto the first period when the amount doesn't divide evenly.
   const remainingPeriods = budget.periods.filter(
     (p) => p.endDate >= form.effectiveDate
   );
-  const distributeTargetCount =
-    remainingPeriods.length > 0 ? remainingPeriods.length : budget.periods.length;
-  const perPeriod =
+  const distributeTargets =
+    remainingPeriods.length > 0 ? remainingPeriods : budget.periods;
+  const distributeTargetCount = distributeTargets.length;
+  const dist =
     form.allocationMode === "distribute_remaining" && signedCents !== 0
-      ? Math.trunc(signedCents / Math.max(distributeTargetCount, 1))
-      : 0;
+      ? previewDistributeRemaining(signedCents, distributeTargetCount)
+      : null;
 
   const submitDisabled =
     saving ||
@@ -265,9 +268,16 @@ export function AddExtensionDialog({
                     <div className="text-sm font-medium">{opt.label}</div>
                     <div className="text-xs text-muted-foreground">
                       {opt.description}
-                      {opt.value === "distribute_remaining" &&
-                        signedCents !== 0 &&
-                        ` (${distributeTargetCount} periods × ${formatCurrency(perPeriod)})`}
+                      {opt.value === "distribute_remaining" && dist && (
+                        <>
+                          {" "}
+                          (
+                          {dist.remainder === 0
+                            ? `${distributeTargetCount} periods × ${formatCurrency(dist.perPeriod)}`
+                            : `${distributeTargetCount - 1} × ${formatCurrency(dist.perPeriod)} + ${formatCurrency(dist.firstPeriod)} to the first period`}
+                          )
+                        </>
+                      )}
                     </div>
                   </div>
                 </label>
