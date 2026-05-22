@@ -1,6 +1,6 @@
 {
-  "id": "75224b1d-f37d-4283-8b4d-6fd85c802ec5",
-  "prevId": "f0ad84b9-a6bf-4b2b-8958-3cc146f276bc",
+  "id": "a9298155-c5c5-42ac-9ab0-3f67e0cd6c9f",
+  "prevId": "75224b1d-f37d-4283-8b4d-6fd85c802ec5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1794,6 +1794,30 @@
         },
         "editor_breakdown": {
           "name": "editor_breakdown",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "used_cli": {
+          "name": "used_cli",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "used_agent": {
+          "name": "used_agent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_edit_count": {
+          "name": "agent_edit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cli_breakdown": {
+          "name": "cli_breakdown",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false

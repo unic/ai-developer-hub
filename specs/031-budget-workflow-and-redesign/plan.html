@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>031 — Budget Workflow & Detail Redesign · Implementation plan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: {
+        brand: { 300:"#c4dc52", 400:"#a4c400", 500:"#8aa700" },
+        ink: { 700:"#1f1f22", 800:"#18181b", 900:"#101012", 950:"#09090b" },
+      } } },
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #09090b; color: #e4e4e7; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+    .prose-spec { max-width: 1280px; }
+    .prose-spec h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+    .prose-spec h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2.5rem; margin-bottom: 0.5rem; letter-spacing: -0.01em; color: #fafafa; }
+    .prose-spec h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.4rem; color: #fafafa; }
+    .prose-spec h4 { font-size: 0.92rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.3rem; color: #e4e4e7; }
+    .prose-spec p { color: #a1a1aa; line-height: 1.6; }
+    .prose-spec li { color: #a1a1aa; line-height: 1.55; margin: 0.18rem 0; }
+    .prose-spec strong { color: #fafafa; font-weight: 600; }
+    .prose-spec em { color: #d4d4d8; font-style: italic; }
+    .prose-spec code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(63,63,70,0.5); color: #e4e4e7; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+    .prose-spec a { color: #c4dc52; text-decoration: none; border-bottom: 1px dotted rgba(196,220,82,0.4); }
+    .prose-spec a:hover { color: #a4c400; }
+    .prose-spec ul { padding-left: 1.25rem; list-style: disc; }
+    .prose-spec ol { padding-left: 1.4rem; }
+    .prose-spec table { width: 100%; border-collapse: collapse; margin-top: 0.6rem; font-size: 13px; }
+    .prose-spec th, .prose-spec td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(63,63,70,0.55); vertical-align: top; }
+    .prose-spec th { color: #fafafa; font-weight: 600; background: rgba(24,24,27,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .prose-spec td { color: #d4d4d8; }
+    .card { background: rgba(24,24,27,0.65); border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; }
+    .grid-bg {
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(164,196,0,0.06), transparent 60%),
+        radial-gradient(800px 500px at 100% 0%, rgba(124,158,255,0.03), transparent 60%),
+        #09090b;
+    }
+    .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:500; line-height: 18px; vertical-align: middle; }
+    .tag-reuse  { background: rgba(164,196,0,0.15); color:#c4dc52; }
+    .tag-extract{ background: rgba(250,204,21,0.12); color:#fde68a; }
+    .tag-new    { background: rgba(124,158,255,0.15); color:#a5b4fc; }
+    .tag-variant{ background: rgba(240,171,252,0.18); color:#f0abfc; }
+    .tag-drop   { background: rgba(113,113,122,0.25); color:#a1a1aa; text-decoration: line-through; }
+    .tag-edit   { background: rgba(250,204,21,0.12); color:#fde68a; }
+    .tag-add    { background: rgba(124,158,255,0.15); color:#a5b4fc; }
+    .tag-move   { background: rgba(196,220,82,0.18); color:#c4dc52; }
+    .tag-keep   { background: rgba(74,222,128,0.12); color:#86efac; }
+    .tag-del    { background: rgba(248,113,113,0.12); color:#fca5a5; }
+    .callout { border-left: 3px solid #a4c400; background: rgba(164,196,0,0.06); padding: 0.85rem 1rem; border-radius: 0 8px 8px 0; }
+    .callout-warn { border-left-color: #facc15; background: rgba(250,204,21,0.06); }
+    .callout-info { border-left-color: #7c9eff; background: rgba(124,158,255,0.06); }
+    .callout p { color: #e4e4e7; margin: 0; }
+    .phase-card { border: 1px solid rgba(63,63,70,0.55); border-radius: 12px; padding: 1rem 1.25rem; background: rgba(24,24,27,0.5); margin-top: 0.75rem; }
+    .phase-card h3 { margin-top: 0; }
+    .check { color: #4ade80; }
+    .file { font-family: ui-monospace, monospace; font-size: 12.5px; color: #c4dc52; }
+    .stat { font-variant-numeric: tabular-nums; }
+    .legend { display:flex; gap:.75rem; flex-wrap:wrap; font-size: 11.5px; color: #a1a1aa; }
+    .legend > span { display:inline-flex; align-items:center; gap:6px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; font-size:11px; background: rgba(164,196,0,0.12); color:#c4dc52; border: 1px solid rgba(164,196,0,0.25); }
+    .step-num { display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center; border-radius:6px; background: rgba(164,196,0,0.15); color:#c4dc52; font-size: 12px; font-weight: 600; margin-right: 8px; }
+    .verify { color: #86efac; font-size: 12.5px; }
+    .verify::before { content: "verify · "; color: #4ade80; font-weight: 600; }
+  </style>
+</head>
+<body class="grid-bg antialiased">
+  <div class="mx-auto px-6 lg:px-10 py-10 prose-spec">
+
+    <!-- ============================== -->
+    <!-- 1. HEADER STRIP                -->
+    <!-- ============================== -->
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div class="text-xs uppercase tracking-[0.18em] text-zinc-500">Spec 031 · Implementation plan · detail</div>
+        <h1 class="mt-1">Budget Workflow &amp; Detail Redesign</h1>
+        <p class="mt-2 text-zinc-400 max-w-2xl">
+          Land <code>/budget</code> on the active fiscal year directly, move the all-budgets list to
+          <code>/budget/history</code>, and replace the five flat KPI tiles with a budget-health hero plus
+          a past-month spotlight. Visual only on the detail page — every server action and dialog keeps
+          its current behaviour.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="pill">Single PR</span>
+        <span class="pill">No schema changes</span>
+        <span class="pill">2026-05-21</span>
+      </div>
+    </div>
+
+    <!-- Links -->
+    <div class="mt-6 grid gap-3 sm:grid-cols-2">
+      <a href="README.md" class="card p-3 hover:border-brand-400/40 transition flex items-center justify-between">
+        <span class="text-sm font-medium text-zinc-100">README.md</span>
+        <span class="text-[11px] text-zinc-500">spec &amp; rationale</span>
+      </a>
+      <a href="detail-mock.html" class="card p-3 hover:border-brand-400/40 transition flex items-center justify-between">
+        <span class="text-sm font-medium text-zinc-100">detail-mock.html</span>
+        <span class="text-[11px] text-zinc-500">visual reference</span>
+      </a>
+    </div>
+
+    <!-- ============================== -->
+    <!-- 2. OVERVIEW                    -->
+    <!-- ============================== -->
+    <h2>Overview</h2>
+    <p>
+      Two changes ship together: a <strong>workflow change</strong> (the sidebar "Budget" lands on the active FY
+      detail view; the all-budgets list moves to <code>/budget/history</code>) and a <strong>visual redesign</strong>
+      of the detail view (hero replaces the KPI strip, a past-month spotlight pulls one closed period forward,
+      the periods table gets a current-month accent and stronger over/under cues).
+    </p>
+    <p>
+      Effort is concentrated in <strong>refactoring</strong> the 813-line <code>BudgetDetailClient</code> into
+      composable sections — the dialogs, the period table, the hero. Every server action stays as-is; every
+      Drizzle query stays as-is. Two existing assets unlock most of the visual work: the at-a-glance card
+      already carries the multi-marker progress logic, and a <code>PastMonthSpotlight</code> component already
+      exists under <code>reports/budget/</code>. Total budget: <strong>M</strong> — call it 2 dev-days of careful
+      work, mostly reorg and styling.
+    </p>
+
+    <div class="callout-warn callout mt-4">
+      <p>
+        <strong>Dropped from the README:</strong> the per-tool spending breakdown (<code>ToolShareBreakdown</code>
+        / <code>Per-Tool Spending</code>) is <strong>not</strong> in this plan. The mockup is being edited in
+        parallel to remove it. <code>getPerToolSpend()</code> stays in <code>src/actions/budget.ts</code> for the
+        Reports page; we simply stop calling it from <code>/budget/[id]/page.tsx</code>.
+      </p>
+    </div>
+
+    <!-- ============================== -->
+    <!-- 3. REUSE AUDIT                 -->
+    <!-- ============================== -->
+    <h2>Reuse audit</h2>
+    <p>
+      The heart of the plan. Each row of the new design maps to either an existing asset or — only when no
+      existing asset fits — a new file. Verdict column is honest: <em>reuse</em>, <em>extract</em>, <em>variant of X</em>,
+      or <em>new</em>.
+    </p>
+
+    <div class="legend mt-2">
+      <span><span class="tag tag-reuse">reuse</span>existing file imported as-is</span>
+      <span><span class="tag tag-extract">extract</span>lift code out of an existing file into a sibling</span>
+      <span><span class="tag tag-variant">variant</span>copy-and-adapt an existing component</span>
+      <span><span class="tag tag-new">new</span>net-new component</span>
+    </div>
+
+    <table class="mt-3">
+      <thead>
+        <tr>
+          <th style="width: 22%">Need</th>
+          <th style="width: 32%">Existing asset</th>
+          <th style="width: 12%">Verdict</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Active-budget data fetch</td>
+          <td><code>getActiveBudget()</code> + <code>getBudgetWithCosts()</code> in <span class="file">src/actions/budget.ts</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>Both are already used by today's <code>/budget/page.tsx</code> (lines 26-34) and <code>/budget/[id]/page.tsx</code>. No signature change.</td>
+        </tr>
+        <tr>
+          <td>Per-period Anthropic running costs</td>
+          <td><code>getRunningCostsForPeriod()</code> in <span class="file">src/lib/budget-utils.ts</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>Already returns <code>workspaceBreakdown</code> when more than one workspace is present — the indented "ws-row" markup in the mock is just rendering this existing shape.</td>
+        </tr>
+        <tr>
+          <td>Currency / date / variance formatting</td>
+          <td><code>formatCurrency</code>, <code>formatDate</code>, <code>formatDateTime</code>, <code>formatVariance</code>, <code>varianceClassName</code> in <span class="file">src/lib/utils.ts</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>All five already imported by <code>BudgetDetailClient</code>. Keep as-is.</td>
+        </tr>
+        <tr>
+          <td>Budget Health Hero — base component</td>
+          <td>
+            Three candidates exist:<br>
+            (a) <span class="file">src/components/reports/overview/budget-health-hero.tsx</span> — narrative card, no progress bar<br>
+            (b) <span class="file">src/components/shared/budget-health-hero.tsx</span> — re-export of (a)<br>
+            (c) <span class="file">src/components/dashboard/admin/budget-hero-section.tsx</span> — (a) + a <code>SpendProgressBar</code><br>
+            (d) <span class="file">src/components/reports/budget/at-a-glance.tsx</span> — full hero with bar + 4 stat tiles
+          </td>
+          <td><span class="tag tag-variant">variant</span></td>
+          <td>
+            <strong>Decision:</strong> none of (a)-(d) fit verbatim. (d) is closest — it already renders ceiling + actual YTD + projection + stat tiles, but its prop shape (<code>BudgetForecast</code>) comes from the Reports pipeline which the budget page doesn't compute. (a)/(b)/(c) all link to <code>/reports/budget</code> as a CTA, which is wrong here (we <em>are</em> the budget page).<br><br>
+            Build a new <span class="file">src/app/budget/components/budget-health-hero.tsx</span> as a <strong>variant of (d)</strong>: same multi-marker bar idea + 4-stat strip, but accepts the raw <code>BudgetWithCosts</code> + <code>runningCosts</code> the detail page already has, and computes planned-YTD / expected-YTD / actual-YTD inline. ~120 lines, no new server action.
+          </td>
+        </tr>
+        <tr>
+          <td>Multi-marker progress bar</td>
+          <td><code>SpendProgressBar</code> in <span class="file">src/components/shared/spend-progress-bar.tsx</span></td>
+          <td><span class="tag tag-variant">variant</span></td>
+          <td>
+            The shared bar renders <em>actual + ceiling tick + projected overage</em> — two markers. The mock needs
+            <em>actual fill + planned-YTD marker + expected-YTD marker + unallocated buffer + ceiling tick</em> — five layers.
+            Inline the multi-marker markup directly inside <code>BudgetHealthHero</code> (mockup lines 230-275 are
+            ready-to-port). Don't generalize the shared bar — Reports doesn't need this complexity.
+          </td>
+        </tr>
+        <tr>
+          <td>Past-month spotlight</td>
+          <td><span class="file">src/components/reports/budget/past-month-spotlight.tsx</span></td>
+          <td><span class="tag tag-variant">variant</span></td>
+          <td>
+            A spotlight component <em>already exists</em> but takes <code>BudgetReportPastMonth</code> (a Reports-specific
+            type with pre-computed drivers). For the budget detail page we have <code>BudgetWithCosts</code> only —
+            no driver list, no priorPeriodLabel. Build <span class="file">src/app/budget/components/past-month-spotlight.tsx</span>
+            with a smaller prop shape: <code>{ period, planned, expected, billed, running }</code>. The "most recent completed
+            period" rule: <code>period.endDate &lt; today AND (billed &gt; 0 OR running &gt; 0)</code>, pick the latest by <code>endDate</code>.
+            Visually it's the warn-tinted card from mockup lines 308-352 with 4 stat tiles. ~80 lines.
+          </td>
+        </tr>
+        <tr>
+          <td>Status pill (on-track / at-risk / over)</td>
+          <td><span class="file">src/components/ui/badge.tsx</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>
+            <code>&lt;Badge variant="default|destructive|secondary"&gt;</code> covers the three states. No new
+            <em>budget-status</em> helper exists in the codebase (grep returns nothing). Thresholds live inline in
+            <code>BudgetHealthHero</code>: <code>actual &gt; expected × 1.05</code> = over · <code>0.95 ≤ ratio ≤ 1.05</code> =
+            on-track · otherwise tracking. <strong>TBD:</strong> confirm these percentages with the spec (see Risks).
+          </td>
+        </tr>
+        <tr>
+          <td>Breadcrumb</td>
+          <td><span class="file">src/components/ui/breadcrumb.tsx</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>shadcn breadcrumb is installed. Use it for <code>Budget&nbsp;/&nbsp;FY 2026</code> on the detail view; the first segment links to <code>/budget/history</code>.</td>
+        </tr>
+        <tr>
+          <td>All-budgets table (history page)</td>
+          <td><span class="file">src/app/budget/budget-table.tsx</span> + <span class="file">src/app/budget/budget-list-actions.tsx</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>Used verbatim. Render under an <code>&lt;h1&gt;Budget history&lt;/h1&gt;</code> on the new <code>/budget/history</code> route. <strong>No changes to either file.</strong></td>
+        </tr>
+        <tr>
+          <td>Period allocations table (incl. expand, inline edit, billed-cost rows, running API, workspace breakdown)</td>
+          <td>Currently inline in <span class="file">src/app/budget/[id]/budget-detail-client.tsx</span> (lines 318-572)</td>
+          <td><span class="tag tag-extract">extract</span></td>
+          <td>
+            Pull out as <span class="file">src/app/budget/components/period-allocations-table.tsx</span>. Functionality preserved
+            verbatim: row expansion (<code>expandedPeriods</code> set), inline allocation edit (<code>Input type="number"</code>),
+            billed-cost child rows with edit/delete, running-API row (cyan), per-workspace breakdown rows, "Add billed cost"
+            <code>+</code> button, YTD total row, admin/archived guards. Styling layer adds: <code>current</code> row class
+            (primary-color left edge), <code>future</code> row class (muted text), <code>over</code>/<code>under</code> row backgrounds.
+            Pure CSS — no logic change.
+          </td>
+        </tr>
+        <tr>
+          <td>Add billed-cost dialog</td>
+          <td>Inline in <code>BudgetDetailClient</code> (lines 612-697)</td>
+          <td><span class="tag tag-extract">extract</span></td>
+          <td>Move to <span class="file">src/app/budget/components/dialogs/add-billed-cost-dialog.tsx</span>. Same form state, same <code>createBilledCost</code> call, same validation. Lifted state stays in the parent client.</td>
+        </tr>
+        <tr>
+          <td>Edit billed-cost dialog</td>
+          <td>Inline in <code>BudgetDetailClient</code> (lines 700-783)</td>
+          <td><span class="tag tag-extract">extract</span></td>
+          <td>Move to <span class="file">src/app/budget/components/dialogs/edit-billed-cost-dialog.tsx</span>. Same shape as Add but pre-populated.</td>
+        </tr>
+        <tr>
+          <td>Delete billed-cost confirmation</td>
+          <td>Inline in <code>BudgetDetailClient</code> (lines 785-810)</td>
+          <td><span class="tag tag-extract">extract</span></td>
+          <td>Move to <span class="file">src/app/budget/components/dialogs/delete-billed-cost-dialog.tsx</span>. Same <code>AlertDialog</code> + <code>deleteBilledCost</code> call.</td>
+        </tr>
+        <tr>
+          <td>Server actions (createBilledCost, updateBilledCost, deleteBilledCost, updateBudgetAllocations)</td>
+          <td><span class="file">src/actions/budget.ts</span></td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>Zero signature changes. Zero new actions.</td>
+        </tr>
+        <tr>
+          <td>Empty state ("no active budget" on <code>/budget</code>)</td>
+          <td>None — the current empty state is a 4-line <code>Card</code></td>
+          <td><span class="tag tag-new">new</span></td>
+          <td>
+            Small block inline in <code>src/app/budget/page.tsx</code>. Two CTAs: "Create Annual Budget" (admin-only, gated)
+            and "View past budgets →" linking to <code>/budget/history</code>. Reuses existing <code>Card</code> / <code>Button</code>
+            primitives. ~25 lines of markup.
+          </td>
+        </tr>
+        <tr>
+          <td>Sidebar entry</td>
+          <td><span class="file">src/components/app-sidebar.tsx</span> line 55</td>
+          <td><span class="tag tag-reuse">reuse</span></td>
+          <td>Unchanged. <code>Budget → /budget</code> still works; the destination just renders the detail view directly now.</td>
+        </tr>
+        <tr>
+          <td>Per-tool spending breakdown</td>
+          <td><code>getPerToolSpend</code> + the share-list markup in <code>BudgetDetailClient</code> lines 574-609</td>
+          <td><span class="tag tag-drop">drop</span></td>
+          <td>Out of scope (see Overview callout). Delete the <code>toolBreakdown</code> prop and the <code>getPerToolSpend</code> call from <code>/budget/[id]/page.tsx</code>. <code>getPerToolSpend</code> itself stays in <code>src/actions/budget.ts</code> — Reports still uses it.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ============================== -->
+    <!-- 4. FILE-BY-FILE CHANGE LIST    -->
+    <!-- ============================== -->
+    <h2>File-by-file change list</h2>
+    <p>
+      Every file in the blast radius, including unchanged-but-relevant ones so a reviewer can see exactly
+      what's <em>not</em> touched. Action column uses one of <span class="tag tag-edit">edit</span>
+      <span class="tag tag-add">add</span> <span class="tag tag-move">move</span>
+      <span class="tag tag-del">delete</span> <span class="tag tag-keep">unchanged</span>.
+    </p>
+
+    <table class="mt-3">
+      <thead>
+        <tr>
+          <th style="width: 42%">Path</th>
+          <th style="width: 10%">Action</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file">src/app/budget/page.tsx</span></td>
+          <td><span class="tag tag-edit">edit</span></td>
+          <td>
+            Replace contents. Server component that fetches <code>getActiveBudget()</code>, then if found
+            <code>getBudgetWithCosts(active.id)</code> + per-period running costs, then renders the shared
+            <code>BudgetDetailClient</code>. If no active budget: render empty state with two CTAs.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/[id]/page.tsx</span></td>
+          <td><span class="tag tag-edit">edit</span></td>
+          <td>
+            Slim down: drop the <code>getPerToolSpend</code> call and the <code>toolBreakdown</code> prop. Keep the rest
+            (fetch <code>BudgetWithCosts</code> by id, fetch running costs, render <code>BudgetDetailClient</code>, wrap in
+            <code>AuthGuard requiredRole="admin"</code>).
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/[id]/budget-detail-client.tsx</span></td>
+          <td><span class="tag tag-edit">edit</span></td>
+          <td>
+            Refactor: composes <code>BudgetHealthHero</code>, <code>PastMonthSpotlight</code>, <code>PeriodAllocationsTable</code>,
+            and the three dialogs. Keeps the dialog open/close + form state at this level (the extracted dialogs are
+            controlled). Loses the <code>toolBreakdown</code> prop and the share-list JSX. Target size: ~250 lines, down from 813.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/components/budget-health-hero.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>
+            Client component. Takes <code>{ budget: BudgetWithCosts, runningCosts: Record&lt;number, RunningCostData&gt; }</code>.
+            Renders the breadcrumb, FY title, status badge, narrative line, multi-marker progress bar, and
+            4-stat strip (YTD billed / May running / Projected year-end / Variance vs expected). Inline thresholds for status.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/components/past-month-spotlight.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>
+            Server component (pure render). Takes the resolved past-month period + computed planned/expected/billed/running.
+            Renders the warn/danger-tinted card with 4 small stat tiles. Hides itself when no completed period exists yet.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/components/period-allocations-table.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>
+            Client component (uses local state for expansion + allocation input). Receives <code>periods</code>,
+            <code>runningCosts</code>, <code>allocations</code> + <code>setAllocations</code>, <code>isAdmin</code>, <code>isArchived</code>,
+            and four callbacks (<code>onAddBilledCost</code>, <code>onEditBilledCost</code>, <code>onDeleteBilledCost</code>,
+            <code>onSaveAllocations</code>). All existing rows: period row, expanded billed-cost children, running API row, ws-rows,
+            YTD total, "Save Allocations" row.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/components/dialogs/add-billed-cost-dialog.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>Extracted from lines 612-697 of the current client. No behaviour change.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/components/dialogs/edit-billed-cost-dialog.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>Extracted from lines 700-783. No behaviour change.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/components/dialogs/delete-billed-cost-dialog.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>Extracted from lines 785-810. No behaviour change.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/history/page.tsx</span></td>
+          <td><span class="tag tag-add">add</span></td>
+          <td>
+            Server component. Fetches <code>getBudgets()</code>, renders <code>&lt;h1&gt;Budget history&lt;/h1&gt;</code> +
+            <code>&lt;BudgetTable data={allBudgets} /&gt;</code>. Wrapped in <code>AuthGuard requiredRole="admin"</code>.
+            ~25 lines.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/budget-table.tsx</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Imported from the new history page. File location stays — the import path moves from <code>/budget/page.tsx</code> to <code>/budget/history/page.tsx</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/app/budget/budget-list-actions.tsx</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Imported transitively via <code>BudgetTable</code>. Still works.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/components/app-sidebar.tsx</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Line 55: <code>{ title: "Budget", href: "/budget", roles: ["admin"] }</code> — exactly right.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/actions/budget.ts</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Zero changes. <code>getPerToolSpend</code> stays exported (Reports still calls it).</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/lib/budget-utils.ts</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td><code>getRunningCostsForPeriod</code> and <code>findActivePeriodForDate</code> both stay as-is.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/lib/utils.ts</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Formatters reused.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/components/ui/breadcrumb.tsx</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>shadcn breadcrumb — exists, imported by the new hero.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/components/shared/spend-progress-bar.tsx</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Not used here — Reports keeps it. The new hero inlines a different multi-marker bar.</td>
+        </tr>
+        <tr>
+          <td><span class="file">src/components/reports/budget/past-month-spotlight.tsx</span></td>
+          <td><span class="tag tag-keep">unchanged</span></td>
+          <td>Stays where it is, scoped to Reports. The new budget-page spotlight is a separate sibling with a simpler prop shape.</td>
+        </tr>
+        <tr>
+          <td><span class="file">tests/e2e/budget-period-running-costs.spec.ts</span></td>
+          <td><span class="tag tag-edit">edit</span></td>
+          <td>
+            The second test asserts <code>"Billed"</code> is visible on <code>/budget</code>. After this change <code>/budget</code>
+            is the detail view, which uses different copy ("YTD billed" / "Actual"). Update the assertion or remove the test.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ============================== -->
+    <!-- 5. IMPLEMENTATION STEPS        -->
+    <!-- ============================== -->
+    <h2>Implementation steps (ordered)</h2>
+    <p>
+      Twelve steps, ordered so that every interim commit typechecks and the app still runs. The refactor
+      lands before the visuals so behaviour stays stable through the redesign.
+    </p>
+
+    <ol class="space-y-3 mt-3" style="list-style:none; padding-left:0;">
+
+      <li class="phase-card">
+        <h3><span class="step-num">1</span>Extract the three billed-cost dialogs into siblings</h3>
+        <p>
+          Move the Add / Edit / Delete dialog markup from <code>BudgetDetailClient</code> into the three new files
+          under <span class="file">src/app/budget/components/dialogs/</span>. Each is a controlled component:
+          props are <code>open</code>, <code>onOpenChange</code>, the form state, and the submit handler. The parent
+          keeps owning the state.
+        </p>
+        <p class="verify">Detail page renders identically; opening / submitting / cancelling each dialog still works against the real DB.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">2</span>Extract the period allocations table</h3>
+        <p>
+          Move the <code>&lt;Table&gt;</code> + row mapping + expansion logic + "Save Allocations" row out of
+          <code>BudgetDetailClient</code> into <span class="file">src/app/budget/components/period-allocations-table.tsx</span>.
+          State stays exactly where it is today. Pure reorganisation.
+        </p>
+        <p class="verify"><code>pnpm typecheck</code> + <code>pnpm lint</code> clean. Manually: expand a row, edit allocation, save, add billed cost, edit, delete — all still work.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">3</span>Build <code>BudgetHealthHero</code></h3>
+        <p>
+          Add <span class="file">src/app/budget/components/budget-health-hero.tsx</span>. Inline the multi-marker
+          progress bar markup from mockup lines 230-275 (the percentage math is straightforward: planned-YTD,
+          expected-YTD, actual-YTD, all divided by <code>budget.totalAmountCents</code>). 4-stat strip below. Status
+          badge with the inline thresholds called out in the Reuse Audit. Narrative sentence stays as plain prose with
+          formatted dollar values inserted via <code>formatCurrency</code>.
+        </p>
+        <p class="verify">Hero renders the same totals shown by the current KPI strip. Compare side-by-side in the browser.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">4</span>Build <code>PastMonthSpotlight</code></h3>
+        <p>
+          Add <span class="file">src/app/budget/components/past-month-spotlight.tsx</span>. Resolve the spotlight
+          period server-side in <code>BudgetDetailClient</code> (or in the parent server page; either works) using the
+          rule from the Reuse Audit. Render the 4 stat tiles + a "Jump to {month} row" link with a fragment hash.
+          Hide the section entirely when no completed period exists.
+        </p>
+        <p class="verify">For an FY where ≥1 period has billed costs and <code>endDate &lt; today</code>, the spotlight appears and the "jump" link scrolls to the correct row.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">5</span>Restyle <code>PeriodAllocationsTable</code></h3>
+        <p>
+          Apply the visual rules from the mockup: a class <code>current</code> on the row whose
+          <code>startDate ≤ today ≤ endDate</code> (primary-color left accent + "Current" chip in the period label);
+          <code>future</code> class for rows with <code>startDate &gt; today</code> (muted text, no expand affordance,
+          em-dash placeholders); <code>over</code> / <code>under</code> background tints driven by the existing
+          <code>variance</code> calculation (over: <code>variance &gt; expected × 0.05</code>, under: &lt; <code>−5%</code>).
+          The cyan "Anthropic API (running)" row gets a subtler background plus a small <em>live</em> chip.
+        </p>
+        <p class="verify">Open a budget with Jan/Feb under, Mar over, May current — visually distinct without reading numbers.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">6</span>Add breadcrumb + "All budgets →" link to the detail view</h3>
+        <p>
+          Mount the shadcn <code>Breadcrumb</code> above the page H1: <code>Budget&nbsp;/&nbsp;FY {fiscalYear}</code>
+          where the first segment links to <code>/budget/history</code>. Add a subtle "All budgets →" link in the
+          right-hand header next to the status pill, also pointing at <code>/budget/history</code>. Keep the "New Budget" admin button.
+        </p>
+        <p class="verify">From the detail view, both breadcrumb and "All budgets" link land on a working <code>/budget/history</code> route (created in step 7).</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">7</span>Add the <code>/budget/history</code> route</h3>
+        <p>
+          Create <span class="file">src/app/budget/history/page.tsx</span>. Server component, <code>AuthGuard requiredRole="admin"</code>,
+          fetches <code>getBudgets()</code>, renders <code>BudgetTable</code> under an H1. Add a small "Back to active budget" link
+          above the H1 pointing at <code>/budget</code>.
+        </p>
+        <p class="verify">From <code>/budget/history</code>: row links jump to <code>/budget/[id]</code>, the archive flow still works, the "Back to active budget" link returns to <code>/budget</code>.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">8</span>Replace <code>/budget/page.tsx</code> with the active-budget renderer</h3>
+        <p>
+          Rewrite the contents: fetch <code>getActiveBudget()</code>; if present, fetch <code>getBudgetWithCosts</code>
+          + per-period running costs and render the same <code>&lt;BudgetDetailClient&gt;</code> the <code>[id]</code> page uses;
+          if absent, render the empty state with "Create Annual Budget" (admin) and "View past budgets →" links.
+        </p>
+        <p class="verify">Sidebar Budget → lands directly on the active FY view (no intermediate summary card). For a fresh database with no budgets, the empty state shows both CTAs.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">9</span>Drop <code>toolBreakdown</code> from <code>/budget/[id]/page.tsx</code></h3>
+        <p>
+          Remove the <code>getPerToolSpend</code> call, the <code>toolBreakdown</code> variable, and the prop on
+          <code>BudgetDetailClient</code>. Delete the per-tool share-list JSX in the client. <code>getPerToolSpend</code>
+          itself stays exported — Reports still imports it.
+        </p>
+        <p class="verify">Detail page no longer renders the "Per-Tool Spending Breakdown" card. Reports page (<code>/reports</code>) still shows its per-tool table — confirms the action is intact.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">10</span>Edge-case sweep</h3>
+        <p>
+          Walk through each scenario in dev:
+        </p>
+        <ul>
+          <li><strong>No active budget, no archived:</strong> <code>/budget</code> empty state, "Create" CTA only, "View past budgets →" still shown but <code>/budget/history</code> is also empty.</li>
+          <li><strong>Active FY only (no history):</strong> <code>/budget/history</code> shows the one active row.</li>
+          <li><strong>Archived FY's only (no active):</strong> <code>/budget</code> empty state, "View past budgets →" leads to populated history.</li>
+          <li><strong>Single budget overall:</strong> matches today's behaviour where the all-budgets card was hidden.</li>
+          <li><strong>Viewer role:</strong> sidebar entry already admin-gated; direct navigation to <code>/budget</code> hits <code>AuthGuard</code>.</li>
+          <li><strong>Archived budget detail:</strong> dialogs and allocation input disabled (same <code>isArchived</code> guard).</li>
+        </ul>
+        <p class="verify">All six paths render without console errors.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">11</span>Update tests</h3>
+        <p>
+          Run <code>pnpm test</code>, <code>pnpm test:integration</code>, <code>pnpm test:e2e</code>. Fix
+          <span class="file">tests/e2e/budget-period-running-costs.spec.ts</span> (the "Billed" assertion on <code>/budget</code> no
+          longer holds). Add no new tests unless an existing one fails to assert the new behaviour.
+        </p>
+        <p class="verify">All three test suites green.</p>
+      </li>
+
+      <li class="phase-card">
+        <h3><span class="step-num">12</span>Browser smoke</h3>
+        <p>
+          <code>pnpm dev</code> → log in as the seeded admin agent (or use the agent-browser-session skill) →
+          click "Budget" in the sidebar → confirm the new layout → expand a period → edit a planned allocation → save →
+          add a billed cost → edit it → delete it → click "All budgets →" → confirm history page → click into an archived
+          FY → confirm it's read-only with the new visuals → use the breadcrumb to return to history → "Back to active
+          budget" to <code>/budget</code>.
+        </p>
+        <p class="verify">All twelve actions succeed without page reloads or errors. Screenshot for the PR.</p>
+      </li>
+
+    </ol>
+
+    <!-- ============================== -->
+    <!-- 6. TEST PLAN                   -->
+    <!-- ============================== -->
+    <h2>Test plan</h2>
+    <p>
+      Tight scope — there are no new actions, so no new unit tests are needed. The bulk of the validation is
+      manual + the existing e2e suite, with one small fix.
+    </p>
+    <ul>
+      <li>
+        <strong>Existing unit tests stay untouched.</strong>
+        <code>grep "budget" tests/ -l</code> returns:
+        <span class="file">tests/unit/reports/insights-static.test.ts</span>,
+        <span class="file">tests/unit/invoice-sync.test.ts</span>,
+        <span class="file">tests/unit/forecast.test.ts</span>,
+        <span class="file">tests/unit/actions/running-costs.test.ts</span>,
+        <span class="file">tests/integration/invoice-sync.test.ts</span>. None of these touch <code>/budget</code> routes; all should pass unchanged.
+      </li>
+      <li>
+        <strong>E2E fix:</strong> <span class="file">tests/e2e/budget-period-running-costs.spec.ts</span> — the
+        second test (<code>"budget overview shows Billed or Actual label for cost summary"</code>) navigates to
+        <code>/budget</code> and asserts <code>"Billed"</code> is visible. Post-change the budget index is the detail
+        view, which uses "YTD billed" inside the hero. Either update the regex (<code>/Billed|Actual/</code>) or
+        replace the assertion with a structural check (the periods table is rendered).
+      </li>
+      <li>
+        <strong>E2E fix:</strong> in the same file's first test (<code>"shows running costs section when data exists"</code>),
+        the test navigates to <code>/budget</code> then waits for <code>a[href*='/budget/']</code> and clicks the
+        first match. That selector matches the breadcrumb's own self-link in the new layout — adjust the selector
+        (e.g. table row link) or replace with <code>page.goto('/budget/history')</code>.
+      </li>
+      <li>
+        <strong>No new Playwright spec in this PR.</strong> The redesign is visual + a route move; one focused
+        follow-up can add a budget-workflow e2e once the layout settles.
+      </li>
+      <li>
+        <strong>Manual a11y check:</strong> tab through the detail view — breadcrumb, status pill, allocation
+        inputs, expand buttons, add/edit/delete icons, Save Allocations button all reachable. <code>aria-label</code>
+        on icon-only buttons (existing in the current code; verify after extraction).
+      </li>
+    </ul>
+
+    <!-- ============================== -->
+    <!-- 7. RISKS & OPEN QUESTIONS      -->
+    <!-- ============================== -->
+    <h2>Risks &amp; open questions</h2>
+
+    <div class="callout-info callout mt-2">
+      <p>
+        <strong>The three existing <code>BudgetHealthHero</code> components are not interchangeable.</strong>
+        (a) <code>reports/overview/budget-health-hero.tsx</code> has a "Open Budget report" CTA — wrong on the budget
+        page itself. (b) <code>shared/budget-health-hero.tsx</code> just re-exports (a). (c) <code>dashboard/admin/budget-hero-section.tsx</code>
+        renders the shared <code>SpendProgressBar</code> which is a 2-marker bar — not the 5-layer composition the mockup needs.
+        Picking any of these as a base forces a rewrite mid-implementation. <strong>Mitigation:</strong> build a new sibling
+        in <code>src/app/budget/components/</code>, sourcing layout ideas from <code>at-a-glance.tsx</code> but rebuilding the bar inline.
+      </p>
+    </div>
+
+    <div class="callout-warn callout mt-3">
+      <p>
+        <strong>Past-month spotlight: "most recent completed period" needs a clear definition.</strong> Proposed:
+        the period with the latest <code>endDate</code> such that <code>endDate &lt; today</code>. Edge cases: at the very
+        start of FY (no completed periods yet) the spotlight hides; on the first day of a new month, last month
+        counts as completed immediately. <strong>Mitigation:</strong> hide the spotlight when no period qualifies; add a unit test for the
+        cut-off if this becomes flaky.
+      </p>
+    </div>
+
+    <div class="callout-warn callout mt-3">
+      <p>
+        <strong>Status-pill thresholds (on-track / at-risk / over) are not specified.</strong> The README says
+        "on-track / at-risk / over-budget" but doesn't give percentages. Proposed defaults:
+        <code>actual / expected &lt; 0.95</code> = under, <code>0.95 ≤ ratio ≤ 1.05</code> = on-track,
+        <code>1.05 &lt; ratio ≤ 1.15</code> = at-risk, <code>&gt; 1.15</code> = over. <strong>TBD</strong> with product
+        before merge — if no answer, ship the defaults and surface as a constant at the top of <code>BudgetHealthHero</code>.
+      </p>
+    </div>
+
+    <div class="callout-info callout mt-3">
+      <p>
+        <strong>shadcn breadcrumb confirmed installed</strong> (<code>src/components/ui/breadcrumb.tsx</code> exists).
+        No install / no inline <code>&lt;nav&gt;</code> fallback needed.
+      </p>
+    </div>
+
+    <div class="callout-warn callout mt-3">
+      <p>
+        <strong>"Save Allocations" button placement after the table grows.</strong> The mockup puts the save row
+        as a footer inside the periods card (lines 726-742), which keeps it visually attached to what's being
+        edited. With 12 monthly periods + expansions, the table is tall and the save button sits below the fold
+        on a 1080p screen. <strong>Mitigation:</strong> leave it in the footer for v1 (matches the mock + current
+        UX); if user feedback says "I lost the save button", a follow-up can make it sticky.
+      </p>
+    </div>
+
+    <!-- ============================== -->
+    <!-- 8. OUT OF SCOPE                -->
+    <!-- ============================== -->
+    <h2>Out of scope</h2>
+    <ul>
+      <li><strong>No schema changes.</strong> Every existing table (<code>annual_budgets</code>, <code>budget_periods</code>, <code>billed_costs</code>, <code>anthropic_workspace_costs</code>) stays as-is.</li>
+      <li><strong>No server-action signature changes.</strong> <code>getActiveBudget</code>, <code>getBudgets</code>, <code>getBudgetWithCosts</code>, <code>getPerToolSpend</code>, <code>getRunningCostsForPeriod</code>, <code>updateBudgetAllocations</code>, <code>createBilledCost</code>, <code>updateBilledCost</code>, <code>deleteBilledCost</code>, <code>archiveBudget</code> — all unchanged.</li>
+      <li><strong>No per-tool spending breakdown.</strong> Dropped per parallel mockup edit. <code>getPerToolSpend</code> stays exported for Reports.</li>
+      <li><strong>No new-budget creation flow changes.</strong> <code>/budget/new</code> untouched.</li>
+      <li><strong>No archive / edit logic changes.</strong> The <code>BudgetListActions</code> dropdown stays as-is.</li>
+      <li><strong>No Reports page changes.</strong> Spec 028 owns <code>/reports/budget</code>.</li>
+      <li><strong>No MoM delta backend.</strong> The README mentioned this for the dropped per-tool section — not relevant.</li>
+      <li><strong>No new background jobs, no new env vars, no new dependencies.</strong></li>
+    </ul>
+
+    <!-- ============================== -->
+    <!-- 9. EFFORT ESTIMATE             -->
+    <!-- ============================== -->
+    <h2>Effort estimate</h2>
+    <p>
+      Honest hour bands per step, assuming familiarity with the codebase. The refactor (steps 1-2) is roughly
+      half the calendar time even though it's the smallest visible diff — extracting state-dependent components
+      without regressions is the slow part.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th style="width:8%">Step</th><th>Work</th><th style="width:14%">Effort</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Extract three billed-cost dialogs</td><td>~1h</td></tr>
+        <tr><td>2</td><td>Extract <code>PeriodAllocationsTable</code></td><td>~2h</td></tr>
+        <tr><td>3</td><td>Build <code>BudgetHealthHero</code> (multi-marker bar + 4 stats + narrative)</td><td>~3h</td></tr>
+        <tr><td>4</td><td>Build <code>PastMonthSpotlight</code></td><td>~1h</td></tr>
+        <tr><td>5</td><td>Restyle <code>PeriodAllocationsTable</code> (current / future / over / under classes)</td><td>~1.5h</td></tr>
+        <tr><td>6</td><td>Breadcrumb + "All budgets →" link</td><td>~30m</td></tr>
+        <tr><td>7</td><td>Add <code>/budget/history</code> route</td><td>~30m</td></tr>
+        <tr><td>8</td><td>Replace <code>/budget/page.tsx</code> contents</td><td>~45m</td></tr>
+        <tr><td>9</td><td>Drop <code>toolBreakdown</code> from the [id] route</td><td>~15m</td></tr>
+        <tr><td>10</td><td>Edge-case sweep</td><td>~45m</td></tr>
+        <tr><td>11</td><td>Fix the e2e spec + run the full test suite</td><td>~45m</td></tr>
+        <tr><td>12</td><td>Browser smoke + PR screenshot</td><td>~30m</td></tr>
+        <tr style="font-weight:600;"><td colspan="2">Total (single dev, no context switching)</td><td>~12h · ~1.5 days</td></tr>
+      </tbody>
+    </table>
+
+    <p class="mt-4">
+      <strong>Confidence:</strong> medium-high. The reuse audit shows ~85% of the work is moving existing code
+      around; the genuinely new pieces (hero, spotlight) total ~200 LoC of straightforward render markup. The
+      one place to slow down is step 3 — the multi-marker bar's percentage math against the ceiling needs
+      careful unit-by-unit checking against the mockup's annotated widths.
+    </p>
+
+    <!-- Footer -->
+    <div class="mt-12 pt-6 border-t border-zinc-800 text-[11px] text-zinc-600">
+      Spec 031 · Budget Workflow &amp; Detail Redesign · Implementation plan ·
+      <span class="file">specs/031-budget-workflow-and-redesign/plan.html</span>
+    </div>
+  </div>
+</body>
+</html>

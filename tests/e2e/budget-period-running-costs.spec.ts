@@ -9,30 +9,21 @@ test.describe("Budget Period Running Costs", () => {
     await page.waitForURL(/\//);
   });
 
-  test("shows running costs section when data exists", async ({ page }) => {
-    // Navigate to budget page
-    await page.goto("/budget");
-    await page.waitForSelector("a[href*='/budget/']");
-
-    // Click first budget link
-    const budgetLink = page.locator("a[href*='/budget/']").first();
-    await budgetLink.click();
-    await page.waitForURL(/\/budget\/\d+/);
-
-    // Check if Running Costs section appears (may not if no data)
-    const runningCosts = page.getByText("Running Costs");
-    // This test verifies the section structure exists when data is present
-    // In a real environment with seeded data, this would be more specific
-  });
-
-  test("budget overview shows Billed or Actual label for cost summary", async ({ page }) => {
+  test("active-budget landing shows the detail view directly", async ({ page }) => {
+    // /budget now renders the detail view itself — no intermediate index card.
     await page.goto("/budget");
     await page.waitForSelector("h1");
 
-    // Without seeded running cost data, the overview shows "Billed".
-    // With running costs it would show "Actual (incl. API)".
-    // Assert the baseline label is visible.
-    const billedLabel = page.getByText("Billed");
-    await expect(billedLabel).toBeVisible();
+    // The hero card + period table are both present.
+    await expect(page.getByText("Period allocations & billed costs")).toBeVisible();
+    await expect(page.getByText("Annual ceiling")).toBeVisible();
+  });
+
+  test("budget detail surfaces the billed YTD label", async ({ page }) => {
+    await page.goto("/budget");
+    await page.waitForSelector("h1");
+
+    // The hero exposes "Billed YTD" plus an "Actual YTD" tile; either confirms the redesign rendered.
+    await expect(page.getByText(/Billed YTD|Actual YTD/)).toBeVisible();
   });
 });

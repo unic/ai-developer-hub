@@ -1,16 +1,10 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
-import {
-  getBudgetWithCosts,
-  getPerToolSpend,
-} from "@/actions/budget";
+import { getBudgetWithCosts } from "@/actions/budget";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
-import { BudgetDetailClient } from "./budget-detail-client";
+import type { RunningCostsResult } from "@/lib/budget-utils";
+import { BudgetDetailClient } from "../components/budget-detail-client";
 import { AuthGuard } from "@/components/auth-guard";
-
-export type RunningCostData = NonNullable<
-  Awaited<ReturnType<typeof getRunningCostsForPeriod>>
->;
 
 export default async function BudgetDetailPage({
   params,
@@ -27,18 +21,10 @@ export default async function BudgetDetailPage({
   const budget = await getBudgetWithCosts(budgetId);
   if (!budget) notFound();
 
-  // Get per-tool breakdown for entire budget year
-  const firstPeriod = budget.periods[0];
-  const lastPeriod = budget.periods[budget.periods.length - 1];
-  const toolBreakdown = firstPeriod && lastPeriod
-    ? await getPerToolSpend(firstPeriod.startDate, lastPeriod.endDate)
-    : [];
-
-  // Fetch running costs for each period in parallel
   const runningCostsResults = await Promise.all(
     budget.periods.map((p) => getRunningCostsForPeriod(p.id))
   );
-  const runningCosts: Record<number, RunningCostData> = {};
+  const runningCosts: Record<number, RunningCostsResult> = {};
   budget.periods.forEach((p, i) => {
     const result = runningCostsResults[i];
     if (result) {
@@ -50,9 +36,9 @@ export default async function BudgetDetailPage({
     <AuthGuard requiredRole="admin">
       <BudgetDetailClient
         budget={budget}
-        toolBreakdown={toolBreakdown}
         isAdmin={isAdmin}
         runningCosts={runningCosts}
+        showBreadcrumb
       />
     </AuthGuard>
   );
