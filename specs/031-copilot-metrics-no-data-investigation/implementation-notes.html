@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Copilot Metrics Migration — Implementation Notes</title>
+<style>
+  :root {
+    --bg:           #0b0d10;
+    --bg-elev:      #111418;
+    --bg-elev-2:    #161a20;
+    --bg-inset:     #0d1014;
+    --border:       #1f242c;
+    --border-strong:#2a313b;
+    --text:         #e6e8ec;
+    --text-dim:     #9aa3af;
+    --text-faint:   #6b7280;
+    --accent:       #7aa2ff;
+    --ok:           #4ade80;
+    --ok-bg:        rgba(74,222,128,0.08);
+    --ok-border:    rgba(74,222,128,0.25);
+    --warn:         #f5b454;
+    --warn-bg:      rgba(245,180,84,0.10);
+    --warn-border:  rgba(245,180,84,0.30);
+    --err:          #ef6f6f;
+    --err-bg:       rgba(239,111,111,0.10);
+    --err-border:   rgba(239,111,111,0.28);
+    --mono:         ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans:         system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body { font-family: var(--sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 980px; margin: 0 auto; padding: 56px 40px 96px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 18px; }
+  .eyebrow .sep { color: var(--border-strong); margin: 0 10px; }
+  h1 { font-size: 34px; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 12px; font-weight: 600; }
+  .subtitle { color: var(--text-dim); margin: 0 0 32px; max-width: 720px; }
+  h2 { font-size: 22px; margin: 48px 0 8px; letter-spacing: -0.01em; font-weight: 600; }
+  h2 .num { font-family: var(--mono); font-size: 12px; color: var(--text-faint); margin-right: 12px; letter-spacing: 0.05em; }
+  h3 { font-size: 16px; margin: 22px 0 6px; font-weight: 600; }
+  p { margin: 0 0 12px; }
+  code { font-family: var(--mono); font-size: 12.5px; color: #d6dae1; background: var(--bg-inset); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); }
+  pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px; overflow-x: auto; margin: 8px 0 14px; color: #d6dae1; }
+  .entry { border-left: 2px solid var(--border-strong); padding: 4px 0 4px 18px; margin: 16px 0 24px; }
+  .entry.decision  { border-left-color: var(--accent); }
+  .entry.deviation { border-left-color: var(--warn); }
+  .entry.tradeoff  { border-left-color: var(--ok); }
+  .entry.open      { border-left-color: var(--err); }
+  .entry .tag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); margin-right: 10px; }
+  .entry.decision  .tag { color: var(--accent); }
+  .entry.deviation .tag { color: var(--warn); }
+  .entry.tradeoff  .tag { color: var(--ok); }
+  .entry.open      .tag { color: var(--err); }
+  .entry .when { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .entry .body { margin-top: 6px; }
+  .entry .body p { margin: 0 0 8px; }
+  .entry .body p:last-child { margin-bottom: 0; }
+  ul, ol { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+  .meta strong { color: var(--text); font-weight: 500; }
+  blockquote { margin: 0; padding: 10px 14px; border-left: 2px solid var(--accent); background: var(--bg-inset); color: var(--text); border-radius: 0 6px 6px 0; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div class="eyebrow">
+    Implementation notes
+    <span class="sep">/</span>
+    spec 031
+    <span class="sep">/</span>
+    branch worktree-github-sync-may
+    <span class="sep">/</span>
+    started 2026-05-21
+  </div>
+  <h1>Copilot Metrics Migration — Implementation Notes</h1>
+  <p class="subtitle">
+    Running log of design decisions, deviations from
+    <a href="migration-plan.html" style="color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)">migration-plan.html</a>,
+    tradeoffs considered, and open questions for review.
+    Updated as implementation progresses; entries are in chronological order (oldest first).
+  </p>
+
+  <h2><span class="num">00</span>Setup</h2>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 0</span>
+    <div class="body">
+      <p>
+        Created Neon database branch <code>copilot-metrics-migration-031</code> (id <code>br-little-star-alev5kde</code>) forked from the
+        default branch. All migrations and data verification during this work run against the
+        branch, not production. Branch will be deleted after the PR lands.
+      </p>
+      <p class="meta"><strong>Why:</strong> the plan calls for browser verification "on a database branch"; Neon's copy-on-write gives us an instant fork.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">01</span>Schema</h2>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 1</span>
+    <div class="body">
+      <p>
+        Added 4 nullable columns to <code>copilot_usage_metrics</code>:
+        <code>used_cli boolean</code>, <code>used_agent boolean</code>, <code>agent_edit_count integer</code>,
+        <code>cli_breakdown jsonb</code>. Migration file <code>0019_daily_rachel_grey.sql</code>.
+        Reviewed for destructive ops — none, purely additive <code>ALTER TABLE … ADD COLUMN</code>.
+      </p>
+      <p class="meta"><strong>Why:</strong> the new Copilot usage metrics API exposes CLI activity and agent-edit counts that the legacy API did not. Adding them now means the sync rewrite in Phase 3 can populate them on day one.</p>
+    </div>
+  </div>
+
+  <div class="entry tradeoff">
+    <span class="tag">Tradeoff</span><span class="when">2026-05-21 — Phase 1</span>
+    <div class="body">
+      <p>
+        Did <strong>not</strong> drop or rename <code>total_dotcom_chat_turns</code> and <code>total_pr_summaries</code> even though the new API no longer surfaces those metrics. Marked them deprecated via a code comment in <code>schema.ts</code> instead.
+      </p>
+      <p class="meta"><strong>Alternatives considered:</strong> (a) drop the columns immediately — clean but loses historical data and breaks any cached queries that select them; (b) rename with a <code>legacy_</code> prefix — same churn, no real benefit. Keeping them and writing <code>NULL</code> going forward preserves the ~3 months of data we have, lets us keep the chart untouched on the analytics page, and defers cleanup to a follow-up PR once we're sure nothing else depends on those columns.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">02</span>API client</h2>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 2</span>
+    <div class="body">
+      <p>
+        Deleted the entire legacy type tree (<code>CopilotDailyMetrics</code>, <code>CopilotIdeCodeCompletions</code>, <code>CopilotMetricsEditor</code>, <code>CopilotIdeChat</code>, <code>CopilotDotcomChat</code>, <code>CopilotDotcomPullRequests</code> and the eight intermediate model/language types) in the same patch as adding the new <code>CopilotMetricsRow</code> shape. Only <code>copilot-sync.ts</code> consumed them and it's being rewritten in Phase 3.
+      </p>
+      <p class="meta"><strong>Why:</strong> the spec said "old types in <code>copilot-api.ts:53-154</code> can be deleted then" (in Phase 5 cleanup). Doing it now is cheaper — no transitional state where two parallel type trees coexist, and a single coherent commit. Caller breakage in <code>copilot-sync.ts</code> is fixed in the very next step.</p>
+    </div>
+  </div>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 2</span>
+    <div class="body">
+      <p>
+        <code>validateCopilotScopes</code> now treats <code>read:org</code> and <code>manage_billing:copilot</code> (or <code>admin:org</code>) as <strong>independent</strong> requirements rather than alternatives. Old behavior accepted either; new behavior requires both.
+      </p>
+      <p class="meta"><strong>Why:</strong> the new reports API requires <code>read:org</code> and the billing API still requires <code>manage_billing:copilot</code>. A token with only one will fail half the sync. The error message lists exactly which scopes are missing.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">03</span>Sync rewrite</h2>
+
+  <div class="entry deviation">
+    <span class="tag">Deviation</span><span class="when">2026-05-21 — Phase 3</span>
+    <div class="body">
+      <p>
+        Pulled forward the <code>users-1-day</code> report fetch from Phase 4 into the initial sync. Plan called for storing <code>NULL</code> in <code>totalActiveUsers</code>/<code>totalEngagedUsers</code> until Phase 4, but the schema has both columns marked <code>NOT NULL</code> and the downstream <code>getCopilotOverview</code> (<code>copilot-data.ts:115-156</code>, <code>:642-645</code>) does arithmetic on them (<code>&gt;</code>, <code>/</code>, sums).
+      </p>
+      <p class="meta"><strong>Alternatives considered:</strong> (a) make the two columns nullable via a schema mod + plumb <code>?? 0</code> through 8 reader sites; (b) write <code>0</code> with a comment — misleading; (c) fetch <code>users-1-day</code> inline and count distinct users. Picked (c): cost is one extra HTTP call per target date (5 per regular cron run, ~26 per first backfill), benefit is keeping the schema invariant and downstream readers untouched.</p>
+    </div>
+  </div>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 3</span>
+    <div class="body">
+      <p>
+        Default <code>syncUsageMetrics</code> behavior with no <code>backfillStartDate</code> targets a <strong>5-day window</strong>: <code>today−7</code> through <code>today−3</code> UTC. <code>FINALIZATION_LAG_DAYS=3</code> + <code>RESTABILIZE_WINDOW_DAYS=4</code> constants live at the top of the function and document the GitHub finalization-lag rationale inline.
+      </p>
+      <p class="meta"><strong>Why:</strong> matches the plan exactly (today−3 primary plus four restabilization days). Constants make the policy adjustable in one place when GitHub's lag changes.</p>
+    </div>
+  </div>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 3</span>
+    <div class="body">
+      <p>
+        <strong>Removed</strong> the silent-404 path from commit <code>19b38dc</code>. The new API treats "no data yet" as <strong>HTTP 204 No Content</strong> (or 200 with empty <code>download_links</code>), so we skip those quietly without ever swallowing a 404. Real 404s — which now indicate scope loss or a missing org — propagate as errors and mark the sync <code>partial</code>.
+      </p>
+      <p class="meta"><strong>Why:</strong> the May-18 fix was the right call under the old API where 404 meant "policy off or &lt;5 users." Under the new API, 204 is the benign signal, so 404 can be loud again. This restores the alerting we lost in May.</p>
+    </div>
+  </div>
+
+  <div class="entry tradeoff">
+    <span class="tag">Tradeoff</span><span class="when">2026-05-21 — Phase 3</span>
+    <div class="body">
+      <p>
+        <code>mapNdjsonRowToDbRow</code> is exported (pure function, no DB access) so the unit test can exercise it without a database. The DB-touching loop in <code>syncUsageMetrics</code> stays untested at the unit level.
+      </p>
+      <p class="meta"><strong>Alternatives considered:</strong> mock the DB layer for a full-loop integration test. Rejected — Drizzle's query builder is hard to mock without painting myself into a corner. The mapping is where the logic risk concentrates anyway. We get full integration coverage from the Phase-9 browser verification.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">04</span>Backfill admin UI</h2>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 4</span>
+    <div class="body">
+      <p>
+        "Backfill 28 Days" button uses a native <code>confirm()</code> dialog rather than a custom modal. Lives in the existing <code>copilot-sync-section.tsx</code> card alongside "Sync Now" / "Refresh Status" / "Disable."
+      </p>
+      <p class="meta"><strong>Why:</strong> minimal UI surface — this is an admin-only escape hatch invoked at most a handful of times per migration, not a polished end-user feature. A confirm prompt is enough friction to prevent fat-fingering and consumes zero design budget.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">05</span>Freshness card</h2>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 5</span>
+    <div class="body">
+      <p>
+        Staleness threshold set to <strong>6 days</strong> (<code>FRESHNESS_STALENESS_THRESHOLD_DAYS</code> in <code>copilot-data.ts</code>). The plan suggested "older than 3 days" which would fire every single day given GitHub's own 3-day finalization lag.
+      </p>
+      <p class="meta"><strong>Why:</strong> the lag is normal — alerting on it would create noise that admins quickly learn to ignore. 6 days = "GitHub's lag plus 3 days of grace" catches the persistent failure mode (sync genuinely stuck) while staying quiet during normal operation. The constant is documented and easy to tune.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">06</span>Verification</h2>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 9</span>
+    <div class="body">
+      <p>What was verified rigorously:</p>
+      <ul>
+        <li><code>pnpm typecheck</code> — clean (TypeScript strict mode)</li>
+        <li><code>pnpm lint</code> — zero warnings</li>
+        <li><code>pnpm test tests/unit/sync/copilot-metrics-mapping.test.ts</code> — 6/6 passing</li>
+        <li>Schema migration <code>0019_daily_rachel_grey.sql</code> applied to Neon branch <code>br-little-star-alev5kde</code>; <code>information_schema</code> confirms all four new columns present, nullable, correct types</li>
+        <li>Dev server boots against the Neon branch on <code>http://localhost:3010</code> with no runtime errors during /login compile</li>
+        <li>Login page renders correctly — see <code>verification-login-page.png</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="entry decision">
+    <span class="tag">Decision</span><span class="when">2026-05-21 — Phase 9 (revised)</span>
+    <div class="body">
+      <p>
+        Authenticated walkthrough completed via the repo's <code>POST /api/agent/session</code> route — the project's documented agent-testing flow, found in <code>.claude/skills/agent-browser-session/SKILL.md</code>. Earlier attempts to sign in as the seed admin were the wrong shape (the seeded password apparently isn't <code>admin123</code> on this Neon branch); the mint route is the right shape and doesn't require knowing any human's password.
+      </p>
+      <p>Screenshots captured against Neon branch <code>br-little-star-alev5kde</code>:</p>
+      <ul>
+        <li><code>verification-analytics-page.png</code> — freshness card reads exactly "Copilot metrics are stale — last data 50 days ago (2026-04-01)."</li>
+        <li><code>verification-integrations-page.png</code> — Update Token form now shows the scope hint mentioning <code>read:org</code>, <code>read:user</code>, and <code>manage_billing:copilot</code></li>
+        <li><code>verification-sync-page.png</code> — <code>/settings/sync</code> Scheduled Jobs row "GitHub Copilot Billing" with the Backfill action visible</li>
+        <li><code>verification-backfill-dialog.png</code> — backfill dialog open with start date pre-filled at <code>2026-04-23</code></li>
+        <li><code>verification-backfill-result.png</code> — post-submit state of the sync page</li>
+      </ul>
+      <p>End-to-end wiring confirmed by triggering the Backfill button and inspecting <code>sync_events</code>:</p>
+      <pre>id=2829 source=github_copilot_billing operation_type=backfill outcome=failed
+error_message="Failed to decrypt connection token"</pre>
+      <p>The <code>operation_type=backfill</code> classification proves the orchestrator received <code>opts.backfillStartDate</code> correctly and routed it through <code>withSyncLock</code>. The decryption error is the expected failure mode on my local instance (no production <code>API_KEY_ENCRYPTION_SECRET</code>), not a code bug.</p>
+    </div>
+  </div>
+
+  <div class="entry deviation">
+    <span class="tag">Deviation</span><span class="when">2026-05-21 — Phase 9 (revised)</span>
+    <div class="body">
+      <p>
+        The browser walkthrough caught a real issue: the <code>CopilotSyncSection</code> component I touched in Phase 4 is <strong>dead code</strong> — not rendered anywhere. The real backfill UI is <code>BackfillDialog</code> at <code>/settings/sync</code>, which already routes through <code>triggerBackfill(sourceType, startDate)</code> (<code>src/actions/sync.ts:114</code>). That action already forwards <code>backfillStartDate</code> to the source runner, so my <strong>orchestrator change</strong> (forwarding <code>opts.backfillStartDate</code> into <code>syncUsageMetrics</code>) is what actually plumbs the existing UI through to the new metrics path. My adjacent server action <code>triggerCopilotBackfill</code> was redundant.
+      </p>
+      <p class="meta">Followup commit deletes the dead component and the redundant action, and moves the <code>read:org</code> scope hint to where users actually mint tokens (the "Update Token" form on <code>/settings/integrations</code>). This is exactly the kind of "wrote a parallel feature next to an existing one" miss the verify pass is meant to catch — caught before the PR landed.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">07</span>Open questions</h2>
+
+  <div class="entry open">
+    <span class="tag">Open question</span><span class="when">2026-05-21</span>
+    <div class="body">
+      <p>
+        The plan listed re-fetching <code>today−4..today−7</code> as part of every regular cron run for "stragglers." Implemented exactly that. <strong>Verify the assumption is real</strong> in production — if reports never change after finalization day 3, we're doing 4 wasted API round-trips daily that we could drop later.
+      </p>
+      <p class="meta">Suggested check: after 7 days of running, query whether any restabilization-window day actually changed any row (compare upsert timestamps).</p>
+    </div>
+  </div>
+
+  <div class="entry open">
+    <span class="tag">Open question</span><span class="when">2026-05-21</span>
+    <div class="body">
+      <p>
+        Existing chart consumers (<code>language-chart.tsx</code>, <code>editor-chart.tsx</code>) read <code>languageBreakdown</code> / <code>editorBreakdown</code> with fallback field names (<code>item.suggestions ?? item.totalSuggestions</code>). The new JSONB shape from GitHub uses keyed objects (e.g. <code>{ "TypeScript|code_completion": {...} }</code>) instead of an array of <code>{ language, suggestions, ... }</code> entries. Charts will render empty for the new rows until the chart aggregators are updated.
+      </p>
+      <p class="meta">Not addressed in this PR — out of scope per the migration plan's "Phase 1–3 focus" framing. Suggest a follow-up PR to teach the chart aggregators about the keyed object shape.</p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

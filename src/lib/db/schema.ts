@@ -482,10 +482,17 @@ export const copilotUsageMetrics = pgTable(
     totalLinesAccepted: integer("total_lines_accepted").notNull(),
     totalChatTurns: integer("total_chat_turns"),
     totalChatAcceptances: integer("total_chat_acceptances"),
+    // Deprecated 2026-04-02: GitHub removed the dotcom-chat and PR-summary counters
+    // from the new Copilot usage metrics API. Columns retained for historical rows.
     totalDotcomChatTurns: integer("total_dotcom_chat_turns"),
     totalPrSummaries: integer("total_pr_summaries"),
     languageBreakdown: jsonb("language_breakdown"),
     editorBreakdown: jsonb("editor_breakdown"),
+    // Added 2026-05-21 for new Copilot usage metrics API. See spec 031.
+    usedCli: boolean("used_cli"),
+    usedAgent: boolean("used_agent"),
+    agentEditCount: integer("agent_edit_count"),
+    cliBreakdown: jsonb("cli_breakdown"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [

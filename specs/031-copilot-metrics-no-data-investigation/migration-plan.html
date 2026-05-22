@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Migrating from the retired Copilot Metrics API to the new Usage Metrics reports</title>
+<style>
+  :root {
+    --bg:           #0b0d10;
+    --bg-elev:      #111418;
+    --bg-elev-2:    #161a20;
+    --bg-inset:     #0d1014;
+    --border:       #1f242c;
+    --border-strong:#2a313b;
+    --text:         #e6e8ec;
+    --text-dim:     #9aa3af;
+    --text-faint:   #6b7280;
+    --accent:       #7aa2ff;
+    --ok:           #4ade80;
+    --ok-bg:        rgba(74,222,128,0.08);
+    --ok-border:    rgba(74,222,128,0.25);
+    --warn:         #f5b454;
+    --warn-bg:      rgba(245,180,84,0.10);
+    --warn-border:  rgba(245,180,84,0.30);
+    --err:          #ef6f6f;
+    --err-bg:       rgba(239,111,111,0.10);
+    --err-border:   rgba(239,111,111,0.28);
+    --neutral:      #6b7280;
+    --mono:         ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans:         system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .layout {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 56px 40px 96px;
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 220px;
+    gap: 48px;
+    align-items: start;
+  }
+  .page { min-width: 0; max-width: 1000px; }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 18px;
+  }
+  .eyebrow .sep { color: var(--border-strong); margin: 0 10px; }
+
+  h1 {
+    font-family: var(--sans);
+    font-size: 38px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 16px;
+    margin: 0 0 32px;
+    max-width: 820px;
+  }
+
+  .tldr {
+    border: 1px solid rgba(122,162,255,0.30);
+    background: linear-gradient(180deg, rgba(122,162,255,0.06), var(--bg-elev) 70%);
+    border-radius: 10px;
+    padding: 18px 22px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px;
+    align-items: start;
+    margin-bottom: 40px;
+  }
+  .tldr-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    padding: 4px 8px;
+    border: 1px solid rgba(122,162,255,0.30);
+    border-radius: 4px;
+    white-space: nowrap;
+    height: fit-content;
+  }
+  .tldr p { margin: 0; font-size: 15px; color: var(--text); line-height: 1.6; }
+  .tldr strong { color: #fff; font-weight: 600; }
+
+  /* ---------- stat row ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 56px;
+  }
+  .stat {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+    line-height: 1.35;
+    min-height: 28px;
+  }
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .stat.ok    .stat-value { color: var(--ok); }
+  .stat.warn  .stat-value { color: var(--warn); }
+  .stat.err   .stat-value { color: var(--err); }
+  .stat.acc   .stat-value { color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+  h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-faint);
+    margin-right: 14px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
+  .h-sub {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 0 0 22px;
+    max-width: 820px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 24px 0 10px;
+    color: var(--text);
+    font-family: var(--sans);
+  }
+  h4 {
+    font-size: 12px;
+    font-weight: 600;
+    margin: 18px 0 10px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+  }
+
+  p { margin: 0 0 12px; color: var(--text); }
+  p.dim { color: var(--text-dim); }
+
+  code, .ic {
+    font-family: var(--mono);
+    font-size: 12.8px;
+    color: #d6dae1;
+    background: var(--bg-inset);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  a:hover { border-bottom-style: solid; }
+
+  /* ---------- tables ---------- */
+  .table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-elev);
+    margin-bottom: 22px;
+  }
+  .table-wrap.scroll { overflow-x: auto; }
+  .table-cap {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--bg-elev-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .table-cap .src { color: var(--text-faint); font-weight: 400; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12.8px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-weight: 500;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    background: var(--bg-elev-2);
+    white-space: nowrap;
+  }
+  tbody tr:hover td { background: rgba(122,162,255,0.03); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.first { color: var(--text); font-weight: 500; }
+  td.note  { color: var(--text-dim); font-family: var(--sans); font-size: 13px; }
+  td.wrap  { white-space: normal; }
+  td .pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid;
+    display: inline-block;
+  }
+  .pill.ok    { color: var(--ok);   border-color: var(--ok-border);   background: var(--ok-bg); }
+  .pill.warn  { color: var(--warn); border-color: var(--warn-border); background: var(--warn-bg); }
+  .pill.err   { color: var(--err);  border-color: var(--err-border);  background: var(--err-bg); }
+  .pill.acc   { color: var(--accent); border-color: rgba(122,162,255,0.30); background: rgba(122,162,255,0.06); }
+
+  /* ---------- code blocks ---------- */
+  pre {
+    margin: 0;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.8px;
+    line-height: 1.65;
+    color: #d6dae1;
+  }
+  .code-cap {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .code-cap .path { color: var(--accent); text-transform: none; letter-spacing: 0; }
+  .code-block { margin-bottom: 22px; }
+
+  pre .c   { color: #6b7280; }     /* comment */
+  pre .k   { color: #c4a6ff; }     /* keyword */
+  pre .s   { color: #a8d99a; }     /* string */
+  pre .fn  { color: #7aa2ff; }     /* function */
+  pre .n   { color: #f5b454; }     /* number */
+  pre .v   { color: #e6e8ec; }     /* var */
+  pre .p   { color: #9aa3af; }     /* punctuation */
+  pre .t   { color: #ef9fc7; }     /* type */
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border-left: 2px solid var(--accent);
+    background: rgba(122,162,255,0.04);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 18px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .callout.err  { border-left-color: var(--err);  background: var(--err-bg); }
+  .callout p { margin: 0 0 8px; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* ---------- phase / task groups ---------- */
+  .phase-group {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-elev);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .phase-head {
+    padding: 12px 18px;
+    background: var(--bg-elev-2);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .phase-head .ph-num {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(122,162,255,0.30);
+    color: var(--accent);
+    background: rgba(122,162,255,0.06);
+  }
+  .phase-head .ph-title { color: var(--text); letter-spacing: 0.04em; }
+  .phase-head .ph-meta  { color: var(--text-faint); margin-left: auto; font-size: 11px; }
+  .phase-body { padding: 14px 22px 6px; }
+  .phase-body ul { margin: 0 0 12px; padding-left: 0; list-style: none; }
+  .phase-body li {
+    position: relative;
+    padding: 4px 0 8px 28px;
+    color: var(--text);
+    line-height: 1.55;
+  }
+  .phase-body li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 10px;
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-inset);
+  }
+  .phase-body li ul { margin-top: 6px; padding-left: 18px; list-style: disc; }
+  .phase-body li ul li { padding-left: 4px; }
+  .phase-body li ul li::before { display: none; }
+  .phase-body li code, .phase-body li .ic { font-size: 12.4px; }
+
+  /* ---------- ordered list rollout ---------- */
+  ol.rollout {
+    counter-reset: rollout;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  ol.rollout > li {
+    counter-increment: rollout;
+    padding: 12px 0 14px 56px;
+    border-bottom: 1px dashed var(--border);
+    position: relative;
+  }
+  ol.rollout > li:last-child { border-bottom: none; }
+  ol.rollout > li::before {
+    content: counter(rollout, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elev);
+  }
+  ol.rollout > li strong { color: #fff; }
+
+  /* ---------- numbered manual verify list ---------- */
+  ol.verify {
+    counter-reset: verify;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  ol.verify > li {
+    counter-increment: verify;
+    padding: 10px 0 12px 48px;
+    position: relative;
+    color: var(--text);
+    line-height: 1.6;
+    border-bottom: 1px solid var(--border);
+  }
+  ol.verify > li:last-child { border-bottom: none; }
+  ol.verify > li::before {
+    content: counter(verify);
+    position: absolute;
+    left: 0; top: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    width: 28px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    border: 1px solid rgba(122,162,255,0.30);
+    border-radius: 4px;
+    background: rgba(122,162,255,0.06);
+  }
+
+  /* ---------- numbered cron list ---------- */
+  ol.cron {
+    counter-reset: cron;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+  }
+  ol.cron > li {
+    counter-increment: cron;
+    padding: 8px 0 10px 36px;
+    position: relative;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  ol.cron > li::before {
+    content: counter(cron) ".";
+    position: absolute;
+    left: 0; top: 8px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  /* ---------- mini list goals/non-goals ---------- */
+  .goals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .goals .col {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: 10px;
+    padding: 18px 22px;
+  }
+  .goals h4 { margin-top: 0; }
+  .goals.col-non h4 { color: var(--text-faint); }
+  .goals p { color: var(--text); font-size: 14px; line-height: 1.6; }
+
+  /* ---------- TOC ---------- */
+  aside.toc {
+    position: sticky;
+    top: 32px;
+    align-self: start;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.9;
+    border-left: 1px solid var(--border);
+    padding: 4px 0 4px 18px;
+  }
+  aside.toc .toc-label {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+    display: block;
+  }
+  aside.toc a {
+    display: block;
+    color: var(--text-dim);
+    border-bottom: none;
+    padding: 1px 0;
+  }
+  aside.toc a:hover { color: var(--text); }
+  aside.toc a .n { color: var(--text-faint); margin-right: 8px; }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 64px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    line-height: 1.9;
+  }
+  footer .row { display: flex; flex-wrap: wrap; gap: 28px; }
+  footer .col strong { color: var(--text-dim); font-weight: 500; }
+  footer a { color: var(--accent); border-bottom: 1px dotted var(--accent); word-break: break-all; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { display: none; }
+  }
+  @media (max-width: 920px) {
+    .layout { padding: 36px 22px 72px; }
+    h1 { font-size: 30px; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .goals { grid-template-columns: 1fr; }
+    .tldr { grid-template-columns: 1fr; }
+    th, td { padding: 9px 12px; }
+    .table-wrap { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <main class="page">
+
+    <!-- ============ HEADER ============ -->
+    <div class="eyebrow">
+      Implementation plan
+      <span class="sep">/</span>
+      2026-05-21
+      <span class="sep">/</span>
+      AI Developer Hub
+      <span class="sep">/</span>
+      branch: github-sync-may
+      <span class="sep">/</span>
+      companion to analysis.html
+    </div>
+    <h1>Migrating from the retired Copilot Metrics API to the new Usage Metrics reports</h1>
+    <p class="subtitle">
+      Concrete migration from the sunset <code>/orgs/&#123;org&#125;/copilot/metrics</code> endpoint to the new
+      <strong style="color:#fff;font-weight:600">Copilot usage metrics reports</strong> API:
+      signed NDJSON download URLs, a ~3-day finalization lag, a flatter schema, and a token-scope upgrade.
+    </p>
+
+    <div class="tldr">
+      <div class="tldr-label">TL;DR</div>
+      <p>
+        The legacy <code>/orgs/&#123;org&#125;/copilot/metrics</code> was sunset <strong style="color:var(--err)">2026-04-02</strong>.
+        Replacement is the <strong>Copilot usage metrics reports API</strong>: a small wrapper response with
+        <strong>signed NDJSON download URLs</strong>, ~3-day finalization lag, and a flatter schema.
+        Scope <code>manage_billing:copilot</code> is <strong>not enough</strong> — we need <code>read:org</code> on the token.
+        Plan: (1) extend schema with nullable new columns; (2) write new API client functions and an NDJSON downloader;
+        (3) rewrite <code>syncUsageMetrics</code>; (4) wire through <code>backfillStartDate</code> to recover ~28 days;
+        (5) replace the May&nbsp;18 silent-404 path with real health visibility. Each new metric row arrives 3+ days late;
+        the cron must pull a sliding window and idempotently upsert.
+      </p>
+    </div>
+
+    <!-- ============ AT-A-GLANCE ============ -->
+    <div class="stat-grid">
+      <div class="stat err">
+        <div class="stat-label">Days lost (permanent)</div>
+        <div class="stat-value">21</div>
+      </div>
+      <div class="stat acc">
+        <div class="stat-label">Days recoverable now</div>
+        <div class="stat-value">~28</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">New endpoints</div>
+        <div class="stat-value">2 + 1</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Schema columns +/&#9888;</div>
+        <div class="stat-value">+4 / 2&#9888;</div>
+      </div>
+      <div class="stat warn">
+        <div class="stat-label">Token scope to add</div>
+        <div class="stat-value">read:org</div>
+      </div>
+      <div class="stat warn">
+        <div class="stat-label">Migration risk</div>
+        <div class="stat-value">Medium</div>
+      </div>
+    </div>
+
+    <!-- ============ 01. GOALS ============ -->
+    <section id="s01">
+      <h2><span class="num">01</span>Goals and non-goals</h2>
+      <p class="h-sub">Scoped tight: restore the broken data flow, recover what's still in GitHub's window, and make the next outage visible within days, not weeks.</p>
+
+      <div class="goals">
+        <div class="col">
+          <h4>Goals</h4>
+          <p>Restore daily metric rows in <code>copilot_usage_metrics</code>.</p>
+          <p>Recover the last <strong style="color:#fff;font-weight:600">28 days</strong> via a one-shot backfill.</p>
+          <p>Surface upstream failures within <strong style="color:#fff;font-weight:600">72 hours</strong> (not 49 days).</p>
+          <p>Remove the silent-404 path added on May 18.</p>
+        </div>
+        <div class="col col-non">
+          <h4>Non-goals</h4>
+          <p>Per-user data warehousing &mdash; Phase 4 opt-in only.</p>
+          <p>Enterprise-level endpoints &mdash; we're single-org Business plan.</p>
+          <p>Replacing <code>/copilot/billing</code> or <code>/copilot/billing/seats</code> &mdash; neither is being sunset.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02. ENDPOINTS ============ -->
+    <section id="s02">
+      <h2><span class="num">02</span>Endpoints to integrate</h2>
+      <p class="h-sub">Two reads and one helper. The signed-URL download step is what's new.</p>
+
+      <div class="table-wrap scroll">
+        <div class="table-cap">
+          <span>copilot usage metrics &middot; endpoint map</span>
+          <span class="src">source: docs.github.com/en/rest/copilot/copilot-usage-metrics</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Use</th>
+              <th>New endpoint</th>
+              <th>When we call it</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="first wrap">Daily org rollup</td>
+              <td class="wrap"><code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/organization-1-day?day=YYYY-MM-DD</code></td>
+              <td class="note">Daily cron at 06:00 UTC; pull a sliding 5-day window (today&minus;3 through today&minus;7) and idempotently upsert.</td>
+            </tr>
+            <tr>
+              <td class="first wrap">Backfill</td>
+              <td class="wrap">same endpoint, looped</td>
+              <td class="note">First deploy; loop over the last 28 days.</td>
+            </tr>
+            <tr>
+              <td class="first wrap">Optional per-user</td>
+              <td class="wrap"><code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/users-1-day?day=...</code></td>
+              <td class="note">Phase 4 only &mdash; not in the initial migration.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <p><strong style="color:#fff;font-weight:600">Auth:</strong>
+          <code>Authorization: Bearer &lt;PAT&gt;</code>,
+          <code>Accept: application/vnd.github+json</code>,
+          <code>X-GitHub-Api-Version: 2026-03-10</code>.
+        </p>
+        <p><strong style="color:#fff;font-weight:600">Required scope:</strong>
+          <code>read:org</code> (classic PAT) <em>or</em> fine-grained <strong>Organization Copilot metrics: Read</strong>.
+          <code>manage_billing:copilot</code> alone is rejected.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ 03. RESPONSE SHAPE ============ -->
+    <section id="s03">
+      <h2><span class="num">03</span>Response shape &mdash; the two-step fetch</h2>
+      <p class="h-sub">The wrapper response is small; the real data lives behind one or more signed URLs.</p>
+
+      <div class="code-block">
+        <div class="code-cap">Response &middot; <span class="path">GET /orgs/&#123;org&#125;/copilot/metrics/reports/organization-1-day?day=2026-05-18</span></div>
+<pre>{
+  <span class="s">"download_links"</span>: [<span class="s">"https://copilot-reports.github.com/..."</span>],
+  <span class="s">"report_day"</span>: <span class="s">"2026-05-18"</span>
+}</pre>
+      </div>
+
+      <ul style="margin:0 0 10px 0; padding-left: 20px; color:var(--text); line-height:1.7;">
+        <li><code>download_links</code> is an <strong>array</strong> &mdash; multi-file reports must be concatenated.</li>
+        <li>URLs are <strong>signed and time-limited</strong> (TTL undocumented; fetch immediately, never persist).</li>
+        <li>Domain in transition (<a href="https://github.blog/changelog/2026-05-20-copilot-usage-metrics-reports-now-use-github-owned-download-urls/">2026-05-20 changelog</a>):
+          primary <code>copilot-reports.github.com</code>;
+          fallback <code>copilot-reports-*.b01.azurefd.net</code>;
+          rare <code>*.blob.core.windows.net</code>.
+          Allowlist all three in any outbound proxy.</li>
+        <li>The downloaded body is <strong>NDJSON</strong> &mdash; one JSON object per line.
+          <code>JSON.parse</code> on the whole body fails. Parse line-by-line, skip empty lines.</li>
+      </ul>
+    </section>
+
+    <!-- ============ 04. SCHEMA / MAPPING ============ -->
+    <section id="s04">
+      <h2><span class="num">04</span>Row schema and field mapping</h2>
+      <p class="h-sub">Keep the existing <code>copilot_usage_metrics</code> table shape and map new fields onto it. Add four new nullable columns (Phase&nbsp;1) so day-one data isn't lost.</p>
+
+      <div class="table-wrap scroll">
+        <div class="table-cap">
+          <span>legacy column &rarr; new ndjson source</span>
+          <span class="src">src/lib/db/schema.ts:468-498</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Existing column</th>
+              <th>New source on the org-day NDJSON row</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="first">totalActiveUsers</td>
+              <td class="wrap">derived from <code>users-1-day</code> row count where any activity &gt; 0, OR <code>daily_active_*</code> family on the org row</td>
+              <td class="note">NOT a direct field. If we delay <code>users-1-day</code> to Phase 4, store NULL and document.</td>
+            </tr>
+            <tr>
+              <td class="first">totalEngagedUsers</td>
+              <td class="wrap">derived: count of users-day rows with <code>user_initiated_interaction_count &gt; 0</code></td>
+              <td class="note">Same as above &mdash; NULL until Phase 4.</td>
+            </tr>
+            <tr>
+              <td class="first">totalSuggestions</td>
+              <td><code>code_generation_activity_count</code></td>
+              <td class="note">Filter by <code>totals_by_feature.code_completion</code> for completions-only.</td>
+            </tr>
+            <tr>
+              <td class="first">totalAcceptances</td>
+              <td><code>code_acceptance_activity_count</code></td>
+              <td class="note">Covers accept/insert/apply/copy.</td>
+            </tr>
+            <tr>
+              <td class="first">totalLinesSuggested</td>
+              <td><code>loc_suggested_to_add_sum</code></td>
+              <td class="note">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="first">totalLinesAccepted</td>
+              <td><code>loc_added_sum</code></td>
+              <td class="note">&mdash;</td>
+            </tr>
+            <tr>
+              <td class="first">totalChatTurns</td>
+              <td class="wrap">sum of <code>chat_panel_*_mode</code> counters</td>
+              <td class="note">Covers agent/ask/edit/plan/custom/unknown modes.</td>
+            </tr>
+            <tr>
+              <td class="first">totalChatAcceptances</td>
+              <td class="wrap">not directly available &mdash; proxy: <code>code_acceptance_activity_count</code> filtered through <code>totals_by_feature.chat_panel</code></td>
+              <td class="note">If filter is messy, set NULL.</td>
+            </tr>
+            <tr>
+              <td class="first"><span style="color:var(--warn)">totalDotcomChatTurns</span></td>
+              <td><strong style="color:var(--warn)">no replacement</strong></td>
+              <td class="note">github.com chat folded into general counters. Mark column deprecated; store NULL going forward.</td>
+            </tr>
+            <tr>
+              <td class="first"><span style="color:var(--warn)">totalPrSummaries</span></td>
+              <td><strong style="color:var(--warn)">no replacement</strong></td>
+              <td class="note">PR-summary metric is gone. <code>pull_requests.total_copilot_*</code> is code-review, not summaries. Mark deprecated; NULL.</td>
+            </tr>
+            <tr>
+              <td class="first">languageBreakdown (jsonb)</td>
+              <td><code>totals_by_language_feature</code></td>
+              <td class="note">Key is <code>"language|feature"</code>. <code>getCopilotAnalytics</code> already reads JSONB with fallback field names (<code>item.suggestions ?? item.totalSuggestions</code>), so a shape change is tolerable &mdash; but keep <code>language</code>, <code>suggestions</code>, <code>acceptances</code> as canonical keys.</td>
+            </tr>
+            <tr>
+              <td class="first">editorBreakdown (jsonb)</td>
+              <td><code>totals_by_ide</code></td>
+              <td class="note"><strong style="color:var(--warn)">CLI excluded</strong> &mdash; <code>totals_by_ide</code> does NOT include CLI. Add a new <code>cliBreakdown</code> jsonb column to capture <code>totals_by_cli</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:28px;">New columns to add</h3>
+      <div class="table-wrap scroll">
+        <div class="table-cap">
+          <span>phase 1 schema additions</span>
+          <span class="src">additive only; all nullable</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Column</th>
+              <th>Type</th>
+              <th>Source</th>
+              <th>Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="first">usedCli</td>
+              <td>boolean nullable</td>
+              <td class="wrap">derived: <code>totals_by_cli</code> present and non-zero</td>
+              <td class="note">CLI usage is now first-class.</td>
+            </tr>
+            <tr>
+              <td class="first">usedAgent</td>
+              <td>boolean nullable</td>
+              <td class="wrap">derived from <code>chat_panel_agent_mode &gt; 0</code> OR <code>agent_edit &gt; 0</code></td>
+              <td class="note">New feature surface.</td>
+            </tr>
+            <tr>
+              <td class="first">agentEditCount</td>
+              <td>integer nullable</td>
+              <td><code>agent_edit</code></td>
+              <td class="note">New field on the org row.</td>
+            </tr>
+            <tr>
+              <td class="first">cliBreakdown</td>
+              <td>jsonb nullable</td>
+              <td class="wrap"><code>totals_by_cli</code> (<code>{session_count, request_count, prompt_count, token_usage.*}</code>)</td>
+              <td class="note">CLI breakdown stored separately from editor breakdown.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 05. CRON ============ -->
+    <section id="s05">
+      <h2><span class="num">05</span>Cron behavior and data finalization</h2>
+      <p class="h-sub">The single biggest semantic change. Metrics data <strong>finalizes within ~3 UTC days</strong> &mdash; Monday's row is usually correct by Thursday, sometimes Friday. The old endpoint had a same-day-1-day-late behavior; the new one is 3+.</p>
+
+      <ol class="cron">
+        <li>Daily cron at 06:00 UTC fetches <code>day = today &minus; 3</code> (UTC) as the <strong style="color:#fff;font-weight:600">primary target</strong>.</li>
+        <li>Same cron also re-fetches <code>day = today &minus; 4</code> through <code>day = today &minus; 7</code> (4 extra days) and <strong>idempotently upserts</strong> (<code>onConflictDoUpdate</code> on <code>(connectionId, date)</code>). This catches stragglers without doubling row counts.</li>
+        <li>The dashboard's 28-day window remains 28 days, but the most recent <strong style="color:var(--warn)">3 days will always be empty</strong> &mdash; surface this on the chart with a "Awaiting GitHub" annotation.</li>
+        <li>First-deploy backfill: a one-shot loop over <code>today &minus; 28</code> &hellip; <code>today &minus; 3</code> calling <code>organization-1-day</code> for each date. Roughly 26 sequential calls; well within the 5000/hour rate limit.</li>
+      </ol>
+    </section>
+
+    <!-- ============ 06. IMPLEMENTATION PLAN ============ -->
+    <section id="s06">
+      <h2><span class="num">06</span>Step-by-step implementation plan</h2>
+      <p class="h-sub">Six phases. Each task references the exact file (file:line where possible) and what changes.</p>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 0</span>
+          <span class="ph-title">Token rotation</span>
+          <span class="ph-meta">human action &middot; ~5 minutes</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>Org owner re-mints the connection PAT with <code>manage_billing:copilot</code> <strong>+ <code>read:org</code></strong> (or creates a fine-grained PAT with "Organization Copilot metrics: Read" + existing Copilot Business read). Paste into the admin UI; <code>tokenScopesCsv</code> will refresh on next sync.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 1</span>
+          <span class="ph-title">Schema</span>
+          <span class="ph-meta">single additive migration &middot; ~15 LOC</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>In <code>src/lib/db/schema.ts:468-498</code> (<code>copilotUsageMetrics</code>):
+              <ul>
+                <li>Add nullable columns: <code>usedCli boolean</code>, <code>usedAgent boolean</code>, <code>agentEditCount integer</code>, <code>cliBreakdown jsonb</code>.</li>
+                <li>Leave <code>totalDotcomChatTurns</code> and <code>totalPrSummaries</code> in place (forward-NULL; future PR may drop after a deprecation window).</li>
+              </ul>
+            </li>
+            <li>Run <code>pnpm db:generate</code> to produce migration; review SQL is additive only.</li>
+            <li>Run <code>pnpm db:migrate</code> in CI (no destructive ops).</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 2</span>
+          <span class="ph-title">API client rewrite</span>
+          <span class="ph-meta">src/lib/copilot-api.ts</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>Replace <code>fetchCopilotMetrics(token, org, since, until)</code> (lines 255-272) with two functions:
+              <ul>
+                <li><code>fetchCopilotOrgDayReport(token, org, day: string)</code> &rarr; calls <code>GET /orgs/&#123;org&#125;/copilot/metrics/reports/organization-1-day?day=...</code> and returns <code>{ download_links: string[], report_day: string } | { status: 204 }</code>.</li>
+                <li><code>downloadReportNdjson(url)</code> &rarr; fetches the signed URL outside <code>githubFetch</code> (no Bearer header; signed URL is auth itself), reads body as text, returns parsed NDJSON rows.</li>
+              </ul>
+            </li>
+            <li>Add defensive TypeScript types for the NDJSON row shape &mdash; keep them open-ended:
+              <code>interface CopilotMetricsRow { day: string; organization_id?: number; code_generation_activity_count?: number; code_acceptance_activity_count?: number; loc_suggested_to_add_sum?: number; loc_added_sum?: number; chat_panel_ask_mode?: number; chat_panel_agent_mode?: number; chat_panel_edit_mode?: number; chat_panel_plan_mode?: number; chat_panel_custom_mode?: number; chat_panel_unknown_mode?: number; agent_edit?: number; totals_by_ide?: Record&lt;string, unknown&gt;; totals_by_language_feature?: Record&lt;string, unknown&gt;; totals_by_cli?: { session_count?: number; request_count?: number; prompt_count?: number; token_usage?: Record&lt;string, number&gt; }; pull_requests?: Record&lt;string, unknown&gt;; [k: string]: unknown }</code>.
+              <ul>
+                <li>Note the trailing <code>[k: string]: unknown</code> &mdash; the docs explicitly cover only "some" of the fields (community discussion <a href="https://github.com/orgs/community/discussions/186189">#186189</a>); we keep unknown keys around.</li>
+              </ul>
+            </li>
+            <li>Update <code>validateCopilotScopes</code> (lines 278-315) to also require <code>read:org</code>. Reject if missing with a precise error message naming <code>read:org</code> and linking to the GitHub PAT settings.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 3</span>
+          <span class="ph-title">Sync rewrite</span>
+          <span class="ph-meta">src/lib/copilot-sync.ts</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>Replace <code>syncUsageMetrics</code> (lines 290-472):
+              <ul>
+                <li>Accept a new optional parameter <code>backfillStartDate?: Date</code>. Default behavior (no backfill): compute a 5-day sliding window &mdash; <code>today&minus;3</code> through <code>today&minus;7</code> UTC.</li>
+                <li>For each target date, call <code>fetchCopilotOrgDayReport(token, org, day)</code>. On 204 or <code>download_links: []</code>, skip (not an error). On 404, surface as partial (this should now be rare; if it happens, scopes likely regressed).</li>
+                <li>For each <code>download_link</code>, call <code>downloadReportNdjson(link)</code>, then iterate rows and aggregate into the existing row shape.</li>
+                <li>Aggregation: for org-1-day reports there is exactly <strong>one row per day</strong>, so "aggregate" is mostly a field-by-field map. The complex per-editor / per-language nested loop from the old code is replaced by reading flat fields plus walking the <code>totals_by_*</code> breakdowns. Provide a small helper <code>mapNdjsonRowToDbRow(row)</code> that's unit-testable.</li>
+                <li>Upsert remains on <code>(connectionId, date)</code> with <code>onConflictDoUpdate</code> &mdash; already idempotent.</li>
+              </ul>
+            </li>
+            <li><strong style="color:var(--err)">Remove the silent-404 path</strong> at lines 314-324 from commit <code>19b38dc</code>. With the new API a 404 means something is wrong (token, scopes, or org policy). Surface as <code>outcome=partial</code> with a clear error message.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 4</span>
+          <span class="ph-title">Orchestrator + admin UI</span>
+          <span class="ph-meta">src/lib/sync/sources/github-copilot.ts &middot; src/actions/copilot.ts</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>In <code>src/lib/sync/sources/github-copilot.ts:15-107</code>, forward <code>opts?.backfillStartDate</code> into <code>syncUsageMetrics()</code>. Today it's accepted but never used (per the inventory finding).</li>
+            <li>In <code>src/actions/copilot.ts</code>, add an admin server action <code>triggerCopilotBackfill(startDate: Date)</code> that calls <code>run(userId, { backfillStartDate: startDate })</code>.</li>
+            <li>In the admin Copilot page, add a "Backfill metrics" button visible only to admins; default range = the last 28 days. Disable while a backfill is <code>in_progress</code> for the same source.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 5</span>
+          <span class="ph-title">Health visibility</span>
+          <span class="ph-meta">src/app/copilot/analytics/page.tsx + sync_events outcome rule</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>On the analytics page (<code>src/app/copilot/analytics/page.tsx</code>), render a <code>&lt;MetricsFreshness /&gt;</code> card when the latest <code>copilot_usage_metrics.date</code> is older than <code>today&minus;6</code> UTC (i.e. expected freshness window already past). Card reads "Copilot metrics stale &mdash; last data N days ago" with a link to the sync log.</li>
+            <li>Add a <code>sync_events</code> outcome adjustment: when metrics returns 204 (no report yet) AND the most recent stored row is within <code>today&minus;7</code>, leave <code>outcome=success</code>. When 204 AND the most recent stored row is older than <code>today&minus;7</code>, mark <code>outcome=partial</code>. This is the "transient vs persistent" rule.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase-group">
+        <div class="phase-head">
+          <span class="ph-num">Phase 6</span>
+          <span class="ph-title">Tests (only if feasible without DB)</span>
+          <span class="ph-meta">optional</span>
+        </div>
+        <div class="phase-body">
+          <ul>
+            <li>Add unit tests for <code>mapNdjsonRowToDbRow</code> &mdash; pin the field mapping with a representative NDJSON row from the docs.</li>
+            <li>(Optional) Add a test for the NDJSON parser &mdash; last-line-may-be-empty edge case.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 07. CODE SKETCHES ============ -->
+    <section id="s07">
+      <h2><span class="num">07</span>Code sketches</h2>
+      <p class="h-sub">Paste-and-adapt. Both blocks are illustrative &mdash; type names and helpers must align with whatever <code>githubFetch</code>, <code>CopilotApiResponse</code>, and <code>stripScopes</code> are doing today.</p>
+
+      <div class="code-block">
+        <div class="code-cap">Replacement &middot; <span class="path">src/lib/copilot-api.ts</span> &middot; <span style="text-transform:none;letter-spacing:0;color:var(--text-dim)">new fetch + NDJSON downloader</span></div>
+<pre><span class="c">// src/lib/copilot-api.ts  — replacement for fetchCopilotMetrics</span>
+<span class="k">export async function</span> <span class="fn">fetchCopilotOrgDayReport</span><span class="p">(</span>
+  <span class="v">token</span><span class="p">:</span> <span class="t">string</span><span class="p">,</span>
+  <span class="v">org</span><span class="p">:</span> <span class="t">string</span><span class="p">,</span>
+  <span class="v">day</span><span class="p">:</span> <span class="t">string</span><span class="p">,</span>        <span class="c">// "YYYY-MM-DD" in UTC</span>
+<span class="p">):</span> <span class="t">Promise</span><span class="p">&lt;</span><span class="t">CopilotApiResponse</span><span class="p">&lt;{</span> <span class="v">download_links</span><span class="p">:</span> <span class="t">string</span><span class="p">[];</span> <span class="v">report_day</span><span class="p">:</span> <span class="t">string</span> <span class="p">}&gt;&gt;</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="fn">stripScopes</span><span class="p">(</span>
+    <span class="k">await</span> <span class="fn">githubFetch</span><span class="p">&lt;{</span> <span class="v">download_links</span><span class="p">:</span> <span class="t">string</span><span class="p">[];</span> <span class="v">report_day</span><span class="p">:</span> <span class="t">string</span> <span class="p">}&gt;(</span>
+      <span class="s">`/orgs/${encodeURIComponent(org)}/copilot/metrics/reports/organization-1-day`</span><span class="p">,</span>
+      <span class="v">token</span><span class="p">,</span>
+      <span class="p">{</span> <span class="v">day</span> <span class="p">},</span>
+    <span class="p">),</span>
+  <span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">export async function</span> <span class="fn">downloadReportNdjson</span><span class="p">(</span><span class="v">url</span><span class="p">:</span> <span class="t">string</span><span class="p">):</span> <span class="t">Promise</span><span class="p">&lt;</span><span class="t">CopilotMetricsRow</span><span class="p">[]&gt;</span> <span class="p">{</span>
+  <span class="c">// Signed URL — do NOT add Authorization header.</span>
+  <span class="k">const</span> <span class="v">res</span> <span class="p">=</span> <span class="k">await</span> <span class="fn">fetch</span><span class="p">(</span><span class="v">url</span><span class="p">,</span> <span class="p">{</span> <span class="v">cache</span><span class="p">:</span> <span class="s">"no-store"</span> <span class="p">});</span>
+  <span class="k">if</span> <span class="p">(!</span><span class="v">res</span><span class="p">.</span><span class="v">ok</span><span class="p">)</span> <span class="k">throw new</span> <span class="fn">Error</span><span class="p">(</span><span class="s">`NDJSON download ${res.status} from ${new URL(url).host}`</span><span class="p">);</span>
+  <span class="k">const</span> <span class="v">body</span> <span class="p">=</span> <span class="k">await</span> <span class="v">res</span><span class="p">.</span><span class="fn">text</span><span class="p">();</span>
+  <span class="k">return</span> <span class="v">body</span>
+    <span class="p">.</span><span class="fn">split</span><span class="p">(</span><span class="s">"\n"</span><span class="p">)</span>
+    <span class="p">.</span><span class="fn">map</span><span class="p">((</span><span class="v">line</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="v">line</span><span class="p">.</span><span class="fn">trim</span><span class="p">())</span>
+    <span class="p">.</span><span class="fn">filter</span><span class="p">(</span><span class="v">Boolean</span><span class="p">)</span>
+    <span class="p">.</span><span class="fn">map</span><span class="p">((</span><span class="v">line</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="t">JSON</span><span class="p">.</span><span class="fn">parse</span><span class="p">(</span><span class="v">line</span><span class="p">)</span> <span class="k">as</span> <span class="t">CopilotMetricsRow</span><span class="p">);</span>
+<span class="p">}</span></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-cap">Replacement &middot; <span class="path">src/lib/copilot-sync.ts</span> &middot; <span style="text-transform:none;letter-spacing:0;color:var(--text-dim)">loop body inside syncUsageMetrics</span></div>
+<pre><span class="c">// src/lib/copilot-sync.ts  — replacement loop body inside syncUsageMetrics</span>
+<span class="k">const</span> <span class="v">targetDays</span> <span class="p">=</span> <span class="v">backfillStartDate</span>
+  <span class="p">?</span> <span class="fn">eachDayInRange</span><span class="p">(</span><span class="v">backfillStartDate</span><span class="p">,</span> <span class="fn">addDaysUTC</span><span class="p">(</span><span class="v">today</span><span class="p">,</span> <span class="p">-</span><span class="n">3</span><span class="p">))</span>
+  <span class="p">:</span> <span class="p">[-</span><span class="n">3</span><span class="p">,</span> <span class="p">-</span><span class="n">4</span><span class="p">,</span> <span class="p">-</span><span class="n">5</span><span class="p">,</span> <span class="p">-</span><span class="n">6</span><span class="p">,</span> <span class="p">-</span><span class="n">7</span><span class="p">].</span><span class="fn">map</span><span class="p">((</span><span class="v">d</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="fn">addDaysUTC</span><span class="p">(</span><span class="v">today</span><span class="p">,</span> <span class="v">d</span><span class="p">));</span>
+
+<span class="k">for</span> <span class="p">(</span><span class="k">const</span> <span class="v">day</span> <span class="k">of</span> <span class="v">targetDays</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">const</span> <span class="v">dayStr</span> <span class="p">=</span> <span class="v">day</span><span class="p">.</span><span class="fn">toISOString</span><span class="p">().</span><span class="fn">slice</span><span class="p">(</span><span class="n">0</span><span class="p">,</span> <span class="n">10</span><span class="p">);</span>
+  <span class="k">const</span> <span class="v">meta</span> <span class="p">=</span> <span class="k">await</span> <span class="fn">fetchCopilotOrgDayReport</span><span class="p">(</span><span class="v">token</span><span class="p">,</span> <span class="v">connection</span><span class="p">.</span><span class="v">orgLogin</span><span class="p">,</span> <span class="v">dayStr</span><span class="p">);</span>
+  <span class="k">if</span> <span class="p">(</span><span class="v">meta</span><span class="p">.</span><span class="v">status</span> <span class="p">===</span> <span class="n">204</span> <span class="p">||</span> <span class="p">!</span><span class="v">meta</span><span class="p">.</span><span class="v">data</span><span class="p">?.</span><span class="v">download_links</span><span class="p">?.</span><span class="v">length</span><span class="p">)</span> <span class="k">continue</span><span class="p">;</span>
+
+  <span class="k">const</span> <span class="v">rows</span><span class="p">:</span> <span class="t">CopilotMetricsRow</span><span class="p">[]</span> <span class="p">=</span> <span class="p">[];</span>
+  <span class="k">for</span> <span class="p">(</span><span class="k">const</span> <span class="v">link</span> <span class="k">of</span> <span class="v">meta</span><span class="p">.</span><span class="v">data</span><span class="p">.</span><span class="v">download_links</span><span class="p">)</span> <span class="p">{</span>
+    <span class="v">rows</span><span class="p">.</span><span class="fn">push</span><span class="p">(...(</span><span class="k">await</span> <span class="fn">downloadReportNdjson</span><span class="p">(</span><span class="v">link</span><span class="p">)));</span>
+  <span class="p">}</span>
+
+  <span class="k">for</span> <span class="p">(</span><span class="k">const</span> <span class="v">row</span> <span class="k">of</span> <span class="v">rows</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">const</span> <span class="v">mapped</span> <span class="p">=</span> <span class="fn">mapNdjsonRowToDbRow</span><span class="p">(</span><span class="v">connection</span><span class="p">.</span><span class="v">id</span><span class="p">,</span> <span class="v">row</span><span class="p">);</span>
+    <span class="k">await</span> <span class="v">db</span><span class="p">.</span><span class="fn">insert</span><span class="p">(</span><span class="v">copilotUsageMetrics</span><span class="p">).</span><span class="fn">values</span><span class="p">(</span><span class="v">mapped</span><span class="p">).</span><span class="fn">onConflictDoUpdate</span><span class="p">({</span>
+      <span class="v">target</span><span class="p">:</span> <span class="p">[</span><span class="v">copilotUsageMetrics</span><span class="p">.</span><span class="v">connectionId</span><span class="p">,</span> <span class="v">copilotUsageMetrics</span><span class="p">.</span><span class="v">date</span><span class="p">],</span>
+      <span class="v">set</span><span class="p">:</span> <span class="v">mapped</span><span class="p">,</span>
+    <span class="p">});</span>
+  <span class="p">}</span>
+<span class="p">}</span></pre>
+      </div>
+    </section>
+
+    <!-- ============ 08. ROLLOUT ============ -->
+    <section id="s08">
+      <h2><span class="num">08</span>Rollout sequence</h2>
+      <p class="h-sub">Ship the migration in small, reversible steps. The schema goes first; the legacy code goes last.</p>
+
+      <ol class="rollout">
+        <li><strong>Deploy schema migration</strong> (Phase&nbsp;1) &mdash; additive only, safe to ship in isolation.</li>
+        <li><strong>Deploy code changes behind a feature flag</strong> (Phases&nbsp;2&ndash;3). Flag default <code>OFF</code>.</li>
+        <li><strong>Manually trigger one backfill in production</strong> (Phase&nbsp;4 admin UI) to recover the last 28 days. Verify rows appear in <code>copilot_usage_metrics</code>.</li>
+        <li><strong>Flip the cron flag ON</strong> so the daily 06:00 UTC run uses the new path. Watch one full day of <code>sync_events</code>.</li>
+        <li><strong>Remove the legacy code paths</strong> in a follow-up PR after one week of stable operation. The old types in <code>src/lib/copilot-api.ts:53-154</code> (<code>CopilotIdeCodeCompletions</code>, etc.) can be deleted then.</li>
+        <li><strong>Add monitoring</strong> &mdash; the <code>&lt;MetricsFreshness /&gt;</code> card (Phase&nbsp;5) is the standing canary going forward.</li>
+      </ol>
+    </section>
+
+    <!-- ============ 09. RISKS ============ -->
+    <section id="s09">
+      <h2><span class="num">09</span>Risks and mitigations</h2>
+      <p class="h-sub">Most of the surface area is well-known. The two unknowns are signed-URL TTL and any unannounced field additions in the NDJSON.</p>
+
+      <div class="table-wrap scroll">
+        <div class="table-cap">
+          <span>risk register</span>
+          <span class="src">scored against Phase 1&ndash;3 scope</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:42%;">Risk</th>
+              <th>Mitigation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="first wrap">Signed URL TTL is undocumented; reports may 403 if we delay</td>
+              <td class="note">Always fetch immediately after receiving the wrapper response. No queueing between steps.</td>
+            </tr>
+            <tr>
+              <td class="first wrap">NDJSON schema is incompletely documented (community <a href="https://github.com/orgs/community/discussions/186189">#186189</a>)</td>
+              <td class="note">Defensive TypeScript types with <code>[k: string]: unknown</code>; runtime parser ignores unknown keys instead of throwing.</td>
+            </tr>
+            <tr>
+              <td class="first wrap"><code>download_links</code> domain churn (now <code>copilot-reports.github.com</code>, was Azure Front Door)</td>
+              <td class="note">Allowlist <code>copilot-reports.github.com</code>, <code>copilot-reports-*.b01.azurefd.net</code>, <code>*.blob.core.windows.net</code> if an outbound proxy gates fetches.</td>
+            </tr>
+            <tr>
+              <td class="first wrap">Token scope upgrade requires human action</td>
+              <td class="note">Admin must re-mint PAT with <code>read:org</code> before code deploy. Validate via <code>validateCopilotScopes</code> on first sync and fail loudly.</td>
+            </tr>
+            <tr>
+              <td class="first wrap"><code>total_active_users</code> / <code>total_engaged_users</code> columns become NULL unless we also pull <code>users-1-day</code></td>
+              <td class="note">Acceptable for Phase 1&ndash;3; dashboard already tolerates NULLs. Plan Phase-7 follow-up to add per-user fetch.</td>
+            </tr>
+            <tr>
+              <td class="first wrap">3-day finalization lag confuses dashboard users</td>
+              <td class="note">UI annotation on the trailing 3 days: <span class="pill warn">Awaiting GitHub</span> pill on the chart axis.</td>
+            </tr>
+            <tr>
+              <td class="first wrap"><code>total_pr_summaries</code> and <code>total_dotcom_chat_turns</code> permanently broken</td>
+              <td class="note">Mark deprecated in column comments; future PR drops them with a separate migration.</td>
+            </tr>
+            <tr>
+              <td class="first wrap">Multi-file <code>download_links</code> &mdash; rare in practice but supported</td>
+              <td class="note">Concatenate before parsing; ordering between files is not significant for our per-day upsert.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 10. TEST PLAN ============ -->
+    <section id="s10">
+      <h2><span class="num">10</span>Test plan</h2>
+      <p class="h-sub">Manual verification (in order). Each step gates the next.</p>
+
+      <ol class="verify">
+        <li>After Phase&nbsp;0 token swap: from <code>/admin/sync</code> page click <strong>"Test connection"</strong> &mdash; verify <code>validateCopilotScopes</code> now requires and finds <code>read:org</code>.</li>
+        <li>After Phase&nbsp;1 schema deploy: run <code>pnpm db:push</code> against a Neon branch first; verify only <code>ALTER TABLE ADD COLUMN</code> statements, no destructive ops.</li>
+        <li>After Phase&nbsp;2&ndash;3 code deploy (flag off): unit-test <code>mapNdjsonRowToDbRow</code> against a fixture NDJSON row.</li>
+        <li>Trigger backfill (Phase&nbsp;4 button) with <code>startDate = today &minus; 28</code>. Confirm ~26 new rows in <code>copilot_usage_metrics</code>.</li>
+        <li>Watch the next cron run at 06:00 UTC the following morning. Confirm <code>sync_events.outcome = success</code> and at least one new row landed for <code>today &minus; 3</code>.</li>
+        <li>After 7 days of clean cron runs, deploy Phase-5 removal of legacy code paths.</li>
+      </ol>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer>
+      <div class="row">
+        <div class="col">
+          <strong>Companion</strong><br>
+          specs/031-copilot-metrics-no-data-investigation/analysis.html
+        </div>
+        <div class="col">
+          <strong>Inventory anchors</strong><br>
+          src/lib/copilot-api.ts:255-272<br>
+          src/lib/copilot-sync.ts:290-472<br>
+          src/lib/sync/sources/github-copilot.ts:15-107<br>
+          src/lib/db/schema.ts:468-498<br>
+          vercel.json:4-6
+        </div>
+        <div class="col">
+          <strong>Generated</strong><br>
+          2026-05-21<br>
+          branch: github-sync-may<br>
+          spec: 031-copilot-metrics-no-data-investigation
+        </div>
+      </div>
+      <div class="row" style="margin-top:24px;">
+        <div class="col" style="flex:1; min-width:280px;">
+          <strong>Sources</strong><br>
+          <a href="https://docs.github.com/en/rest/copilot/copilot-usage-metrics">docs.github.com/en/rest/copilot/copilot-usage-metrics</a><br>
+          <a href="https://docs.github.com/en/copilot/reference/copilot-usage-metrics/copilot-usage-metrics">docs.github.com/en/copilot/reference/copilot-usage-metrics/copilot-usage-metrics</a><br>
+          <a href="https://docs.github.com/en/copilot/reference/copilot-usage-metrics/reconciling-usage-metrics">docs.github.com/en/copilot/reference/copilot-usage-metrics/reconciling-usage-metrics</a><br>
+          <a href="https://github.blog/changelog/2026-01-29-closing-down-notice-of-legacy-copilot-metrics-apis/">github.blog &middot; 2026-01-29 &middot; Closing-down notice of legacy Copilot metrics APIs</a><br>
+          <a href="https://github.blog/changelog/2026-05-14-team-level-copilot-usage-metrics-now-available-via-api/">github.blog &middot; 2026-05-14 &middot; Team-level Copilot usage metrics now available via API</a><br>
+          <a href="https://github.blog/changelog/2026-05-20-copilot-usage-metrics-reports-now-use-github-owned-download-urls/">github.blog &middot; 2026-05-20 &middot; GitHub-owned download URLs</a><br>
+          <a href="https://github.blog/changelog/2026-04-10-copilot-cli-activity-now-included-in-usage-metrics-totals-and-feature-breakdowns/">github.blog &middot; 2026-04-10 &middot; Copilot CLI activity included in usage metrics</a><br>
+          <a href="https://github.com/orgs/community/discussions/186189">github.com/orgs/community/discussions/186189</a><br>
+          <a href="https://github.com/orgs/community/discussions/187618">github.com/orgs/community/discussions/187618</a>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+
+  <aside class="toc" aria-label="Table of contents">
+    <span class="toc-label">On this page</span>
+    <a href="#s01"><span class="n">01</span>Goals</a>
+    <a href="#s02"><span class="n">02</span>Endpoints</a>
+    <a href="#s03"><span class="n">03</span>Response shape</a>
+    <a href="#s04"><span class="n">04</span>Schema mapping</a>
+    <a href="#s05"><span class="n">05</span>Cron behavior</a>
+    <a href="#s06"><span class="n">06</span>Plan</a>
+    <a href="#s07"><span class="n">07</span>Code sketches</a>
+    <a href="#s08"><span class="n">08</span>Rollout</a>
+    <a href="#s09"><span class="n">09</span>Risks</a>
+    <a href="#s10"><span class="n">10</span>Test plan</a>
+  </aside>
+</div>
+</body>
+</html>
