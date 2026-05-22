@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
 
 const editUserSchema = updateUserSchema.omit({ id: true });
 
@@ -57,6 +58,7 @@ export function EditUserDialog({
       email: user.email,
       circle: user.circle ?? undefined,
       role: user.role as "admin" | "viewer",
+      discipline: user.discipline,
       githubUsername: user.githubUsername ?? "",
       profile: user.profile ?? null,
     },
@@ -69,6 +71,7 @@ export function EditUserDialog({
         email: user.email,
         circle: user.circle ?? undefined,
         role: user.role as "admin" | "viewer",
+        discipline: user.discipline,
         githubUsername: user.githubUsername ?? "",
         profile: user.profile ?? null,
       });
@@ -138,6 +141,33 @@ export function EditUserDialog({
                       onChange={(e) => field.onChange(e.target.value || null)}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="discipline"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Discipline</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value ?? ""}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a discipline" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {DISCIPLINES.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {DISCIPLINE_LABEL[d]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -36,6 +36,12 @@ import { Eye, MoreHorizontal, Pencil, UserX, Mail, KeyRound } from "lucide-react
 import { deactivateUser } from "@/actions/users";
 import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
 import { ResetPasswordDialog } from "@/components/reset-password-dialog";
+import {
+  DISCIPLINES,
+  DISCIPLINE_ICON,
+  DISCIPLINE_LABEL,
+  asDiscipline,
+} from "@/lib/disciplines";
 import type { User } from "@/types";
 
 function UserRowActions({
@@ -190,6 +196,23 @@ function getColumns(
       cell: ({ row }) => {
         const value = row.getValue("circle") as string;
         return value === NO_CIRCLE_SENTINEL ? "\u2014" : value;
+      },
+    },
+    {
+      accessorKey: "discipline",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Discipline" />
+      ),
+      filterFn: arrayIncludesFilterFn,
+      cell: ({ row }) => {
+        const value = asDiscipline(row.getValue("discipline"));
+        const Icon = DISCIPLINE_ICON[value];
+        return (
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Icon className="size-3.5" />
+            {DISCIPLINE_LABEL[value]}
+          </span>
+        );
       },
     },
     {
@@ -350,8 +373,14 @@ export function UsersTable({
       { label: "No Profile", value: NO_PROFILE_SENTINEL },
     ];
 
+    const disciplineOptions = DISCIPLINES.map((d) => ({
+      label: DISCIPLINE_LABEL[d],
+      value: d,
+    }));
+
     return [
       { columnId: "circle", title: "Circle", options: circleOptions },
+      { columnId: "discipline", title: "Discipline", options: disciplineOptions },
       { columnId: "profile", title: "Profile", options: profileOptions },
       ...STATIC_FACETED_FILTERS,
     ];

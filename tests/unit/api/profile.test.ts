@@ -62,6 +62,7 @@ const mockUser = {
   role: "viewer",
   circle: "Engineering",
   profile: "boost",
+  discipline: "developer",
   status: "active",
 };
 
@@ -73,6 +74,7 @@ const mockProfileData: ProfileData = {
     role: "viewer",
     circle: "Engineering",
     profile: "boost",
+    discipline: "developer",
   },
   assignments: [
     {

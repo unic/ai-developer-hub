@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { InviteLinkDialog } from "@/components/invite-link-dialog";
+import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
 
 export function NewUserForm() {
   const router = useRouter();
@@ -42,6 +43,9 @@ export function NewUserForm() {
 
   const form = useForm<UserInput>({
     resolver: zodResolver(userSchema),
+    // defaultValues is DeepPartial<UserInput>, so omitting discipline is
+    // type-safe; the Select renders the placeholder and the zodResolver
+    // enforces the conscious pick on submit.
     defaultValues: {
       name: "",
       email: "",
@@ -120,6 +124,33 @@ export function NewUserForm() {
                     <FormControl>
                       <Input placeholder="e.g. Engineering" {...field} value={field.value ?? ""} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="discipline"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Discipline</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value ?? ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a discipline" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {DISCIPLINES.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {DISCIPLINE_LABEL[d]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

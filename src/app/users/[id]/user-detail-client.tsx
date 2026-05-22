@@ -13,6 +13,7 @@ import { getTools, getToolWithTiers } from "@/actions/tools";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { User, ChangeHistoryRecord, CostData, AiTool, AccessTier } from "@/types";
 import { AdminCostSection } from "@/components/profile/admin-cost-section";
+import { DISCIPLINES, DISCIPLINE_ICON, DISCIPLINE_LABEL, asDiscipline } from "@/lib/disciplines";
 import { Github, ExternalLink, BookOpen, KeyRound, Plus, RotateCcw, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -123,10 +124,14 @@ export function UserDetailClient({
       email: user.email,
       circle: user.circle ?? undefined,
       role: user.role as "admin" | "viewer",
+      discipline: user.discipline,
       githubUsername: user.githubUsername ?? "",
       profile: user.profile ?? null,
     },
   });
+
+  const userDiscipline = asDiscipline(user.discipline);
+  const DisciplineIcon = DISCIPLINE_ICON[userDiscipline];
 
   async function onSubmit(data: EditUserInput) {
     const result = await updateUser({ id: user.id, ...data });
@@ -236,6 +241,10 @@ export function UserDetailClient({
             variant={user.status === "active" ? "default" : "secondary"}
           >
             {user.status}
+          </Badge>
+          <Badge variant="outline" className="gap-1">
+            <DisciplineIcon className="size-3" />
+            {DISCIPLINE_LABEL[userDiscipline]}
           </Badge>
           {user.profile && (
             <Badge variant="outline" className="capitalize">
@@ -354,6 +363,33 @@ export function UserDetailClient({
                       <FormControl>
                         <Input {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value || null)} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="discipline"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Discipline</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a discipline" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {DISCIPLINES.map((d) => (
+                            <SelectItem key={d} value={d}>
+                              {DISCIPLINE_LABEL[d]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

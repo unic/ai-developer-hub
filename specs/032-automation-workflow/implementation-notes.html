@@ -201,6 +201,21 @@ uniqueIndex("message_templates_tool_tier_kind_idx")
   <p>All 359 tests still pass; typecheck + lint clean.</p>
 </div>
 
+<div class="phase-divider">Merge with main (2026-05-22)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Migration renumbered 0021 → 0022 after collision with PR #100 on main</h3>
+  <p class="where"><code>src/lib/db/migrations/0022_serious_tomas.sql</code> (was <code>0021_wakeful_speed.sql</code>)</p>
+  <p>PR #100 (<code>feat(users): introduce discipline</code>) merged to main while this PR was in review, claiming migration index 0021 (<code>0021_wise_vindicator.sql</code>). Merge resolution:</p>
+  <ul>
+    <li class="note">Deleted my <code>0021_wakeful_speed.sql</code>.</li>
+    <li class="note">Accepted main's <code>0021_wise_vindicator.sql</code> + its <code>meta/0021_snapshot.json</code> verbatim via <code>git checkout --theirs</code>.</li>
+    <li class="note">Accepted main's journal entry verbatim, then re-ran <code>pnpm db:generate</code> against the merged schema.ts (which now has both main's <code>discipline</code> column on <code>users</code> AND my <code>license_requests</code> + <code>message_templates</code>). Drizzle produced <code>0022_serious_tomas.sql</code> containing only my additions — the discipline column is correctly absent because main's 0021 already snapshots it.</li>
+    <li class="note"><strong>Heads-up:</strong> the worktree's Neon branch <code>wt/automation-workflow</code> still has the old <code>0021_wakeful_speed</code> applied. Before the next round of local smoke testing, the branch needs to be reset (drop + recreate from current main, then <code>pnpm db:migrate</code>) — otherwise <code>db:migrate</code> will fail with "relation already exists" when it tries to apply 0022 over the pre-existing tables. CI / production are unaffected: they apply migrations in journal order against fresh DBs.</li>
+  </ul>
+  <p>typecheck / lint / 359 tests still all green on the merged code.</p>
+</div>
+
 <footer>
   Appended to as implementation progresses. Each entry tagged Decision / Deviation / Tradeoff / Open.
 </footer>

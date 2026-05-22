@@ -49,7 +49,11 @@ export default async function AssignmentDetailPage({
           assignedAt: assignment.assignedAt?.toISOString() ?? null,
           revokedAt: assignment.revokedAt?.toISOString() ?? null,
           workspace: assignment.workspace,
-          user: { id: assignment.user.id, name: assignment.user.name },
+          user: {
+            id: assignment.user.id,
+            name: assignment.user.name,
+            discipline: assignment.user.discipline,
+          },
           tool: { id: assignment.tool.id, name: assignment.tool.name },
           tier: { id: assignment.tier.id, name: assignment.tier.name },
           hasApiKey,

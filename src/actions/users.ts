@@ -38,7 +38,7 @@ export async function createUser(
     };
   }
 
-  const { name, email, circle, role, githubUsername, profile } = parsed.data;
+  const { name, email, circle, role, discipline, githubUsername, profile } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
   // Check email uniqueness
@@ -60,6 +60,7 @@ export async function createUser(
       passwordHash,
       circle: circle ?? null,
       role,
+      discipline,
       githubUsername: githubUsername ?? null,
       profile: profile ?? null,
       mustChangePassword: true,
@@ -123,6 +124,13 @@ export async function updateUser(
   if (updates.role !== undefined && updates.role !== existing.role) {
     changes.role = { old: existing.role, new: updates.role };
     values.role = updates.role;
+  }
+  if (
+    updates.discipline !== undefined &&
+    updates.discipline !== existing.discipline
+  ) {
+    changes.discipline = { old: existing.discipline, new: updates.discipline };
+    values.discipline = updates.discipline;
   }
   if (
     updates.githubUsername !== undefined &&
@@ -216,8 +224,22 @@ export async function deactivateUser(input: {
 /** Compare CSV row fields against existing user, return changed fields with old/new values.
  *  Only considers a field changed if the CSV explicitly provides a value (not undefined). */
 function computeUserDiff(
-  row: { name: string; circle?: string; role?: string; githubUsername?: string; profile?: string },
-  existing: { name: string; circle: string | null; role: string; githubUsername: string | null; profile: string | null }
+  row: {
+    name: string;
+    circle?: string;
+    role?: string;
+    discipline?: string;
+    githubUsername?: string;
+    profile?: string;
+  },
+  existing: {
+    name: string;
+    circle: string | null;
+    role: string;
+    discipline: string;
+    githubUsername: string | null;
+    profile: string | null;
+  }
 ): Record<string, { old: unknown; new: unknown }> {
   const changes: Record<string, { old: unknown; new: unknown }> = {};
 
@@ -234,6 +256,9 @@ function computeUserDiff(
   }
   if (row.role !== undefined && row.role !== existing.role) {
     changes.role = { old: existing.role, new: row.role };
+  }
+  if (row.discipline !== undefined && row.discipline !== existing.discipline) {
+    changes.discipline = { old: existing.discipline, new: row.discipline };
   }
   if (row.githubUsername !== undefined) {
     const newGithubUsername = normalizeField(row.githubUsername);
@@ -275,6 +300,7 @@ export async function checkExistingUsers(input: {
       role: u.role,
       githubUsername: u.githubUsername,
       profile: u.profile,
+      discipline: u.discipline,
     };
   }
 
@@ -316,7 +342,8 @@ export async function bulkImportUsers(input: {
       continue;
     }
 
-    const { name, email, circle, role, githubUsername, profile } = parsed.data;
+    const { name, email, circle, role, discipline, githubUsername, profile } =
+      parsed.data;
     const lowerEmail = email.toLowerCase();
 
     // Detect duplicate emails within the same file
@@ -330,9 +357,11 @@ export async function bulkImportUsers(input: {
       const existing = existingMap.get(lowerEmail);
 
       if (existing) {
-        // Upsert: update existing user (never touch password or status)
+        // Upsert: update existing user (never touch password or status).
+        // discipline is omitted from the diff input when the CSV did not
+        // supply it, so the existing discipline is preserved on upsert.
         const diff = computeUserDiff(
-          { name, circle, role, githubUsername, profile },
+          { name, circle, role, discipline, githubUsername, profile },
           existing
         );
 
@@ -360,6 +389,9 @@ export async function bulkImportUsers(input: {
             passwordHash,
             circle: circle ?? null,
             role: role ?? "viewer",
+            // New rows default to "developer" when CSV omits the column,
+            // matching the DB default but explicit for traceability.
+            discipline: discipline ?? "developer",
             githubUsername: githubUsername ?? null,
             profile: profile ?? null,
             mustChangePassword: true,

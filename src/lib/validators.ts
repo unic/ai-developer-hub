@@ -22,12 +22,18 @@ export const tierSchema = z.object({
   monthlyCostCents: z.number().int().min(0, "Cost must be non-negative"),
 });
 
+// Shared values for the discipline enum (032-user-disciplines).
+const disciplineValues = ["developer", "conception", "business"] as const;
+
 // User (create — no password, invite flow)
 export const userSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
   circle: z.string().max(100).optional(),
   role: z.enum(["admin", "viewer"]),
+  discipline: z.enum(disciplineValues, {
+    message: "Please select a discipline",
+  }),
   githubUsername: z.string().max(255).optional(),
   profile: z.enum(["boost", "maxed", "indie"]).optional(),
 });
@@ -50,6 +56,7 @@ export const bulkImportUserSchema = z.object({
   email: z.string().email("Invalid email address"),
   circle: z.string().max(100).optional(),
   role: z.enum(["admin", "viewer"]).optional(),
+  discipline: z.enum(disciplineValues).optional(),
   githubUsername: z.string().max(255).optional(),
   profile: z.enum(["boost", "maxed", "indie"]).optional(),
 });
@@ -161,6 +168,7 @@ export const updateUserSchema = z.object({
   email: z.string().email().optional(),
   circle: z.string().max(100).optional().nullable(),
   role: z.enum(["admin", "viewer"]).optional(),
+  discipline: z.enum(disciplineValues).optional(),
   githubUsername: z.string().max(255).optional(),
   profile: z.enum(["boost", "maxed", "indie"]).nullable().optional(),
 });
@@ -278,6 +286,9 @@ export const inlineUserCreationSchema = z.object({
   githubLogin: z.string().min(1),
   name: z.string().min(1, "Name is required").max(255),
   email: z.string().email("Invalid email address"),
+  discipline: z.enum(disciplineValues, {
+    message: "Please select a discipline",
+  }),
 });
 
 export const confirmSyncSchema = z.object({

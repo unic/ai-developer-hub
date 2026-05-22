@@ -41,6 +41,11 @@ export const userProfileEnum = pgEnum("user_profile", [
   "maxed",
   "indie",
 ]);
+export const userDisciplineEnum = pgEnum("user_discipline", [
+  "developer",
+  "conception",
+  "business",
+]);
 export const githubConnectionStatusEnum = pgEnum("github_connection_status", [
   "active",
   "disconnected",
@@ -138,6 +143,7 @@ export const users = pgTable(
       .$type<UserPreferences>()
       .default({ theme: "system" }),
     profile: userProfileEnum("profile"),
+    discipline: userDisciplineEnum("discipline").notNull().default("developer"),
     mustChangePassword: boolean("must_change_password").notNull().default(true),
     isAgent: boolean("is_agent").notNull().default(false),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

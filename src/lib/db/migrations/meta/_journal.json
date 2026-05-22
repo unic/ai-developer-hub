@@ -152,8 +152,15 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1779444205911,
-      "tag": "0021_wakeful_speed",
+      "when": 1779438571112,
+      "tag": "0021_wise_vindicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779449159989,
+      "tag": "0022_serious_tomas",
       "breakpoints": true
     }
   ]
