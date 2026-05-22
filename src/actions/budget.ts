@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   annualBudgets,
   budgetPeriods,
+  budgetExtensions,
   licenseAssignments,
   aiTools,
   billedCosts,
@@ -61,7 +62,14 @@ export async function createBudget(
     // Create budget
     const [budget] = await tx
       .insert(annualBudgets)
-      .values({ fiscalYear, totalAmountCents, periodType })
+      .values({
+        fiscalYear,
+        totalAmountCents,
+        // At creation, the live ceiling IS the original baseline.
+        // Extensions later mutate totalAmountCents but never originalAmountCents.
+        originalAmountCents: totalAmountCents,
+        periodType,
+      })
       .returning({ id: annualBudgets.id });
 
     budgetId = budget.id;
@@ -317,10 +325,34 @@ export async function getBudgetById(id: number) {
   });
 }
 
-export async function getBudgets() {
-  return db.query.annualBudgets.findMany({
-    orderBy: (b, { desc }) => [desc(b.fiscalYear)],
-  });
+/**
+ * List all budgets (active + archived) augmented with an extension summary
+ * — count and net delta per budget. Used by the budget history page.
+ */
+export async function getBudgets(): Promise<
+  (AnnualBudget & { extensionCount: number; extensionNetCents: number })[]
+> {
+  const [budgets, extensions] = await Promise.all([
+    db.query.annualBudgets.findMany({
+      orderBy: (b, { desc }) => [desc(b.fiscalYear)],
+    }),
+    db
+      .select({
+        budgetId: budgetExtensions.budgetId,
+        count: count(),
+        netCents: sum(budgetExtensions.amountCents).mapWith(Number),
+      })
+      .from(budgetExtensions)
+      .groupBy(budgetExtensions.budgetId),
+  ]);
+  const byBudget = new Map(
+    extensions.map((e) => [e.budgetId, { count: e.count, net: e.netCents ?? 0 }])
+  );
+  return budgets.map((b) => ({
+    ...b,
+    extensionCount: byBudget.get(b.id)?.count ?? 0,
+    extensionNetCents: byBudget.get(b.id)?.net ?? 0,
+  }));
 }
 
 // US5: Expected spend calculation for a budget period (based on active license assignments)
@@ -522,6 +554,14 @@ export async function getBudgetWithCosts(
           billedCosts: true,
         },
       },
+      extensions: {
+        orderBy: (e, { desc }) => [desc(e.effectiveDate), desc(e.id)],
+        with: {
+          allocations: true,
+          linkedTool: { columns: { name: true } },
+          creator: { columns: { name: true } },
+        },
+      },
     },
   });
 
@@ -555,6 +595,15 @@ export async function getBudgetWithCosts(
       )
     );
 
+  // Sum extension allocations per period for the "+€X from extension" sub-label
+  const extensionByPeriod: Record<number, number> = {};
+  for (const ext of budget.extensions) {
+    for (const a of ext.allocations) {
+      extensionByPeriod[a.periodId] =
+        (extensionByPeriod[a.periodId] ?? 0) + a.amountCents;
+    }
+  }
+
   const periodsWithCosts = budget.periods.map((period) => {
     const periodStart = new Date(period.startDate);
     const periodEnd = new Date(period.endDate);
@@ -578,12 +627,18 @@ export async function getBudgetWithCosts(
       expectedSpendCents,
       billedTotalCents,
       billedEntries: period.billedCosts,
+      extensionAmountCents: extensionByPeriod[period.id] ?? 0,
     };
   });
 
   return {
     ...budget,
     periods: periodsWithCosts,
+    extensions: budget.extensions.map((e) => ({
+      ...e,
+      linkedToolName: e.linkedTool?.name ?? null,
+      createdByName: e.creator.name,
+    })),
   };
 }
 
