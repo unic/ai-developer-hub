@@ -312,6 +312,9 @@ export async function confirmGitHubSync(
                 passwordHash: tempPasswordHash,
                 githubUsername: member.githubLogin,
                 role: "viewer",
+                // "Import as-is" has no inline form for the admin to pick
+                // a discipline — default to developer; reclassify in /users.
+                discipline: "developer",
                 status: "active",
               })
               .returning({ id: users.id });
@@ -477,6 +480,7 @@ export async function confirmGitHubSync(
                 passwordHash: tempPasswordHash,
                 githubUsername: nu.githubLogin,
                 role: "viewer",
+                discipline: nu.discipline,
                 status: "active",
               })
               .returning({ id: users.id });

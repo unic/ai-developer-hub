@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Proposal · Categorizing users by discipline</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --bg-panel: #ffffff;
+    --bg-code: #0f172a;
+    --bg-code-soft: #f4f4f5;
+    --bg-side: #f1f1f3;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #a1a1aa;
+
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+    --ok: #047857;
+    --ok-bg: #d1fae5;
+    --info-bg: #dbeafe;
+    --info: #1d4ed8;
+
+    --code-fg: #e2e8f0;
+    --code-key: #93c5fd;
+    --code-str: #fcd34d;
+    --code-num: #c084fc;
+    --code-cmt: #64748b;
+    --code-kw: #f472b6;
+
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: var(--font); color: var(--text); background: var(--bg); }
+  body { -webkit-font-smoothing: antialiased; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 0;
+    min-height: 100vh;
+  }
+  aside.toc {
+    background: var(--bg-side);
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  aside.toc h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin: 0 0 12px;
+  }
+  aside.toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: toc;
+    font-size: 13px;
+  }
+  aside.toc li {
+    counter-increment: toc;
+    margin-bottom: 6px;
+  }
+  aside.toc a {
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.35;
+  }
+  aside.toc a::before {
+    content: counter(toc, decimal) ". ";
+    color: var(--text-faint);
+    margin-right: 4px;
+  }
+  aside.toc a:hover { background: rgba(0,0,0,0.05); }
+
+  main.doc {
+    max-width: 920px;
+    width: 100%;
+    padding: 48px 56px 96px;
+    margin: 0;
+  }
+  header.doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  header.doc-header .crumb {
+    font-size: 12px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  header.doc-header h1 {
+    margin: 0 0 6px;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+  }
+  header.doc-header p.subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 760px;
+    line-height: 1.5;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+    font-size: 12px;
+  }
+  .meta-grid .cell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .meta-grid .cell .k {
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .meta-grid .cell .v { font-weight: 600; }
+
+  h2.section {
+    counter-increment: section;
+    margin: 56px 0 16px;
+    font-size: 22px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h2.section::before {
+    content: counter(section) ". ";
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+  main.doc { counter-reset: section; }
+  h3 {
+    margin: 28px 0 10px;
+    font-size: 16px;
+    letter-spacing: -0.005em;
+  }
+  h4 {
+    margin: 18px 0 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  p { line-height: 1.65; margin: 0 0 12px; font-size: 14.5px; }
+  ul, ol { line-height: 1.65; font-size: 14.5px; }
+  li { margin-bottom: 4px; }
+  li > p { margin-bottom: 4px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--bg-code-soft);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--bg-code);
+    color: var(--code-fg);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 12px 0 20px;
+    border: 1px solid #1e293b;
+    position: relative;
+  }
+  pre code { background: transparent; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .filepath {
+    position: absolute;
+    top: 8px; right: 12px;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    background: #1e293b;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+  }
+  .k  { color: var(--code-key); }
+  .s  { color: var(--code-str); }
+  .n  { color: var(--code-num); }
+  .c  { color: var(--code-cmt); font-style: italic; }
+  .kw { color: var(--code-kw); }
+
+  .callout {
+    border-left: 3px solid;
+    padding: 12px 14px;
+    margin: 16px 0 20px;
+    border-radius: 4px;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .callout strong { font-weight: 600; }
+  .callout.note   { background: var(--info-bg);  border-color: var(--info);   color: #1e3a8a; }
+  .callout.warn   { background: var(--warn-bg);  border-color: var(--warn);   color: var(--warn); }
+  .callout.danger { background: var(--danger-bg);border-color: var(--danger); color: var(--danger); }
+  .callout.ok     { background: var(--ok-bg);    border-color: var(--ok);     color: var(--ok); }
+  .callout .label {
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 11px; display: block; margin-bottom: 4px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-side);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  td code { font-size: 11.5px; }
+
+  tr.recommend td {
+    background: #f0fdf4;
+  }
+  tr.recommend td:first-child {
+    border-left: 3px solid var(--ok);
+    font-weight: 700;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge.new       { background: #d1fae5; color: #047857; }
+  .badge.edit      { background: #fef3c7; color: #b45309; }
+  .badge.required  { background: #fee2e2; color: #b91c1c; }
+  .badge.optional  { background: #e0e7ff; color: #4338ca; }
+  .badge.recommend { background: #dcfce7; color: #166534; }
+
+  .diff {
+    background: #0f172a; color: var(--code-fg);
+    padding: 14px 16px;
+    border-radius: 8px; font-family: var(--mono); font-size: 12.5px;
+    line-height: 1.55;
+    margin: 12px 0 20px;
+    overflow-x: auto;
+    white-space: pre;
+    border: 1px solid #1e293b;
+  }
+  .diff .add { color: #6ee7b7; }
+  .diff .del { color: #fca5a5; }
+  .diff .ctx { color: #cbd5e1; }
+
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid #c7d2fe;
+    padding: 1px 7px;
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+
+  ul.q {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  ul.q > li {
+    padding: 12px 14px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  ul.q .qmark {
+    font-weight: 700;
+    color: var(--accent);
+    font-family: var(--mono);
+    margin-right: 6px;
+  }
+  ul.q .hint {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+
+<body>
+<div class="shell">
+
+  <aside class="toc">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#context">Context &amp; goal</a></li>
+      <li><a href="#naming">The naming problem</a></li>
+      <li><a href="#values">Discipline values</a></li>
+      <li><a href="#data-model">Data model</a></li>
+      <li><a href="#validators">Validators</a></li>
+      <li><a href="#ui">UI surface</a></li>
+      <li><a href="#csv">CSV import &amp; export</a></li>
+      <li><a href="#migration">Migration &amp; backfill</a></li>
+      <li><a href="#circle">Relationship to <code>circle</code> &amp; <code>profile</code></a></li>
+      <li><a href="#open">Open questions</a></li>
+      <li><a href="#out-of-scope">Out of scope</a></li>
+    </ol>
+  </aside>
+
+  <main class="doc">
+
+    <header class="doc-header">
+      <div class="crumb">Spec 032 · User disciplines</div>
+      <h1>Proposal — Categorizing users by discipline</h1>
+      <p class="subtitle">
+        Today every user is implicitly a developer. As the team expands the tool to cover Conception and
+        Business colleagues, we need a way to record what kind of work a person does — without colliding with
+        the existing security <code>role</code> column. This document proposes naming, schema, UI, and a
+        migration approach as a starting point for the implementation plan.
+      </p>
+      <div class="meta-grid">
+        <div class="cell"><div class="k">Status</div><div class="v">Proposal · v0</div></div>
+        <div class="cell"><div class="k">Author</div><div class="v">tobias.studer@unic.com</div></div>
+        <div class="cell"><div class="k">Schema impact</div><div class="v">1 enum · 1 column</div></div>
+        <div class="cell"><div class="k">Breaking</div><div class="v">No (backfilled)</div></div>
+      </div>
+    </header>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="context">Context &amp; goal</h2>
+
+    <p>
+      The user record in <code>src/lib/db/schema.ts</code> currently captures four orthogonal facets of a
+      person:
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Purpose today</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>role</code></td>
+          <td><code>user_role</code> enum (<code>admin</code> | <code>viewer</code>)</td>
+          <td>Security / authorization. Drives what the user can do in the app.</td>
+        </tr>
+        <tr>
+          <td><code>circle</code></td>
+          <td><code>varchar(100)</code>, nullable, free-text</td>
+          <td>Organizational grouping (a team or circle inside the company). Used for filtering/reporting.</td>
+        </tr>
+        <tr>
+          <td><code>profile</code></td>
+          <td><code>user_profile</code> enum (<code>boost</code> | <code>maxed</code> | <code>indie</code>)</td>
+          <td>Anthropic API tier the user is on. Drives cost attribution.</td>
+        </tr>
+        <tr>
+          <td><code>github_username</code></td>
+          <td><code>varchar(255)</code>, nullable</td>
+          <td>GitHub identity for Copilot sync.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      None of these capture <em>what kind of work the person does</em>. Up to now that has been irrelevant
+      because every tracked user was a developer. With Conception and Business now in scope, the budget /
+      reporting story needs to slice spend along that axis — e.g. <em>"how much do our Conception colleagues
+      cost on Claude this month?"</em>
+    </p>
+
+    <p>
+      <strong>Goal:</strong> add a single mandatory categorical field on every user that records whether they
+      are <em>Developer</em>, <em>Conception</em>, or <em>Business</em>. Pick a name that does not collide
+      with the existing security <code>role</code>.
+    </p>
+
+    <div class="callout note">
+      <span class="label">Non-goal</span>
+      We are not redesigning <code>role</code> (security) or <code>profile</code> (Anthropic tier). Those stay
+      as they are. This proposal only adds the new categorical field.
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="naming">The naming problem</h2>
+
+    <p>
+      &ldquo;Role&rdquo; is already taken — using it again for the new field would force every conversation
+      and code-review to disambiguate <em>which role</em>. The candidates below were evaluated against:
+    </p>
+    <ul>
+      <li><strong>Clarity</strong> — does it obviously mean "kind of work", not authorization?</li>
+      <li><strong>Industry fit</strong> — does the term match how digital-agency teams (Unic, peers) actually
+        talk about Conception / Development / Business?</li>
+      <li><strong>Codebase fit</strong> — does it read well next to <code>role</code>, <code>circle</code>,
+        <code>profile</code>?</li>
+      <li><strong>i18n</strong> — does it translate cleanly to German (the team's working language alongside
+        English)?</li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 130px">Name</th>
+          <th>Pros</th>
+          <th>Cons</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="recommend">
+          <td><code>discipline</code> <span class="badge recommend">Recommended</span></td>
+          <td>
+            Standard agency vocabulary for "Engineering / Conception / Business / Design". Translates 1:1 to
+            German (<em>Disziplin</em>). Zero overlap with <code>role</code>. Reads naturally:
+            <code>user.discipline = "conception"</code>.
+          </td>
+          <td>Slightly formal. Some readers may first think of "academic discipline".</td>
+        </tr>
+        <tr>
+          <td><code>practice</code></td>
+          <td>
+            Also agency-native ("design practice", "engineering practice"). Implies a community of expertise.
+          </td>
+          <td>
+            Overloaded in software (e.g. "best practices"). German translation (<em>Praxis</em>) is awkward
+            for an individual person — practices are usually groups, not labels.
+          </td>
+        </tr>
+        <tr>
+          <td><code>function</code></td>
+          <td>HR-standard. Unambiguous as "job function".</td>
+          <td>
+            Word also means a code function — high collision in a TypeScript codebase. Reads corporate /
+            cold.
+          </td>
+        </tr>
+        <tr>
+          <td><code>track</code></td>
+          <td>Short. Common in career-ladder talk.</td>
+          <td>
+            Implies a progression / level (IC1 → IC5), which is <em>not</em> what we mean. Likely to cause
+            confusion.
+          </td>
+        </tr>
+        <tr>
+          <td><code>craft</code></td>
+          <td>Warm, agency-ish. Used at design-heavy shops.</td>
+          <td>Strongly biased toward "design/build" connotation — fits Conception &amp; Dev but not Business.</td>
+        </tr>
+        <tr>
+          <td><code>category</code> / <code>type</code></td>
+          <td>Generic; nobody will misread it.</td>
+          <td>
+            Too generic — gives the reader no hint of what's inside. Future contributors will need to read the
+            enum to find out.
+          </td>
+        </tr>
+        <tr>
+          <td><code>department</code></td>
+          <td>HR-standard, obvious.</td>
+          <td>
+            We already had a <code>department</code> column in migration 0000 that was renamed to
+            <code>circle</code>. Reintroducing it inverts that decision and re-creates ambiguity with
+            <code>circle</code>.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout ok">
+      <span class="label">Recommendation</span>
+      Adopt <code>discipline</code>. It is unambiguous next to <code>role</code>, matches how Unic and similar
+      agencies already describe the Dev/Conception/Business split, and survives translation. Runner-up:
+      <code>practice</code> if the team feels "discipline" is too formal.
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="values">Discipline values</h2>
+
+    <p>Proposed enum, stored lowercase to match existing conventions (<code>admin</code>, <code>viewer</code>,
+       <code>boost</code>, &hellip;):</p>
+
+    <table>
+      <thead>
+        <tr><th>Enum value</th><th>Display label</th><th>Who</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>developer</code></td>
+          <td>Developer</td>
+          <td>Engineers — frontend, backend, mobile, DevOps. The current population.</td>
+        </tr>
+        <tr>
+          <td><code>conception</code></td>
+          <td>Conception</td>
+          <td>UX, IA, content strategy, service design — the strategic / conceptual work upstream of build.</td>
+        </tr>
+        <tr>
+          <td><code>business</code></td>
+          <td>Business</td>
+          <td>Project management, sales, account, leadership — non-craft roles that still use AI tools.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <span class="label">Decision needed</span>
+      Should the enum stay closed (these three only) or be extensible (e.g. <em>Design</em>, <em>Data</em>,
+      <em>QA</em> later)? Adding values to a Postgres enum is cheap (<code>ALTER TYPE … ADD VALUE</code>),
+      removing them is hard. Recommend: start closed at these three, add more only when a real population
+      shows up. See <a href="#open">open questions</a>.
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="data-model">Data model</h2>
+
+    <h3>Schema change</h3>
+
+    <p>
+      Add a new enum and a non-null column on <code>users</code>. The column is required from day one — every
+      user must have a discipline — and the migration backfills existing rows to <code>developer</code>.
+    </p>
+
+    <pre><span class="filepath">src/lib/db/schema.ts</span><span class="c">// 1. New enum, alongside userRoleEnum / userStatusEnum / userProfileEnum</span>
+<span class="kw">export const</span> userDisciplineEnum <span class="kw">=</span> pgEnum(<span class="s">"user_discipline"</span>, [
+  <span class="s">"developer"</span>,
+  <span class="s">"conception"</span>,
+  <span class="s">"business"</span>,
+]);
+
+<span class="c">// 2. Column inside the users table</span>
+<span class="kw">export const</span> users <span class="kw">=</span> pgTable(<span class="s">"users"</span>, {
+  <span class="c">// ... existing columns ...</span>
+  discipline: userDisciplineEnum(<span class="s">"discipline"</span>)
+    .notNull()
+    .default(<span class="s">"developer"</span>),
+  <span class="c">// ... existing columns ...</span>
+});</pre>
+
+    <h3>SQL migration sketch</h3>
+
+    <p>Drizzle will emit something close to this. The default + backfill makes it safe on a live table:</p>
+
+    <pre><span class="filepath">src/lib/db/migrations/00XX_add_user_discipline.sql</span><span class="kw">CREATE TYPE</span> <span class="n">user_discipline</span> <span class="kw">AS ENUM</span> (<span class="s">'developer'</span>, <span class="s">'conception'</span>, <span class="s">'business'</span>);
+
+<span class="kw">ALTER TABLE</span> <span class="n">users</span>
+  <span class="kw">ADD COLUMN</span> <span class="n">discipline</span> <span class="n">user_discipline</span>
+    <span class="kw">NOT NULL</span> <span class="kw">DEFAULT</span> <span class="s">'developer'</span>;
+
+<span class="c">-- No backfill UPDATE needed: the DEFAULT applies to existing rows during ADD COLUMN.</span>
+<span class="c">-- After the release, admins reclassify Conception / Business users via the UI.</span></pre>
+
+    <div class="callout note">
+      <span class="label">Why default to <code>developer</code>?</span>
+      It matches today's reality — every existing user <em>is</em> a developer — so the backfill is correct
+      data, not a placeholder. New users created after the migration must pick a value explicitly via the UI
+      (we'll surface the field as required in the form, even though the DB default exists as a safety net).
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="validators">Validators</h2>
+
+    <p>
+      Mirror the enum into <code>src/lib/validators.ts</code> and require it on creation; allow partial
+      updates on edit.
+    </p>
+
+    <div class="diff"><span class="ctx">// src/lib/validators.ts</span>
+<span class="ctx"> export const userSchema = z.object({</span>
+<span class="ctx">   name:           z.string().min(1).max(255),</span>
+<span class="ctx">   email:          z.string().email(),</span>
+<span class="ctx">   circle:         z.string().max(100).optional(),</span>
+<span class="ctx">   role:           z.enum(["admin", "viewer"]),</span>
+<span class="add">+  discipline:     z.enum(["developer", "conception", "business"]),</span>
+<span class="ctx">   githubUsername: z.string().max(255).optional(),</span>
+<span class="ctx">   profile:        z.enum(["boost", "maxed", "indie"]).optional(),</span>
+<span class="ctx"> });</span>
+
+<span class="ctx"> export const updateUserSchema = z.object({</span>
+<span class="ctx">   id:   z.number().int().positive(),</span>
+<span class="ctx">   /* ... */</span>
+<span class="add">+  discipline: z.enum(["developer", "conception", "business"]).optional(),</span>
+<span class="ctx"> });</span>
+
+<span class="ctx"> export const bulkImportUserSchema = z.object({</span>
+<span class="ctx">   /* ... */</span>
+<span class="add">+  discipline: z.enum(["developer", "conception", "business"]).optional(),</span>
+<span class="ctx">     // optional on bulk import — falls back to "developer" if omitted,</span>
+<span class="ctx">     // mirroring the DB default for back-compat with existing CSVs.</span>
+<span class="ctx"> });</span></div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="ui">UI surface</h2>
+
+    <p>The new field touches every screen that displays or edits a user.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 280px">Surface</th>
+          <th>Change</th>
+          <th style="width: 90px">Effort</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>src/app/users/new/new-user-form.tsx</code></td>
+          <td>Add a <code>Select</code> with the three options. Required field. Default selection blank (force a conscious choice).</td>
+          <td>S</td>
+        </tr>
+        <tr>
+          <td><code>src/app/users/[id]/user-detail-client.tsx</code></td>
+          <td>Editable <code>Select</code>. Show current value prominently next to the security role badge.</td>
+          <td>S</td>
+        </tr>
+        <tr>
+          <td><code>src/app/users/users-table.tsx</code></td>
+          <td>New column <em>Discipline</em>, sortable, with a column filter (multi-select). Place between <em>Circle</em> and <em>Role</em>.</td>
+          <td>S</td>
+        </tr>
+        <tr>
+          <td><code>src/app/users/import/bulk-import-form.tsx</code></td>
+          <td>Accept a <code>discipline</code> column in the CSV. Show it in the preview table. Validate against the enum; reject rows with unknown values.</td>
+          <td>M</td>
+        </tr>
+        <tr>
+          <td><code>src/app/api/export/users/route.ts</code></td>
+          <td>Add <code>discipline</code> column to CSV export (between <code>circle</code> and <code>role</code> to match the table).</td>
+          <td>S</td>
+        </tr>
+        <tr>
+          <td>Reports (spec 005, 028)</td>
+          <td>Add a discipline filter / breakdown to budget &amp; cost reports — secondary follow-up, not part of this proposal's first cut.</td>
+          <td>L (later)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Visual treatment</h3>
+
+    <p>
+      Discipline should read as a calm, neutral attribute — not a status. Suggest a subtle outlined badge
+      next to the user's name, using <code>lucide-react</code> icons for visual scent:
+    </p>
+
+    <ul>
+      <li><span class="pill">developer</span> &mdash; <code>Code2</code> icon, slate</li>
+      <li><span class="pill">conception</span> &mdash; <code>Lightbulb</code> icon, slate</li>
+      <li><span class="pill">business</span> &mdash; <code>Briefcase</code> icon, slate</li>
+    </ul>
+
+    <p>
+      Avoid colored badges that compete with the existing <em>admin</em> / <em>viewer</em> role pills — those
+      already use color and should stay the eye-catcher for authorization.
+    </p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="csv">CSV import &amp; export</h2>
+
+    <p>
+      The team relies on the export → edit → re-import workflow (spec 011). Both ends need to learn about the
+      new column.
+    </p>
+
+    <h4>Export</h4>
+    <pre><span class="c">// Current header</span>
+name,email,circle,role,github_username,profile
+
+<span class="c">// New header</span>
+name,email,circle,discipline,role,github_username,profile</pre>
+
+    <h4>Import</h4>
+    <ul>
+      <li><strong>New rows</strong> — <code>discipline</code> is optional in the CSV (falls back to <code>developer</code> via DB default), but the UI preview should warn when the column is missing or blank to nudge admins to set it explicitly.</li>
+      <li><strong>Existing rows (upsert)</strong> — if the CSV omits the column, leave the existing value untouched (don't overwrite to "developer"). Only update when the column is present and non-empty.</li>
+      <li><strong>Invalid value</strong> — fail the row with a clear error: <em>"discipline must be one of: developer, conception, business"</em>.</li>
+    </ul>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="migration">Migration &amp; backfill</h2>
+
+    <p>The rollout is mechanical and low-risk:</p>
+
+    <ol>
+      <li>Add enum + column to <code>schema.ts</code>; <code>pnpm db:generate</code> to produce the migration file.</li>
+      <li>Run <code>pnpm db:migrate</code> &mdash; existing rows get <code>developer</code> via the column default.</li>
+      <li>Update Zod validators, server actions, and UI in one PR.</li>
+      <li>Update CSV import/export endpoints.</li>
+      <li>Communicate to admins: <em>"new field on every user; defaulted to Developer; please reclassify Conception &amp; Business colleagues at <code>/users</code>"</em>.</li>
+    </ol>
+
+    <div class="callout note">
+      <span class="label">Migration safety</span>
+      Using <code>ADD COLUMN … NOT NULL DEFAULT 'developer'</code> on Postgres 11+ is a metadata-only
+      operation (no table rewrite). Safe even on a large <code>users</code> table.
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="circle">Relationship to <code>circle</code> &amp; <code>profile</code></h2>
+
+    <p>
+      It is worth being explicit that <em>discipline</em> is orthogonal to the existing fields. They answer
+      different questions:
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Answers</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>role</code></td>
+          <td>What can you do in this app?</td>
+          <td><em>admin</em></td>
+        </tr>
+        <tr>
+          <td><code>discipline</code> <span class="badge new">New</span></td>
+          <td>What kind of work do you do?</td>
+          <td><em>conception</em></td>
+        </tr>
+        <tr>
+          <td><code>circle</code></td>
+          <td>Which team / circle do you belong to?</td>
+          <td><em>"Team Phoenix"</em></td>
+        </tr>
+        <tr>
+          <td><code>profile</code></td>
+          <td>Which Anthropic API tier are you on?</td>
+          <td><em>maxed</em></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Two Conception people in different circles will share a discipline but not a circle. A developer and a
+      conception person in the same circle will share a circle but not a discipline. Keeping the columns
+      separate is the right model — do <strong>not</strong> repurpose <code>circle</code> for this.
+    </p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="open">Open questions</h2>
+
+    <ul class="q">
+      <li>
+        <span class="qmark">Q1.</span> Lock in <code>discipline</code> as the name, or go with
+        <code>practice</code> / something else?
+        <span class="hint">Affects column name, validator key, CSV header, and all UI labels. Cheap to change
+        now, expensive after launch.</span>
+      </li>
+      <li>
+        <span class="qmark">Q2.</span> Are the three values (<em>developer / conception / business</em>) the
+        complete list, or do we want to seed with <em>design</em>, <em>data</em>, <em>qa</em> while we're at
+        it?
+        <span class="hint">Adding later via <code>ALTER TYPE … ADD VALUE</code> is easy; the question is
+        whether the team already knows others are coming.</span>
+      </li>
+      <li>
+        <span class="qmark">Q3.</span> Should existing reports (budget by month, Copilot usage, Claude spend)
+        get a <em>"group by discipline"</em> breakdown as part of this feature, or as a follow-up?
+        <span class="hint">Recommended follow-up — keep the first PR focused on the data model + user-management
+        UI, then layer reporting on top once the data is populated.</span>
+      </li>
+      <li>
+        <span class="qmark">Q4.</span> Does the agent user (<code>is_agent = true</code>, seeded by spec
+        agent-browser-session) need a discipline at all?
+        <span class="hint">Suggestion: yes, defaulted to <code>developer</code>, hidden from the UI. Keeps the
+        NOT&nbsp;NULL contract simple. Alternative: make the column nullable for agent rows only — adds
+        complexity for little gain.</span>
+      </li>
+      <li>
+        <span class="qmark">Q5.</span> Display ordering for the dropdown — alphabetical
+        (<em>Business / Conception / Developer</em>) or by team size (<em>Developer / Conception / Business</em>)?
+        <span class="hint">Suggest by team size, so the most common pick is at the top and saves a click.</span>
+      </li>
+    </ul>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="out-of-scope">Out of scope</h2>
+
+    <ul>
+      <li>Renaming the existing security <code>role</code> column. (It stays as-is.)</li>
+      <li>Permissions or policy changes based on discipline. Discipline is descriptive, not authorizing.</li>
+      <li>Per-discipline budgets or cost caps. (Possible future feature; this proposal only adds the data.)</li>
+      <li>Per-discipline default Anthropic <code>profile</code> assignment. (Possible follow-up once we see
+        usage patterns.)</li>
+      <li>Historical attribution: existing billed costs are not retroactively tagged by discipline. Future
+        billing rows can be joined to <code>users.discipline</code> at query time.</li>
+    </ul>
+
+  </main>
+</div>
+</body>
+</html>

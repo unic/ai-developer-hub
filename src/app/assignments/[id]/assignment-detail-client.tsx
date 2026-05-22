@@ -18,7 +18,8 @@ import {
   type UpdateAssignmentInput,
 } from "@/lib/validators";
 import { formatCurrency, cn, formatDateOnly } from "@/lib/utils";
-import type { AccessTier } from "@/types";
+import type { AccessTier, UserDiscipline } from "@/types";
+import { DISCIPLINE_ICON, DISCIPLINE_LABEL, asDiscipline } from "@/lib/disciplines";
 import {
   Card,
   CardContent,
@@ -69,7 +70,7 @@ interface AssignmentData {
   assignedAt: string | null;
   revokedAt: string | null;
   workspace: string | null;
-  user: { id: number; name: string };
+  user: { id: number; name: string; discipline: UserDiscipline };
   tool: { id: number; name: string };
   tier: { id: number; name: string };
   hasApiKey: boolean;
@@ -242,8 +243,21 @@ export function AssignmentDetailClient({
           </Link>{" "}
           &rarr; {assignment.tool.name} at {assignment.tier.name}
         </h1>
-        <p className="text-muted-foreground">
-          Assignment #{assignment.id}
+        <p className="text-muted-foreground flex items-center gap-2">
+          <span>Assignment #{assignment.id}</span>
+          <span aria-hidden="true">&middot;</span>
+          <span className="inline-flex items-center gap-1">
+            {(() => {
+              const d = asDiscipline(assignment.user.discipline);
+              const Icon = DISCIPLINE_ICON[d];
+              return (
+                <>
+                  <Icon className="size-3.5" />
+                  {DISCIPLINE_LABEL[d]}
+                </>
+              );
+            })()}
+          </span>
         </p>
       </div>
 

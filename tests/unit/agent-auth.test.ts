@@ -48,6 +48,7 @@ const mockAgentRow = {
   name: "Nighthawk Agent",
   email: AGENT_EMAIL,
   role: "admin",
+  discipline: "developer",
   status: "active",
   isAgent: true,
   preferences: { theme: "system" } as { theme: "system" | "light" | "dark" },

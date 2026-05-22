@@ -49,6 +49,7 @@ import type {
   SyncUnmatchedMember,
   SyncUnmatchedSystemUser,
   PendingResolution,
+  UserDiscipline,
 } from "@/types";
 
 interface GitHubMemberSyncSheetProps {
@@ -185,6 +186,7 @@ export function GitHubMemberSyncSheet({
       githubLogin: string;
       name: string;
       email: string;
+      discipline: UserDiscipline;
     }> = [];
 
     for (const r of resolutions.values()) {
@@ -200,6 +202,7 @@ export function GitHubMemberSyncSheet({
             githubLogin: r.githubLogin,
             name: r.name,
             email: r.email,
+            discipline: r.discipline,
           });
           break;
         // skip: nothing to send
@@ -635,6 +638,7 @@ function UnmatchedGitHubResolutionList({
                     githubLogin: data.githubLogin,
                     name: data.name,
                     email: data.email,
+                    discipline: data.discipline,
                   })
                 }
                 onCancel={onCollapse}

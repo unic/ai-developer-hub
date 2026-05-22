@@ -49,6 +49,7 @@ async function seedAgent() {
     email,
     passwordHash,
     role: "admin",
+    discipline: "developer",
     status: "active",
     mustChangePassword: false,
     isAgent: true,

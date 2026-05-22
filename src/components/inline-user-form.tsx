@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   inlineUserCreationSchema,
@@ -9,16 +9,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
 
 interface InlineUserFormProps {
   defaultName: string;
   defaultEmail: string;
   githubLogin: string;
-  onSubmit: (data: {
-    githubLogin: string;
-    name: string;
-    email: string;
-  }) => void;
+  onSubmit: (data: InlineUserCreationInput) => void;
   onCancel: () => void;
 }
 
@@ -32,9 +36,12 @@ export function InlineUserForm({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<InlineUserCreationInput>({
     resolver: zodResolver(inlineUserCreationSchema),
+    // defaultValues is a DeepPartial<InlineUserCreationInput>, so omitting
+    // discipline is type-safe; the zodResolver still requires it on submit.
     defaultValues: {
       githubLogin,
       name: defaultName,
@@ -84,6 +91,39 @@ export function InlineUserForm({
             <p className="text-xs text-destructive">{errors.email.message}</p>
           )}
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor={`discipline-${githubLogin}`} className="text-xs">
+          Discipline
+        </Label>
+        <Controller
+          control={control}
+          name="discipline"
+          render={({ field }) => (
+            <Select
+              onValueChange={field.onChange}
+              value={field.value ?? ""}
+            >
+              <SelectTrigger
+                id={`discipline-${githubLogin}`}
+                className="h-8 text-sm"
+              >
+                <SelectValue placeholder="Select a discipline" />
+              </SelectTrigger>
+              <SelectContent>
+                {DISCIPLINES.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {DISCIPLINE_LABEL[d]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {errors.discipline && (
+          <p className="text-xs text-destructive">{errors.discipline.message}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 pt-1">

@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Plan · Introduce user disciplines</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --bg-panel: #ffffff;
+    --bg-code: #0f172a;
+    --bg-code-soft: #f4f4f5;
+    --bg-side: #f1f1f3;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #a1a1aa;
+
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+    --ok: #047857;
+    --ok-bg: #d1fae5;
+    --info-bg: #dbeafe;
+    --info: #1d4ed8;
+
+    --code-fg: #e2e8f0;
+    --code-key: #93c5fd;
+    --code-str: #fcd34d;
+    --code-num: #c084fc;
+    --code-cmt: #64748b;
+    --code-kw: #f472b6;
+
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: var(--font); color: var(--text); background: var(--bg); }
+  body { -webkit-font-smoothing: antialiased; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 0;
+    min-height: 100vh;
+  }
+  aside.toc {
+    background: var(--bg-side);
+    border-right: 1px solid var(--border);
+    padding: 28px 22px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  aside.toc h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin: 0 0 12px;
+  }
+  aside.toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+    counter-reset: toc;
+    font-size: 13px;
+  }
+  aside.toc li {
+    counter-increment: toc;
+    margin-bottom: 4px;
+  }
+  aside.toc a {
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.35;
+  }
+  aside.toc a::before {
+    content: counter(toc, decimal) ". ";
+    color: var(--text-faint);
+    margin-right: 4px;
+  }
+  aside.toc a:hover { background: rgba(0,0,0,0.05); }
+  aside.toc h3 {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin: 18px 0 8px;
+    font-weight: 600;
+  }
+
+  main.doc {
+    max-width: 960px;
+    width: 100%;
+    padding: 48px 56px 96px;
+    margin: 0;
+  }
+  header.doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  header.doc-header .crumb {
+    font-size: 12px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  header.doc-header h1 {
+    margin: 0 0 6px;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+  }
+  header.doc-header p.subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 780px;
+    line-height: 1.5;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+    font-size: 12px;
+  }
+  .meta-grid .cell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .meta-grid .cell .k {
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .meta-grid .cell .v { font-weight: 600; }
+
+  h2.section {
+    counter-increment: section;
+    margin: 56px 0 16px;
+    font-size: 22px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h2.section::before {
+    content: "Phase " counter(section) " · ";
+    color: var(--text-faint);
+    font-weight: 500;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  h2.section.nophase::before { content: ""; }
+  main.doc { counter-reset: section; }
+  h3 {
+    margin: 28px 0 10px;
+    font-size: 16px;
+    letter-spacing: -0.005em;
+  }
+  h4 {
+    margin: 18px 0 6px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  p { line-height: 1.65; margin: 0 0 12px; font-size: 14.5px; }
+  ul, ol { line-height: 1.65; font-size: 14.5px; }
+  li { margin-bottom: 4px; }
+  li > p { margin-bottom: 4px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--bg-code-soft);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--bg-code);
+    color: var(--code-fg);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 12px 0 20px;
+    border: 1px solid #1e293b;
+    position: relative;
+  }
+  pre code { background: transparent; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .filepath {
+    position: absolute;
+    top: 8px; right: 12px;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    background: #1e293b;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+  }
+  .k  { color: var(--code-key); }
+  .s  { color: var(--code-str); }
+  .n  { color: var(--code-num); }
+  .c  { color: var(--code-cmt); font-style: italic; }
+  .kw { color: var(--code-kw); }
+
+  .callout {
+    border-left: 3px solid;
+    padding: 12px 14px;
+    margin: 16px 0 20px;
+    border-radius: 4px;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .callout strong { font-weight: 600; }
+  .callout.note   { background: var(--info-bg);  border-color: var(--info);   color: #1e3a8a; }
+  .callout.warn   { background: var(--warn-bg);  border-color: var(--warn);   color: var(--warn); }
+  .callout.danger { background: var(--danger-bg);border-color: var(--danger); color: var(--danger); }
+  .callout.ok     { background: var(--ok-bg);    border-color: var(--ok);     color: var(--ok); }
+  .callout .label {
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 11px; display: block; margin-bottom: 4px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-side);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  td code { font-size: 11.5px; }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge.new       { background: #d1fae5; color: #047857; }
+  .badge.edit      { background: #fef3c7; color: #b45309; }
+  .badge.required  { background: #fee2e2; color: #b91c1c; }
+  .badge.optional  { background: #e0e7ff; color: #4338ca; }
+  .badge.test      { background: #f3e8ff; color: #6b21a8; }
+  .badge.high      { background: #fee2e2; color: #b91c1c; }
+  .badge.medium    { background: #fef3c7; color: #b45309; }
+  .badge.low       { background: #dcfce7; color: #166534; }
+
+  .diff {
+    background: #0f172a; color: var(--code-fg);
+    padding: 14px 16px;
+    border-radius: 8px; font-family: var(--mono); font-size: 12.5px;
+    line-height: 1.55;
+    margin: 12px 0 20px;
+    overflow-x: auto;
+    white-space: pre;
+    border: 1px solid #1e293b;
+  }
+  .diff .add { color: #6ee7b7; }
+  .diff .del { color: #fca5a5; }
+  .diff .ctx { color: #cbd5e1; }
+  .diff .meta { color: #94a3b8; }
+
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid #c7d2fe;
+    padding: 1px 7px;
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+  .file {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid var(--border-strong);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .file.new::before {
+    content: "NEW";
+    color: #047857; font-weight: 700; font-size: 9.5px; letter-spacing: 0.06em;
+  }
+  .file.edit::before {
+    content: "EDIT";
+    color: #b45309; font-weight: 700; font-size: 9.5px; letter-spacing: 0.06em;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 20px 0 28px;
+  }
+  .stat-grid .stat {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stat .num {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .stat .lbl {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .checklist > li {
+    padding: 10px 12px 10px 36px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    position: relative;
+    font-size: 13.5px;
+  }
+  .checklist > li::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 3px;
+    background: #fff;
+  }
+
+  .phase-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: -8px 0 16px;
+    font-size: 12px;
+  }
+  .phase-meta span {
+    background: var(--bg-side);
+    border: 1px solid var(--border);
+    padding: 2px 9px;
+    border-radius: 10px;
+    color: var(--text-muted);
+  }
+  .phase-meta span strong { color: var(--text); font-weight: 600; }
+</style>
+</head>
+
+<body>
+<div class="shell">
+
+  <aside class="toc">
+    <h2>On this page</h2>
+
+    <h3>Foundations</h3>
+    <ol>
+      <li><a href="#scope">Scope &amp; decisions</a></li>
+      <li><a href="#schema">Schema &amp; migration</a></li>
+      <li><a href="#types">Types &amp; constants</a></li>
+      <li><a href="#validators">Validators</a></li>
+      <li><a href="#server">Server actions &amp; API</a></li>
+    </ol>
+
+    <h3>UI</h3>
+    <ol start="6">
+      <li><a href="#ui-create">User creation UI</a></li>
+      <li><a href="#ui-edit">User edit UI</a></li>
+      <li><a href="#ui-display">User display UI</a></li>
+      <li><a href="#ui-pickers">Selectors &amp; pickers</a></li>
+    </ol>
+
+    <h3>Automation &amp; data</h3>
+    <ol start="10">
+      <li><a href="#csv">CSV import &amp; export</a></li>
+      <li><a href="#sync">GitHub sync &amp; auto-create</a></li>
+      <li><a href="#seed">Seed scripts</a></li>
+    </ol>
+
+    <h3>Quality &amp; rollout</h3>
+    <ol start="13">
+      <li><a href="#tests">Tests &amp; fixtures</a></li>
+      <li><a href="#docs">Documentation</a></li>
+      <li><a href="#verify">Verification checklist</a></li>
+      <li><a href="#risks">Risks &amp; mitigations</a></li>
+      <li><a href="#sequence">Rollout sequence</a></li>
+    </ol>
+  </aside>
+
+  <main class="doc">
+
+    <header class="doc-header">
+      <div class="crumb">Spec 032 · User disciplines · Implementation plan</div>
+      <h1>Implementation Plan — Introduce <code>discipline</code> on users</h1>
+      <p class="subtitle">
+        Add a mandatory <code>discipline</code> field to every user record so the tool can correctly attribute
+        Conception and Business colleagues alongside Developers. This plan walks every input mask, display
+        surface, automated user creation path, and test fixture that must change, in a safe rollout order.
+      </p>
+      <div class="meta-grid">
+        <div class="cell"><div class="k">Status</div><div class="v">Plan · v1</div></div>
+        <div class="cell"><div class="k">Field name</div><div class="v"><code>discipline</code></div></div>
+        <div class="cell"><div class="k">Values</div><div class="v">developer / conception / business</div></div>
+        <div class="cell"><div class="k">Backfill</div><div class="v"><code>developer</code> (DB default)</div></div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="num">1</div><div class="lbl">New enum</div></div>
+        <div class="stat"><div class="num">1</div><div class="lbl">New column</div></div>
+        <div class="stat"><div class="num">~25</div><div class="lbl">Files touched</div></div>
+        <div class="stat"><div class="num">0</div><div class="lbl">Breaking changes</div></div>
+      </div>
+    </header>
+
+    <!-- =============================================================== -->
+    <h2 class="section nophase" id="scope">Scope &amp; locked-in decisions</h2>
+
+    <p>
+      The proposal in <code>specs/032-user-disciplines/proposal.html</code> settled the naming question. This
+      plan assumes the following decisions are locked:
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Decision</th><th>Locked answer</th><th>Rationale</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Field name</td>
+          <td><code>discipline</code></td>
+          <td>Distinguishes cleanly from security <code>role</code>; agency-native vocabulary.</td>
+        </tr>
+        <tr>
+          <td>Enum values</td>
+          <td><code>developer</code> · <code>conception</code> · <code>business</code></td>
+          <td>Closed set; extend later via <code>ALTER TYPE … ADD VALUE</code> if needed.</td>
+        </tr>
+        <tr>
+          <td>Nullability</td>
+          <td>NOT&nbsp;NULL</td>
+          <td>Every user must have a discipline. DB default <code>developer</code> for backfill safety.</td>
+        </tr>
+        <tr>
+          <td>Required in UI?</td>
+          <td>Yes on create; editable on update</td>
+          <td>Force admin to make a conscious choice in the form. DB default catches edge cases only.</td>
+        </tr>
+        <tr>
+          <td>Required in CSV import?</td>
+          <td>Optional column</td>
+          <td>New rows fall back to <code>developer</code>; upsert preserves existing value when column is blank.</td>
+        </tr>
+        <tr>
+          <td>NextAuth session?</td>
+          <td>Not added to session</td>
+          <td>Discipline is descriptive, not authorizing. Keep JWT lean; fetch from DB where needed.</td>
+        </tr>
+        <tr>
+          <td>Profile API response?</td>
+          <td>Yes, include <code>discipline</code></td>
+          <td>External consumers (Profile API preview, downstream tooling) will want it.</td>
+        </tr>
+        <tr>
+          <td>Reports breakdown?</td>
+          <td>Out of scope for this PR</td>
+          <td>Land data first; reporting follow-up gets its own spec.</td>
+        </tr>
+        <tr>
+          <td>GitHub sync inline form?</td>
+          <td>Add discipline picker</td>
+          <td>Cheap to add; GitHub members are not all developers (PMs, designers).</td>
+        </tr>
+        <tr>
+          <td>Agent user discipline?</td>
+          <td><code>developer</code> (default)</td>
+          <td>Keeps NOT&nbsp;NULL contract simple; hidden from UI.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Files in scope (high-level)</h3>
+
+    <table>
+      <thead>
+        <tr><th>Area</th><th>Files</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Schema &amp; migration</td><td>2</td><td><span class="badge high">High</span></td></tr>
+        <tr><td>Types &amp; validators</td><td>3</td><td><span class="badge high">High</span></td></tr>
+        <tr><td>Server actions &amp; API</td><td>5</td><td><span class="badge high">High</span></td></tr>
+        <tr><td>UI forms &amp; dialogs</td><td>5</td><td><span class="badge high">High</span></td></tr>
+        <tr><td>UI tables &amp; display</td><td>4</td><td><span class="badge medium">Medium</span></td></tr>
+        <tr><td>Automated paths (sync, seeds)</td><td>3</td><td><span class="badge medium">Medium</span></td></tr>
+        <tr><td>Tests &amp; fixtures</td><td>5+</td><td><span class="badge medium">Medium</span></td></tr>
+        <tr><td>Docs / CLAUDE.md</td><td>1</td><td><span class="badge low">Low</span></td></tr>
+      </tbody>
+    </table>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="schema">Schema &amp; migration</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> add enum + column with safe backfill</span>
+      <span><strong>Files:</strong> 2</span>
+      <span><strong>Risk:</strong> low (additive, NOT NULL with default)</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/lib/db/schema.ts</span></h3>
+
+    <p>Add the new enum next to <code>userProfileEnum</code> (currently lines 39–43), then add the column to
+       the <code>users</code> table.</p>
+
+    <div class="diff"><span class="meta">@@ src/lib/db/schema.ts @@</span>
+<span class="ctx"> export const userProfileEnum = pgEnum("user_profile", [</span>
+<span class="ctx">   "boost",</span>
+<span class="ctx">   "maxed",</span>
+<span class="ctx">   "indie",</span>
+<span class="ctx"> ]);</span>
+<span class="add">+</span>
+<span class="add">+export const userDisciplineEnum = pgEnum("user_discipline", [</span>
+<span class="add">+  "developer",</span>
+<span class="add">+  "conception",</span>
+<span class="add">+  "business",</span>
+<span class="add">+]);</span>
+
+<span class="ctx"> // ... inside users table definition ...</span>
+<span class="ctx">     profile: userProfileEnum("profile"),</span>
+<span class="add">+    discipline: userDisciplineEnum("discipline").notNull().default("developer"),</span>
+<span class="ctx">     mustChangePassword: boolean("must_change_password").notNull().default(true),</span></div>
+
+    <h3>New: <span class="file new">src/lib/db/migrations/00XX_add_user_discipline.sql</span></h3>
+
+    <p>Generated by <code>pnpm db:generate</code>. Expected output (verify before committing):</p>
+
+    <pre><span class="filepath">migrations/00XX_add_user_discipline.sql</span><span class="kw">CREATE TYPE</span> <span class="s">"public"."user_discipline"</span> <span class="kw">AS ENUM</span>(<span class="s">'developer'</span>, <span class="s">'conception'</span>, <span class="s">'business'</span>);
+
+<span class="kw">ALTER TABLE</span> <span class="s">"users"</span>
+  <span class="kw">ADD COLUMN</span> <span class="s">"discipline"</span> <span class="s">"user_discipline"</span>
+    <span class="kw">DEFAULT</span> <span class="s">'developer'</span> <span class="kw">NOT NULL</span>;</pre>
+
+    <div class="callout ok">
+      <span class="label">Why this is safe</span>
+      On Postgres 11+ <code>ADD COLUMN … NOT NULL DEFAULT 'developer'</code> is a metadata-only operation —
+      no row rewrite, no table lock beyond the brief <code>AccessExclusive</code> needed for the catalog
+      update. Safe to apply on any production-sized <code>users</code> table.
+    </div>
+
+    <h3>Database review</h3>
+
+    <p>
+      Use the <code>drizzle-migration-reviewer</code> agent on the generated SQL before merging. The migration
+      should pass cleanly — no destructive operations, no FK changes.
+    </p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="types">Types &amp; constants</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> expose a typed discipline value across the codebase</span>
+      <span><strong>Files:</strong> 1 + 1 new helper</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/types/index.ts</span></h3>
+
+    <p>Existing <code>User</code> is <code>InferSelectModel&lt;typeof users&gt;</code>, so it inherits the new
+       column automatically. Add an explicit <code>UserDiscipline</code> alias for downstream consumers.</p>
+
+    <div class="diff"><span class="ctx"> export type UserRole    = "admin" | "viewer";</span>
+<span class="ctx"> export type UserStatus  = "active" | "inactive";</span>
+<span class="ctx"> export type UserProfile = "boost" | "maxed" | "indie";</span>
+<span class="add">+export type UserDiscipline = "developer" | "conception" | "business";</span></div>
+
+    <h3>New: <span class="file new">src/lib/disciplines.ts</span></h3>
+
+    <p>
+      Single source of truth for the human-readable labels and icon mapping. Keeps display strings out of the
+      schema and out of individual components.
+    </p>
+
+    <pre><span class="filepath">src/lib/disciplines.ts</span><span class="kw">import</span> { Code2, Lightbulb, Briefcase } <span class="kw">from</span> <span class="s">"lucide-react"</span>;
+<span class="kw">import type</span> { UserDiscipline } <span class="kw">from</span> <span class="s">"@/types"</span>;
+
+<span class="kw">export const</span> DISCIPLINES: <span class="kw">readonly</span> UserDiscipline[] <span class="kw">=</span> [
+  <span class="s">"developer"</span>,
+  <span class="s">"conception"</span>,
+  <span class="s">"business"</span>,
+] <span class="kw">as const</span>;
+
+<span class="kw">export const</span> DISCIPLINE_LABEL: Record&lt;UserDiscipline, <span class="kw">string</span>&gt; <span class="kw">=</span> {
+  developer:  <span class="s">"Developer"</span>,
+  conception: <span class="s">"Conception"</span>,
+  business:   <span class="s">"Business"</span>,
+};
+
+<span class="kw">export const</span> DISCIPLINE_ICON <span class="kw">=</span> {
+  developer:  Code2,
+  conception: Lightbulb,
+  business:   Briefcase,
+} <span class="kw">as const</span>;
+
+<span class="kw">export const</span> DEFAULT_DISCIPLINE: UserDiscipline <span class="kw">=</span> <span class="s">"developer"</span>;</pre>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="validators">Validators</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> require discipline at every entry point</span>
+      <span><strong>Files:</strong> 1</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/lib/validators.ts</span></h3>
+
+    <p>Four schemas need to learn about discipline. The exact required-ness differs by entry point.</p>
+
+    <table>
+      <thead>
+        <tr><th>Schema</th><th>Discipline field</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>userSchema</code> (create)</td>
+          <td><span class="badge required">Required</span></td>
+          <td>Admin must classify a new user when filling the form. UI surfaces it as a required select.</td>
+        </tr>
+        <tr>
+          <td><code>updateUserSchema</code> (partial)</td>
+          <td><span class="badge optional">Optional</span></td>
+          <td>Partial PATCH — admin may edit name only without re-sending discipline.</td>
+        </tr>
+        <tr>
+          <td><code>bulkImportUserSchema</code></td>
+          <td><span class="badge optional">Optional</span></td>
+          <td>CSV column is optional. Missing → defaults to <code>developer</code> for new rows; preserved on upsert.</td>
+        </tr>
+        <tr>
+          <td><code>inlineUserCreationSchema</code> (GitHub sync)</td>
+          <td><span class="badge required">Required</span></td>
+          <td>Inline creation during sync — admin picks discipline alongside name/email in the unmatched member card.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="diff"><span class="ctx"> // src/lib/validators.ts</span>
+<span class="add">+const disciplineValues = ["developer", "conception", "business"] as const;</span>
+
+<span class="ctx"> export const userSchema = z.object({</span>
+<span class="ctx">   name:           z.string().min(1, "Name is required").max(255),</span>
+<span class="ctx">   email:          z.string().email("Invalid email address"),</span>
+<span class="ctx">   circle:         z.string().max(100).optional(),</span>
+<span class="ctx">   role:           z.enum(["admin", "viewer"]),</span>
+<span class="add">+  discipline:     z.enum(disciplineValues),</span>
+<span class="ctx">   githubUsername: z.string().max(255).optional(),</span>
+<span class="ctx">   profile:        z.enum(["boost", "maxed", "indie"]).optional(),</span>
+<span class="ctx"> });</span>
+
+<span class="ctx"> export const updateUserSchema = z.object({</span>
+<span class="ctx">   id:   z.number().int().positive(),</span>
+<span class="ctx">   /* ... existing fields ... */</span>
+<span class="add">+  discipline: z.enum(disciplineValues).optional(),</span>
+<span class="ctx"> });</span>
+
+<span class="ctx"> export const bulkImportUserSchema = z.object({</span>
+<span class="ctx">   /* ... existing fields ... */</span>
+<span class="add">+  discipline: z.enum(disciplineValues).optional(),</span>
+<span class="ctx"> });</span>
+
+<span class="ctx"> export const inlineUserCreationSchema = z.object({</span>
+<span class="ctx">   githubLogin: z.string().min(1),</span>
+<span class="ctx">   name:        z.string().min(1).max(255),</span>
+<span class="ctx">   email:       z.string().email(),</span>
+<span class="add">+  discipline:  z.enum(disciplineValues),</span>
+<span class="ctx"> });</span></div>
+
+    <div class="callout note">
+      <span class="label">Why a const tuple?</span>
+      Defining <code>disciplineValues</code> once and reusing it in every <code>z.enum()</code> keeps the four
+      schemas in sync. If we ever add a fourth value, only one line changes.
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="server">Server actions &amp; API</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> persist and return the new field correctly</span>
+      <span><strong>Files:</strong> 5</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/actions/users.ts</span></h3>
+
+    <ul>
+      <li>
+        <code>createUser(input)</code> — pass <code>discipline</code> into the <code>db.insert(users)</code>
+        payload alongside <code>circle</code>, <code>role</code>, <code>profile</code>. The Zod-validated
+        input now requires it.
+      </li>
+      <li>
+        <code>updateUser(input)</code> — extend the diff-and-update logic to detect <code>discipline</code>
+        changes; emit a <code>changeHistory</code> row when it changes (matches existing role/circle
+        behavior).
+      </li>
+      <li>
+        <code>bulkImportUsers(rows)</code> — for each row:
+        <ul>
+          <li><strong>Insert path:</strong> if CSV omits <code>discipline</code>, write <code>"developer"</code> explicitly (don't rely on DB default — be loud and traceable).</li>
+          <li><strong>Update path (upsert by email):</strong> if CSV omits <code>discipline</code>, do NOT include it in the SET clause. Existing value preserved.</li>
+        </ul>
+      </li>
+      <li>
+        <code>checkExistingUsers()</code> — extend the returned <code>ExistingUserFields</code> shape so the
+        bulk-import preview can show "Update will change discipline: developer → conception".
+      </li>
+    </ul>
+
+    <h3>Edit: <span class="file edit">src/types/index.ts</span> · ExistingUserFields</h3>
+
+    <div class="diff"><span class="ctx"> export type ExistingUserFields = {</span>
+<span class="ctx">   name:           string;</span>
+<span class="ctx">   circle:         string | null;</span>
+<span class="ctx">   role:           UserRole;</span>
+<span class="ctx">   githubUsername: string | null;</span>
+<span class="ctx">   profile:        UserProfile | null;</span>
+<span class="add">+  discipline:     UserDiscipline;</span>
+<span class="ctx"> };</span></div>
+
+    <h3>Edit: <span class="file edit">src/app/api/export/users/route.ts</span></h3>
+
+    <p>Add a <code>discipline</code> column to the CSV output. Place between <code>circle</code> and
+       <code>role</code> so it groups with the other categorical attributes.</p>
+
+    <div class="diff"><span class="del">- const header = "name,email,circle,role,github_username,profile";</span>
+<span class="add">+ const header = "name,email,circle,discipline,role,github_username,profile";</span>
+
+<span class="ctx">  // ... per-row mapping ...</span>
+<span class="del">-   csvRow(u.name, u.email, u.circle, u.role, u.githubUsername, u.profile)</span>
+<span class="add">+   csvRow(u.name, u.email, u.circle, u.discipline, u.role, u.githubUsername, u.profile)</span></div>
+
+    <div class="callout warn">
+      <span class="label">Backwards compatibility</span>
+      Anyone re-importing an old exported CSV (without the new column) will land in the optional path:
+      existing users keep their value, new rows default to <code>developer</code>. Document this in the
+      release notes so admins aren't surprised when historic exports re-import cleanly.
+    </div>
+
+    <h3>Edit: <span class="file edit">src/app/api/profile/route.ts</span></h3>
+
+    <p>The Bearer-token-authed profile API consumed by external tooling. Add <code>discipline</code> to the
+       JSON shape returned per email.</p>
+
+    <div class="diff"><span class="ctx"> return NextResponse.json({</span>
+<span class="ctx">   name:    user.name,</span>
+<span class="ctx">   email:   user.email,</span>
+<span class="ctx">   role:    user.role,</span>
+<span class="ctx">   circle:  user.circle,</span>
+<span class="ctx">   profile: user.profile,</span>
+<span class="ctx">   status:  user.status,</span>
+<span class="add">+  discipline: user.discipline,</span>
+<span class="ctx">   lastSync: syncStatus.lastSyncCompletedAt,</span>
+<span class="ctx"> });</span></div>
+
+    <h3>Skip: NextAuth session (<code>src/lib/auth.ts</code>)</h3>
+
+    <p>
+      Do not add <code>discipline</code> to the session token. Discipline does not gate any route or action;
+      adding it to the JWT bloats every request and creates a stale-data problem (admin edits a user's
+      discipline → that user's session keeps the old value until next login). If a client component truly
+      needs the current user's discipline, fetch it from <code>/api/profile</code> or via a Server Component.
+    </p>
+
+    <h3>Edit: <span class="file edit">src/types/next-auth.d.ts</span></h3>
+
+    <p>No change. Confirmed in scope-review.</p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="ui-create">User creation UI</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> every new-user entry mask collects discipline</span>
+      <span><strong>Files:</strong> 2</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/app/users/new/new-user-form.tsx</span></h3>
+
+    <p>
+      The dedicated <code>/users/new</code> form. Add a required <code>Select</code> field. Place it
+      <strong>after</strong> circle and <strong>before</strong> role — disciplines describe what the person
+      does (closer to circle); role is security (separate concern).
+    </p>
+
+    <ul>
+      <li>Default value: <em>none</em> (force a conscious pick — do not pre-fill <code>developer</code>).</li>
+      <li>Validation message: <em>"Please select a discipline"</em>.</li>
+      <li>Order in form: <code>name → email → circle → discipline → role → profile → githubUsername</code>.</li>
+    </ul>
+
+    <pre><span class="filepath">JSX sketch</span>&lt;FormField name=<span class="s">"discipline"</span> render={({ field }) =&gt; (
+  &lt;FormItem&gt;
+    &lt;FormLabel&gt;Discipline&lt;/FormLabel&gt;
+    &lt;Select onValueChange={field.onChange} value={field.value}&gt;
+      &lt;FormControl&gt;
+        &lt;SelectTrigger&gt;
+          &lt;SelectValue placeholder=<span class="s">"Select a discipline"</span> /&gt;
+        &lt;/SelectTrigger&gt;
+      &lt;/FormControl&gt;
+      &lt;SelectContent&gt;
+        {DISCIPLINES.map((d) =&gt; (
+          &lt;SelectItem key={d} value={d}&gt;{DISCIPLINE_LABEL[d]}&lt;/SelectItem&gt;
+        ))}
+      &lt;/SelectContent&gt;
+    &lt;/Select&gt;
+    &lt;FormMessage /&gt;
+  &lt;/FormItem&gt;
+)} /&gt;</pre>
+
+    <h3>Edit: <span class="file edit">src/components/inline-user-form.tsx</span></h3>
+
+    <p>
+      The compact form used inside the GitHub member sync flow ("create unmatched user inline"). Today it
+      captures only <code>githubLogin / name / email</code> and the server action hardcodes <code>role =
+      "viewer"</code>. Add the discipline picker — it is required.
+    </p>
+
+    <div class="callout note">
+      <span class="label">Why not just default to <code>developer</code> here?</span>
+      GitHub members do not all map to developers (PMs, designers, account managers all use GitHub at Unic).
+      Auto-defaulting to <code>developer</code> from the sync flow would silently mis-classify these users
+      and pollute downstream reports. A required select keeps the data clean for ~1 second more of admin
+      effort per unmatched member.
+    </div>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="ui-edit">User edit UI</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> every edit mask exposes discipline</span>
+      <span><strong>Files:</strong> 2</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/components/edit-user-dialog.tsx</span></h3>
+
+    <p>
+      The modal opened from the users-table row kebab. Add a <code>Select</code> field for discipline,
+      pre-filled from <code>user.discipline</code>, placed between circle and role to match the create form's
+      layout. Update the <code>defaultValues</code> and the <code>form.reset()</code> call in the
+      <code>useEffect</code>.
+    </p>
+
+    <div class="diff"><span class="ctx"> const form = useForm&lt;EditUserInput&gt;({</span>
+<span class="ctx">   resolver: zodResolver(editUserSchema),</span>
+<span class="ctx">   defaultValues: {</span>
+<span class="ctx">     name:           user.name,</span>
+<span class="ctx">     email:          user.email,</span>
+<span class="ctx">     circle:         user.circle ?? undefined,</span>
+<span class="add">+    discipline:     user.discipline,</span>
+<span class="ctx">     role:           user.role as "admin" | "viewer",</span>
+<span class="ctx">     githubUsername: user.githubUsername ?? "",</span>
+<span class="ctx">     profile:        user.profile ?? null,</span>
+<span class="ctx">   },</span>
+<span class="ctx"> });</span></div>
+
+    <p>Also update the <code>form.reset()</code> block inside <code>useEffect(open)</code> to include the same
+       field.</p>
+
+    <h3>Edit: <span class="file edit">src/app/users/[id]/user-detail-client.tsx</span></h3>
+
+    <p>The full-page edit form on the user detail screen. Same change pattern as the dialog — add the field
+       in the same position. Update the diff-summary section ("changed: …") to include discipline.</p>
+
+    <h3>Profile self-edit?</h3>
+
+    <p>
+      <code>src/app/profile/profile-client.tsx</code> is read-only today. We do <strong>not</strong> let a
+      user edit their own discipline — that is an admin-managed attribute. We do display it (see next
+      section).
+    </p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="ui-display">User display UI</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> show discipline everywhere a user appears</span>
+      <span><strong>Files:</strong> 4</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/app/users/users-table.tsx</span></h3>
+
+    <p>Add a new column <em>Discipline</em>, sortable, with a faceted filter (multi-select), placed between
+       <em>Circle</em> and <em>Role</em>.</p>
+
+    <pre><span class="filepath">column definition sketch</span>{
+  accessorKey: <span class="s">"discipline"</span>,
+  header: <span class="kw">({ column })</span> =&gt; &lt;DataTableColumnHeader column={column} title=<span class="s">"Discipline"</span> /&gt;,
+  cell: <span class="kw">({ row })</span> =&gt; {
+    <span class="kw">const</span> d <span class="kw">=</span> row.original.discipline;
+    <span class="kw">const</span> Icon <span class="kw">=</span> DISCIPLINE_ICON[d];
+    <span class="kw">return</span> (
+      &lt;span className=<span class="s">"inline-flex items-center gap-1.5 text-sm text-muted-foreground"</span>&gt;
+        &lt;Icon className=<span class="s">"h-3.5 w-3.5"</span> /&gt;
+        {DISCIPLINE_LABEL[d]}
+      &lt;/span&gt;
+    );
+  },
+  filterFn: <span class="s">"arrIncludesSome"</span>,
+}</pre>
+
+    <p>
+      Match the existing pattern used by <code>circle</code> and <code>profile</code> filters in the same
+      table. Use outlined / muted styling — discipline should not compete visually with the colored role
+      badge.
+    </p>
+
+    <h3>Edit: <span class="file edit">src/app/users/[id]/user-detail-client.tsx</span> (header section)</h3>
+
+    <p>Add a discipline badge to the read-only header alongside role/status/profile. Outlined badge with
+       lucide icon. Suggested ordering of badges: <em>role · status · discipline · profile</em> — security
+       first, then identity attributes.</p>
+
+    <h3>Edit: <span class="file edit">src/components/profile/profile-header.tsx</span></h3>
+
+    <p>The logged-in user's own profile view at <code>/profile</code>. Add discipline as a badge alongside
+       circle/profile. Read-only; admin-managed.</p>
+
+    <h3>Edit: <span class="file edit">src/app/assignments/[id]/assignment-detail-client.tsx</span></h3>
+
+    <p>The single-assignment detail page shows <em>"assigned to X"</em> with name. Add discipline as a
+       sub-line next to circle so the budget owner can see at a glance who they're allocating to.</p>
+
+    <h3>Out of scope this PR</h3>
+
+    <ul>
+      <li><code>src/components/claude/users-table.tsx</code> — Claude analytics view. Skip for now; reporting follow-up will add discipline as a filter/breakdown.</li>
+      <li><code>src/app/claude/users/[userId]/page.tsx</code> — Claude user detail. Skip; analytics scope.</li>
+      <li><code>src/components/copilot/seats-table.tsx</code> — Copilot seat matching. Skip; discipline irrelevant for seat-to-user matching.</li>
+    </ul>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="ui-pickers">Selectors &amp; pickers</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> keep pickers focused; no discipline noise</span>
+      <span><strong>Files:</strong> 0 (no changes)</span>
+    </div>
+
+    <p>
+      Existing user pickers (<code>src/components/user-combobox.tsx</code>,
+      <code>src/components/user-search-combobox.tsx</code>) display name + email. They should
+      <strong>not</strong> show discipline by default — picker UX wants minimum visual noise. If a future
+      task needs disambiguation by discipline (e.g. assigning a Claude Maxed seat only to developers),
+      reconsider per-use-site.
+    </p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="csv">CSV import &amp; export</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> round-trip the field through CSV</span>
+      <span><strong>Files:</strong> 2</span>
+    </div>
+
+    <h3>Export (already covered above)</h3>
+
+    <p>New CSV header: <code>name,email,circle,discipline,role,github_username,profile</code>.</p>
+
+    <h3>Edit: <span class="file edit">src/app/users/import/bulk-import-form.tsx</span></h3>
+
+    <ul>
+      <li><strong>Header parsing:</strong> recognize a <code>discipline</code> column. Tolerate missing column for backwards compat with old exports.</li>
+      <li><strong>Per-row validation:</strong> if the column is present, normalize to lowercase and validate against the enum. Reject the row with a clear error if it's not one of the three values.</li>
+      <li><strong>Preview table:</strong> add a <em>Discipline</em> column to the preview grid.
+        <ul>
+          <li>For new rows with discipline supplied → show the value as a normal cell.</li>
+          <li>For new rows with discipline missing → show <code>developer</code> in muted text with a tooltip "Defaulted — change before import or in the user record".</li>
+          <li>For update rows where the CSV value differs from existing → highlight the cell (consistent with how circle/profile updates are highlighted today).</li>
+        </ul>
+      </li>
+      <li><strong>Summary report:</strong> the "X created, Y updated, Z skipped" summary at the end should mention how many rows were classified into each discipline.</li>
+    </ul>
+
+    <h3>CSV header migration</h3>
+
+    <p>
+      Existing CSVs in the wild (e.g. an admin's local export from yesterday) <strong>do not</strong> have
+      this column. They must still import cleanly. The implementation MUST:
+    </p>
+    <ol>
+      <li>Detect the column by header name, not position.</li>
+      <li>Treat <code>discipline</code> as optional in the import schema.</li>
+      <li>Skip discipline from the upsert SET clause when the column is absent or blank.</li>
+    </ol>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="sync">GitHub sync &amp; auto-create paths</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> automated paths can't sneak in NULL or default-only users</span>
+      <span><strong>Files:</strong> 1</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/actions/github-sync.ts</span></h3>
+
+    <p>
+      <code>confirmGitHubSync()</code> creates users in two places (the report flagged lines ~305–316 and
+      ~472–481). Both pass <code>role = "viewer"</code> hardcoded. We need both to also pass
+      <code>discipline</code>.
+    </p>
+
+    <p>
+      Source of the discipline value: the inline form (per decision above) now collects it as part of each
+      <code>newUsers</code> entry in the <code>ConfirmSyncInput</code>. The server action just reads it from
+      the input, with no hardcoding required.
+    </p>
+
+    <div class="diff"><span class="ctx"> // creating brand-new users in the import branch</span>
+<span class="ctx"> for (const newUser of input.newUsers) {</span>
+<span class="ctx">   await tx.insert(users).values({</span>
+<span class="ctx">     name:           newUser.name,</span>
+<span class="ctx">     email:          newUser.email,</span>
+<span class="ctx">     passwordHash:   await hashPlaceholder(),</span>
+<span class="ctx">     githubUsername: newUser.githubLogin,</span>
+<span class="ctx">     role:           "viewer",</span>
+<span class="add">+    discipline:     newUser.discipline,</span>
+<span class="ctx">     status:         "active",</span>
+<span class="ctx">     mustChangePassword: true,</span>
+<span class="ctx">   });</span>
+<span class="ctx"> }</span></div>
+
+    <h3>No change: invite flow (<code>src/actions/invite.ts</code>)</h3>
+
+    <p>
+      The invite flow only writes <code>passwordHash</code> and <code>mustChangePassword</code>; it does not
+      create users. Discipline is set when the admin creates the user record, then the invite token is issued
+      for that already-classified record. No change needed.
+    </p>
+
+    <h3>No change: Copilot sync</h3>
+
+    <p>
+      Copilot sync writes <code>copilot_usage_metrics</code> and <code>copilot_seats</code>; it does not
+      create or modify <code>users</code> rows directly. No change.
+    </p>
+
+    <h3>No change: NextAuth <code>authorize()</code></h3>
+
+    <p>Reads user fields; does not write. No change.</p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="seed">Seed scripts</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> seeded users have a discipline</span>
+      <span><strong>Files:</strong> 2</span>
+    </div>
+
+    <h3>Edit: <span class="file edit">src/lib/db/seed.ts</span></h3>
+
+    <div class="diff"><span class="ctx"> await db.insert(users).values({</span>
+<span class="ctx">   name:           "Admin",</span>
+<span class="ctx">   email:          adminEmail,</span>
+<span class="ctx">   passwordHash:   hashedPassword,</span>
+<span class="ctx">   circle:         "Engineering",</span>
+<span class="ctx">   role:           "admin",</span>
+<span class="add">+  discipline:     "developer",</span>
+<span class="ctx">   status:         "active",</span>
+<span class="ctx">   mustChangePassword: false,</span>
+<span class="ctx"> });</span></div>
+
+    <h3>Edit: <span class="file edit">src/lib/db/seed-agent-user.ts</span></h3>
+
+    <p>Same shape — seed the agent user with <code>discipline: "developer"</code>. Hidden from UI; this is
+       only to keep the NOT&nbsp;NULL contract satisfied.</p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="tests">Tests &amp; fixtures</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> all tests construct valid users; new behaviors covered</span>
+      <span><strong>Files:</strong> 5+</span>
+    </div>
+
+    <h3>Existing fixtures to update</h3>
+
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>tests/unit/agent-auth.test.ts</code></td><td>Add <code>discipline: "developer"</code> to <code>mockAgentRow</code>.</td></tr>
+        <tr><td><code>tests/unit/api/profile.test.ts</code></td><td>Add field to <code>mockUser</code>; assert <code>discipline</code> appears in the JSON response.</td></tr>
+        <tr><td><code>tests/unit/api/assignments-export.test.ts</code></td><td>Add field to <code>mockAdminUser</code>.</td></tr>
+        <tr><td><code>tests/unit/reports/circle-report.test.ts</code></td><td>Add field to all user fixtures.</td></tr>
+        <tr><td><code>tests/unit/anthropic-users-phase2.test.ts</code></td><td>Add field to user objects in the test setup.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>New tests to add</h3>
+
+    <ul>
+      <li><strong>Unit</strong> <span class="badge test">vitest</span> · <code>userSchema</code> rejects payloads without <code>discipline</code>; <code>updateUserSchema</code> accepts payloads without it.</li>
+      <li><strong>Unit</strong> · <code>bulkImportUsers</code>: row with no <code>discipline</code> on insert → defaults to <code>developer</code>; row with no <code>discipline</code> on upsert → existing value preserved.</li>
+      <li><strong>Unit</strong> · <code>updateUser</code>: changing <code>discipline</code> records a <code>changeHistory</code> entry.</li>
+      <li><strong>Integration</strong> · <code>/api/export/users</code> returns the new column in the header and row data.</li>
+      <li><strong>Integration</strong> · <code>/api/profile</code> includes <code>discipline</code> in the response shape.</li>
+      <li><strong>E2E</strong> <span class="badge test">playwright</span> · Admin creates a user via <code>/users/new</code> with discipline = "conception"; the new row shows in the users table with the Conception column value; opening edit dialog shows the same value.</li>
+      <li><strong>E2E</strong> · CSV import with a row missing discipline → preview shows muted "developer (default)"; importing succeeds; user has discipline = developer.</li>
+      <li><strong>E2E</strong> · GitHub sync inline-create flow requires picking a discipline before submit is enabled.</li>
+    </ul>
+
+    <h3>CSV fixture updates</h3>
+
+    <p>If <code>tests/</code> contains a sample CSV used by the bulk-import test (search:
+       <code>*.csv</code>), produce one with and one without the discipline column — both must import
+       cleanly.</p>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="docs">Documentation</h2>
+
+    <div class="phase-meta">
+      <span><strong>Goal:</strong> the next contributor knows the field exists</span>
+      <span><strong>Files:</strong> 1–2</span>
+    </div>
+
+    <ul>
+      <li><strong>CLAUDE.md</strong> — no change required; it doesn't document individual user fields.</li>
+      <li><strong>spec.md / tasks.md</strong> — generate via the standard speckit flow after this plan is approved.</li>
+      <li><strong>Release note</strong> — short bullet for the admin team:
+        <em>"Users now have a Discipline (Developer / Conception / Business). All existing users have been
+        defaulted to Developer — please reclassify Conception and Business colleagues at
+        <code>/users</code>."</em></li>
+    </ul>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="verify">Verification checklist</h2>
+
+    <p>Before marking the PR done, walk through this list with the dev server running.</p>
+
+    <h4>Schema &amp; data</h4>
+    <ul class="checklist">
+      <li>Migration runs cleanly on a fresh DB (<code>pnpm db:migrate</code>).</li>
+      <li>Migration runs cleanly on a populated DB; all existing rows now have <code>discipline = 'developer'</code>.</li>
+      <li><code>SELECT discipline, COUNT(*) FROM users GROUP BY 1</code> returns sensible numbers post-migration.</li>
+    </ul>
+
+    <h4>Backend</h4>
+    <ul class="checklist">
+      <li><code>pnpm typecheck</code> passes.</li>
+      <li><code>pnpm lint</code> passes with zero warnings.</li>
+      <li>Unit tests pass (<code>pnpm test</code>).</li>
+      <li>Integration tests pass (<code>pnpm test:integration</code>).</li>
+      <li><code>GET /api/export/users</code> CSV contains <code>discipline</code> column with values.</li>
+      <li><code>GET /api/profile?email=&lt;known&gt;</code> returns <code>discipline</code> field.</li>
+    </ul>
+
+    <h4>UI — create</h4>
+    <ul class="checklist">
+      <li>Visit <code>/users/new</code> — discipline select is visible, required, no default pre-selected.</li>
+      <li>Submit without picking → form shows error "Please select a discipline".</li>
+      <li>Submit with each of the three values → user is created with the right value.</li>
+    </ul>
+
+    <h4>UI — edit</h4>
+    <ul class="checklist">
+      <li>Open users table → click kebab → Edit. Dialog pre-fills the user's current discipline.</li>
+      <li>Change discipline + save → toast confirms, table reflects the change after refresh.</li>
+      <li>Visit <code>/users/[id]</code> edit form → same behavior.</li>
+      <li>User detail header shows the discipline badge alongside role/status.</li>
+    </ul>
+
+    <h4>UI — display</h4>
+    <ul class="checklist">
+      <li>Users table shows the new Discipline column with icons.</li>
+      <li>Faceted filter for Discipline narrows the table correctly.</li>
+      <li><code>/profile</code> shows the logged-in user's discipline as a read-only badge.</li>
+      <li>Assignment detail page shows the assignee's discipline.</li>
+    </ul>
+
+    <h4>CSV</h4>
+    <ul class="checklist">
+      <li>Export from <code>/users</code> → CSV has the new column with values for every row.</li>
+      <li>Re-import that CSV → all rows match as <em>"no changes"</em>.</li>
+      <li>Edit one row's discipline in the CSV → import shows that row as <em>"update"</em>, change history records the diff.</li>
+      <li>Import an old CSV without the column → all rows still process correctly.</li>
+      <li>Import a CSV with an invalid value (e.g. <code>devloper</code>) → that row rejects with a clear error.</li>
+    </ul>
+
+    <h4>GitHub sync</h4>
+    <ul class="checklist">
+      <li>Trigger a sync with an unmatched member → inline form shows discipline picker.</li>
+      <li>Submit is disabled until a discipline is chosen.</li>
+      <li>Confirmed sync creates the user with the chosen discipline.</li>
+    </ul>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="risks">Risks &amp; mitigations</h2>
+
+    <table>
+      <thead>
+        <tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Misclassification: existing Conception/Business users sit at <code>developer</code> after backfill until reclassified.</td>
+          <td><span class="badge high">High</span></td>
+          <td><span class="badge medium">Med</span></td>
+          <td>Send the release-note ping to admins immediately after deploy; expose a "discipline = developer with no GitHub username" quick-filter so reclassification candidates are easy to spot.</td>
+        </tr>
+        <tr>
+          <td>Old CSV imports break because admins assume the column is required.</td>
+          <td><span class="badge low">Low</span></td>
+          <td><span class="badge medium">Med</span></td>
+          <td>Bulk import schema makes the column optional; preview UI surfaces "defaulted" rows clearly.</td>
+        </tr>
+        <tr>
+          <td>External profile API consumers can't parse the new field.</td>
+          <td><span class="badge low">Low</span></td>
+          <td><span class="badge low">Low</span></td>
+          <td>Additive change to the JSON response — old consumers ignoring new fields keep working.</td>
+        </tr>
+        <tr>
+          <td>Forgotten display surface (e.g. an unexpected place where users render).</td>
+          <td><span class="badge low">Low</span></td>
+          <td><span class="badge low">Low</span></td>
+          <td>Audit completed via subagents — all known surfaces in §6–§9. Search regression: <code>grep -r "user\.role" src</code> as a sanity check.</td>
+        </tr>
+        <tr>
+          <td>Enum gap discovered post-launch (e.g. need a "Design" value).</td>
+          <td><span class="badge medium">Med</span></td>
+          <td><span class="badge low">Low</span></td>
+          <td><code>ALTER TYPE user_discipline ADD VALUE 'design'</code> is non-blocking; UI label map is one line.</td>
+        </tr>
+        <tr>
+          <td>NextAuth session becomes a foot-gun if someone later adds <code>discipline</code> to the JWT and forgets it goes stale.</td>
+          <td><span class="badge low">Low</span></td>
+          <td><span class="badge medium">Med</span></td>
+          <td>Code-level comment in <code>src/lib/auth.ts</code> explaining the deliberate omission.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- =============================================================== -->
+    <h2 class="section" id="sequence">Rollout sequence</h2>
+
+    <p>Single PR. Commits in this order to keep the diff reviewable:</p>
+
+    <ol>
+      <li><strong>Schema + migration.</strong> Add enum + column to <code>schema.ts</code>; run <code>pnpm db:generate</code>; commit the generated SQL. Run <code>drizzle-migration-reviewer</code>.</li>
+      <li><strong>Types + helper.</strong> Add <code>UserDiscipline</code> type, <code>src/lib/disciplines.ts</code>, update <code>ExistingUserFields</code>.</li>
+      <li><strong>Validators.</strong> Update the four Zod schemas. Verify <code>pnpm typecheck</code>.</li>
+      <li><strong>Server actions.</strong> Update <code>createUser</code>, <code>updateUser</code>, <code>bulkImportUsers</code>, <code>checkExistingUsers</code>, <code>confirmGitHubSync</code>.</li>
+      <li><strong>API routes.</strong> Update <code>/api/export/users</code> and <code>/api/profile</code>.</li>
+      <li><strong>Seed scripts.</strong> Update both seed files.</li>
+      <li><strong>UI — creation.</strong> Update <code>new-user-form</code> and <code>inline-user-form</code>.</li>
+      <li><strong>UI — edit.</strong> Update <code>edit-user-dialog</code> and <code>user-detail-client</code>.</li>
+      <li><strong>UI — display.</strong> Update <code>users-table</code>, profile header, assignment detail.</li>
+      <li><strong>CSV import.</strong> Update <code>bulk-import-form</code> with parsing, preview, and validation.</li>
+      <li><strong>Tests.</strong> Update fixtures; add new unit/integration/e2e tests.</li>
+      <li><strong>Verification.</strong> Run through the checklist in §15 against a local dev server.</li>
+      <li><strong>Release note.</strong> Draft the admin ping; ship after merge to main &amp; production deploy.</li>
+    </ol>
+
+    <div class="callout ok">
+      <span class="label">Done definition</span>
+      Migration applied, all four Zod schemas validate, every UI surface in §6–§9 shows discipline, the
+      verification checklist in §15 is fully green, and the admin release note has been sent.
+    </div>
+
+  </main>
+</div>
+</body>
+</html>
