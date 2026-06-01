@@ -29,7 +29,7 @@ export const MODEL_PRICING: ModelPricing[] = [
     cacheReadPerMToken: 1.5,
     cacheWritePerMToken: 18.75,
   },
-  // Opus 4.5 / 4.6 / 4.7 — $5/$25
+  // Opus 4.5 / 4.6 / 4.7 / 4.8 — $5/$25
   {
     prefix: "claude-opus-4-5",
     inputPerMToken: 5,
@@ -46,6 +46,13 @@ export const MODEL_PRICING: ModelPricing[] = [
   },
   {
     prefix: "claude-opus-4-7",
+    inputPerMToken: 5,
+    outputPerMToken: 25,
+    cacheReadPerMToken: 0.5,
+    cacheWritePerMToken: 6.25,
+  },
+  {
+    prefix: "claude-opus-4-8",
     inputPerMToken: 5,
     outputPerMToken: 25,
     cacheReadPerMToken: 0.5,
