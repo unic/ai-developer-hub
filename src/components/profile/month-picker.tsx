@@ -21,8 +21,11 @@ function formatMonthLabel(month: string): string {
 }
 
 export function MonthPicker({ value, onChange, months }: MonthPickerProps) {
-  // If no months available, generate current month
-  const options = months.length > 0 ? months : [value];
+  // Always make the selected value selectable. On the 1st of a month the data
+  // source may not yet contain the current month (no synced rows for day 0),
+  // which would otherwise leave `value` with no matching SelectItem and render
+  // a blank trigger. Prepend it when missing (newest-first ordering).
+  const options = months.includes(value) ? months : [value, ...months];
 
   return (
     <Select value={value} onValueChange={onChange}>

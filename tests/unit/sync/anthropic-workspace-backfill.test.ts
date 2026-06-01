@@ -98,22 +98,29 @@ describe("anthropic-workspace date-range capping", () => {
     vi.useRealTimers();
   });
 
-  it("skips cost fetch when now equals startDate (month just began)", async () => {
+  it("fetches a one-day window when cron fires at the exact month start", async () => {
     vi.useFakeTimers();
-    // Cron fires at the exact start of May 2026 — the scenario from issue #72
+    // Cron fires at the exact start of May 2026 — the scenario from issue #72.
+    // ending_at must round up to the next UTC midnight (May 2) so the 1d-bucket
+    // range is valid, instead of collapsing to a zero-width same-day range that
+    // the API rejects with "ending date must be after starting date".
     vi.setSystemTime(new Date(Date.UTC(2026, 4, 1, 0, 0, 0))); // 2026-05-01T00:00:00Z
 
-    // Workspace call succeeds
     mockFetch.mockResolvedValueOnce(workspacesResponse([]));
-    // No cost report call should be made — month just started, ending_at would equal starting_at
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "0.00" }])
+    );
 
     const result = await run(1, { month: "2026-05" });
     expect(result).toHaveProperty("eventId");
-    // Only the workspace fetch should have been called (1 call), not the cost report
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    // Workspace fetch + a valid one-day cost report fetch (May 1 -> May 2).
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const calledUrl: string = mockFetch.mock.calls[1][0] as string;
+    expect(calledUrl).toContain("2026-05-01");
+    expect(calledUrl).toContain("2026-05-02");
   });
 
-  it("caps endDate to now when month end is in the future", async () => {
+  it("caps endDate to the next UTC midnight when month end is in the future", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(Date.UTC(2026, 4, 15, 12, 0, 0))); // 2026-05-15T12:00:00Z
 
@@ -126,12 +133,14 @@ describe("anthropic-workspace date-range capping", () => {
 
     // The cost report fetch should have been called
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    // Verify ending_at in the URL is not June 1 (which would be in the future)
     const costReportCall = mockFetch.mock.calls[1];
     const calledUrl: string = costReportCall[0] as string;
+    // Not capped to the future month end (June 1)...
     expect(calledUrl).not.toContain("2026-06-01");
-    // ending_at should encode the current time (2026-05-15T12:00:00.000Z)
-    expect(calledUrl).toContain("2026-05-15");
+    // ...and rounded up to the next UTC midnight (May 16), not the partial
+    // current time, so every requested bucket is a complete day.
+    expect(calledUrl).toContain("2026-05-16");
+    expect(calledUrl).not.toContain("2026-05-15T12");
   });
 
   it("uses full month range for past months without capping", async () => {
@@ -151,25 +160,30 @@ describe("anthropic-workspace date-range capping", () => {
     expect(calledUrl).toContain("2026-05-01");
   });
 
-  it("skips current-month iteration in backfill when cron fires at exact month start", async () => {
+  it("fetches a one-day current-month window during backfill at exact month start", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(Date.UTC(2026, 4, 1, 0, 0, 0))); // 2026-05-01T00:00:00Z
 
     // Workspaces succeeds
     mockFetch.mockResolvedValueOnce(workspacesResponse([]));
-    // April cost report succeeds
+    // April cost report (full past month) succeeds
     mockFetch.mockResolvedValueOnce(
       costReportResponse([{ workspace_id: "ws1", amount: "300.00" }])
     );
-    // May cost report must NOT be called (effectiveEnd <= startDate)
+    // May cost report (one-day window May 1 -> May 2) succeeds — no longer skipped
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "0.00" }])
+    );
 
     const result = await run(1, {
       backfillStartDate: new Date(Date.UTC(2026, 3, 1)), // Apr 2026
     });
 
     expect(result).toHaveProperty("eventId");
-    // 1 workspace + 1 April cost report = 2 calls; May should be skipped
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // 1 workspace + April + May = 3 calls; May is fetched with a valid one-day range
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    const mayUrl: string = mockFetch.mock.calls[2][0] as string;
+    expect(mayUrl).toContain("2026-05-02");
   });
 });
 

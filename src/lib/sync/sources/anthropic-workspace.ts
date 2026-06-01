@@ -193,13 +193,24 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
   const nextYear = endMonth === 12 ? endYear + 1 : endYear;
   const monthEndDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00Z`;
 
-  // Cap endDate to now — Anthropic rejects requests where ending_at is in the future.
+  // Cap endDate to the start of *tomorrow* (next UTC midnight), not `now`.
+  // With bucket_width=1d the API snaps both endpoints to day boundaries and
+  // requires ending_at to be strictly after starting_at. Capping at `now`
+  // breaks on the 1st of the month: starting_at (month-start midnight) and
+  // ending_at (a few minutes into the same day) land in the same daily bucket,
+  // so the API returns 400 "ending date must be after starting date". Rounding
+  // up to the next midnight guarantees at least one full daily bucket and
+  // matches the documented "current date + 1 day" pattern.
   const now = new Date();
   const startDateObj = new Date(startDate);
   const monthEndDateObj = new Date(monthEndDate);
-  const effectiveEnd = monthEndDateObj > now ? now : monthEndDateObj;
+  const startOfTomorrow = new Date(now);
+  startOfTomorrow.setUTCHours(0, 0, 0, 0);
+  startOfTomorrow.setUTCDate(startOfTomorrow.getUTCDate() + 1);
+  const effectiveEnd =
+    monthEndDateObj < startOfTomorrow ? monthEndDateObj : startOfTomorrow;
   if (effectiveEnd.getTime() <= startDateObj.getTime()) {
-    // Month hasn't started yet or no time has elapsed — nothing to sync.
+    // Month hasn't started yet — nothing to sync.
     return 0;
   }
   const endDate = effectiveEnd.toISOString();

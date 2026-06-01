@@ -37,7 +37,7 @@ import type {
   WorkspaceUser,
   ModelBreakdownRow,
 } from "@/types";
-import { projectMonthEnd } from "@/lib/utils";
+import { getCurrentMonth, projectMonthEnd } from "@/lib/utils";
 import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
 import {
   loadDashboardKpis,
@@ -152,11 +152,18 @@ async function _getAvailableWorkspaceCostMonths(): Promise<string[]> {
 export async function getAvailableWorkspaceCostMonths(): Promise<string[]> {
   const admin = await requireAdmin();
   if (!admin) return [];
-  return unstable_cache(
+  const months = await unstable_cache(
     _getAvailableWorkspaceCostMonths,
     ["anthropic-available-months"],
     { tags: ["anthropic-workspace-costs"] }
   )();
+  // Ensure the current month is always offered, even before its first sync (e.g.
+  // on the 1st). Computed outside the cache so it stays correct across rollover.
+  const currentMonth = getCurrentMonth();
+  if (!months.includes(currentMonth)) {
+    return [currentMonth, ...months];
+  }
+  return months;
 }
 
 export const getAvailableMonths = getAvailableWorkspaceCostMonths;
