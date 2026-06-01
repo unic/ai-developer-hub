@@ -20,8 +20,7 @@ import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
 import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
 import { ClaudeTabs } from "@/components/claude/claude-tabs";
-import { getDaysInMonth } from "date-fns";
-import { getCurrentMonth } from "@/lib/utils";
+import { getCurrentMonth, getUtcDaysInMonth } from "@/lib/utils";
 import { Bot } from "lucide-react";
 
 export const metadata: Metadata = { title: "Claude API Spending" };
@@ -37,7 +36,7 @@ export default async function ClaudePage() {
   // estimate / projection denominator count the UTC day (spec 033).
   const currentMonth = getCurrentMonth();
   const todayDayOfMonth = now.getUTCDate();
-  const daysInMonth = getDaysInMonth(now);
+  const daysInMonth = getUtcDaysInMonth(now);
   const availableMonths = await getAvailableWorkspaceCostMonths();
 
   if (availableMonths.length === 0) {

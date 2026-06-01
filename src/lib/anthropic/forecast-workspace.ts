@@ -6,14 +6,7 @@
 // tracker). This one projects month-end via a 7-day trailing rate from up to
 // 30 days of daily history. Right tool for cap-based monthly alerts.
 
-import {
-  endOfMonth,
-  format,
-  getDate,
-  getDaysInMonth,
-  parseISO,
-  subDays,
-} from "date-fns";
+import { formatUtcDateOnly } from "@/lib/utils";
 
 export type WorkspaceForecast = {
   runRate7dCents: number;
@@ -49,19 +42,27 @@ export function forecastWorkspaceMonth(
   limitCents: number | null,
   todayEstimateCents = 0,
 ): WorkspaceForecast {
-  const monthStart = parseISO(`${month}-01`);
-  const monthEndDate = endOfMonth(monthStart);
-  const daysInMonth = getDaysInMonth(monthStart);
-  const daysElapsed = Math.min(daysInMonth, Math.max(1, getDate(today)));
+  // All date math is UTC — the dailyCosts keys come from cost_report (UTC
+  // calendar dates), so mixing in local-time helpers would shift "today" by a
+  // day in non-UTC runtimes (off-by-one MTD / run-rate / crossesCapOn).
+  const [year, monthNum] = month.split("-").map(Number);
+  const monthIdx = monthNum - 1;
+  const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+  const monthEndUtc = new Date(Date.UTC(year, monthIdx, daysInMonth));
+  const daysElapsed = Math.min(daysInMonth, Math.max(1, today.getUTCDate()));
   const daysRemaining = Math.max(0, daysInMonth - daysElapsed);
-  const todayStr = format(today, "yyyy-MM-dd");
+  const todayStr = formatUtcDateOnly(today);
 
   // Build dense daily series — fill missing days with 0 so averages are over
   // calendar days, not just billed days. Today has no cost_report row yet, so
   // fall back to the per-user estimate for that single slot.
   const last30: number[] = [];
   for (let i = 29; i >= 0; i--) {
-    const d = format(subDays(today, i), "yyyy-MM-dd");
+    const d = formatUtcDateOnly(
+      new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i)
+      )
+    );
     last30.push(dailyCosts.get(d) ?? (d === todayStr ? todayEstimateCents : 0));
   }
   const last7 = last30.slice(-7);
@@ -78,8 +79,9 @@ export function forecastWorkspaceMonth(
       ? null
       : Math.round(((last7Total - prev7Total) / prev7Total) * 100);
 
-  const mtdStart = format(monthStart, "yyyy-MM-dd");
-  const mtdEnd = format(today < monthEndDate ? today : monthEndDate, "yyyy-MM-dd");
+  const mtdStart = `${month}-01`;
+  const monthEndStr = formatUtcDateOnly(monthEndUtc);
+  const mtdEnd = todayStr < monthEndStr ? todayStr : monthEndStr;
   let mtdCents = 0;
   let distinctMtdDays = 0;
   for (const [date, cents] of dailyCosts) {
@@ -141,10 +143,15 @@ export function forecastWorkspaceMonth(
   if (willOvershoot && runRate7dCents > 0) {
     const centsToReachCap = limitCents - mtdCents;
     const daysToReachCap = Math.ceil(centsToReachCap / runRate7dCents);
-    const crossDate = new Date(today);
-    crossDate.setDate(crossDate.getDate() + daysToReachCap);
-    const clamped = crossDate > monthEndDate ? monthEndDate : crossDate;
-    crossesCapOn = format(clamped, "yyyy-MM-dd");
+    const crossDate = new Date(
+      Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate() + daysToReachCap
+      )
+    );
+    const clamped = crossDate > monthEndUtc ? monthEndUtc : crossDate;
+    crossesCapOn = formatUtcDateOnly(clamped);
   }
 
   return {

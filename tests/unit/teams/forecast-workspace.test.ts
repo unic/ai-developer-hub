@@ -108,4 +108,16 @@ describe("forecastWorkspaceMonth", () => {
     const omitted = forecastWorkspaceMonth(daily, month, today, 5000_00);
     expect(explicitZero).toEqual(omitted);
   });
+
+  // Regression: cost_report keys dates in UTC. At 23:30 UTC on May 31, a UTC+
+  // runtime is already on June 1 locally — the forecast must still key "today"
+  // to the UTC day (May 31) so the estimate counts toward the right month.
+  it("keys 'today' in UTC at a month boundary, not local time", () => {
+    const lateMayUtc = new Date("2026-05-31T23:30:00Z");
+    const f = forecastWorkspaceMonth(new Map(), "2026-05", lateMayUtc, null, 300_00);
+    // UTC day 31 of 31 → daysRemaining 0 → projected == MTD == the estimate.
+    // (If "today" were taken as local June 1, the estimate would fall outside
+    // May's MTD window and projected would be 0.)
+    expect(f.projectedMonthEndCents).toBe(300_00);
+  });
 });
