@@ -7,11 +7,12 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatUtcDateOnly } from "@/lib/utils";
 import { formatCurrencyFromDollars, formatDateLong } from "@/lib/chart-format";
 
 const config: ChartConfig = {
   cost: { label: "Daily spend", color: "var(--chart-1)" },
+  estimated: { label: "Today (est.)", color: "var(--chart-1)" },
 };
 
 export function WorkspaceDailyChart({
@@ -19,6 +20,7 @@ export function WorkspaceDailyChart({
   color,
   limitCents,
   daysInMonth,
+  estimatedTodayCents,
 }: {
   dailyTotals: { date: string; costCents: number }[];
   color?: string | null;
@@ -26,18 +28,29 @@ export function WorkspaceDailyChart({
   limitCents?: number | null;
   /** Days in the selected month, used to prorate the monthly limit. */
   daysInMonth?: number;
+  /** Spec 033 — appends a ghost/dashed "today (est.)" bar when present. */
+  estimatedTodayCents?: number | null;
 }) {
-  if (dailyTotals.length === 0) {
+  if (dailyTotals.length === 0 && !estimatedTodayCents) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         No daily data for this period.
       </p>
     );
   }
-  const data = dailyTotals.map((d) => ({
-    date: d.date,
-    cost: d.costCents / 100,
-  }));
+  const data: { date: string; cost: number | null; estimated: number | null }[] =
+    dailyTotals.map((d) => ({
+      date: d.date,
+      cost: d.costCents / 100,
+      estimated: null,
+    }));
+  if (estimatedTodayCents != null && estimatedTodayCents > 0) {
+    const today = formatUtcDateOnly(new Date());
+    // Replace today's slot if cost_report somehow already has it; else append.
+    const existing = data.find((d) => d.date === today);
+    if (existing) existing.estimated = estimatedTodayCents / 100;
+    else data.push({ date: today, cost: null, estimated: estimatedTodayCents / 100 });
+  }
 
   const dailyCapDollars =
     limitCents != null && daysInMonth && daysInMonth > 0
@@ -48,7 +61,7 @@ export function WorkspaceDailyChart({
   // max is below ~$5, switch to 2 decimals so ticks read e.g. "$0.50" not
   // four duplicate "$1" labels.
   const maxValue = data.reduce(
-    (acc, d) => Math.max(acc, d.cost),
+    (acc, d) => Math.max(acc, d.cost ?? 0, d.estimated ?? 0),
     dailyCapDollars ?? 0
   );
   const useFineTicks = maxValue < 5;
@@ -113,6 +126,19 @@ export function WorkspaceDailyChart({
           radius={[4, 4, 0, 0]}
           maxBarSize={56}
         />
+        {data.some((d) => d.estimated != null) && (
+          <Bar
+            dataKey="estimated"
+            name="Today (est.)"
+            fill="var(--chart-1)"
+            fillOpacity={0.28}
+            stroke="var(--chart-1)"
+            strokeOpacity={0.6}
+            strokeDasharray="3 3"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={56}
+          />
+        )}
       </BarChart>
     </ChartContainer>
   );

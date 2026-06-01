@@ -17,6 +17,7 @@ function ws(over: Partial<WorkspaceListItem> = {}): WorkspaceListItem {
     limitCents: 1_000_00,
     utilizationPct: 0,
     displayColor: null,
+    todayEstimate: null,
     ...over,
   };
 }

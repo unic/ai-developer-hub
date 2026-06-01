@@ -19,7 +19,6 @@ import {
   parseISO,
   subMonths,
   startOfMonth,
-  getDate,
   getDaysInMonth,
 } from "date-fns";
 import type {
@@ -37,12 +36,14 @@ import type {
   WorkspaceUser,
   ModelBreakdownRow,
 } from "@/types";
-import { getCurrentMonth, projectMonthEnd } from "@/lib/utils";
+import { formatUtcDateOnly, getCurrentMonth, projectMonthEnd } from "@/lib/utils";
 import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
 import {
   loadDashboardKpis,
   loadSyncStatus,
   loadWorkspaceList,
+  loadTodayEstimate,
+  loadTodayEstimatesByWorkspace,
 } from "@/lib/anthropic/queries";
 
 // ---------------------------------------------------------------------------
@@ -381,6 +382,7 @@ export async function getDashboardKpis(month?: string): Promise<DashboardKpis> {
       topOverWorkspaceName: null,
       topOverWorkspaceUtilizationPct: null,
       priorMonthCents: 0,
+      todayEstimate: null,
     };
   }
   const targetMonth =
@@ -398,6 +400,10 @@ export async function getDashboardKpis(month?: string): Promise<DashboardKpis> {
 const TOP_STACKED_LIMIT = 8;
 const STACKED_OTHER_KEY = "__other__";
 const STACKED_NULL_KEY = "__default__";
+// Spec 033 — reserved series key for the trailing "today (est.)" ghost bar.
+// Mirrored as ESTIMATE_KEY in global-metrics-client.tsx (same pattern as the
+// other __*__ keys, which are intentionally duplicated client-side).
+const STACKED_ESTIMATE_KEY = "__estimated__";
 
 async function _getDailyTotalsByWorkspace(month: string): Promise<{
   rows: DailyStackedRow[];
@@ -461,6 +467,23 @@ async function _getDailyTotalsByWorkspace(month: string): Promise<{
   const rows = Array.from(dayMap.values()).sort((a, b) =>
     a.date.localeCompare(b.date)
   );
+
+  // Spec 033 — append one trailing "today (est.)" ghost row for the current
+  // month. Carried in a reserved series key so it never stacks into a real
+  // workspace and the client can render it dashed. Out of all actual rows, so
+  // it sorts last (today is the max date).
+  if (month === getCurrentMonth()) {
+    const now = new Date();
+    const estimate = await loadTodayEstimate(now);
+    if (estimate) {
+      rows.push({
+        date: formatUtcDateOnly(now),
+        perWorkspace: { [STACKED_ESTIMATE_KEY]: estimate.cents },
+        total: estimate.cents,
+        estimated: true,
+      });
+    }
+  }
 
   const topWorkspaces = ranked.slice(0, TOP_STACKED_LIMIT).map((key) => ({
     key,
@@ -831,13 +854,20 @@ async function _getWorkspaceDetail(
       ? Math.round((currentMonthCents / limitCents) * 100)
       : null;
 
-  // Projected month-end
-  const nowMonth = format(new Date(), "yyyy-MM");
+  // Projected month-end (spec 033): for the current month, add this workspace's
+  // estimate of today's spend to the numerator and count today (UTC) in the
+  // denominator so the two agree. Past months: full month, no estimate.
+  const now = new Date();
+  const isCurrentMonth = month === getCurrentMonth();
+  const todayEstimate = isCurrentMonth
+    ? (await loadTodayEstimatesByWorkspace(now)).get(workspaceId) ?? null
+    : null;
   const daysInMonth = getDaysInMonth(parseISO(monthStart));
-  const daysElapsed =
-    month === nowMonth ? Math.max(1, getDate(new Date())) : daysInMonth;
+  const daysElapsed = isCurrentMonth
+    ? Math.max(1, now.getUTCDate())
+    : daysInMonth;
   const projectedMonthEndCents = projectMonthEnd(
-    currentMonthCents,
+    currentMonthCents + (todayEstimate?.cents ?? 0),
     daysElapsed,
     daysInMonth
   );
@@ -921,6 +951,7 @@ async function _getWorkspaceDetail(
     topUsers,
     modelBreakdown,
     availableMonths: months,
+    todayEstimate,
   };
 }
 

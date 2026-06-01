@@ -2,6 +2,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn, formatCurrency } from "@/lib/utils";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
+import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
+import { totalTileCaption } from "./today-estimate";
 
 export type KpiTile = {
   label: string;
@@ -85,6 +87,7 @@ export function buildOrgKpiTiles(args: {
   workspacesWithLimitCount: number;
   topOverWorkspaceName: string | null;
   topOverWorkspaceUtilizationPct: number | null;
+  todayEstimate?: TodayEstimate | null;
 }): KpiTile[] {
   const {
     month,
@@ -98,6 +101,7 @@ export function buildOrgKpiTiles(args: {
     workspacesWithLimitCount,
     topOverWorkspaceName,
     topOverWorkspaceUtilizationPct,
+    todayEstimate,
   } = args;
 
   const [year, monthNum] = month.split("-");
@@ -128,12 +132,11 @@ export function buildOrgKpiTiles(args: {
 
   const tiles: KpiTile[] = [
     {
+      // Headline stays the ACTUAL billed total (spec 033 guard — never merge the
+      // estimate into it); the estimate is surfaced as a labeled sub-line.
       label: `Total · ${monthLabel}`,
       value: formatCurrency(totalCents),
-      caption:
-        priorMonthCents > 0
-          ? `Prior month ${formatCurrency(priorMonthCents)}`
-          : "First month with data",
+      caption: totalTileCaption(todayEstimate, priorMonthCents),
     },
     {
       label: "MoM Delta",
@@ -149,10 +152,10 @@ export function buildOrgKpiTiles(args: {
       value: formatCurrency(projectedMonthEndCents),
       caption:
         orgBudgetCents == null
-          ? "No org budget set"
-          : isOverBudget
-          ? `${projectedPct}% of ${formatCurrency(orgBudgetCents)} budget`
-          : `${projectedPct ?? 0}% of ${formatCurrency(orgBudgetCents)} budget`,
+          ? todayEstimate
+            ? "Run-rate incl. est. today"
+            : "No org budget set"
+          : `${projectedPct ?? 0}% of ${formatCurrency(orgBudgetCents)} budget${todayEstimate ? " · incl. est. today" : ""}`,
       tone: isOverBudget ? "danger" : projectedPct != null && projectedPct >= 80 ? "warn" : "default",
       ring: isOverBudget,
       icon: isOverBudget ? <AlertTriangle className="size-3 text-destructive" /> : undefined,

@@ -11,6 +11,7 @@ import {
   loadDashboardKpis,
   loadSyncStatus,
   loadWorkspaceList,
+  loadTodayEstimatesByWorkspace,
 } from "@/lib/anthropic/queries";
 import {
   forecastWorkspaceMonth,
@@ -69,19 +70,27 @@ export async function evaluateAndPostTeamsAlerts(opts?: {
     return { posted: 1, skipped: ["digest_skipped_stale"] };
   }
 
-  const [kpis, workspaces, priorState, costHistory] = await Promise.all([
-    loadDashboardKpis(month),
-    loadWorkspaceList(),
-    readAlertState(month),
-    loadCostHistory(now, FORECAST_LOOKBACK_DAYS),
-  ]);
+  const [kpis, workspaces, priorState, costHistory, todayEstimates] =
+    await Promise.all([
+      loadDashboardKpis(month),
+      loadWorkspaceList(),
+      readAlertState(month),
+      loadCostHistory(now, FORECAST_LOOKBACK_DAYS),
+      loadTodayEstimatesByWorkspace(now),
+    ]);
 
   // Compute forecasts purely from the pre-loaded cost history (no DB calls).
+  // Spec 033: feed each workspace's today estimate so the run-rate and MTD
+  // aren't diluted by the missing-today gap (cost_report has no row for today).
   const forecastByKey = new Map<string, WorkspaceForecast>();
   for (const w of workspaces) {
     if (w.currentMonthCents === 0 && w.limitCents === null) continue;
     const daily = costHistory.get(w.workspaceId) ?? new Map();
-    forecastByKey.set(keyFor(w.workspaceId), forecastWorkspaceMonth(daily, month, now, w.limitCents));
+    const estCents = todayEstimates.get(w.workspaceId)?.cents ?? 0;
+    forecastByKey.set(
+      keyFor(w.workspaceId),
+      forecastWorkspaceMonth(daily, month, now, w.limitCents, estCents),
+    );
   }
 
   const workspacesByKey = new Map<string, WorkspaceListItem>();

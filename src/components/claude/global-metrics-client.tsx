@@ -69,6 +69,9 @@ type StackedSeries = {
 const ALL_WORKSPACES = "__all__";
 const OTHER_KEY = "__other__";
 const DEFAULT_KEY = "__default__";
+// Spec 033 — trailing "today (est.)" ghost bar. Mirrors STACKED_ESTIMATE_KEY in
+// anthropic-global.ts (same intentional duplication as OTHER_KEY/DEFAULT_KEY).
+const ESTIMATE_KEY = "__estimated__";
 
 type GlobalMetricsClientProps = {
   initialKpis: DashboardKpis;
@@ -148,6 +151,7 @@ export function GlobalMetricsClient({
         workspacesWithLimitCount: kpis.workspacesWithLimitCount,
         topOverWorkspaceName: kpis.topOverWorkspaceName,
         topOverWorkspaceUtilizationPct: kpis.topOverWorkspaceUtilizationPct,
+        todayEstimate: kpis.todayEstimate,
       }),
     [kpis, orgBudgetCents, selectedMonth]
   );
@@ -166,6 +170,7 @@ export function GlobalMetricsClient({
     for (const s of seriesWithColors) {
       out[s.key] = { label: s.name, color: s.color };
     }
+    out[ESTIMATE_KEY] = { label: "Today (est.)", color: "var(--chart-1)" };
     return out;
   }, [seriesWithColors]);
 
@@ -201,6 +206,12 @@ export function GlobalMetricsClient({
     [seriesWithColors, selectedWorkspace]
   );
 
+  // Spec 033 — the server appends one trailing "today (est.)" row carrying the
+  // estimate under ESTIMATE_KEY. Render its ghost bar only in the org-wide view
+  // (the estimate is a single org/total figure, not per-workspace here).
+  const showEstimate =
+    selectedWorkspace === ALL_WORKSPACES && daily.rows.some((d) => d.estimated);
+
   const chartData = useMemo(
     () =>
       daily.rows.map((d) => {
@@ -208,9 +219,12 @@ export function GlobalMetricsClient({
         for (const s of visibleSeries) {
           row[s.key] = (d.perWorkspace[s.key] ?? 0) / 100;
         }
+        if (showEstimate) {
+          row[ESTIMATE_KEY] = (d.perWorkspace[ESTIMATE_KEY] ?? 0) / 100;
+        }
         return row;
       }),
-    [daily.rows, visibleSeries]
+    [daily.rows, visibleSeries, showEstimate]
   );
 
   return (
@@ -336,6 +350,19 @@ export function GlobalMetricsClient({
                     }
                   />
                 ))}
+                {showEstimate && (
+                  <Bar
+                    dataKey={ESTIMATE_KEY}
+                    stackId="costs"
+                    name="Today (est.)"
+                    fill="var(--chart-1)"
+                    fillOpacity={0.28}
+                    stroke="var(--chart-1)"
+                    strokeOpacity={0.6}
+                    strokeDasharray="3 3"
+                    radius={[4, 4, 0, 0]}
+                  />
+                )}
               </BarChart>
             </ChartContainer>
           )}

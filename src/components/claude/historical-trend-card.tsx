@@ -26,6 +26,8 @@ type HistoricalTrendCardProps = {
   budgetLimitCents: number | null;
   todayDayOfMonth: number;
   daysInMonth: number;
+  /** Spec 033 — anchors the pacing projection at today (MTD + est). */
+  todayEstimateCents?: number | null;
 };
 
 export function HistoricalTrendCard({
@@ -37,6 +39,7 @@ export function HistoricalTrendCard({
   budgetLimitCents,
   todayDayOfMonth,
   daysInMonth,
+  todayEstimateCents = null,
 }: HistoricalTrendCardProps) {
   const [view, setView] = useState<View>("monthly");
 
@@ -83,6 +86,7 @@ export function HistoricalTrendCard({
             projectedEomCents={projectedMonthEndCents}
             todayDayOfMonth={todayDayOfMonth}
             daysInMonth={daysInMonth}
+            todayEstimateCents={todayEstimateCents}
           />
         )}
         {view === "growing" && (

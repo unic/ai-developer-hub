@@ -18,6 +18,7 @@ import type { WorkspaceDetail } from "@/types";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { getDaysInMonth, parseISO } from "date-fns";
+import { totalTileCaption } from "@/components/claude/today-estimate";
 
 type Props = {
   workspaceIdParam: string;
@@ -122,10 +123,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
       {
         label: `Total · ${monthLabel}`,
         value: formatCurrency(detail.currentMonthCents),
-        caption:
-          detail.priorMonthCents > 0
-            ? `Prior month ${formatCurrency(detail.priorMonthCents)}`
-            : "First month with data",
+        caption: totalTileCaption(detail.todayEstimate, detail.priorMonthCents),
       },
       {
         label: "MoM Delta",
@@ -146,8 +144,10 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
         value: formatCurrency(detail.projectedMonthEndCents),
         caption:
           detail.limitCents == null
-            ? "No limit set"
-            : `${projectedPct ?? 0}% of ${formatCurrency(detail.limitCents)} limit`,
+            ? detail.todayEstimate
+              ? "Run-rate incl. est. today"
+              : "No limit set"
+            : `${projectedPct ?? 0}% of ${formatCurrency(detail.limitCents)} limit${detail.todayEstimate ? " · incl. est. today" : ""}`,
         tone: isOver ? "danger" : projectedPct != null && projectedPct >= 80 ? "warn" : "default",
         ring: isOver,
         icon: isOver ? <AlertTriangle className="size-3 text-destructive" /> : undefined,
@@ -216,6 +216,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
             color={detail.workspace.displayColor}
             limitCents={detail.limitCents}
             daysInMonth={getDaysInMonth(parseISO(`${month}-01`))}
+            estimatedTodayCents={detail.todayEstimate?.cents ?? null}
           />
         </CardContent>
       </Card>

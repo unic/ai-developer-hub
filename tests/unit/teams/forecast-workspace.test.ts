@@ -76,4 +76,36 @@ describe("forecastWorkspaceMonth", () => {
     expect(f.status).toBe("at_risk");
     expect(f.crossesCapOn).toBeNull();
   });
+
+  // Spec 033 — today estimate fills the missing cost_report slot.
+  it("fills today's missing slot with the estimate, lifting the 7-day run-rate", () => {
+    // 7 complete days before today @ $100, NO today row in cost_report.
+    const daily = new Map<string, number>();
+    for (let i = 1; i <= 7; i++) daily.set(daysBefore(i), 100_00);
+
+    const without = forecastWorkspaceMonth(daily, month, today, null);
+    const withEst = forecastWorkspaceMonth(daily, month, today, null, 700_00);
+
+    // last7 = [today-6..today-1, today]; today is 0 without, 700_00 with.
+    expect(without.runRate7dCents).toBe(Math.round(600_00 / 7));
+    expect(withEst.runRate7dCents).toBe(Math.round(1_300_00 / 7));
+    expect(withEst.projectedMonthEndCents).toBeGreaterThan(
+      without.projectedMonthEndCents,
+    );
+  });
+
+  it("does not double-count the estimate when cost_report already has today", () => {
+    const daily = build(Array(8).fill(100_00)); // includes a real today row
+    const without = forecastWorkspaceMonth(daily, month, today, null);
+    const withEst = forecastWorkspaceMonth(daily, month, today, null, 999_00);
+    expect(withEst.runRate7dCents).toBe(without.runRate7dCents);
+    expect(withEst.projectedMonthEndCents).toBe(without.projectedMonthEndCents);
+  });
+
+  it("defaulting the estimate to 0 preserves the original behavior", () => {
+    const daily = build(Array(14).fill(50_00));
+    const explicitZero = forecastWorkspaceMonth(daily, month, today, 5000_00, 0);
+    const omitted = forecastWorkspaceMonth(daily, month, today, 5000_00);
+    expect(explicitZero).toEqual(omitted);
+  });
 });

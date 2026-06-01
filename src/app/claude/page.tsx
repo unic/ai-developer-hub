@@ -20,7 +20,8 @@ import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
 import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
 import { ClaudeTabs } from "@/components/claude/claude-tabs";
-import { format, getDate, getDaysInMonth } from "date-fns";
+import { getDaysInMonth } from "date-fns";
+import { getCurrentMonth } from "@/lib/utils";
 import { Bot } from "lucide-react";
 
 export const metadata: Metadata = { title: "Claude API Spending" };
@@ -32,8 +33,10 @@ export default async function ClaudePage() {
   }
 
   const now = new Date();
-  const currentMonth = format(now, "yyyy-MM");
-  const todayDayOfMonth = getDate(now);
+  // UTC throughout — the cost tables key on UTC calendar dates, and the today
+  // estimate / projection denominator count the UTC day (spec 033).
+  const currentMonth = getCurrentMonth();
+  const todayDayOfMonth = now.getUTCDate();
   const daysInMonth = getDaysInMonth(now);
   const availableMonths = await getAvailableWorkspaceCostMonths();
 
@@ -101,6 +104,7 @@ export default async function ClaudePage() {
         budgetLimitCents={orgConfig?.billingBudgetLimitCents ?? null}
         todayDayOfMonth={todayDayOfMonth}
         daysInMonth={daysInMonth}
+        todayEstimateCents={kpis.todayEstimate?.cents ?? null}
       />
 
       <section aria-label="Organization billing">
@@ -109,6 +113,7 @@ export default async function ClaudePage() {
           orgConfig={orgConfig}
           currentMonthTotalCents={kpis.totalCents}
           projectedMonthEndCents={kpis.projectedMonthEndCents}
+          todayEstimate={kpis.todayEstimate}
         />
       </section>
 

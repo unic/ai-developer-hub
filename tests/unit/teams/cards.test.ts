@@ -17,6 +17,7 @@ const baseWorkspace: WorkspaceListItem = {
   limitCents: 5_000_00,
   utilizationPct: 102,
   displayColor: null,
+  todayEstimate: null,
 };
 
 const baseForecast: WorkspaceForecast = {
@@ -38,6 +39,7 @@ const baseKpis: DashboardKpis = {
   topOverWorkspaceName: "research-claude",
   topOverWorkspaceUtilizationPct: 102,
   priorMonthCents: 16_920_00,
+  todayEstimate: null,
 };
 
 const baseSync: SyncStatus = {

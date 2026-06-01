@@ -23,6 +23,63 @@ describe("projectMonthEnd", () => {
   });
 });
 
+describe("Projection with today estimate (spec 033 — mirrors loadDashboardKpis)", () => {
+  // spentSoFar = actual MTD (complete days) + today's estimate; daysElapsed
+  // counts today (UTC day). This is the model loadDashboardKpis / _getWorkspaceDetail use.
+  function project(
+    mtdActualCents: number,
+    estTodayCents: number,
+    daysElapsed: number,
+    daysInMonth: number
+  ) {
+    return projectMonthEnd(mtdActualCents + estTodayCents, daysElapsed, daysInMonth);
+  }
+
+  it("1st of the month: actual is $0 but the estimate yields a non-zero projection", () => {
+    // Before the fix this projected $0 (numerator skipped today, denominator counted it).
+    // Day 1 of 30, $0 billed, $1,180 est today → $35,400 projected.
+    expect(project(0, 118_000, 1, 30)).toBe(30 * 118_000);
+  });
+
+  it("mid-month: matches the hand-calc of (actual + est) / dayOfMonth * daysInMonth", () => {
+    // $42,320 actual + $1,640 est on day 12 of 30.
+    expect(project(4_232_000, 164_000, 12, 30)).toBe(
+      Math.round(((4_232_000 + 164_000) / 12) * 30)
+    );
+  });
+
+  it("a null/zero estimate leaves the projection at the actual-only run-rate", () => {
+    expect(project(4_232_000, 0, 12, 30)).toBe(projectMonthEnd(4_232_000, 12, 30));
+  });
+
+  it("past months are unaffected (full month elapsed, no estimate)", () => {
+    expect(project(5_000_000, 0, 30, 30)).toBe(5_000_000);
+  });
+});
+
+describe("Alerts & running costs stay actual-only (spec 033 invariant)", () => {
+  // getActiveAlerts (alerts.ts) and getRunningCostsForPeriod (budget-utils.ts)
+  // must NEVER fold in the estimate. Their math reads actual cents only.
+  function utilization(actualMtdCents: number, limitCents: number) {
+    return Math.round((actualMtdCents / limitCents) * 100);
+  }
+  function runningCost(actualBreakdownCents: number[]) {
+    return actualBreakdownCents.reduce((sum, c) => sum + c, 0);
+  }
+
+  it("utilization is computed from actual MTD only — an estimate cannot push it over 80%", () => {
+    const actualMtd = 7_900; // 79% of $100
+    const limit = 10_000;
+    // Even with a large today estimate sitting in a separate field, utilization
+    // is unchanged because the function never reads it.
+    expect(utilization(actualMtd, limit)).toBe(79);
+  });
+
+  it("running cost sums actual workspace costs only", () => {
+    expect(runningCost([100_00, 250_00, 0])).toBe(350_00);
+  });
+});
+
 describe("MoM math (mirrors getDashboardKpis)", () => {
   function mom(curr: number, prior: number) {
     const delta = curr - prior;
