@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 033 — Current-day cost estimate · UI mockup</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a; --panel: #121212; --panel-2: #181818; --border: #262626; --border-2: #2e2e2e;
+        --text: #fafafa; --muted: #a1a1aa; --muted-2: #71717a;
+        --primary: #d4f057; --primary-ink: #0a0a0a;
+        --success: #4ade80; --warn: #facc15; --danger: #f87171; --info: #67e8f9;
+        --bar: #67e8f9; --bar-2: #3aa0b3;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5; }
+      .tabular { font-variant-numeric: tabular-nums; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #181818; border: 1px solid var(--border-2); color: var(--muted); }
+      .chip.est { color: #d4f057; border-color: #3f5d10; background: #161c07; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .kpi-tile { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); }
+      .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .kpi-value { font-size: 28px; font-weight: 600; }
+      .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+      .legend-swatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+      .annot { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.05); padding: 10px 12px; border-radius: 0 8px 8px 0; font-size: 12px; color: var(--muted); }
+      .annot.info { border-color: var(--info); background: rgba(103,232,249,0.05); }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      .tooltip-mock { background: #0a0a0a; border: 1px solid var(--border-2); border-radius: 8px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: inline-block; }
+      .num { font-variant-numeric: tabular-nums; }
+      .label-est { fill: #d4f057; font-size: 9px; }
+      .grid-line { stroke: #1c1c1c; }
+      .axis-label { fill: #71717a; font-size: 9px; }
+    </style>
+  </head>
+  <body>
+    <div class="container space-y-10">
+
+      <header class="pb-5 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-2 mb-3 text-xs">
+          <span class="chip">Spec 033</span>
+          <span class="chip est">Tier B mockup</span>
+          <span class="chip">Static — illustrative numbers</span>
+          <a class="chip info" href="plan.html">← back to plan.html</a>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight">Current-day cost estimate — UI mockup</h1>
+        <p class="text-[var(--muted)] text-sm mt-2 max-w-3xl">
+          How the clearly-labelled <strong>estimated today</strong> figure appears on the Claude dashboard. The estimate is always a
+          <span style="color:#d4f057">dashed / ghosted, "est." chipped</span> treatment — visually distinct from solid actuals — and is never
+          merged into the actual month-to-date total. Three views: the KPI strip, the daily cost chart, and the cumulative pacing chart, plus the
+          1st-of-month before/after that motivates the change.
+        </p>
+      </header>
+
+      <!-- ============ 1. KPI STRIP ============ -->
+      <section class="space-y-3">
+        <h2 class="text-lg font-semibold">1 · KPI strip — Month-to-date &amp; Projected month-end</h2>
+        <p class="text-sm text-[var(--muted)]">Scenario: <span class="chip">12 June, mid-month</span> · org monthly budget $90,000.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <!-- MTD tile -->
+          <div class="kpi-tile">
+            <div class="kpi-label">Month-to-date</div>
+            <div class="kpi-value num">$43,960</div>
+            <div class="kpi-sub flex items-center gap-1.5 flex-wrap">
+              <span>$42,320 actual</span>
+              <span class="text-[var(--muted-2)]">+</span>
+              <span style="color:#d4f057">$1,640 est. today</span>
+              <span class="chip est" title="Estimated from per-user usage, calibrated to recent billed days. Not yet billed.">est.</span>
+            </div>
+          </div>
+          <!-- Projected tile -->
+          <div class="kpi-tile">
+            <div class="kpi-label">Projected month-end</div>
+            <div class="kpi-value num">$109,900 <span class="text-base font-medium" style="color:#facc15">122%</span></div>
+            <div class="kpi-sub">of $90,000 budget · run-rate incl. today</div>
+          </div>
+          <!-- Last-complete-day tile (unchanged actual) -->
+          <div class="kpi-tile">
+            <div class="kpi-label">Yesterday (actual)</div>
+            <div class="kpi-value num">$3,710</div>
+            <div class="kpi-sub">11 June · billed via cost_report</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="annot">
+            <strong>What changed:</strong> the MTD tile now shows <code>actual + est. today</code> with the estimate broken out and chipped.
+            The big number stays honest — hover the <span class="chip est">est.</span> chip for the tooltip below. The actual-only value is still one click away.
+          </div>
+          <div class="card-2 p-3">
+            <div class="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-2">Tooltip on the "est." chip</div>
+            <div class="tooltip-mock">
+              <div class="font-medium mb-1">Estimated today · $1,640</div>
+              <div class="text-[var(--muted)] leading-relaxed">
+                Derived from today's per-user usage ($1,380), calibrated ×1.19 to the last 7 billed days.<br/>
+                Updates hourly. Replaced by the billed figure tomorrow.<br/>
+                <span class="text-[var(--muted-2)]">Per-user and billed totals don't reconcile exactly.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 2. DAILY COST CHART ============ -->
+      <section class="space-y-3">
+        <h2 class="text-lg font-semibold">2 · Daily cost chart — ghost "today (est.)" bar</h2>
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <div class="text-sm font-semibold">Daily Anthropic cost</div>
+              <div class="text-xs text-[var(--muted)]">June 2026 · USD</div>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-[var(--muted)]">
+              <span><span class="legend-swatch" style="background:#67e8f9"></span>actual (billed)</span>
+              <span><span class="legend-swatch" style="background:transparent;border:1.5px dashed #d4f057"></span>today (est.)</span>
+            </div>
+          </div>
+          <!-- SVG bar chart: 11 solid actual bars + 1 dashed ghost "today" bar -->
+          <svg viewBox="0 0 720 220" width="100%" height="220" role="img" aria-label="Daily cost bar chart with estimated today bar">
+            <!-- gridlines -->
+            <line class="grid-line" x1="40" y1="20"  x2="710" y2="20"/>
+            <line class="grid-line" x1="40" y1="70"  x2="710" y2="70"/>
+            <line class="grid-line" x1="40" y1="120" x2="710" y2="120"/>
+            <line class="grid-line" x1="40" y1="170" x2="710" y2="170"/>
+            <line class="grid-line" x1="40" y1="180" x2="710" y2="180"/>
+            <text class="axis-label" x="34" y="24" text-anchor="end">$5k</text>
+            <text class="axis-label" x="34" y="124" text-anchor="end">$2.5k</text>
+            <text class="axis-label" x="34" y="184" text-anchor="end">$0</text>
+            <!-- actual bars (days 1-11) -->
+            <g fill="#67e8f9">
+              <rect x="52"  y="96"  width="34" height="84"  rx="3"/>
+              <rect x="104" y="60"  width="34" height="120" rx="3"/>
+              <rect x="156" y="110" width="34" height="70"  rx="3"/>
+              <rect x="208" y="78"  width="34" height="102" rx="3"/>
+              <rect x="260" y="48"  width="34" height="132" rx="3"/>
+              <rect x="312" y="70"  width="34" height="110" rx="3"/>
+              <rect x="364" y="120" width="34" height="60"  rx="3"/>
+              <rect x="416" y="92"  width="34" height="88"  rx="3"/>
+              <rect x="468" y="56"  width="34" height="124" rx="3"/>
+              <rect x="520" y="84"  width="34" height="96"  rx="3"/>
+              <rect x="572" y="106" width="34" height="74"  rx="3"/>
+            </g>
+            <!-- today (est.) ghost bar: dashed outline, low-opacity fill -->
+            <rect x="624" y="124" width="34" height="56" rx="3" fill="#d4f057" fill-opacity="0.22" stroke="#d4f057" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text class="label-est" x="641" y="116" text-anchor="middle">est.</text>
+            <!-- x labels -->
+            <g class="axis-label" text-anchor="middle">
+              <text x="69"  y="196">1</text>
+              <text x="225" y="196">4</text>
+              <text x="381" y="196">7</text>
+              <text x="537" y="196">10</text>
+              <text x="641" y="196">12</text>
+            </g>
+            <text class="label-est" x="641" y="210" text-anchor="middle" style="font-size:9px;fill:#d4f057">today</text>
+          </svg>
+          <div class="annot mt-3">
+            <strong>Pattern reused:</strong> the same ghost/dashed treatment as the existing "projected" bar in
+            <code>twelve-month-bar-chart.tsx</code> (<code>fillOpacity 0.22</code>, <code>strokeDasharray "4 3"</code>). The estimate is a single
+            trailing bar at "today"; every prior bar is a solid billed actual. Tomorrow the dashed bar becomes a solid billed bar automatically.
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 3. CUMULATIVE PACING ============ -->
+      <section class="space-y-3">
+        <h2 class="text-lg font-semibold">3 · Cumulative pacing — projection anchored at today</h2>
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <div class="text-sm font-semibold">Cumulative spend vs budget</div>
+              <div class="text-xs text-[var(--muted)]">June 2026 · pacing toward $90,000</div>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-[var(--muted)]">
+              <span><span class="legend-swatch" style="background:#67e8f9"></span>actual</span>
+              <span><span class="legend-swatch" style="background:transparent;border-top:2px dashed #d4f057;height:0;width:14px"></span>projection (incl. est. today)</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 720 240" width="100%" height="240" role="img" aria-label="Cumulative spend line with dashed projection from today">
+            <!-- budget ceiling -->
+            <line x1="40" y1="36" x2="710" y2="36" stroke="#7f1d1d" stroke-width="1" stroke-dasharray="2 4"/>
+            <text class="axis-label" x="710" y="32" text-anchor="end" style="fill:#fca5a5">budget $90k</text>
+            <!-- gridlines -->
+            <line class="grid-line" x1="40" y1="90"  x2="710" y2="90"/>
+            <line class="grid-line" x1="40" y1="150" x2="710" y2="150"/>
+            <line class="grid-line" x1="40" y1="200" x2="710" y2="200"/>
+            <text class="axis-label" x="34" y="204" text-anchor="end">$0</text>
+            <!-- actual cumulative line (days 1..11), solid -->
+            <polyline fill="none" stroke="#67e8f9" stroke-width="2.5"
+              points="52,198 112,184 172,176 232,160 292,140 352,128 412,120 472,104 532,92 560,86 588,82"/>
+            <!-- anchor point at 'today' (= MTD + est today) -->
+            <circle cx="588" cy="82" r="3.5" fill="#67e8f9"/>
+            <circle cx="606" cy="78" r="3.5" fill="#d4f057"/>
+            <text class="label-est" x="606" y="70" text-anchor="middle">+est. today</text>
+            <!-- dashed projection from anchor to month-end (crosses budget) -->
+            <polyline fill="none" stroke="#d4f057" stroke-width="2.5" stroke-dasharray="5 4" stroke-opacity="0.9"
+              points="606,78 710,30"/>
+            <!-- 'today' reference line -->
+            <line x1="606" y1="20" x2="606" y2="210" stroke="#d4f057" stroke-width="1" stroke-dasharray="2 4" stroke-opacity="0.6"/>
+            <text class="label-est" x="606" y="224" text-anchor="middle" style="fill:#d4f057">today (12 Jun)</text>
+            <!-- x labels -->
+            <g class="axis-label" text-anchor="middle">
+              <text x="52" y="224">1</text>
+              <text x="710" y="224">30</text>
+            </g>
+          </svg>
+          <div class="annot info mt-3">
+            <strong>Pattern reused:</strong> <code>cumulative-pacing-chart.tsx</code> already draws a dashed projection line and a "today" reference
+            line. The only change: the projection anchor moves from "last complete day" to <em>today</em>, using <code>MTD + est. today</code> — so the
+            line crosses the budget ceiling at the right date instead of lagging a day behind.
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 4. BEFORE / AFTER (1st of month) ============ -->
+      <section class="space-y-3">
+        <h2 class="text-lg font-semibold">4 · Why it matters most on the 1st — before / after</h2>
+        <p class="text-sm text-[var(--muted)]">Scenario: <span class="chip warn">1 June, 14:00 UTC</span> — <code>cost_report</code> has no data for the current month yet.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- BEFORE -->
+          <div class="card p-5">
+            <div class="text-xs uppercase tracking-wider text-[var(--muted)] mb-3">Today (current behaviour)</div>
+            <div class="space-y-3">
+              <div class="kpi-tile">
+                <div class="kpi-label">Month-to-date</div>
+                <div class="kpi-value num text-[var(--muted-2)]">$0</div>
+                <div class="kpi-sub">no billed days yet</div>
+              </div>
+              <div class="kpi-tile">
+                <div class="kpi-label">Projected month-end</div>
+                <div class="kpi-value num text-[var(--muted-2)]">$0 <span class="text-base">—</span></div>
+                <div class="kpi-sub" style="color:#f87171">projects 0 — under-counts all month</div>
+              </div>
+            </div>
+          </div>
+          <!-- AFTER -->
+          <div class="card p-5" style="border-color:#3f5d10">
+            <div class="text-xs uppercase tracking-wider mb-3" style="color:#d4f057">Today (with estimate — Tier B)</div>
+            <div class="space-y-3">
+              <div class="kpi-tile">
+                <div class="kpi-label">Month-to-date</div>
+                <div class="kpi-value num">$1,180 <span class="chip est">est.</span></div>
+                <div class="kpi-sub"><span style="color:#d4f057">$1,180 est. today</span> · $0 billed so far</div>
+              </div>
+              <div class="kpi-tile">
+                <div class="kpi-label">Projected month-end</div>
+                <div class="kpi-value num">$35,400 <span class="text-base font-medium" style="color:#4ade80">39%</span></div>
+                <div class="kpi-sub">run-rate from est. today · of $90,000</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="annot">
+          On the 1st, the current views show <strong>$0 / —</strong> until the 2nd. With the estimate, the dashboard has a real, calibrated number from
+          hour one — the core "as up-to-date as possible near month end" goal. (The projection-denominator fix in <a class="link" href="plan.html">Tier&nbsp;A</a>
+          is what stops the "projects 0" failure independently of the estimate.)
+        </div>
+      </section>
+
+      <footer class="pt-6 border-t border-[var(--border)] text-xs text-[var(--muted)]">
+        Spec 033 · UI mockup (static, illustrative numbers) · companion to <a class="link" href="plan.html">plan.html</a> ·
+        reuses dashed/ghost vocabulary from <code>cumulative-pacing-chart.tsx</code> &amp; <code>twelve-month-bar-chart.tsx</code>.
+      </footer>
+
+    </div>
+  </body>
+</html>
