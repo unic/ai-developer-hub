@@ -30,12 +30,15 @@ export function CumulativePacingChart({
   projectedEomCents,
   todayDayOfMonth,
   daysInMonth,
+  todayEstimateCents = null,
 }: {
   rows: PacingRow[];
   budgetLimitCents: number | null;
   projectedEomCents: number;
   todayDayOfMonth: number;
   daysInMonth: number;
+  /** Spec 033 — when present, anchor the projection at today using MTD + est. */
+  todayEstimateCents?: number | null;
 }) {
   const monthName = new Date().toLocaleString("en-US", { month: "long" });
 
@@ -47,9 +50,8 @@ export function CumulativePacingChart({
     );
   }
 
-  // Anchor the projection at the latest known cumulative ≤ today.
-  // Data freshness may lag — yesterday's row is a fine anchor when today's
-  // sync hasn't landed yet.
+  // Anchor the (solid) actuals at the latest known cumulative ≤ today. The
+  // cost_report source lags by a day, so this is normally yesterday.
   const sortedDays = [...rows].sort((a, b) => a.dayOfMonth - b.dayOfMonth);
   const anchorRow = [...sortedDays]
     .reverse()
@@ -57,12 +59,26 @@ export function CumulativePacingChart({
   const anchorDay = anchorRow?.dayOfMonth ?? null;
   const anchorCents = anchorRow?.current ?? null;
 
-  // Projection anchors at (anchorDay, anchorCents) and terminates at
-  // (daysInMonth, projectedEom). Only the two endpoints carry values; Recharts
-  // draws a straight line between them.
+  // Spec 033 — when we have a today estimate, move the projection anchor forward
+  // to today at (last actual cumulative + est today), so the dashed line crosses
+  // the budget at the right date instead of lagging a day behind.
+  const hasEstimate =
+    todayEstimateCents != null &&
+    todayEstimateCents > 0 &&
+    anchorCents != null &&
+    anchorDay != null &&
+    todayDayOfMonth > anchorDay;
+  const todayCumulativeCents =
+    hasEstimate && anchorCents != null ? anchorCents + todayEstimateCents! : null;
+
+  // Projection points: (anchorDay, anchorCents) keeps it continuous with the
+  // solid line; (today, anchor + est) shows the estimated bump; (daysInMonth,
+  // projectedEom) terminates it. Recharts connects them in order.
   function projectionAt(dayOfMonth: number): number | null {
     if (anchorDay == null || anchorCents == null) return null;
     if (dayOfMonth === anchorDay) return anchorCents / 100;
+    if (hasEstimate && dayOfMonth === todayDayOfMonth && todayCumulativeCents != null)
+      return todayCumulativeCents / 100;
     if (dayOfMonth === daysInMonth) return projectedEomCents / 100;
     return null;
   }
@@ -246,7 +262,11 @@ export function CumulativePacingChart({
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
         <ul className="flex flex-wrap items-center gap-3">
           <LineSwatch color="var(--chart-1)" label="this month" />
-          <LineSwatch color="var(--chart-1)" label="projection" dashed />
+          <LineSwatch
+            color="var(--chart-1)"
+            label={hasEstimate ? "projection · incl. est. today" : "projection"}
+            dashed
+          />
           <LineSwatch color="#a1a1aa" label={`${monthLabelOffset(1)} (prior)`} />
           <LineSwatch color="#71717a" label={monthLabelOffset(2)} />
           <LineSwatch color="#52525b" label={monthLabelOffset(3)} />

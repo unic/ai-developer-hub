@@ -11,7 +11,6 @@ import {
   parseISO,
   subMonths,
   startOfMonth,
-  getDate,
   getDaysInMonth,
 } from "date-fns";
 import { LOCK_USER_ID } from "@/lib/anthropic-sync";
@@ -808,10 +807,13 @@ async function _getUserDetail(
       : Math.round((momDeltaCents / priorMonthCents) * 100);
 
   // Linear projection — for non-current months we treat the full month as
-  // elapsed so the projection equals the actual total.
-  const nowMonth = format(new Date(), "yyyy-MM");
+  // elapsed so the projection equals the actual total. The per-user source
+  // (anthropic_usage_metrics) already INCLUDES today's real cost — unlike the
+  // workspace cost_report source — so no "today estimate" is needed here (spec
+  // 033 scope guard: per-user pages are the source, no calibration). We only
+  // align daysElapsed to the UTC day boundary the data keys on.
   const daysElapsed =
-    month === nowMonth ? Math.max(1, getDate(new Date())) : daysInMonth;
+    month === getCurrentMonth() ? Math.max(1, new Date().getUTCDate()) : daysInMonth;
   const projectedMonthEndCents = projectMonthEnd(
     currentMonthCents,
     daysElapsed,

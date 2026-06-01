@@ -13,17 +13,22 @@ import { Input } from "@/components/ui/input";
 import { setOrgBillingBudget } from "@/actions/anthropic-global";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
+import { EstChip } from "@/components/claude/today-estimate";
 
 type OrgBillingBudgetCardProps = {
   orgConfig: { billingBudgetLimitCents: number | null } | null;
   currentMonthTotalCents: number;
   projectedMonthEndCents: number;
+  /** Spec 033 — estimate of today's spend (shown alongside actuals, not merged). */
+  todayEstimate?: TodayEstimate | null;
 };
 
 export function OrgBillingBudgetCard({
   orgConfig,
   currentMonthTotalCents,
   projectedMonthEndCents,
+  todayEstimate,
 }: OrgBillingBudgetCardProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(
@@ -85,6 +90,12 @@ export function OrgBillingBudgetCard({
             <p className="mt-1 text-xl font-semibold tabular-nums">
               {formatCurrency(currentMonthTotalCents)}
             </p>
+            {todayEstimate && (
+              <p className="mt-1 inline-flex flex-wrap items-center gap-1 text-xs text-primary">
+                +{formatCurrency(todayEstimate.cents)} est. today
+                <EstChip estimate={todayEstimate} />
+              </p>
+            )}
             {limitCents != null && (
               <p className="mt-1 text-xs text-muted-foreground">
                 {utilizationPct ?? 0}% of {formatCurrency(limitCents)} budget

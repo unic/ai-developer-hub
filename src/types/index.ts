@@ -1,4 +1,5 @@
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
 import type {
   users,
   aiTools,
@@ -557,6 +558,10 @@ export interface GlobalCostDashboardData {
 
 // Spec 026 — Claude page redesign
 
+// Spec 033 — calibrated estimate of today's (incomplete) spend. `null` ⇒ no
+// per-user data for today or the usage sync is stale ⇒ fall back to actual-only.
+export type { TodayEstimate } from "@/lib/anthropic/estimate-today";
+
 export interface DashboardKpis {
   totalCents: number;
   momDeltaCents: number;
@@ -567,12 +572,16 @@ export interface DashboardKpis {
   topOverWorkspaceName: string | null;
   topOverWorkspaceUtilizationPct: number | null;
   priorMonthCents: number;
+  /** Spec 033 — estimate of today's spend so far (separate from totalCents). */
+  todayEstimate: TodayEstimate | null;
 }
 
 export interface DailyStackedRow {
   date: string;
   perWorkspace: Record<string, number>;
   total: number;
+  /** Spec 033 — true for the synthetic trailing "today (est.)" row. */
+  estimated?: boolean;
 }
 
 export interface StackedSeries {
@@ -655,6 +664,8 @@ export interface WorkspaceDetail {
   topUsers: WorkspaceUser[];
   modelBreakdown: ModelBreakdownRow[];
   availableMonths: string[];
+  /** Spec 033 — workspace's estimate of today's spend (separate field). */
+  todayEstimate: TodayEstimate | null;
 }
 
 export interface WorkspaceListItem {
@@ -666,6 +677,8 @@ export interface WorkspaceListItem {
   limitCents: number | null;
   utilizationPct: number | null;
   displayColor: string | null;
+  /** Spec 033 — workspace's estimate of today's spend (separate field). */
+  todayEstimate: TodayEstimate | null;
 }
 
 export interface WorkspaceAlert {

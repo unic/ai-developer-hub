@@ -17,21 +17,26 @@ import { setWorkspaceLimit } from "@/actions/anthropic-global";
 import { Sparkline } from "@/components/ui/sparkline";
 import { toast } from "sonner";
 import type { WorkspaceListItem, WorkspaceSparkline } from "@/types";
-import { cn, formatCurrency, projectMonthEnd } from "@/lib/utils";
-import { getDaysInMonth, getDate } from "date-fns";
+import {
+  cn,
+  formatCurrency,
+  getUtcDaysInMonth,
+  projectMonthEnd,
+} from "@/lib/utils";
 
 const HIDE_ZERO_STORAGE_KEY = "claude-hide-zero-workspaces";
 
 function PaceLabel({ workspace }: { workspace: WorkspaceListItem }) {
   if (workspace.limitCents == null || workspace.limitCents <= 0) return null;
   const now = new Date();
-  const daysInMonth = getDaysInMonth(now);
-  const daysElapsed = Math.max(1, getDate(now));
-  const projected = projectMonthEnd(
-    workspace.currentMonthCents,
-    daysElapsed,
-    daysInMonth
-  );
+  // Spec 033: count today (UTC) in the denominator and add today's estimate to
+  // the numerator so the pace matches the projection on the rest of the page.
+  // Days-in-month is also UTC-keyed so it can't skew at a UTC month boundary.
+  const daysInMonth = getUtcDaysInMonth(now);
+  const daysElapsed = Math.max(1, now.getUTCDate());
+  const spentSoFar =
+    workspace.currentMonthCents + (workspace.todayEstimate?.cents ?? 0);
+  const projected = projectMonthEnd(spentSoFar, daysElapsed, daysInMonth);
   const pacePct = Math.round((projected / workspace.limitCents) * 100);
   const overPace = pacePct >= 100;
   return (

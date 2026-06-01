@@ -121,6 +121,27 @@ export function formatDateOnly(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Format a Date to its UTC ISO date-only string (yyyy-MM-dd). Use this — not
+ * `formatDateOnly` (local) — when comparing against the Anthropic cost tables,
+ * which key calendar dates in UTC.
+ */
+export function formatUtcDateOnly(d: Date): string {
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Number of days in the UTC calendar month of `d`. Use this — not date-fns
+ * `getDaysInMonth(d)` (local month) — when `daysElapsed` / the spend data are
+ * keyed to UTC, so the projection denominator can't skew at a UTC month boundary.
+ */
+export function getUtcDaysInMonth(d: Date): number {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+}
+
 // Sentinel values for faceted filters on nullable columns.
 export const NO_CIRCLE_SENTINEL = "__no_circle__";
 export const NO_PROFILE_SENTINEL = "__no_profile__";

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 033 — Implementation notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a; --panel: #121212; --panel-2: #181818; --border: #262626; --border-2: #2e2e2e;
+        --text: #fafafa; --muted: #a1a1aa; --muted-2: #71717a;
+        --primary: #d4f057; --info: #67e8f9; --warn: #facc15; --danger: #f87171; --success: #4ade80;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .container { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+      h1, h2, h3 { letter-spacing: -0.01em; }
+      h2 { margin-top: 2rem; font-size: 1.4rem; font-weight: 700; }
+      h3 { margin-top: 1.25rem; font-size: 1.05rem; font-weight: 600; color: var(--info); }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #181818; border: 1px solid var(--border-2); color: var(--muted); }
+      .chip.decision { color: #d4f057; border-color: #3f5d10; background: #161c07; }
+      .chip.deviation { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.tradeoff { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.open { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.done { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      .entry { border-left: 3px solid var(--border-2); padding: 4px 0 4px 14px; margin: 14px 0; }
+      .entry.decision { border-color: var(--primary); }
+      .entry.deviation { border-color: var(--danger); }
+      .entry.tradeoff { border-color: var(--info); }
+      .entry.open { border-color: var(--warn); }
+      .entry h4 { font-size: 0.98rem; font-weight: 600; margin-bottom: 4px; }
+      .muted { color: var(--muted); }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      ul { padding-left: 20px; } li { margin: 4px 0; }
+      a { color: #d4f057; text-underline-offset: 3px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+      th, td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header style="border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:8px;">
+        <div class="flex flex-wrap gap-2 mb-3" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span class="chip">Spec 033</span>
+          <span class="chip done">Implementation notes</span>
+          <span class="chip">Branch · 033-current-day-cost-estimate</span>
+        </div>
+        <h1 style="font-size:1.8rem;font-weight:800;">Current-day cost estimate — implementation notes</h1>
+        <p class="muted" style="margin-top:8px;max-width:60rem;">
+          A running log of where the implementation interprets, diverges from, or trades off against
+          <a href="plan.html">plan.html</a> / <a href="mockup.html">mockup.html</a>. Legend:
+          <span class="chip decision">decision</span> ambiguity resolved ·
+          <span class="chip deviation">deviation</span> intentional departure ·
+          <span class="chip tradeoff">tradeoff</span> alternative considered ·
+          <span class="chip open">open</span> needs your confirmation.
+        </p>
+      </header>
+
+      <h2>Scope recap</h2>
+      <div class="card">
+        <p>Tier B, one PR, three phases: <strong>data → maths → UI</strong>. A pure, calibrated "estimated today"
+        figure surfaced as a <em>separate</em> DTO field, plus the projection-denominator fix. Alerts and budget
+        running-costs stay actual-only. 0 migrations, 0 packages.</p>
+      </div>
+
+      <h2>Architecture decisions</h2>
+      <div id="decisions"></div>
+
+      <h2>Deviations from the plan</h2>
+      <div id="deviations"></div>
+
+      <h2>Tradeoffs</h2>
+      <div id="tradeoffs"></div>
+
+      <h2>Open questions for review</h2>
+      <div id="open"></div>
+
+      <h2>Phase log</h2>
+      <div id="phases"></div>
+
+      <footer style="border-top:1px solid var(--border);margin-top:32px;padding-top:16px;" class="muted">
+        <p style="font-size:12px;">Living document — updated as implementation proceeds.</p>
+      </footer>
+    </div>
+
+    <!-- ============================= CONTENT ============================= -->
+    <!-- Entries are plain HTML below; kept inline (not JS) so the file renders statically. -->
+    <script>
+      // no-op; content authored directly in the sections below via DOM injection at build-time-by-hand.
+    </script>
+
+    <template id="ignore"></template>
+
+    <!-- DECISIONS -->
+    <div hidden id="src-decisions">
+      <div class="entry decision">
+        <h4>D1 · Estimate computed in <span class="file-path">queries.ts</span> (uncached layer), not the cached actions</h4>
+        <p class="muted">The cron Teams evaluator reads <code>loadDashboardKpis</code> / <code>loadCostHistory</code>
+        directly (uncached, "wants fresh reads"); the dashboard wraps them in <code>unstable_cache</code>. Putting the
+        estimate in the query layer means the evaluator gets a fresh estimate every cron run, and the dashboard inherits
+        the existing refresh cadence (manual sync / tag revalidation) — identical freshness to the actuals beside it.</p>
+      </div>
+      <div class="entry decision">
+        <h4>D2 · <code>asOf</code> = sentinel row <code>last_sync_completed_at</code> (per-user usage sync)</h4>
+        <p class="muted">The estimate is only as fresh as the hourly per-user usage sync. That completion timestamp is
+        written on the <code>user_id = 0</code> sentinel row by <span class="file-path">anthropic-sync.ts</span> (the
+        per-user path), distinct from <code>workspace_sync_completed_at</code> (the cost_report path). The freshness
+        label reads the former.</p>
+      </div>
+      <div class="entry decision">
+        <h4>D3 · <code>null</code> estimate when stale or zero — UI falls back to actual-only</h4>
+        <p class="muted">Per the plan's null rule, the query layer returns <code>null</code> when (a) there is no
+        per-user usage for today (<code>rawUserCents === 0</code>), or (b) the usage sync is stale
+        (<code>asOf</code> older than the existing 70-minute threshold). A stale estimate is worse than none, so we
+        <em>hide</em> rather than dim. See tradeoff T2.</p>
+      </div>
+      <div class="entry decision">
+        <h4>D4 · UTC day boundary for <code>daysElapsed</code></h4>
+        <p class="muted">All four projection callers used <code>getDate()</code> (local) while the cost tables key on
+        UTC calendar dates. Switched to a UTC day count (and <code>getCurrentMonth()</code>, already UTC, for the
+        "is current month" test) so numerator and denominator agree with the data's day boundary.</p>
+      </div>
+      <div class="entry decision">
+        <h4>D5 · App design tokens, not mockup hex</h4>
+        <p class="muted">The mockup uses literal lime <code>#d4f057</code>. The real charts use
+        <code>var(--chart-1)</code> with the existing ghost vocabulary (<code>fillOpacity 0.28</code>,
+        <code>strokeOpacity 0.6</code>, <code>strokeDasharray "3 3"</code> for bars; the pacing projection line keeps
+        its existing <code>"4 3"</code>). Per CLAUDE.md ("design tokens only — no hardcoded color"), the estimate
+        reuses those tokens, so it reads as "ghost/projected" in whatever theme is active rather than a fixed lime.</p>
+      </div>
+      <div class="entry decision">
+        <h4>D6 · KPI headline stays the actual total; estimate is a labeled sub-line</h4>
+        <p class="muted">The mockup merges actual + est into the headline ("$43,960"). The plan §6.1 instead says the
+        tiles get an <em>"incl. est. today" sub-label</em>. Followed the plan: the <code>Total · {month}</code> /
+        <code>Projected</code> headline values are unchanged (actual total; projection already folds in the estimate via
+        the maths layer), and a <span class="chip decision">est.</span>-chipped sub-line ("incl. +$X est. today")
+        surfaces the estimate. This is the more conservative reading and keeps the headline number un-inflated, matching
+        the "never merged into totalCents" guard. The big <em>projected</em> number does reflect the estimate (that's
+        the whole point of the projection fix).</p>
+      </div>
+      <div class="entry decision">
+        <h4>D7 · Stacked "today (est.)" bar via a reserved series key</h4>
+        <p class="muted">The org daily chart is a stacked bar chart. The estimate is a single org total (not a
+        per-workspace breakdown <em>in that chart</em>), so the server appends one trailing row keyed under a reserved
+        <code>__estimated__</code> series (mirroring the existing <code>__other__</code>/<code>__default__</code>
+        keys, which are intentionally duplicated client-side). The client renders it as one dashed ghost bar, and only
+        in the org-wide ("All workspaces") view. The workspace <em>detail</em> daily chart appends a per-workspace ghost
+        bar from that workspace's own estimate.</p>
+      </div>
+      <div class="entry decision">
+        <h4>D8 · <code>/claude</code> page now computes "today"/"current month" in UTC</h4>
+        <p class="muted">The page passed <code>getDate(now)</code> / <code>format(now,"yyyy-MM")</code> (local) into the
+        pacing chart's today line and the KPI loaders. Switched to <code>now.getUTCDate()</code> and
+        <code>getCurrentMonth()</code> so the dashboard's "today" matches the UTC day the cost tables and the estimate
+        gating use (and the already-UTC available-months list).</p>
+      </div>
+    </div>
+
+    <!-- DEVIATIONS -->
+    <div hidden id="src-deviations">
+      <div class="entry deviation">
+        <h4>V1 · User-detail page gets the UTC fix but <em>no</em> estimate field</h4>
+        <p class="muted">The plan lists <span class="file-path">anthropic-users.ts</span> among the four projection
+        callers (Tier A). But the per-user detail page's <code>currentMonthCents</code> comes from
+        <code>anthropic_usage_metrics</code>, which <strong>already includes today</strong> (hourly). It is the source —
+        the scope guard says it needs no calibration. So its numerator already includes today and only the denominator
+        needed the UTC alignment; no <code>todayEstimate</code> is threaded onto <code>UserDetail</code>. This matches
+        the spec's intent, just makes explicit that the "off-by-one" framing doesn't apply there.</p>
+      </div>
+    </div>
+
+    <!-- TRADEOFFS -->
+    <div hidden id="src-tradeoffs">
+      <div class="entry tradeoff">
+        <h4>T1 · Per-workspace calibration vs. a single global ratio</h4>
+        <p class="muted">Each workspace's estimate is calibrated against <em>its own</em> recent per-user-vs-cost_report
+        ratio (clamped 0.5–2.0, falls back to ×1 when thin). Alternative: one global ratio applied to every workspace's
+        raw per-user sum. Per-workspace is more honest where mix differs, and the clamp + confident fallback guards thin
+        data. Global aggregate uses the summed components (one global ratio for the org KPI).</p>
+      </div>
+      <div class="entry tradeoff">
+        <h4>T2 · Hide a stale estimate vs. dim it</h4>
+        <p class="muted">The plan offered "dim it / hide". Chose hide (<code>null</code>) for safety — a dimmed-but-stale
+        number can still be misread as current. The freshness label still shows the sync age while fresh.</p>
+      </div>
+    </div>
+
+    <!-- OPEN -->
+    <div hidden id="src-open">
+      <div class="entry open">
+        <h4>Q1 · Teams cron alerts now include the estimate in the run-rate (confirm)</h4>
+        <p class="muted">Per plan Phase 2 (T2.2) the cron Teams forecast (<span class="file-path">forecast-workspace.ts</span>
+        via <span class="file-path">teams/evaluator.ts</span>) now fills today's missing <code>cost_report</code> slot
+        with the per-workspace estimate. This is a real behavior change: a workspace can tip into <em>at_risk</em> /
+        cross its cap a little earlier (more accurate, no longer diluted by a phantom $0 today). The 80/100/120 utilization
+        thresholds are unchanged (they read actual <code>cost_report</code> only). Flagging because it changes when
+        production alerts fire. The plan calls this an intended "benefit"; confirm you're happy with it.</p>
+      </div>
+      <div class="entry open">
+        <h4>Q2 · Dashboard estimate freshness follows the existing cache cadence</h4>
+        <p class="muted">The estimate lives inside the same <code>unstable_cache</code> reads as the actuals, busted by
+        manual sync / <code>revalidateTag</code> (the hourly crons don't revalidate — pre-existing). The cron Teams
+        evaluator reads uncached, so <em>it</em> always sees a fresh estimate. No new cron revalidation was added (would
+        change existing caching behavior). If you want the dashboard estimate to refresh hourly without a manual sync,
+        that's a small follow-up (have the usage cron <code>revalidateTag("anthropic-workspace-costs")</code>).</p>
+      </div>
+    </div>
+
+    <!-- PHASES -->
+    <div hidden id="src-phases">
+      <div class="entry">
+        <h4>Phase 1 — estimation backend <span class="chip done">done</span></h4>
+        <p class="muted"><span class="file-path">estimate-today.ts</span> (pure helper + constants + <code>TodayEstimate</code>);
+        query helpers <code>loadTodayEstimate</code> / <code>loadTodayEstimatesByWorkspace</code> /
+        <code>loadTodayEstimateInputs</code> in <span class="file-path">queries.ts</span> (3 aggregates + sentinel
+        <code>asOf</code>); <code>todayEstimate</code> threaded onto <code>DashboardKpis</code>,
+        <code>WorkspaceListItem</code>, <code>WorkspaceDetail</code> (separate field, <code>totalCents</code> unchanged).
+        8 unit tests for the helper (clamp band, thin-data fallback, zero, rounding, boundary).</p>
+      </div>
+      <div class="entry">
+        <h4>Phase 2 — projection &amp; run-rate <span class="chip done">done</span></h4>
+        <p class="muted">All four projection callers now use <code>spentSoFar = mtdActual + est.cents</code> with a UTC
+        <code>daysElapsed</code> (queries / workspace-detail / pace label; user-detail gets the UTC fix only — see V1).
+        <span class="file-path">forecast-workspace.ts</span> takes an optional <code>todayEstimateCents</code> (default 0
+        ⇒ unchanged) that fills today's slot + MTD; the evaluator passes per-workspace estimates. Alerts &amp; running
+        costs untouched. Tests: forecast est-fill / no-double-count / default-equivalence; projection 1st-of-month
+        non-zero, mid-month hand-calc, actual-only invariants.</p>
+      </div>
+      <div class="entry">
+        <h4>Phase 3 — UI <span class="chip done">done</span></h4>
+        <p class="muted">Shared <span class="file-path">today-estimate.tsx</span> (est. chip + tooltip + sub-label +
+        <code>totalTileCaption</code>). KPI strip (org + workspace detail) sub-labels; org-credits panel current-spend
+        note; org daily chart trailing ghost bar; workspace-detail daily chart ghost bar; cumulative pacing projection
+        re-anchored at today. Threaded through <span class="file-path">page.tsx</span> /
+        <span class="file-path">historical-trend-card.tsx</span> / clients. Lint + typecheck clean; 382 unit tests green.</p>
+      </div>
+      <div class="entry">
+        <h4>/simplify <span class="chip done">done</span></h4>
+        <p class="muted">Applied: extracted the UTC date helper (3 copies → <code>formatUtcDateOnly</code> in
+        <span class="file-path">utils.ts</span>) and the duplicated "Total tile" caption (→ <code>totalTileCaption</code>).
+        Skipped (noted): clamp extraction (keeps the pure helper dependency-free), inlining <code>buildTodayEstimate</code>
+        (would duplicate the gating), a projection-caption helper (org/workspace wordings legitimately differ). Efficiency
+        &amp; altitude: no actionable findings (separate <code>unstable_cache</code> boundaries; per-site projection is
+        the right depth).</p>
+      </div>
+      <div class="entry">
+        <h4>Browser verification — Neon branch <code>wt/fix-sync-first-of-month</code> (real data) <span class="chip done">done</span></h4>
+        <p class="muted">Forked from <code>main</code>; today is literally the 1st of the month, so this is the headline
+        scenario. Verified end-to-end (DB → query → DTO → SSR + hydrated UI), authenticated as the seeded agent admin:</p>
+        <ul class="muted">
+          <li><strong>Org KPI strip:</strong> Total <code>$0.00</code> + <code>$112.61 est. today</code> with the dashed
+          <span class="chip decision">est.</span> chip; Projected month-end <code>$3,378.30</code> = "97% of $3,500 budget ·
+          incl. est. today". Math checks exactly: 11,261¢ × 30 ÷ 1 = 337,830¢.</li>
+          <li><strong>1st-of-month win:</strong> June <code>cost_report</code> is still empty (MTD actual $0); the estimate
+          turns a would-be $0 / — into a real, calibrated number from hour one.</li>
+          <li><strong>Daily chart:</strong> single dashed ghost "today (est.)" bar (June has no actual bars yet — expected).</li>
+          <li><strong>Per-workspace:</strong> <code>boost-starter-1</code> shows <code>+$45.43 est. today</code> (its own
+          calibration ~0.945, distinct from the global ~1.016) and "95% of $700 limit · incl. est. today". The default
+          workspace has no today usage → estimate null → $0 (correct fallback).</li>
+          <li><strong>Freshness:</strong> the "Stale · 16h" pill (workspace sync) coexists with a live estimate — confirms
+          the estimate rides the <em>usage</em> sync (30 min), per D2.</li>
+        </ul>
+      </div>
+      <div class="entry">
+        <h4>Review feedback (PR #107, Copilot) — UTC consistency <span class="chip done">done</span></h4>
+        <p class="muted">All three review comments were the same class of issue: <strong>local-vs-UTC date drift</strong>.
+        The spend data and <code>daysElapsed</code> are UTC-keyed, but a few day/month calculations still used local-time
+        helpers — harmless in production (Vercel runs UTC) but off-by-one at a UTC boundary in non-UTC runtimes. Fixed:</p>
+        <ul class="muted">
+          <li>Added <code>getUtcDaysInMonth</code> to <span class="file-path">utils.ts</span>; used it in
+          <span class="file-path">page.tsx</span> and <span class="file-path">workspace-budget-list.tsx</span> in place of
+          <code>getDaysInMonth(now)</code> (which read the <em>local</em> month).</li>
+          <li>Refactored <span class="file-path">forecast-workspace.ts</span> to do <strong>all</strong> date math in UTC
+          (dense-series day keys, <code>daysElapsed</code>, MTD window, <code>crossesCapOn</code>) via
+          <code>formatUtcDateOnly</code> + <code>Date.UTC</code>, dropping the local-time date-fns calls. Behaviour is
+          unchanged for in-UTC runtimes; only the boundary off-by-one is removed.</li>
+          <li>Added a regression test pinning UTC "today" at a month boundary (23:30Z on May 31 stays in May).</li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      for (const sec of ["decisions","deviations","tradeoffs","open","phases"]) {
+        const src = document.getElementById("src-" + sec);
+        const dst = document.getElementById(sec);
+        if (src && dst) dst.innerHTML = src.innerHTML || '<p class="muted">None yet.</p>';
+      }
+    </script>
+  </body>
+</html>

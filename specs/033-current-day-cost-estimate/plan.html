@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec 033 — Current-day cost estimate · Proposal</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0a0a0a; --panel: #121212; --panel-2: #181818; --border: #262626; --border-2: #2e2e2e;
+        --text: #fafafa; --muted: #a1a1aa; --muted-2: #71717a;
+        --primary: #d4f057; --primary-ink: #0a0a0a;
+        --success: #4ade80; --warn: #facc15; --danger: #f87171; --info: #67e8f9;
+      }
+      html, body { background: var(--bg); color: var(--text); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; }
+      code, pre, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+      h1, h2, h3, h4 { letter-spacing: -0.01em; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+      .card-2 { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #181818; border: 1px solid var(--border-2); color: var(--muted); }
+      .chip.warn { color: #facc15; border-color: #5a4607; background: #1c1407; }
+      .chip.danger { color: #fca5a5; border-color: #7f1d1d; background: #2a0a0a; }
+      .chip.info { color: #67e8f9; border-color: #155e75; background: #082f3a; }
+      .chip.success { color: #86efac; border-color: #14532d; background: #0a1c10; }
+      a.link { color: #d4f057; text-decoration: underline; text-underline-offset: 4px; }
+      table.spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.spec-table th, table.spec-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      table.spec-table th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      table.spec-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+      .toc a { color: var(--muted); } .toc a:hover { color: var(--text); }
+      .phase-pill { padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+      .phase-1 { background: #0a1c10; color: #86efac; border: 1px solid #14532d; }
+      .phase-2 { background: #082f3a; color: #67e8f9; border: 1px solid #155e75; }
+      .phase-3 { background: #2a1607; color: #fcd34d; border: 1px solid #78350f; }
+      .anchor { scroll-margin-top: 24px; }
+      .file-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #67e8f9; }
+      .ac-list { padding-left: 22px; } .ac-list li { margin: 6px 0; } .ac-list li::marker { color: #4ade80; }
+      .risk-list li::marker { color: #f87171; }
+      pre.code { background: #060606; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #e4e4e7; }
+      pre.code .k { color: #c084fc; } pre.code .s { color: #86efac; } pre.code .n { color: #fcd34d; } pre.code .c { color: #71717a; font-style: italic; } pre.code .t { color: #67e8f9; }
+      .callout { border-left: 3px solid var(--primary); background: rgba(212, 240, 87, 0.04); padding: 12px 14px; border-radius: 0 8px 8px 0; }
+      .callout.warn { border-color: #facc15; background: rgba(250, 204, 21, 0.04); }
+      .callout.danger { border-color: #f87171; background: rgba(248, 113, 113, 0.04); }
+      .callout.info { border-color: #67e8f9; background: rgba(103, 232, 249, 0.04); }
+      .badge-add { color: #86efac; background: #0a1c10; border: 1px solid #14532d; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+      .badge-mod { color: #fcd34d; background: #2a1607; border: 1px solid #78350f; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+      .opt { border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+      .opt.rec { border-color: #3f5d10; box-shadow: 0 0 0 1px rgba(212,240,87,0.15) inset; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+
+      <header class="mb-10 pb-6 border-b border-[var(--border)]">
+        <div class="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          <span class="chip">Spec 033</span>
+          <span class="chip success">Status · Approved (Tier B) — ready for implementation</span>
+          <span class="chip">Created 2026-06-01 · finalized 2026-06-01</span>
+          <span class="chip">Owner · tobias.studer@unic.com</span>
+          <span class="chip success">0 migrations · 0 packages · 3 phases · 1 PR</span>
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Current-day cost estimate ("predicted today")</h1>
+        <p class="text-[var(--muted)] mt-2 max-w-3xl">
+          Anthropic <code class="mono text-[var(--text)]">cost_report</code> only ever returns <strong>complete UTC days</strong>, so the
+          workspace / global cost views are always missing today — and the whole current month until the 2nd (see spec 033's sibling fix,
+          PR&nbsp;#105). Meanwhile we <em>already</em> have a real, hourly-fresh per-<strong>user</strong> cost for today.
+          This proposal surfaces a clearly-labelled <strong>estimated</strong> current-day figure so month-to-date totals and
+          month-end projections are accurate sooner — especially near month end, where budget decisions are made.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+          <a class="chip info" href="mockup.html">mockup.html — UI mockup ↗</a>
+        </div>
+        <div class="mt-3 callout text-sm max-w-3xl">
+          <strong>Scope locked: Tier B (approved).</strong> This document is now an implementation-ready plan — the projection fix and the
+          calibrated, clearly-labelled "estimated today" surfaced across the Claude dashboard. The budget-layer integration (former Tier&nbsp;C) and
+          any movement of <em>alert</em> thresholds are explicitly <a class="link" href="#scope">out of scope</a>. Build order, tasks, data contracts
+          and acceptance criteria are in <a class="link" href="#plan">§5</a>; the full change surface is in <a class="link" href="#files">§6</a>.
+          See <a class="link" href="mockup.html">mockup.html</a> for the target UI.
+        </div>
+      </header>
+
+      <!-- TOC -->
+      <nav class="card p-5 mb-10 toc">
+        <h2 class="text-sm font-semibold mb-3">Contents</h2>
+        <ol class="text-sm space-y-1 list-decimal list-inside">
+          <li><a href="#problem">The problem &amp; what we already have</a></li>
+          <li><a href="#two-bugs">Two separate issues hide here</a></li>
+          <li><a href="#reconcile">Hard constraint: per-user ≠ workspace totals</a></li>
+          <li><a href="#approach">Estimation approach (the maths)</a></li>
+          <li><a href="#plan">Build plan — phases, tasks &amp; acceptance criteria</a></li>
+          <li><a href="#files">Change surface &amp; complete touch-point map</a></li>
+          <li><a href="#data-flow">Data flow</a></li>
+          <li><a href="#ui">UI: how "estimated" looks distinct</a></li>
+          <li><a href="#tests">Test plan</a></li>
+          <li><a href="#risks">Risks &amp; mitigations</a></li>
+          <li><a href="#impact">Impact summary</a></li>
+          <li><a href="#scope">Explicitly out of scope</a></li>
+        </ol>
+      </nav>
+
+      <!-- 1 -->
+      <section id="problem" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">1 · The problem &amp; what we already have</h2>
+        <p class="text-sm text-[var(--muted)] mb-4 max-w-3xl">There are two Anthropic cost data sources in the app, and they have very different freshness:</p>
+        <table class="spec-table card">
+          <thead><tr><th>Source</th><th>Table</th><th>Grain</th><th>Has "today"?</th><th>Sync</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Per-<strong>user</strong> usage (<code>usage_report</code>)</td>
+              <td><span class="file-path">anthropic_usage_metrics</span></td>
+              <td>user × model × day, with real <code>computed_cost_cents</code></td>
+              <td><span class="chip success">YES — hourly, incl. today</span></td>
+              <td>hourly (<code>0 * * * *</code>)</td>
+            </tr>
+            <tr>
+              <td><strong>Workspace</strong> / global cost (<code>cost_report</code>)</td>
+              <td><span class="file-path">anthropic_workspace_costs</span></td>
+              <td>workspace × day, <code>cost_cents</code></td>
+              <td><span class="chip danger">NO — complete days only</span></td>
+              <td>hourly, but only writes finished days</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="text-sm text-[var(--muted)] mt-4 max-w-3xl">
+          The dashboards, the workspace budget list, the org-credits panel and the budget pages all read the <em>workspace</em> table — the one
+          that never has today. So every "month-to-date" and "projected month-end" figure is silently running a day behind (and is empty for the
+          whole current month on the 1st). The per-user table already holds a real, ~hourly-fresh cost for today
+          (<span class="file-path">schema.ts:553-591</span>, written by <span class="file-path">anthropic-sync.ts</span>'s
+          <code>todaySyncWindow()</code>/<code>fetchTodayAggregated()</code> hourly path, costed via <span class="file-path">anthropic-pricing.ts</span>).
+          That is the signal we can lean on.
+        </p>
+      </section>
+
+      <!-- 2 -->
+      <section id="two-bugs" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">2 · Two separate issues hide here</h2>
+        <p class="text-sm text-[var(--muted)] mb-4 max-w-3xl">Worth separating, because one is a near-zero-risk fix and the other is the actual feature you asked for.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="card-2 p-4">
+            <div class="flex items-center gap-2 mb-1"><span class="chip danger">Bug</span><span class="text-sm font-semibold">Projection denominator is off by a day</span></div>
+            <p class="text-xs text-[var(--muted)]">
+              <code>projectMonthEnd(mtd, daysElapsed, daysInMonth)</code> (<span class="file-path">utils.ts:86-93</span>) is called with
+              <code>daysElapsed = Math.max(1, getDate(today))</code> (<span class="file-path">queries.ts:84-88</span>,
+              <span class="file-path">anthropic-global.ts:835</span>, <span class="file-path">anthropic-users.ts:812</span>,
+              <span class="file-path">workspace-budget-list.tsx:27</span>) — but <code>mtd</code> comes from the workspace table that
+              <em>excludes today</em>. The numerator skips today; the denominator counts it. Result: it under-projects all month, and projects
+              <strong>0</strong> on the 1st. This alone hurts month-end budget management — and is fixable independently of any prediction.
+            </p>
+          </div>
+          <div class="card-2 p-4">
+            <div class="flex items-center gap-2 mb-1"><span class="chip info">Feature</span><span class="text-sm font-semibold">No current-day figure at all</span></div>
+            <p class="text-xs text-[var(--muted)]">
+              Even with the denominator fixed, today's actual spend is invisible in the workspace/global views until the next day. Near month end
+              that is exactly when you want it. The fix: derive a <strong>calibrated estimate</strong> of today's cost from the per-user data we
+              already have, and surface it as a distinct, clearly-labelled value.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section id="reconcile" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">3 · Hard constraint — per-user costs do <em>not</em> equal workspace costs</h2>
+        <div class="callout danger text-sm max-w-3xl mb-4">
+          This is the single most important design constraint, and the codebase already documents it:
+          <em>"Per-user totals do not sum to org / workspace totals … Different rounding, different aggregation windows. The two will not reconcile exactly."</em>
+          — <span class="file-path">specs/027-claude-users-subpage/data-model.md:107</span> (also 016/026).
+        </div>
+        <p class="text-sm text-[var(--muted)] mb-3 max-w-3xl">Why they diverge for the <em>same</em> day:</p>
+        <ul class="ac-list text-sm text-[var(--muted)] max-w-3xl">
+          <li><strong>Different endpoints.</strong> Per-user = <code>usage_report</code> tokens × a hardcoded pricing table; workspace = <code>cost_report</code> billed dollars. Spec 016 notes <code>cost_report</code> coverage differs (e.g. Priority Tier).</li>
+          <li><strong>Pricing-table drift.</strong> Unknown/new models fall back to the highest Opus price (<span class="file-path">anthropic-pricing.ts:85-95</span>); rate changes, batch/service-tier discounts aren't modelled.</li>
+          <li><strong>Unmapped spend.</strong> Any API key not registered as a Hub license assignment is dropped (<span class="file-path">anthropic-sync.ts</span> <code>if (!userId) continue;</code>) — present in <code>cost_report</code>, absent from per-user. Pure under-count.</li>
+          <li><strong>Rounding</strong> at different grains.</li>
+        </ul>
+        <div class="callout text-sm max-w-3xl mt-4">
+          <strong>Consequence:</strong> we must <u>not</u> treat "sum of per-user today" as the workspace cost. The honest move is to use it as a signal and
+          <strong>calibrate</strong> it against how the two sources actually relate on recent complete days.
+        </div>
+      </section>
+
+      <!-- 4 -->
+      <section id="approach" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">4 · Estimation approach (the maths)</h2>
+        <p class="text-sm text-[var(--muted)] mb-3 max-w-3xl">One small, pure, well-tested helper. No new tables, no new packages.</p>
+        <pre class="code"><span class="c">// src/lib/anthropic/estimate-today.ts  (NEW, pure + unit-tested)</span>
+<span class="k">export function</span> estimateTodayCostCents(input: {
+  todayUserCostCents: <span class="t">number</span>;        <span class="c">// SUM(usage_metrics.computed_cost_cents) WHERE date = today (real, hourly)</span>
+  recentUserCostCents: <span class="t">number</span>;      <span class="c">// SUM over last N COMPLETE days, per-user source</span>
+  recentWorkspaceCostCents: <span class="t">number</span>; <span class="c">// SUM over the SAME N complete days, workspace source</span>
+}): { estimatedTodayCents: <span class="t">number</span>; calibration: <span class="t">number</span>; confident: <span class="t">boolean</span> } {
+  <span class="c">// Calibration = how much bigger the billed workspace total runs vs our per-user estimate.</span>
+  <span class="k">const</span> raw = input.recentUserCostCents > 0
+    ? input.recentWorkspaceCostCents / input.recentUserCostCents
+    : <span class="n">1</span>;
+  <span class="c">// Clamp to a sane band so a noisy week can't 3× the number; fall back to 1.0 when thin.</span>
+  <span class="k">const</span> calibration = clamp(raw, <span class="n">0.5</span>, <span class="n">2.0</span>);
+  <span class="k">const</span> confident = input.recentUserCostCents > <span class="n">0</span> && input.recentWorkspaceCostCents > <span class="n">0</span>;
+  <span class="k">return</span> {
+    estimatedTodayCents: <span class="t">Math</span>.round(input.todayUserCostCents * (confident ? calibration : <span class="n">1</span>)),
+    calibration, confident,
+  };
+}</pre>
+        <p class="text-sm text-[var(--muted)] mt-4 max-w-3xl">
+          The estimate is <strong>today's spend so far</strong> (cumulative to the current hour), not a full-day extrapolation — it's the most
+          defensible "as up to date as possible" number. For the <em>projection</em>, this estimated-today is added to MTD <em>and</em> the
+          off-by-one denominator is corrected, so month-end pacing stops under-counting. We deliberately do <strong>not</strong> extrapolate the
+          partial day to a full day in the MTD figure (that would overstate actuals); the run-rate already handles the remaining days.
+        </p>
+        <div class="callout info text-sm max-w-3xl mt-3">
+          <strong>Self-correcting.</strong> When tomorrow's real <code>cost_report</code> day lands, the estimate for that date disappears and is replaced by
+          the actual — the estimate only ever occupies the single trailing "today" slot. Calibration is recomputed each load from the latest complete days.
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section id="plan" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">5 · Build plan — phases, tasks &amp; acceptance criteria</h2>
+        <p class="text-sm text-[var(--muted)] mb-4 max-w-3xl">
+          Scope is <strong>Tier B</strong>, shipped as <strong>one PR</strong> in three ordered phases: <em>data → maths → UI</em>. Each phase is
+          independently reviewable and leaves the app working. The former "Tier A" projection fix is folded into Phase 2; the former "Tier C"
+          budget integration is <a class="link" href="#scope">out of scope</a>.
+        </p>
+
+        <h3 class="text-sm font-semibold text-[var(--muted)] mb-2">5.1 · Data contracts &amp; constants <span class="font-normal">(agree these first)</span></h3>
+        <pre class="code"><span class="c">// src/lib/anthropic/estimate-today.ts</span>
+<span class="k">export const</span> CALIBRATION_LOOKBACK_DAYS = <span class="n">7</span>;   <span class="c">// complete days used to calibrate</span>
+<span class="k">export const</span> CALIBRATION_MIN = <span class="n">0.5</span>;          <span class="c">// clamp band — a noisy week can't 2×/½× the figure</span>
+<span class="k">export const</span> CALIBRATION_MAX = <span class="n">2.0</span>;
+
+<span class="c">// The estimate carried on every DTO that currently exposes month-to-date cost.</span>
+<span class="c">// `null` ⇒ no estimate to show (no per-user data today, or usage sync stale) ⇒ UI falls back to actual-only.</span>
+<span class="k">export type</span> <span class="t">TodayEstimate</span> = {
+  cents: <span class="t">number</span>;          <span class="c">// calibrated estimate of today's spend SO FAR (cumulative to now)</span>
+  rawUserCents: <span class="t">number</span>;   <span class="c">// uncalibrated per-user sum for today</span>
+  calibration: <span class="t">number</span>;    <span class="c">// ratio applied (1.0 when not confident)</span>
+  confident: <span class="t">boolean</span>;     <span class="c">// had ≥1 recent complete day in BOTH sources to calibrate</span>
+  asOfIso: <span class="t">string</span>;        <span class="c">// timestamp of the per-user usage sync → drives the freshness label</span>
+};</pre>
+        <div class="card-2 p-4 text-sm text-[var(--muted)] mt-3 mb-2 max-w-3xl">
+          <div class="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-2">Final projection model (current month)</div>
+          <p class="mb-2">Reuse <code>projectMonthEnd(spentSoFar, daysElapsed, daysInMonth)</code> <span class="file-path">utils.ts:86-93</span> <strong>unchanged</strong>; fix the inputs so numerator and denominator agree (both include today):</p>
+          <pre class="code"><span class="k">const</span> daysElapsed   = getUTCDate(today);                       <span class="c">// includes today</span>
+<span class="k">const</span> spentSoFar    = mtdActualCents + (todayEstimate?.cents ?? <span class="n">0</span>); <span class="c">// complete days + today's est.</span>
+<span class="k">const</span> projected     = projectMonthEnd(spentSoFar, daysElapsed, daysInMonth);</pre>
+          <p class="mt-2">Past months: unchanged (<code>daysElapsed = daysInMonth</code>, no estimate). <code>forecastWorkspaceMonth</code> <span class="file-path">forecast-workspace.ts</span>: set today's dense-series slot to <code>todayEstimate.cents</code> (instead of 0) and add it to <code>mtdCents</code>.</p>
+        </div>
+        <div class="callout text-sm max-w-3xl mb-6">
+          <strong>Scope guard (must hold for every task):</strong> the estimate is a <em>separate</em> field — never merged into <code>totalCents</code>,
+          <code>getRunningCostsForPeriod</code>, or any alert threshold. Per-<em>user</em> detail pages already read today's real per-user cost directly
+          and need <strong>no</strong> calibration (they <em>are</em> the source) — calibration applies only where we compare against the workspace/global <code>cost_report</code> figure.
+        </div>
+
+        <h3 class="text-sm font-semibold text-[var(--muted)] mb-3">5.2 · Phases</h3>
+
+        <div class="space-y-4">
+          <!-- Phase 1 -->
+          <div class="opt">
+            <div class="flex items-center gap-2 mb-2"><span class="phase-pill phase-1">Phase 1</span><span class="text-sm font-semibold">Estimation backend — helper, query &amp; DTO field</span><span class="chip ml-auto">no UI change yet</span></div>
+            <p class="text-xs text-[var(--muted)] mb-2">Produce a calibrated <code>TodayEstimate</code> and thread it (as a separate field) through the read DTOs. Nothing renders it yet.</p>
+            <table class="spec-table">
+              <tbody>
+                <tr><td style="width:64px"><span class="badge-add">T1.1</span></td><td><span class="file-path">estimate-today.ts</span> — pure <code>estimateTodayCostCents()</code> + constants (§5.1). No I/O.</td></tr>
+                <tr><td><span class="badge-mod">T1.2</span></td><td><span class="file-path">queries.ts</span> — query today's per-user <code>SUM(computed_cost_cents) WHERE date = today</code>, and the same-window sums (user &amp; workspace) over the last <code>CALIBRATION_LOOKBACK_DAYS</code> complete days. Per-workspace variant joins <code>anthropic_sync_status.resolved_workspace_id</code>.</td></tr>
+                <tr><td><span class="badge-mod">T1.3</span></td><td>Add <code>todayEstimate: TodayEstimate | null</code> to the dashboard-KPI, workspace-list and workspace-detail DTOs in <span class="file-path">queries.ts</span> / <span class="file-path">anthropic-global.ts</span>. Populate it; do <strong>not</strong> yet change projections.</td></tr>
+              </tbody>
+            </table>
+            <div class="mt-2 text-xs"><span class="chip success">Acceptance</span> <span class="text-[var(--muted)]">Unit tests for the helper (clamp band, thin-data fallback→1.0, zero today→null, rounding). DTOs expose <code>todayEstimate</code>; existing <code>totalCents</code> byte-for-byte unchanged. Verified on the Neon branch: estimate within a sane band of the next-day actual for several days.</span></div>
+          </div>
+
+          <!-- Phase 2 -->
+          <div class="opt">
+            <div class="flex items-center gap-2 mb-2"><span class="phase-pill phase-2">Phase 2</span><span class="text-sm font-semibold">Projection &amp; run-rate consume the estimate</span><span class="chip ml-auto">the month-end-accuracy win</span></div>
+            <p class="text-xs text-[var(--muted)] mb-2">Apply the projection model from §5.1 so MTD pacing includes today and stops under-counting / returning 0 on the 1st.</p>
+            <table class="spec-table">
+              <tbody>
+                <tr><td style="width:64px"><span class="badge-mod">T2.1</span></td><td>Update the 4 <code>projectMonthEnd</code> callers — <span class="file-path">queries.ts:84-88</span>, <span class="file-path">anthropic-global.ts:835</span>, <span class="file-path">anthropic-users.ts:812</span>, <span class="file-path">workspace-budget-list.tsx:27</span> — to pass <code>spentSoFar = mtdActual + todayEstimate.cents</code> with <code>daysElapsed = getUTCDate(today)</code>.</td></tr>
+                <tr><td><span class="badge-mod">T2.2</span></td><td><span class="file-path">forecast-workspace.ts:41-140</span> — fill today's dense-series slot with <code>todayEstimate.cents</code> (not 0) and add to <code>mtdCents</code>. One cron consumer (<span class="file-path">teams/evaluator.ts</span>) benefits automatically; no copy change.</td></tr>
+              </tbody>
+            </table>
+            <div class="mt-2 text-xs"><span class="chip success">Acceptance</span> <span class="text-[var(--muted)]">Unit tests: mid-month projection matches hand-calc; 1st-of-month projects a non-zero, sensible figure; past months unchanged. Alert thresholds (<span class="file-path">alerts.ts</span>) still read actual-only MTD — assert unchanged.</span></div>
+          </div>
+
+          <!-- Phase 3 -->
+          <div class="opt">
+            <div class="flex items-center gap-2 mb-2"><span class="phase-pill phase-3">Phase 3</span><span class="text-sm font-semibold">Surface it — distinctly labelled UI</span><span class="chip ml-auto">see mockup.html</span></div>
+            <p class="text-xs text-[var(--muted)] mb-2">Render the estimate using the existing dashed/ghost vocabulary. Always visually distinct from actuals.</p>
+            <table class="spec-table">
+              <tbody>
+                <tr><td style="width:64px"><span class="badge-mod">T3.1</span></td><td><span class="file-path">kpi-strip.tsx</span> / <span class="file-path">org-credits-panel.tsx</span> — "incl. est. today" sub-label + <code>est.</code> chip &amp; tooltip on MTD / projected tiles (hidden when <code>todayEstimate === null</code>).</td></tr>
+                <tr><td><span class="badge-mod">T3.2</span></td><td><span class="file-path">workspace-daily-chart.tsx</span> + the stacked dashboard chart (<span class="file-path">global-metrics-client.tsx</span>) — append one ghost/dashed "today (est.)" bar (mirror <span class="file-path">twelve-month-bar-chart.tsx:144-155</span>).</td></tr>
+                <tr><td><span class="badge-mod">T3.3</span></td><td><span class="file-path">cumulative-pacing-chart.tsx:177-243</span> — move the dashed projection anchor to today using <code>MTD + est. today</code>.</td></tr>
+                <tr><td><span class="badge-mod">T3.4</span></td><td>Freshness: show the per-user usage sync age (<code>asOfIso</code>) near the estimate; if stale, dim it / hide per T1 null rule.</td></tr>
+              </tbody>
+            </table>
+            <div class="mt-2 text-xs"><span class="chip success">Acceptance</span> <span class="text-[var(--muted)]">Matches <a class="link" href="mockup.html">mockup.html</a>. Estimate is never solid-styled; exactly one trailing est. point per chart; 1st-of-month shows a real figure instead of $0/—. Lint + typecheck clean; verified in-app on the Neon branch.</span></div>
+          </div>
+        </div>
+
+        <div class="callout text-sm max-w-3xl mt-4">
+          <strong>Sequencing:</strong> Phase 1 → 2 → 3, one PR. Phases 1–2 are backend-only and safe to land behind no UI; Phase 3 is purely additive rendering.
+          Each phase ships with its tests green. Verification mirrors PR&nbsp;#105: run against the <code>wt/fix-sync-first-of-month</code> Neon branch
+          (real data) and compare the estimate to the next day's billed actual.
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section id="files" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">6 · Change surface &amp; complete touch-point map</h2>
+        <h3 class="text-sm font-semibold text-[var(--muted)] mb-2">6.1 · File-by-file change list <span class="font-normal">(approved Tier B scope)</span></h3>
+        <table class="spec-table card">
+          <thead><tr><th>File</th><th></th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><span class="file-path">src/lib/anthropic/estimate-today.ts</span></td><td><span class="badge-add">new</span></td><td>Pure <code>estimateTodayCostCents()</code> helper (§4). No I/O.</td></tr>
+            <tr><td><span class="file-path">src/lib/anthropic/queries.ts</span></td><td><span class="badge-mod">mod</span></td><td>Add a query for today's per-user sum + recent-complete-day sums (user &amp; workspace); compute <code>estimatedTodayCents</code>; fix <code>daysElapsed</code> (:84-88). Return it on the KPI DTO.</td></tr>
+            <tr><td><span class="file-path">src/actions/anthropic-global.ts</span></td><td><span class="badge-mod">mod</span></td><td>Thread <code>estimatedTodayCents</code> through <code>getDashboardKpis</code> / <code>getWorkspaceDetail</code>; append a dashed "today (est.)" point to daily totals (:402-496, :789-843). Reuse projection denominator fix.</td></tr>
+            <tr><td><span class="file-path">src/components/claude/kpi-strip.tsx</span></td><td><span class="badge-mod">mod</span></td><td>"Month-to-date" + "Projected month-end" tiles show "incl. est. today" sub-label when an estimate is present.</td></tr>
+            <tr><td><span class="file-path">…/cumulative-pacing-chart.tsx</span></td><td><span class="badge-mod">mod</span></td><td>Anchor the existing dashed projection at today using <code>MTD + estimatedToday</code> (chart already has a dashed line + "today" reference line — :234-243, :177-187).</td></tr>
+            <tr><td><span class="file-path">…/workspace-daily-chart.tsx</span></td><td><span class="badge-mod">mod</span></td><td>Append one ghost/dashed "today (est.)" bar (mirror the ghost-bar pattern from <span class="file-path">twelve-month-bar-chart.tsx:144-155</span>).</td></tr>
+            <tr><td><span class="file-path">tests/unit/anthropic/estimate-today.test.ts</span></td><td><span class="badge-add">new</span></td><td>Calibration band, thin-data fallback, zero cases, self-correction.</td></tr>
+          </tbody>
+        </table>
+        <p class="text-xs text-[var(--muted)] mt-3">Tier A is the subset that touches only <span class="file-path">utils.ts</span> callers / projection denominator. Tier C additionally touches <span class="file-path">budget-utils.ts</span> + budget components.</p>
+
+        <h3 class="text-sm font-semibold text-[var(--muted)] mt-8 mb-2">6.2 · Complete touch-point map — every area the feature reaches</h3>
+        <p class="text-sm text-[var(--muted)] mb-3 max-w-3xl">
+          Every place in the app that this feature reads from, writes to, changes, or merely <em>benefits</em> from — grouped by layer, with the
+          tier that introduces it and the kind of touch. This is the full blast-radius inventory, not just the approved-scope edits above.
+        </p>
+        <div class="flex flex-wrap gap-2 mb-3 text-[11px]">
+          <span class="badge-add">new</span><span class="text-[var(--muted)]">new file</span>
+          <span class="badge-mod">mod</span><span class="text-[var(--muted)]">modified</span>
+          <span class="chip">read</span><span class="text-[var(--muted)]">read-only source</span>
+          <span class="chip warn">decide</span><span class="text-[var(--muted)]">explicit decision point</span>
+          <span class="chip success">benefits</span><span class="text-[var(--muted)]">improves automatically, no edit</span>
+        </div>
+
+        <table class="spec-table card">
+          <thead><tr><th>Area</th><th>Role in the feature</th><th>Tier</th><th>Touch</th></tr></thead>
+          <tbody>
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">A · Data sources (read)</td></tr>
+            <tr><td><span class="file-path">anthropic_usage_metrics.computed_cost_cents</span> <span class="text-[var(--muted-2)]">(schema.ts:553-591)</span></td><td>The <strong>signal</strong> — today's real per-user cost, hourly-fresh.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="chip">read</span></td></tr>
+            <tr><td><span class="file-path">anthropic_workspace_costs.cost_cents</span> <span class="text-[var(--muted-2)]">(schema.ts:716-737)</span></td><td>Actuals + the calibration denominator (recent complete days).</td><td><span class="phase-pill phase-2">B</span></td><td><span class="chip">read</span></td></tr>
+            <tr><td><span class="file-path">anthropic_sync_status.resolved_workspace_id</span> <span class="text-[var(--muted-2)]">(schema.ts:594-609)</span></td><td>user→workspace mapping for the <em>per-workspace</em> estimate.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="chip">read</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">B · Estimation core</td></tr>
+            <tr><td><span class="file-path">src/lib/anthropic/estimate-today.ts</span></td><td>Pure <code>estimateTodayCostCents()</code> (calibration + clamp + fallback).</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-add">new</span></td></tr>
+            <tr><td><span class="file-path">src/lib/anthropic/queries.ts</span> <span class="text-[var(--muted-2)]">(new query helper)</span></td><td>Today per-user sum + recent-day sums (global &amp; per-workspace via the mapping join).</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">C · Projection &amp; run-rate</td></tr>
+            <tr><td><span class="file-path">src/lib/utils.ts:86-93</span> <code>projectMonthEnd</code></td><td>Pure extrapolator — unchanged signature; callers fix the daysElapsed/MTD mismatch.</td><td><span class="phase-pill phase-1">A</span></td><td><span class="chip success">benefits</span></td></tr>
+            <tr><td><span class="file-path">queries.ts:84-88</span> <code>loadDashboardKpis</code></td><td>Dashboard projection — fix denominator; add est. today to MTD.</td><td><span class="phase-pill phase-1">A</span> <span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">anthropic-global.ts:835-843</span> workspace detail</td><td>Per-workspace projection — same fix.</td><td><span class="phase-pill phase-1">A</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">anthropic-users.ts:812-819</span> user detail</td><td>Per-user projection — same fix.</td><td><span class="phase-pill phase-1">A</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">workspace-budget-list.tsx:27-35</span></td><td>Client-side "on pace $X (Y%)" label — same fix; consumes est. today.</td><td><span class="phase-pill phase-1">A</span> <span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">forecast-workspace.ts:41-140</span> <code>forecastWorkspaceMonth</code></td><td>7-day run-rate (cron alerts). Today's missing slot dilutes run-rate; est. today fills it.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">D · Dashboard read / aggregation (server actions)</td></tr>
+            <tr><td><span class="file-path">anthropic-global.ts</span> <code>getDashboardKpis</code> / <code>getWorkspaceDetail</code></td><td>Thread <code>estimatedTodayCents</code> through the DTOs (separate field).</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">anthropic-global.ts:402-496</span> <code>getDailyTotalsByWorkspace</code></td><td>Append a dashed "today (est.)" point to the stacked daily series.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">queries.ts</span> <code>loadWorkspaceList</code> (:143-204), <code>loadCostHistory</code> (:211-239)</td><td>Carry per-workspace est. today; loadCostHistory already returns the dense series we calibrate from.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">anthropic-global.ts</span> sparkline / 12-month / pacing queries (:519,:561,:626,:699,:748)</td><td>Read workspace costs; gain the trailing est. point where the current month is shown.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">E · Claude UI components</td></tr>
+            <tr><td><span class="file-path">kpi-strip.tsx:148-156</span></td><td>"incl. est. today" sub-label + <code>est.</code> chip/tooltip on MTD &amp; projection tiles.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">org-credits-panel.tsx:97-118</span></td><td>"Projected month-end" reflects est.-today-aware projection.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">cumulative-pacing-chart.tsx:177-243</span></td><td>Anchor the existing dashed projection at <em>today</em> using MTD + est. today.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">workspace-daily-chart.tsx:37-115</span></td><td>Ghost/dashed "today (est.)" bar (mirrors twelve-month ghost bar).</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">twelve-month-bar-chart.tsx:144-165</span></td><td>Source of the ghost-bar visual vocabulary; current month may include est. today.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">historical-trend-card.tsx:76,83</span>, <span class="file-path">global-metrics-client.tsx</span></td><td>Pass-through wiring for the new field / stacked-row est. point.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">F · Pages / routes</td></tr>
+            <tr><td><span class="file-path">src/app/claude/page.tsx</span>, <span class="file-path">.../workspaces/[workspaceId]</span>, <span class="file-path">.../users/[userId]</span></td><td>Render the est.-aware DTOs. Mostly pass-through if the field is threaded server-side.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="badge-mod">mod</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">G · Alerts <span class="chip warn">decision</span></td></tr>
+            <tr><td><span class="file-path">src/actions/alerts.ts:14-30</span> <code>getActiveAlerts</code></td><td>Utilization % from MTD (excl. today). <strong>Decision:</strong> keep actual-only (Tier B default) or let est. today move thresholds (firing earlier).</td><td><span class="phase-pill phase-3">C?</span></td><td><span class="chip warn">decide</span></td></tr>
+            <tr><td><span class="file-path">src/lib/teams/evaluator.ts:76,84</span> (cron Teams alerts)</td><td>Consumes <code>forecastWorkspaceMonth</code>; benefits from the run-rate fix automatically. No change unless we want est.-today in the alert copy.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="chip success">benefits</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">H · Budget &amp; reports (Tier C only)</td></tr>
+            <tr><td><span class="file-path">budget-utils.ts:83-143</span> <code>getRunningCostsForPeriod</code></td><td>Add a <em>separate</em> <code>estimatedRunningCostCents</code> — never inflate the actual total.</td><td><span class="phase-pill phase-3">C</span></td><td><span class="chip warn">decide</span></td></tr>
+            <tr><td><span class="file-path">budget.ts:612-648</span> <code>fetchActualByPeriod</code> (billed + running)</td><td>Surface the estimated delta alongside actual in the forecast input.</td><td><span class="phase-pill phase-3">C</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">budget/[id]/page.tsx</span>, <span class="file-path">budget/page.tsx</span>, <span class="file-path">budget-health-hero.tsx</span>, <span class="file-path">period-allocations-table.tsx</span>, <span class="file-path">past-month-spotlight.tsx</span></td><td>Render actual + dashed "est. today" delta; needs a new "estimated" affordance (none today).</td><td><span class="phase-pill phase-3">C</span></td><td><span class="badge-mod">mod</span></td></tr>
+            <tr><td><span class="file-path">src/actions/reports.ts</span></td><td>Shares <code>fetchActualByPeriod</code> — inherits the estimate if Tier C ships.</td><td><span class="phase-pill phase-3">C</span></td><td><span class="chip success">benefits</span></td></tr>
+
+            <tr><td colspan="4" class="text-[11px] uppercase tracking-wider text-[var(--muted-2)] pt-3">I · Sync / freshness dependency (no code change)</td></tr>
+            <tr><td><span class="file-path">vercel.json</span> — <code>anthropic-usage</code> cron (hourly)</td><td>The estimate is only as fresh as the per-user usage sync. If that cron is degraded, the estimate goes stale — surface its sync-status pill near the figure.</td><td><span class="phase-pill phase-2">B</span></td><td><span class="chip">read</span></td></tr>
+            <tr><td><span class="file-path">anthropic-sync.ts</span> (today path) &amp; <span class="file-path">anthropic-workspace.ts</span> (PR #105)</td><td>Producers of the two signals. No change — #105's skip-on-the-1st is exactly the gap the estimate fills.</td><td>—</td><td><span class="chip success">benefits</span></td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout warn text-sm max-w-3xl mt-4">
+          <strong>Two decision points (highlighted <span class="chip warn">decide</span> above):</strong>
+          (1) whether the estimate should move <em>alert</em> thresholds, and (2) whether budget actuals should carry an estimated delta (Tier C).
+          Both are resolved <strong>no</strong> in the approved Tier B — alerts and budget actuals stay actual-only — to avoid an estimate ever being
+          mistaken for a billed number.
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section id="data-flow" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">7 · Data flow</h2>
+        <pre class="code"><span class="c">load dashboard / workspace detail</span>
+   │
+   ├─ existing: SUM(anthropic_workspace_costs.cost_cents)  →  MTD actual (complete days)
+   │
+   ├─ NEW: SUM(anthropic_usage_metrics.computed_cost_cents WHERE date = today)      → todayUserCostCents
+   ├─ NEW: SUM(usage_metrics) & SUM(workspace_costs) over last N complete days      → calibration inputs
+   │            (per-workspace variant joins anthropic_sync_status.resolved_workspace_id)
+   │
+   └─ estimateTodayCostCents(...)  →  { estimatedTodayCents, calibration, confident }
+                │
+                ├─ KPI DTO:   totalCents (actual, unchanged)  +  estimatedTodayCents (separate field)
+                ├─ projection: projectMonthEnd(MTD + estimatedToday, completedDays-correct, daysInMonth)
+                └─ charts:     append dashed "today (est.)" point  (never merged into the actual series)</pre>
+        <div class="callout info text-sm max-w-3xl mt-3">
+          The estimate is computed at the <strong>read/aggregation boundary</strong> and carried as a distinct field — it is never written to
+          <code>anthropic_workspace_costs</code>. That keeps every existing SUM query, <code>getRunningCostsForPeriod</code>, and the alert thresholds
+          reading <em>actuals only</em> unless we explicitly opt them in (Tier C).
+        </div>
+      </section>
+
+      <!-- 8 -->
+      <section id="ui" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">8 · UI — how "estimated" stays visually distinct</h2>
+        <div class="callout info text-sm max-w-3xl mb-4">
+          <strong>See the mockup:</strong> <a class="link" href="mockup.html">mockup.html</a> renders all four views — the KPI strip
+          ("incl. est. today" + <span class="chip est" style="color:#d4f057;border-color:#3f5d10;background:#161c07">est.</span> chip &amp; tooltip),
+          the daily chart with the ghost "today (est.)" bar, the cumulative pacing chart with the projection anchored at today, and the
+          1st-of-month before/after.
+        </div>
+        <p class="text-sm text-[var(--muted)] mb-3 max-w-3xl">We reuse the projection vocabulary the app already ships, so nothing new to design:</p>
+        <ul class="ac-list text-sm text-[var(--muted)] max-w-3xl">
+          <li><strong>Dashed / ghost bar</strong> for "today (est.)" on daily charts — same treatment as the existing projected bar (<code>fillOpacity 0.28</code>, <code>strokeDasharray "3 3"</code>, <span class="file-path">twelve-month-bar-chart.tsx:144-155</span>).</li>
+          <li><strong>Dashed projection line</strong> in the cumulative pacing chart already exists and even has a "today" reference line (<span class="file-path">cumulative-pacing-chart.tsx:177-243</span>) — we just anchor it at <code>MTD + est. today</code>.</li>
+          <li><strong>Sub-labels</strong> on KPI tiles: "Month-to-date · incl. est. today" and a tooltip explaining the estimate is derived from per-user usage and calibrated to recent billed days.</li>
+          <li>A small <span class="chip">est.</span> chip + tooltip noting per-user and workspace figures don't reconcile exactly (consistent with the existing reconciliation footnotes).</li>
+        </ul>
+      </section>
+
+      <!-- 9 -->
+      <section id="tests" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">9 · Test plan</h2>
+        <ul class="ac-list text-sm text-[var(--muted)] max-w-3xl">
+          <li>Unit: <code>estimateTodayCostCents</code> — calibration clamp (0.5–2.0), thin-data fallback to 1.0, zero today, zero recent, rounding.</li>
+          <li>Unit: projection denominator — MTD excl. today ÷ completed days; 1st-of-month no longer yields 0; mid-month matches hand-calc.</li>
+          <li>Unit: per-workspace estimate joins <code>resolved_workspace_id</code> correctly (incl. NULL default workspace).</li>
+          <li>Component/DTO: <code>estimatedTodayCents</code> is a separate field; actual <code>totalCents</code> unchanged; charts append exactly one trailing est. point.</li>
+          <li>Verify on a Neon branch with production data (same method used for PR&nbsp;#105): compare estimated-today vs the actual that lands the next day for a few days to sanity-check calibration.</li>
+        </ul>
+      </section>
+
+      <!-- 10 -->
+      <section id="risks" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">10 · Risks &amp; mitigations</h2>
+        <table class="spec-table card">
+          <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr><td>Estimate diverges from the real cost (pricing drift, unmapped spend, priority tier).</td><td>Calibrate against recent complete days; clamp the ratio; label clearly as "est."; never present as actual. Self-corrects next day.</td></tr>
+            <tr><td>Estimate silently inflates a "hard" number (budget actual, alert threshold).</td><td>Keep it a <em>separate field</em>; Tiers A/B do not touch <code>getRunningCostsForPeriod</code> or <code>getActiveAlerts</code>. Tier C adds a distinct estimated field only.</td></tr>
+            <tr><td>Calibration noisy when org has little recent data.</td><td><code>confident=false</code> → fall back to uncalibrated per-user sum (still better than nothing) or hide the estimate entirely (config-able).</td></tr>
+            <tr><td>Users with no resolved API key contribute nothing.</td><td>Same limitation as today's per-user views; documented in tooltip. Calibration ratio partially compensates at the global level.</td></tr>
+            <tr><td>Scope creep into budget pages.</td><td>Approved scope stops at Tier B; budget integration is a deferred follow-up spec.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 11 -->
+      <section id="impact" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">11 · Impact summary</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div class="card-2 p-4"><div class="text-xs uppercase tracking-wider text-[var(--muted)]">Migrations</div><div class="text-lg font-semibold mt-1">0</div><div class="text-xs text-[var(--muted)] mt-1">Read-time compute; no schema change.</div></div>
+          <div class="card-2 p-4"><div class="text-xs uppercase tracking-wider text-[var(--muted)]">New packages</div><div class="text-lg font-semibold mt-1">0</div><div class="text-xs text-[var(--muted)] mt-1">Recharts/shadcn already cover the UI.</div></div>
+          <div class="card-2 p-4"><div class="text-xs uppercase tracking-wider text-[var(--muted)]">Files (Tier B)</div><div class="text-lg font-semibold mt-1">~12</div><div class="text-xs text-[var(--muted)] mt-1">2 new + ~10 modified (≈7 core in §6.1; the rest small pass-through, see §6.2). Tier A ≈ 4. Tier C +~6.</div></div>
+          <div class="card-2 p-4"><div class="text-xs uppercase tracking-wider text-[var(--muted)]">Blast radius</div><div class="text-lg font-semibold mt-1">Low</div><div class="text-xs text-[var(--muted)] mt-1">Estimate is additive &amp; isolated; actuals untouched.</div></div>
+        </div>
+        <p class="text-sm text-[var(--muted)] mt-4 max-w-3xl">
+          The change is intentionally additive: a new pure helper + a separate DTO field + reuse of existing dashed/ghost chart affordances.
+          No existing actual/billed number, alert, or budget total changes unless you choose Tier C.
+        </p>
+      </section>
+
+      <!-- 12 -->
+      <section id="scope" class="anchor mb-10">
+        <h2 class="text-2xl font-bold mb-3">12 · Explicitly out of scope</h2>
+        <ul class="risk-list ac-list text-sm text-[var(--muted)] max-w-3xl">
+          <li>Persisting a synthetic "today" row into <code>anthropic_workspace_costs</code> — rejected: it would silently leak the estimate into every SUM query, budget actuals, and alerts with no way to distinguish it.</li>
+          <li>Full-day extrapolation of the partial current day into the MTD <em>actual</em> figure (overstates spend; the run-rate covers remaining days).</li>
+          <li>Changing the annual OLS budget forecast (<span class="file-path">forecast.ts</span>) — operates on monthly period actuals, unrelated.</li>
+          <li>Backfilling estimates for past days — the estimate only ever occupies the single trailing "today" slot.</li>
+          <li><strong>Budget-layer integration (former Tier C)</strong> — feeding the estimate into <code>getRunningCostsForPeriod</code> / budget actuals / reports. Deferred to a follow-up spec.</li>
+          <li><strong>Moving alert thresholds</strong> with the estimate — <code>getActiveAlerts</code> keeps reading actual-only MTD. (The cron forecast alert benefits from the run-rate fix, but its firing logic is unchanged.)</li>
+        </ul>
+      </section>
+
+      <footer class="pt-6 border-t border-[var(--border)] text-xs text-[var(--muted)]">
+        Spec 033 · Proposal for review · grounded in: schema.ts:553-737, anthropic-sync.ts:264-435, anthropic-pricing.ts:85-117,
+        queries.ts:62-239, anthropic-global.ts:789-900, budget-utils.ts:83-143, budget.ts:612-648, utils.ts:86-93,
+        forecast-workspace.ts:41-140, cumulative-pacing-chart.tsx, twelve-month-bar-chart.tsx, vercel.json. Related: PR #105 (cost-sync 1st-of-month fix).
+        Companion mockup: <a class="link" href="mockup.html">mockup.html</a>.
+      </footer>
+
+    </div>
+  </body>
+</html>
