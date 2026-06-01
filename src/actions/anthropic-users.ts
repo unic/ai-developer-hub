@@ -28,7 +28,7 @@ import {
   COST_DISTRIBUTION_BUCKETS,
   bucketCents,
 } from "@/lib/claude-users-buckets";
-import { projectMonthEnd } from "@/lib/utils";
+import { getCurrentMonth, projectMonthEnd } from "@/lib/utils";
 import type {
   UserListRow,
   UsersDashboardKpis,
@@ -311,11 +311,18 @@ async function _getAvailableUserMonths(): Promise<string[]> {
 export async function getAvailableUserMonths(): Promise<string[]> {
   const admin = await requireAdmin();
   if (!admin) return [];
-  return unstable_cache(
+  const months = await unstable_cache(
     _getAvailableUserMonths,
     ["anthropic-available-user-months"],
     { tags: ["anthropic-workspace-costs"] }
   )();
+  // Ensure the current month is always offered, even before its first sync (e.g.
+  // on the 1st). Computed outside the cache so it stays correct across rollover.
+  const currentMonth = getCurrentMonth();
+  if (!months.includes(currentMonth)) {
+    return [currentMonth, ...months];
+  }
+  return months;
 }
 
 // ---------------------------------------------------------------------------
