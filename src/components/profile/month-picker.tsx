@@ -20,12 +20,20 @@ function formatMonthLabel(month: string): string {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "long" });
 }
 
+/**
+ * Build the selectable month options, guaranteeing the selected `value` is
+ * always present so the trigger never renders blank. On the 1st of a month the
+ * data source may not yet contain the current month (no synced rows for day 0),
+ * and a URL-supplied `?month=` can reference an arbitrary month. We dedupe and
+ * re-sort newest-first ("YYYY-MM" sorts chronologically as a string) so an
+ * injected value lands in its correct chronological position, not at the head.
+ */
+export function buildMonthOptions(value: string, months: string[]): string[] {
+  return [...new Set([value, ...months])].sort().reverse();
+}
+
 export function MonthPicker({ value, onChange, months }: MonthPickerProps) {
-  // Always make the selected value selectable. On the 1st of a month the data
-  // source may not yet contain the current month (no synced rows for day 0),
-  // which would otherwise leave `value` with no matching SelectItem and render
-  // a blank trigger. Prepend it when missing (newest-first ordering).
-  const options = months.includes(value) ? months : [value, ...months];
+  const options = buildMonthOptions(value, months);
 
   return (
     <Select value={value} onValueChange={onChange}>
