@@ -33,17 +33,18 @@ import { formatCurrency } from "@/lib/utils";
 import { formatDateLong, shareOfTotalFormatter } from "@/lib/chart-format";
 import { KpiStrip, buildOrgKpiTiles } from "@/components/claude/kpi-strip";
 import { SyncStatusPill } from "@/components/claude/sync-status-pill";
+import { InlineSpinner } from "@/components/ui/loading-state";
 
 // Deterministic palette fallback when workspace.displayColor is null.
 const FALLBACK_PALETTE = [
-  "#d4f057",
-  "#86efac",
-  "#67e8f9",
-  "#93c5fd",
-  "#c4b5fd",
-  "#f9a8d4",
-  "#fcd34d",
-  "#fdba74",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
 ];
 
 function resolveSeriesColor(
@@ -253,8 +254,8 @@ export function GlobalMetricsClient({
             </SelectContent>
           </Select>
           {isPending && (
-            <span className="text-sm text-muted-foreground animate-pulse">
-              Loading…
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <InlineSpinner /> Loading…
             </span>
           )}
         </div>
@@ -304,7 +305,7 @@ export function GlobalMetricsClient({
           ) : (
             <ChartContainer config={chartConfig} className="min-h-[320px] w-full">
               <BarChart data={chartData} accessibilityLayer>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="date"
                   tickLine={false}
@@ -343,11 +344,7 @@ export function GlobalMetricsClient({
                     stackId="costs"
                     fill={s.color}
                     name={s.name}
-                    radius={
-                      s.key === visibleSeries[visibleSeries.length - 1]?.key
-                        ? [4, 4, 0, 0]
-                        : [0, 0, 0, 0]
-                    }
+                    radius={[0, 0, 0, 0]}
                   />
                 ))}
                 {showEstimate && (
@@ -360,7 +357,7 @@ export function GlobalMetricsClient({
                     stroke="var(--chart-1)"
                     strokeOpacity={0.6}
                     strokeDasharray="3 3"
-                    radius={[4, 4, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                   />
                 )}
               </BarChart>

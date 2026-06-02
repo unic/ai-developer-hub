@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { MonthPicker } from "@/components/profile/month-picker";
+import { InlineSpinner } from "@/components/ui/loading-state";
 
 type UsersMonthPickerProps = {
   value: string;
@@ -31,11 +32,7 @@ export function UsersMonthPicker({ value, months }: UsersMonthPickerProps) {
   return (
     <div className="flex items-center gap-3">
       <MonthPicker value={value} onChange={handleChange} months={months} />
-      {isPending && (
-        <span className="animate-pulse text-sm text-muted-foreground">
-          Loading…
-        </span>
-      )}
+      {isPending && <InlineSpinner />}
     </div>
   );
 }

@@ -112,7 +112,7 @@ export function OrgBillingBudgetCard({
                 projectedPct != null && projectedPct >= 100
                   ? "text-destructive"
                   : projectedPct != null && projectedPct >= 80
-                  ? "text-amber-500"
+                  ? "text-warning"
                   : ""
               }`}
             >

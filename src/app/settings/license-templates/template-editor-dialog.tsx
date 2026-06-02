@@ -169,10 +169,10 @@ export function TemplateEditorDialog({ open, onOpenChange, state }: Props) {
         </div>
 
         {missingVariables.length > 0 && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
-            <AlertTriangle className="size-4 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex items-start gap-2 rounded-md border border-warning p-3 text-sm">
+            <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
             <div>
-              <p className="font-medium text-amber-700 dark:text-amber-400">
+              <p className="font-medium text-warning">
                 Unknown variable{missingVariables.length === 1 ? "" : "s"}
               </p>
               <p className="text-muted-foreground text-xs mt-1">

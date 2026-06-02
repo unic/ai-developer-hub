@@ -113,7 +113,7 @@ function SyncCallout({
 
   if (sync.isStale) {
     return (
-      <div className="flex items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-300">
+      <div className="flex items-start gap-2 rounded-md border border-warning px-3 py-2 text-xs text-warning">
         <AlertCircle className="mt-[2px] size-4 shrink-0" aria-hidden />
         <p>
           Anthropic data is stale — last sync{" "}

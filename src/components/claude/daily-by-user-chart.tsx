@@ -22,14 +22,14 @@ const OTHER_KEY = "__other__";
  * `display_color` exists on the Anthropic side, so we always paint by rank.
  */
 const PALETTE = [
-  "#d4f057",
-  "#86efac",
-  "#67e8f9",
-  "#93c5fd",
-  "#c4b5fd",
-  "#f9a8d4",
-  "#fcd34d",
-  "#fdba74",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
 ];
 
 function colorForSeries(key: string, idx: number): string {
@@ -94,7 +94,7 @@ export function DailyByUserChart({ data }: { data: DailyByUserResult }) {
         ) : (
           <ChartContainer config={chartConfig} className="min-h-[320px] w-full">
             <BarChart data={chartData} accessibilityLayer>
-              <CartesianGrid strokeDasharray="3 3" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickLine={false}
@@ -133,11 +133,7 @@ export function DailyByUserChart({ data }: { data: DailyByUserResult }) {
                   stackId="users"
                   fill={s.color}
                   name={s.name}
-                  radius={
-                    idx === seriesWithColors.length - 1
-                      ? [4, 4, 0, 0]
-                      : [0, 0, 0, 0]
-                  }
+                  radius={[0, 0, 0, 0]}
                 />
               ))}
             </BarChart>

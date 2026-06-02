@@ -15,8 +15,8 @@ interface ActivityTimelineProps {
 
 const DOT_CLASSES: Record<DashboardActivityItem["severity"], string> = {
   info: "bg-muted-foreground",
-  success: "bg-green-500 dark:bg-green-400",
-  warn: "bg-yellow-500 dark:bg-yellow-400",
+  success: "bg-success",
+  warn: "bg-warning",
   danger: "bg-destructive",
 };
 

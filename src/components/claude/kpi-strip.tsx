@@ -58,9 +58,9 @@ function KpiTileCard({ tile }: { tile: KpiTile }) {
               tile.tone === "danger"
                 ? "text-destructive"
                 : tile.tone === "warn"
-                ? "text-amber-500"
+                ? "text-warning"
                 : tile.tone === "success"
-                ? "text-emerald-500"
+                ? "text-success"
                 : "text-muted-foreground"
             )}
           >

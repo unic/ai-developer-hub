@@ -114,7 +114,7 @@ function ActiveUsersDeltaCaption({ kpis }: { kpis: UsersDashboardKpis }) {
   }
   if (pct > 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-emerald-500">
+      <span className="inline-flex items-center gap-1 text-success">
         <TrendingUp className="size-3" /> +{pct}% vs prior month
       </span>
     );

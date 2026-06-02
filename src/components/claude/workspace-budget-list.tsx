@@ -89,7 +89,7 @@ function SparklineDeltaLabel({
     <span
       className={cn(
         "text-[10px]",
-        big ? "text-amber-500 font-medium" : "text-muted-foreground"
+        big ? "text-warning font-medium" : "text-muted-foreground"
       )}
     >
       {big ? "▲ " : ""}

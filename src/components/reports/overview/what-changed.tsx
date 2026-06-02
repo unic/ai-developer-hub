@@ -23,9 +23,9 @@ const ICON_MAP: Record<InsightIcon, typeof TrendingUp> = {
 };
 
 const SEVERITY_CLASSES: Record<Insight["severity"], string> = {
-  info: "bg-muted text-muted-foreground",
-  warn: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-  danger: "bg-destructive/10 text-destructive",
+  info: "border border-border text-muted-foreground",
+  warn: "border border-warning text-warning",
+  danger: "border border-destructive text-destructive",
 };
 
 interface WhatChangedProps {

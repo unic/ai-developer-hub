@@ -13,9 +13,9 @@ import { cn, formatCurrency } from "@/lib/utils";
 const config: ChartConfig = {
   current: { label: "Current month", color: "var(--chart-1)" },
   currentProjected: { label: "Projected", color: "var(--chart-1)" },
-  m1: { label: "1 month ago", color: "#a1a1aa" },
-  m2: { label: "2 months ago", color: "#71717a" },
-  m3: { label: "3 months ago", color: "#52525b" },
+  m1: { label: "1 month ago", color: "var(--chart-3)" },
+  m2: { label: "2 months ago", color: "var(--chart-4)" },
+  m3: { label: "3 months ago", color: "var(--chart-5)" },
 };
 
 function monthLabelOffset(offset: number): string {

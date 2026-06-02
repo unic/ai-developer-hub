@@ -11,13 +11,13 @@ function JsonValue({ value, depth }: { value: unknown; depth: number }) {
     return <span className="text-muted-foreground italic">null</span>;
   }
   if (typeof value === "boolean") {
-    return <span className="text-purple-600 dark:text-purple-400">{String(value)}</span>;
+    return <span className="text-ink font-medium">{String(value)}</span>;
   }
   if (typeof value === "number") {
-    return <span className="text-blue-600 dark:text-blue-400">{String(value)}</span>;
+    return <span className="text-foreground font-medium">{String(value)}</span>;
   }
   if (typeof value === "string") {
-    return <span className="text-green-700 dark:text-green-400">&quot;{value}&quot;</span>;
+    return <span className="text-muted-foreground">&quot;{value}&quot;</span>;
   }
   if (Array.isArray(value)) {
     return <JsonArray items={value} depth={depth} />;

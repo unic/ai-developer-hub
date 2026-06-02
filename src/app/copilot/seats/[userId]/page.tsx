@@ -62,7 +62,7 @@ export default async function CopilotSeatDetailPage({
                     <Link href={`/users`} className="underline">{seat.matchedUserName}</Link>
                   </span>
                 ) : (
-                  <span className="text-sm text-amber-600">Unmatched</span>
+                  <span className="text-sm text-warning">Unmatched</span>
                 )}
               </div>
             </div>

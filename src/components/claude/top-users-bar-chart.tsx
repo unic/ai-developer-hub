@@ -14,14 +14,14 @@ import type { UserListRow } from "@/types";
 // mirrors `FALLBACK_PALETTE` in global-metrics-client.tsx so the two
 // dashboards feel like the same family of visuals.
 const FALLBACK_PALETTE = [
-  "#d4f057",
-  "#86efac",
-  "#67e8f9",
-  "#93c5fd",
-  "#c4b5fd",
-  "#f9a8d4",
-  "#fcd34d",
-  "#fdba74",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
 ];
 
 const MUTED_GREY = "var(--muted-foreground)";
@@ -93,7 +93,7 @@ export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
         />
         <Bar
           dataKey="cost"
-          radius={[0, 4, 4, 0]}
+          radius={[0, 0, 0, 0]}
           maxBarSize={28}
           cursor="pointer"
         >

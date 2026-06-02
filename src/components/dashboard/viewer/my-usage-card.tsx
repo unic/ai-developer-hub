@@ -208,7 +208,7 @@ export function MyUsageCard({
                   <>
                     {" "}
                     · saved{" "}
-                    <span className="text-green-700 dark:text-green-400 tabular-nums">
+                    <span className="text-success tabular-nums">
                       ~{formatCurrency(cacheSavingsCents)}
                     </span>
                   </>

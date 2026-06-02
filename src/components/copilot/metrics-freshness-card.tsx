@@ -7,9 +7,9 @@ export function MetricsFreshnessCard({ freshness }: { freshness: CopilotFreshnes
   if (!freshness.stale || freshness.daysBehind == null) return null;
 
   return (
-    <Card className="border-amber-500/40 bg-amber-500/5">
+    <Card className="border-warning">
       <CardContent className="flex items-start gap-3 py-4">
-        <AlertTriangle className="size-5 mt-0.5 text-amber-500 shrink-0" />
+        <AlertTriangle className="size-5 mt-0.5 text-warning shrink-0" />
         <div className="space-y-1 text-sm">
           <p className="font-medium">
             Copilot metrics are stale — last data {freshness.daysBehind} days ago
