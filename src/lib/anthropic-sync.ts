@@ -254,10 +254,12 @@ export function computeSyncWindow(latestDateStr: string | null): { startingAt: s
   // Guard against a zero-width or inverted range. With bucket_width=1d the
   // usage_report API rejects ending_at <= starting_at with a 400 ("ending date
   // must be after starting date"), the same failure that hit the cost path on
-  // the 1st (#103). latestDateStr should always be < today, but a same-day or
-  // future-dated row (bad backfill, clock skew, timezone edge) could otherwise
-  // push startDate to/after endDate. Clamp so the historical window always
-  // spans at least one complete day ending at start-of-today.
+  // the 1st (#103). latestDateStr should always be < today, and even a same-day
+  // row is safe because we subtract a day (latest == today still yields a valid
+  // [yesterday, today) window). Only a future-dated row (bad backfill, clock
+  // skew, timezone edge) could push startDate to/after endDate. Clamp so the
+  // historical window always spans at least one complete day ending at
+  // start-of-today.
   const maxStart = new Date(endDate);
   maxStart.setUTCDate(maxStart.getUTCDate() - 1);
   if (startDate.getTime() > maxStart.getTime()) {
