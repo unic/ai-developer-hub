@@ -119,6 +119,21 @@
           non-colliding type/utility helpers are added globally. This is the idiomatic React/Tailwind path and
           keeps the mockup look without the collision risk.</p>
       </div>
+
+      <div class="note note--decision">
+        <span class="kind">Decision</span>
+        <span class="title"><span class="phase-tag">P3</span>Stacked bar charts: cap at top-4 + "Other" with a monotonic grey ramp + separators</span>
+        <p>Greyscale has only ~4–5 perceptually-distinct steps, so the Claude console's stacked daily-spend
+          charts (by workspace and by user) were illegible once my P0 swap replaced their spectral palette with
+          greys — 8–9 stacked grey segments blur together. Fix (in response to review feedback): fold all but the
+          top 4 ranks into an aggregated <strong>"Other"</strong> (≤5 segments), colour them in <em>rank order</em>
+          along a single monotonic ramp <code>--chart-1…--chart-5</code> (no repeats, so the legend reads as a
+          dark→light gradient), and draw a <strong>1px <code>--card</code> separator</strong> stroke on each
+          segment so adjacent tones keep crisp edges. Full per-row precision stays in the tooltip + the
+          workspace/user list below. The "Use workspace colors" toggle still switches to per-workspace hues for
+          users who need to track many specific workspaces. Ranked (non-stacked) bars like "Top 10 users" keep the
+          grey ramp as-is — separated, axis-labelled bars don't suffer the adjacency problem.</p>
+      </div>
     </section>
 
     <!-- ===================================================================== -->
