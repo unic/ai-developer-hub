@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Dashboard · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+  <style>
+    /* Scoped dashboard layout — tokens only, no new colours/shadows. */
+
+    /* Two-up hero rows: wide left card + narrower right rail card. */
+    .dash-split {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-md);
+    }
+    @media (min-width: 1000px) {
+      .dash-split { grid-template-columns: 1.7fr 1fr; }
+    }
+
+    /* hero card internal layout */
+    .hero-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-xl); }
+    .hero-title { display: inline-flex; align-items: center; gap: var(--space-sm); }
+    .hero-title svg { width: 20px; height: 20px; stroke-width: 1.5; color: var(--text-secondary); }
+    .hero-metric { margin-bottom: var(--space-lg); }
+    .hero-metric .metric-value { font-size: var(--display-xl); }
+    .hero-narrative { max-width: 56ch; }
+
+    /* spend-progress markers under the hero seg-bar */
+    .spend-scale { display: flex; justify-content: space-between; margin-top: var(--space-sm); }
+    .spend-scale span { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-disabled); }
+
+    /* chart row */
+    .chart-split { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
+    @media (min-width: 1000px) { .chart-split { grid-template-columns: 1.9fr 1fr; align-items: start; } }
+    .bars--tall { height: 180px; }
+
+    /* insight cards: icon + headline + body */
+    .insight { display: flex; gap: var(--space-md); align-items: flex-start; }
+    .insight svg { width: 18px; height: 18px; stroke-width: 1.5; flex-shrink: 0; margin-top: 2px; color: var(--text-secondary); }
+    .insight-head { font-family: var(--font-ui); font-weight: 500; font-size: var(--body-sm); color: var(--text-display); margin-bottom: var(--space-xs); }
+    .insight-body { font-family: var(--font-mono); font-size: var(--caption); line-height: 1.45; color: var(--text-secondary); }
+    .insight-body .num { color: var(--text-primary); }
+
+    /* timeline / recent activity dots */
+    .timeline .stat-row { align-items: flex-start; }
+    .tl-left { display: flex; gap: var(--space-sm); align-items: flex-start; min-width: 0; }
+    .tl-dot { width: 7px; height: 7px; border-radius: var(--radius-pill); background: var(--text-disabled); flex-shrink: 0; margin-top: 6px; }
+    .tl-dot.is-ok { background: var(--success); }
+    .tl-dot.is-warn { background: var(--warning); }
+    .tl-body { min-width: 0; }
+    .tl-title { font-family: var(--font-ui); font-size: var(--body-sm); color: var(--text-primary); }
+    .tl-title b { color: var(--text-display); font-weight: 500; }
+    .tl-meta { font-family: var(--font-mono); font-size: var(--caption); color: var(--text-disabled); white-space: nowrap; }
+
+    /* jump-to nav cards */
+    .jump { display: flex; flex-direction: column; gap: var(--space-md); min-height: 132px; justify-content: space-between; }
+    .jump-top { display: flex; align-items: center; justify-content: space-between; }
+    .jump-top svg { width: 20px; height: 20px; stroke-width: 1.5; color: var(--text-secondary); }
+    .jump-card:hover { border-color: var(--border-visible); }
+    .jump-card { transition: border-color var(--dur-micro) var(--ease); }
+    .jump-title { font-family: var(--font-ui); font-weight: 500; font-size: var(--subheading); color: var(--text-display); }
+
+    /* admin preview link */
+    .preview-link { display: inline-flex; align-items: center; gap: var(--space-xs); font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); transition: color var(--dur-micro) var(--ease); }
+    .preview-link:hover { color: var(--text-primary); }
+    .preview-link svg { width: 15px; height: 15px; stroke-width: 1.5; }
+
+    /* legend bullets inside chart side panel */
+    .split-legend { display: flex; flex-direction: column; gap: var(--space-md); }
+    .split-row { display: flex; flex-direction: column; gap: var(--space-2xs); }
+    .split-row .lead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+    .split-row .lead .label { color: var(--text-secondary); }
+    .split-row .pct { font-family: var(--font-mono); font-size: var(--caption); color: var(--text-disabled); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="wordmark">AI&middot;HUB</span></div>
+      <nav class="nav">
+        <a class="nav-item active" href="./dashboard.html">Dashboard</a>
+        <a class="nav-item" href="./tools.html">Tools</a>
+        <a class="nav-item" href="./users.html">Users</a>
+        <a class="nav-item" href="./assignments.html">Assignments</a>
+        <a class="nav-item" href="./requests.html">Requests</a>
+        <a class="nav-item" href="./budget.html">Budget</a>
+        <a class="nav-item" href="./reports.html">Reports</a>
+        <a class="nav-item" href="./copilot.html">Copilot</a>
+        <a class="nav-item" href="./claude.html">Claude Console</a>
+        <a class="nav-item" href="./invoices.html">Invoices</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span class="avatar">TS</span>
+          <span class="stack">
+            <span class="t-primary" style="font-size:13px">Tobias Studer</span>
+            <span class="label">Admin</span>
+          </span>
+        </div>
+        <a class="nav-item" href="./login.html">Sign Out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="label eyebrow">OVERVIEW</div>
+          <h1 class="display-md">Dashboard</h1>
+        </div>
+        <div class="topbar-actions">
+          <!-- admin-only: preview as viewer -->
+          <a class="preview-link" href="#" title="Admin only">
+            <!-- eye -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+            Preview as viewer
+          </a>
+
+          <!-- sync status chip -->
+          <span class="tag tag--success"><span class="led"></span>All sources synced &middot; 12m ago</span>
+
+          <!-- primary action -->
+          <a class="btn btn--primary btn--sm" href="./reports.html">
+            Open Budget report
+            <!-- chevron-right -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </a>
+
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== SCREEN CONTENT ===== -->
+
+      <!-- ROW 1 — Budget health hero (heaviest treatment) + This month rail -->
+      <section class="dash-split">
+
+        <!-- Budget health hero -->
+        <div class="card card--pad-lg">
+          <div class="hero-head">
+            <div class="hero-title">
+              <!-- shield-check -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+              <span class="label">Budget health &middot; on track</span>
+            </div>
+            <span class="tag tag--success"><span class="led"></span>Within budget</span>
+          </div>
+
+          <div class="metric hero-metric">
+            <span class="label">YTD BILLED</span>
+            <span class="metric-value is-doto">$184,250</span>
+            <span class="metric-trend t-secondary">61.4% of $300,000 ceiling</span>
+          </div>
+
+          <!-- SpendProgressBar: actual YTD (good) · projected (warn) · ceiling track -->
+          <div class="seg-head">
+            <span class="label">Actual YTD &middot; projected year-end &middot; ceiling</span>
+            <span class="value value--warning mono">$291,400 proj.</span>
+          </div>
+          <div class="seg-bar seg-bar--hero" aria-label="Budget progress to ceiling">
+            <!-- 20 segments. 12 good = actual YTD (~61%); 7 warn = projected to year-end (~97%); 1 empty headroom under ceiling -->
+            <span class="seg is-good"></span><span class="seg is-good"></span><span class="seg is-good"></span>
+            <span class="seg is-good"></span><span class="seg is-good"></span><span class="seg is-good"></span>
+            <span class="seg is-good"></span><span class="seg is-good"></span><span class="seg is-good"></span>
+            <span class="seg is-good"></span><span class="seg is-good"></span><span class="seg is-good"></span>
+            <span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span>
+            <span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span>
+            <span class="seg is-warn"></span><span class="seg"></span>
+          </div>
+          <div class="spend-scale">
+            <span>$0</span>
+            <span>Projected $291.4K</span>
+            <span>Ceiling $300K</span>
+          </div>
+
+          <hr class="divider" />
+
+          <p class="hero-narrative subheading t-primary">
+            Linear trend lands at <span class="mono">$291,400</span> by year-end &mdash; within the
+            <span class="mono">$300,000</span> ceiling.
+          </p>
+          <div class="row row--between" style="margin-top:var(--space-md)">
+            <span class="caption t-disabled">Sep 2025 was 4.2% under plan</span>
+            <a class="btn btn--ghost btn--sm" href="./reports.html">
+              Open Budget report
+              <!-- chevron-right -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- This month -->
+        <div class="card card--pad-lg">
+          <div class="row row--between" style="margin-bottom:var(--space-xl)">
+            <span class="label">This month &middot; October 2025</span>
+            <span class="tag tag--warning">+5.9% over</span>
+          </div>
+
+          <div class="stat-list">
+            <div class="stat-row">
+              <span class="label">Actual so far</span>
+              <span class="value value--display" style="font-size:var(--heading)">$26,480</span>
+            </div>
+            <div class="stat-row">
+              <span class="label indent">Billed</span>
+              <span class="value">$22,150</span>
+            </div>
+            <div class="stat-row">
+              <span class="label indent">Anthropic API</span>
+              <span class="value">$4,330</span>
+            </div>
+            <div class="stat-row">
+              <span class="label">Planned</span>
+              <span class="value">$25,000</span>
+            </div>
+            <div class="stat-row">
+              <span class="label">Variance</span>
+              <span class="value value--warning">&plus;$1,480</span>
+            </div>
+          </div>
+
+          <hr class="divider" />
+          <span class="caption t-disabled">28 of 31 days elapsed &middot; pace projects $29.3K full month</span>
+        </div>
+      </section>
+
+      <!-- ROW 2 — KPI grid -->
+      <section class="section-gap">
+        <div class="row row--between" style="margin-bottom:var(--space-md)">
+          <span class="label">Key indicators</span>
+          <span class="caption t-disabled">Month over month &middot; vs September 2025</span>
+        </div>
+
+        <div class="grid grid--kpi">
+          <div class="card">
+            <span class="label card-label">Active users</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">142</span>
+              <span class="metric-trend t-secondary">across 6 teams</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="label card-label">Active tools</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">9</span>
+              <span class="metric-trend t-secondary">all sources synced</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="label card-label">Active licenses</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">318</span>
+              <span class="metric-trend t-success">
+                <!-- arrow-up -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                +12 &middot; vs 306 last month
+              </span>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="label card-label">Expected monthly</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">$27,940</span>
+              <span class="metric-trend t-warning">
+                <!-- arrow-up -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                +8.2% &middot; vs $25,820 last month
+              </span>
+            </div>
+            <hr class="divider" style="margin:var(--space-md) 0" />
+            <span class="caption t-disabled">Copilot acceptance 31% &middot; 87 devs</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 3 — Spend over time chart -->
+      <section class="section-gap">
+        <div class="card card--pad-lg">
+          <div class="chart-split">
+
+            <div>
+              <div class="row row--between" style="margin-bottom:var(--space-lg)">
+                <div class="stack stack--sm">
+                  <span class="label">Stacked monthly cost &middot; last 12 months</span>
+                  <span class="caption t-disabled">Licenses (billed) + Anthropic API (running)</span>
+                </div>
+                <span class="caption t-secondary mono">avg $17,420/mo</span>
+              </div>
+
+              <!-- vertical bars: last 12 months; final 2 are future (faint, no billed data) -->
+              <div class="bars bars--tall" style="position:relative">
+                <div class="bar" style="height:58%"></div>
+                <div class="bar" style="height:64%"></div>
+                <div class="bar" style="height:61%"></div>
+                <div class="bar" style="height:70%"></div>
+                <div class="bar" style="height:67%"></div>
+                <div class="bar" style="height:74%"></div>
+                <div class="bar" style="height:72%"></div>
+                <div class="bar" style="height:81%"></div>
+                <div class="bar" style="height:78%"></div>
+                <div class="bar" style="height:88%"></div>
+                <div class="bar is-muted" style="height:40%"></div>
+                <div class="bar is-muted" style="height:22%"></div>
+              </div>
+              <div class="axis">
+                <span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span>
+                <span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span>
+              </div>
+              <span class="caption t-disabled" style="display:block;margin-top:var(--space-md)">Fading bars represent future periods with no billed data yet</span>
+            </div>
+
+            <!-- side panel: YTD + split legend -->
+            <div class="card card--raised" style="padding:var(--space-lg)">
+              <div class="metric" style="margin-bottom:var(--space-lg)">
+                <span class="label">YTD billed</span>
+                <span class="metric-value" style="font-size:var(--display-md)">$184,250</span>
+              </div>
+
+              <div class="split-legend">
+                <div class="split-row">
+                  <div class="lead">
+                    <span class="label">Licenses (billed)</span>
+                    <span class="value value--display mono">$159,300</span>
+                  </div>
+                  <div class="seg-bar seg-bar--compact">
+                    <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+                    <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+                    <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+                    <span class="seg"></span>
+                  </div>
+                  <span class="pct">86% of YTD</span>
+                </div>
+
+                <div class="split-row">
+                  <div class="lead">
+                    <span class="label">Anthropic API (running)</span>
+                    <span class="value value--display mono">$24,950</span>
+                  </div>
+                  <div class="seg-bar seg-bar--compact">
+                    <span class="seg is-filled"></span>
+                    <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+                    <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+                  </div>
+                  <span class="pct">14% of YTD</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 4 — What changed this month (insight cards) -->
+      <section class="section-gap">
+        <span class="label" style="display:block;margin-bottom:var(--space-md)">What changed this month</span>
+        <div class="grid grid--2">
+
+          <div class="card">
+            <div class="insight">
+              <!-- shield-check -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+              <div>
+                <div class="insight-head">Budget on track</div>
+                <p class="insight-body">Projected <span class="num">$291.4K</span> for the year &mdash; <span class="num">97%</span> of the <span class="num">$300.0K</span> ceiling, with headroom to spare.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="insight">
+              <!-- arrow-up -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              <div>
+                <div class="insight-head">GitHub Copilot seats grew 72 &rarr; 87</div>
+                <p class="insight-body"><span class="num">+15 seats</span> added this month &mdash; a <span class="num">21%</span> month-over-month increase in active assignments.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="insight">
+              <!-- arrow-up -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              <div>
+                <div class="insight-head">Expected monthly spend &uarr; 8.2%</div>
+                <p class="insight-body">Up from <span class="num">$25.8K</span> to <span class="num">$27.9K</span> vs last month, driven mostly by new Copilot seats. Sep 2025 was 4.2% under plan.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- THE single red moment on the screen -->
+          <div class="card">
+            <div class="insight">
+              <!-- alert-triangle -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>
+              <div>
+                <div class="insight-head">Anthropic workspace approaching limit</div>
+                <p class="insight-body">Engineering is at <span class="value--accent mono">92%</span> of its monthly cap with 3 days left in the period. Review allocation before it blocks usage.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ROW 5 — Recent activity (right-rail timeline) + Top tools table -->
+      <section class="section-gap dash-split">
+
+        <!-- Top tools table (secondary, wide) -->
+        <div class="card card--pad-lg">
+          <div class="row row--between" style="margin-bottom:var(--space-lg)">
+            <span class="label">Top tools by monthly cost</span>
+            <a class="btn btn--ghost btn--sm" href="./tools.html">View all 9</a>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>Tool</th><th>Vendor</th><th class="num">Active users</th><th class="num">Total monthly cost</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-strong">GitHub Copilot</td><td>GitHub</td>
+                <td class="num">87</td><td class="num">$1,653.00</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Anthropic API</td><td>Anthropic</td>
+                <td class="num">34</td><td class="num">$4,330.00</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Cursor</td><td>Anysphere</td>
+                <td class="num">52</td><td class="num">$1,040.00</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">ChatGPT Enterprise</td><td>OpenAI</td>
+                <td class="num">61</td><td class="num">$1,525.00</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Perplexity Pro</td><td>Perplexity</td>
+                <td class="num">28</td><td class="num">$560.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Recent activity timeline -->
+        <div class="card card--pad-lg">
+          <div class="row row--between" style="margin-bottom:var(--space-lg)">
+            <span class="label">Recent activity</span>
+            <a class="btn btn--ghost btn--sm" href="./invoices.html">History</a>
+          </div>
+
+          <div class="stat-list timeline">
+            <div class="stat-row">
+              <span class="tl-left">
+                <span class="tl-dot is-ok"></span>
+                <span class="tl-body">
+                  <span class="tl-title">Invoice from <b>Anthropic</b> &mdash; Added &middot; <span class="mono">$4,330</span></span>
+                </span>
+              </span>
+              <span class="tl-meta">2h ago</span>
+            </div>
+
+            <div class="stat-row">
+              <span class="tl-left">
+                <span class="tl-dot is-ok"></span>
+                <span class="tl-body">
+                  <span class="tl-title"><b>Jordan Lee</b> assigned GitHub Copilot</span>
+                </span>
+              </span>
+              <span class="tl-meta">5h ago</span>
+            </div>
+
+            <div class="stat-row">
+              <span class="tl-left">
+                <span class="tl-dot is-ok"></span>
+                <span class="tl-body">
+                  <span class="tl-title">Invoice from <b>GitHub</b> &mdash; Added &middot; <span class="mono">$1,272</span></span>
+                </span>
+              </span>
+              <span class="tl-meta">Yesterday</span>
+            </div>
+
+            <div class="stat-row">
+              <span class="tl-left">
+                <span class="tl-dot"></span>
+                <span class="tl-body">
+                  <span class="tl-title"><b>Priya Nair</b> revoked from Cursor</span>
+                </span>
+              </span>
+              <span class="tl-meta">2d ago</span>
+            </div>
+
+            <div class="stat-row">
+              <span class="tl-left">
+                <span class="tl-dot is-warn"></span>
+                <span class="tl-body">
+                  <span class="tl-title">Invoice <b>acme-oct.pdf</b> &mdash; <span class="t-warning">Filtered (duplicate)</span></span>
+                </span>
+              </span>
+              <span class="tl-meta">3d ago</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 6 — Jump to -->
+      <section class="section-gap">
+        <span class="label" style="display:block;margin-bottom:var(--space-md)">Jump to</span>
+        <div class="grid grid--4">
+
+          <a class="card jump-card" href="./tools.html">
+            <div class="jump">
+              <div class="jump-top">
+                <span class="jump-title">AI Tools</span>
+                <!-- grid -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </div>
+              <span class="caption t-secondary">9 active</span>
+            </div>
+          </a>
+
+          <a class="card jump-card" href="./users.html">
+            <div class="jump">
+              <div class="jump-top">
+                <span class="jump-title">Users</span>
+                <!-- users -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3.5"/><path d="M22 19v-1a4 4 0 0 0-3-3.8"/><path d="M16 3.2a4 4 0 0 1 0 7.6"/></svg>
+              </div>
+              <span class="caption t-secondary">142 active</span>
+            </div>
+          </a>
+
+          <a class="card jump-card" href="./assignments.html">
+            <div class="jump">
+              <div class="jump-top">
+                <span class="jump-title">Assignments</span>
+                <!-- check -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </div>
+              <span class="caption t-secondary">318 active</span>
+            </div>
+          </a>
+
+          <a class="card jump-card" href="./budget.html">
+            <div class="jump">
+              <div class="jump-top">
+                <span class="jump-title">Budget</span>
+                <!-- shield-check -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+              </div>
+              <span class="caption t-success">On track &middot; 61% YTD</span>
+            </div>
+          </a>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+</body>
+</html>

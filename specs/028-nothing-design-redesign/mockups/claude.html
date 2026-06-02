@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Claude Console · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+  <style>
+    /* Scoped Claude Console layout — tokens only, no new colors/shadows. */
+
+    /* In-content tabs use a neutral underline so red stays the single content
+       interrupt (matches copilot.html / reports.html / settings.html). */
+    .tabs .tab.active::after { background: var(--border-visible); }
+
+    /* Sync status pill (tertiary chrome, links to /settings/sync) */
+    .sync-pill {
+      display: inline-flex; align-items: center; gap: var(--space-sm);
+      padding: 6px 14px;
+      border: 1px solid var(--border-visible); border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: var(--caption);
+      letter-spacing: 0.04em; color: var(--text-secondary);
+    }
+    .sync-pill .led { width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--success); }
+
+    /* spinner for "Syncing…" state on the Trigger Sync button */
+    .spinner {
+      width: 16px; height: 16px; flex-shrink: 0;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: var(--radius-pill);
+      animation: spin 720ms linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1ms; } }
+
+    /* lightweight select — reuses field/search look without a new component */
+    .mini-select {
+      display: inline-flex; align-items: center; gap: var(--space-sm);
+      padding: 8px 14px;
+      border: 1px solid var(--border-visible); border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: var(--label);
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-primary);
+    }
+    .mini-select svg { width: 14px; height: 14px; opacity: 0.7; }
+
+    /* card heading line shared across secondary sections */
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-lg); }
+    .card-title { font-family: var(--font-ui); font-size: var(--subheading); font-weight: 500; color: var(--text-display); }
+    .card-sub { font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em; color: var(--text-secondary); margin-top: var(--space-xs); }
+
+    /* the over-budget projected KPI tile — the ONE red interrupt */
+    .kpi-alert { border-color: var(--accent); }
+    .kpi-alert .alert-mark { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
+    .kpi-alert .alert-mark svg { width: 14px; height: 14px; }
+
+    /* trend caption with tone-colored value */
+    .kpi-foot { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.03em; }
+    .kpi-foot svg { width: 13px; height: 13px; }
+
+    /* est. chip (dashed, never merged into actuals — spec 033) */
+    .chip-est {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 9px;
+      border: 1px dashed var(--border-visible); border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: var(--label);
+      letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary);
+    }
+
+    /* ---- daily stacked bar chart (mockup-scale, pure CSS columns) ---- */
+    .chart-plot { display: flex; gap: var(--space-lg); }
+    .chart-yaxis { display: flex; flex-direction: column; justify-content: space-between; height: 180px; padding-bottom: 22px; }
+    .chart-yaxis span { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.06em; color: var(--text-disabled); }
+    .chart-cols { flex: 1; display: flex; align-items: flex-end; gap: 5px; height: 180px; }
+    .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 1px; }
+    .col .seglet { width: 100%; }
+    .col .s-1 { background: var(--text-display); }
+    .col .s-2 { background: var(--text-secondary); }
+    .col .s-3 { background: var(--border-visible); }
+    /* dashed ghost "Today (est.)" bar — outline only, never filled */
+    .col.is-est .ghost {
+      width: 100%;
+      border: 1px dashed var(--text-secondary);
+      border-bottom: none;
+      background: transparent;
+    }
+    .chart-xaxis { display: flex; gap: 5px; margin-top: var(--space-sm); padding-left: calc(var(--space-lg) + 28px); }
+    .chart-xaxis span { flex: 1; text-align: center; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.02em; color: var(--text-disabled); }
+
+    /* ---- 12-month historical bars ---- */
+    .hist-bars { display: flex; align-items: flex-end; gap: 8px; height: 150px; }
+    .hist-bars .hb { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+    .hist-bars .hb .fill { width: 100%; background: var(--text-display); min-height: 3px; }
+    .hist-bars .hb .fill.is-proj { background: transparent; border: 1px dashed var(--text-secondary); border-bottom: none; }
+    .hist-bars .hb.is-muted .fill { background: var(--border-visible); }
+
+    /* ---- workspace budget rows ---- */
+    .ws-list { display: flex; flex-direction: column; }
+    .ws-row { display: grid; grid-template-columns: 1.6fr 1.3fr 1fr 1.2fr auto; align-items: center; gap: var(--space-lg); padding: var(--space-lg) 0; border-bottom: 1px solid var(--border); }
+    .ws-row:last-child { border-bottom: none; }
+    .ws-name { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+    .ws-dot { width: 9px; height: 9px; border-radius: var(--radius-pill); flex-shrink: 0; }
+    .ws-link { font-family: var(--font-ui); font-size: var(--body-sm); color: var(--text-display); }
+    .ws-link:hover { color: var(--text-primary); }
+    .ws-badges { display: flex; gap: var(--space-xs); margin-top: 5px; flex-wrap: wrap; }
+    .ws-spend { font-family: var(--font-mono); font-size: var(--body-sm); color: var(--text-primary); }
+    .ws-spend .of { color: var(--text-disabled); }
+    .ws-util { display: flex; flex-direction: column; gap: 6px; }
+    .ws-util .util-num { font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em; }
+    .ws-util .on-pace { font-family: var(--font-mono); font-size: var(--label); color: var(--text-disabled); letter-spacing: 0.04em; }
+    .ws-spark { display: flex; align-items: center; gap: var(--space-sm); }
+    .ws-spark .delta { font-family: var(--font-mono); font-size: var(--caption); display: inline-flex; align-items: center; gap: 3px; }
+    .ws-spark .delta svg { width: 12px; height: 12px; }
+    .ws-action { justify-self: end; }
+
+    .num-tab { font-variant-numeric: tabular-nums; }
+
+    /* small badge variant tuned for inline dot+name rows */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 9px;
+      border: 1px solid var(--border-visible); border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: var(--label);
+      letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary);
+    }
+    .badge--warning { border-color: var(--warning); color: var(--warning); }
+    .badge--accent { border-color: var(--accent); color: var(--accent); }
+
+    .show-hidden { display: inline-flex; align-items: center; gap: var(--space-sm); font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.06em; color: var(--text-secondary); padding-top: var(--space-md); }
+    .show-hidden svg { width: 14px; height: 14px; opacity: 0.7; }
+
+    @media (max-width: 900px) {
+      .ws-row { grid-template-columns: 1fr 1fr; row-gap: var(--space-md); }
+      .ws-action { justify-self: start; grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="wordmark">AI&middot;HUB</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="./dashboard.html">Dashboard</a>
+        <a class="nav-item" href="./tools.html">Tools</a>
+        <a class="nav-item" href="./users.html">Users</a>
+        <a class="nav-item" href="./assignments.html">Assignments</a>
+        <a class="nav-item" href="./requests.html">Requests</a>
+        <a class="nav-item" href="./budget.html">Budget</a>
+        <a class="nav-item" href="./reports.html">Reports</a>
+        <a class="nav-item" href="./copilot.html">Copilot</a>
+        <a class="nav-item active" href="./claude.html">Claude Console</a>
+        <a class="nav-item" href="./invoices.html">Invoices</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span class="avatar">TS</span>
+          <span class="stack">
+            <span class="t-primary" style="font-size:13px">Tobias Studer</span>
+            <span class="label">Admin</span>
+          </span>
+        </div>
+        <a class="nav-item" href="./login.html">Sign Out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="label eyebrow">ANTHROPIC API</div>
+          <h1 class="display-md">Claude Console</h1>
+          <p class="subheading t-secondary" style="margin-top:var(--space-sm)">Org-wide usage, budgets, and Anthropic sync status.</p>
+        </div>
+        <div class="topbar-actions">
+          <!-- sync status pill — links to /settings/sync -->
+          <a class="sync-pill" href="./settings.html">
+            <span class="led"></span>Synced 12m ago &middot; next in 48m
+          </a>
+          <!-- Trigger Sync (RefreshCw) — idle state; shows spinner + "Syncing…" while running -->
+          <button class="btn btn--secondary btn--sm">
+            <!-- refresh-cw -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></svg>
+            Trigger Sync
+          </button>
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== SCREEN CONTENT ===== -->
+
+      <!-- Tab strip: Workspaces (active) | Users -->
+      <div class="tabs" style="margin-bottom:var(--space-xl)">
+        <a class="tab active" href="./claude.html">Workspaces</a>
+        <a class="tab" href="./claude.html#users">Users</a>
+      </div>
+
+      <!-- Controls row: MonthPicker + Workspace filter -->
+      <div class="row row--between row--wrap" style="margin-bottom:var(--space-xl)">
+        <span class="label eyebrow">CLAUDE CONSOLE &middot; WORKSPACES</span>
+        <div class="row row--wrap" style="gap:var(--space-sm)">
+          <button class="mini-select">
+            Jun 2026
+            <!-- chevron-down -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="mini-select">
+            All workspaces
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== HERO METRIC — primary layer ===== -->
+      <div class="card card--pad-lg" style="margin-bottom:var(--space-2xl)">
+        <div class="row row--between row--wrap" style="align-items:flex-start;gap:var(--space-2xl)">
+          <div class="metric">
+            <span class="label">CLAUDE API SPENDING &middot; TOTAL &middot; JUN 2026</span>
+            <span class="metric-value is-doto num-tab">$18,420.55<span class="metric-unit">USD &middot; MTD billed</span></span>
+            <div class="row row--wrap" style="gap:var(--space-sm);margin-top:var(--space-xs)">
+              <span class="chip-est">
+                <!-- plus -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                $612.40 est. today
+              </span>
+              <span class="metric-trend t-success">
+                <!-- arrow-up -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                +14% vs prior month
+              </span>
+            </div>
+          </div>
+          <span class="caption t-disabled" style="max-width:30ch;text-align:right">Today is an estimate &mdash; shown as a dashed ghost bar, never merged into billed actuals.</span>
+        </div>
+      </div>
+
+      <!-- ===== Org KPI strip — secondary layer ===== -->
+      <div class="label" style="margin-bottom:var(--space-md)">ORG KPI STRIP</div>
+      <div class="grid grid--kpi" style="margin-bottom:var(--space-2xl)">
+
+        <div class="card">
+          <span class="label card-label">TOTAL &middot; JUN 2026</span>
+          <div class="metric">
+            <span class="metric-value num-tab" style="font-size:var(--display-md)">$18,420.55</span>
+            <span class="kpi-foot t-secondary">incl. <span class="t-primary">+$612.40</span> est. today</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="label card-label">MOM DELTA</span>
+          <div class="metric">
+            <span class="metric-value num-tab" style="font-size:var(--display-md)">+$2,310.00</span>
+            <span class="kpi-foot t-success">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              +14% vs prior month
+            </span>
+          </div>
+        </div>
+
+        <!-- THE single red moment: projected month-end exceeds budget -->
+        <div class="card kpi-alert">
+          <span class="label card-label">PROJECTED MONTH-END</span>
+          <div class="metric">
+            <span class="metric-value num-tab value--accent" style="font-size:var(--display-md)">$31,800.00</span>
+            <span class="kpi-foot alert-mark">
+              <!-- alert-triangle -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
+              106% of $30,000.00 &middot; incl. est. today
+            </span>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="label card-label">WORKSPACES OVER 80%</span>
+          <div class="metric">
+            <span class="metric-value num-tab" style="font-size:var(--display-md)">2<span class="metric-unit">/ 9</span></span>
+            <span class="kpi-foot t-secondary">Platform Eng &middot; <span class="t-warning">112%</span></span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== Daily spend by workspace — HEAVIEST treatment (main section) ===== -->
+      <div class="card card--pad-lg" style="margin-bottom:var(--space-2xl)">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Daily spend by workspace</div>
+            <div class="card-sub">Stacked &middot; top 8 workspaces + Other &middot; $18,420.55 this period</div>
+          </div>
+          <div class="row" style="gap:var(--space-sm)">
+            <span class="label">USE WORKSPACE COLORS</span>
+            <span class="switch on" role="switch" aria-checked="true"></span>
+          </div>
+        </div>
+
+        <div class="chart-plot">
+          <div class="chart-yaxis">
+            <span>$600</span><span>$300</span><span>$0</span>
+          </div>
+          <div class="chart-cols">
+            <!-- each column: stacked seglets (Platform Eng / Data Science / Default+Other) -->
+            <div class="col"><span class="seglet s-1" style="height:54%"></span><span class="seglet s-2" style="height:22%"></span><span class="seglet s-3" style="height:14%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:48%"></span><span class="seglet s-2" style="height:20%"></span><span class="seglet s-3" style="height:12%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:60%"></span><span class="seglet s-2" style="height:24%"></span><span class="seglet s-3" style="height:10%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:44%"></span><span class="seglet s-2" style="height:18%"></span><span class="seglet s-3" style="height:9%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:52%"></span><span class="seglet s-2" style="height:26%"></span><span class="seglet s-3" style="height:13%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:58%"></span><span class="seglet s-2" style="height:21%"></span><span class="seglet s-3" style="height:11%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:40%"></span><span class="seglet s-2" style="height:16%"></span><span class="seglet s-3" style="height:8%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:50%"></span><span class="seglet s-2" style="height:23%"></span><span class="seglet s-3" style="height:12%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:64%"></span><span class="seglet s-2" style="height:28%"></span><span class="seglet s-3" style="height:15%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:56%"></span><span class="seglet s-2" style="height:22%"></span><span class="seglet s-3" style="height:11%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:62%"></span><span class="seglet s-2" style="height:25%"></span><span class="seglet s-3" style="height:13%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:70%"></span><span class="seglet s-2" style="height:30%"></span><span class="seglet s-3" style="height:16%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:66%"></span><span class="seglet s-2" style="height:27%"></span><span class="seglet s-3" style="height:14%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:72%"></span><span class="seglet s-2" style="height:32%"></span><span class="seglet s-3" style="height:18%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:60%"></span><span class="seglet s-2" style="height:24%"></span><span class="seglet s-3" style="height:12%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:68%"></span><span class="seglet s-2" style="height:29%"></span><span class="seglet s-3" style="height:15%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:74%"></span><span class="seglet s-2" style="height:31%"></span><span class="seglet s-3" style="height:17%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:78%"></span><span class="seglet s-2" style="height:34%"></span><span class="seglet s-3" style="height:19%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:64%"></span><span class="seglet s-2" style="height:26%"></span><span class="seglet s-3" style="height:13%"></span></div>
+            <div class="col"><span class="seglet s-1" style="height:70%"></span><span class="seglet s-2" style="height:30%"></span><span class="seglet s-3" style="height:16%"></span></div>
+            <!-- Today (est.) — dashed ghost, never filled -->
+            <div class="col is-est"><span class="ghost" style="height:60%"></span></div>
+          </div>
+        </div>
+        <div class="chart-xaxis">
+          <span>Jun 1</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span><span>12</span><span>14</span><span>16</span><span>18</span><span>20</span><span>22</span><span>24</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span><span>Jun 1</span><span>Today</span>
+        </div>
+
+        <!-- direct-labelled legend (no boxes) + est. note -->
+        <div class="legend" style="margin-top:var(--space-lg)">
+          <span class="legend-item"><span class="swatch" style="background:var(--text-display)"></span>Platform Eng</span>
+          <span class="legend-item"><span class="swatch" style="background:var(--text-secondary)"></span>Data Science</span>
+          <span class="legend-item"><span class="swatch" style="background:var(--border-visible)"></span>Default Workspace &middot; Other</span>
+          <span class="legend-item"><span class="swatch" style="background:transparent;border:1px dashed var(--text-secondary)"></span>Today (est.) &asymp; $612</span>
+        </div>
+      </div>
+
+      <!-- ===== Secondary grid: Historical trend (seg-bars) + Billing budget (stat-rows) ===== -->
+      <div class="grid grid--2" style="margin-bottom:var(--space-2xl)">
+
+        <!-- Historical trend — segmented toggle + 12-month bars -->
+        <div class="card card--pad-lg">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Historical trend</div>
+              <div class="card-sub">Last 12 months &middot; monthly totals, pacing vs prior months</div>
+            </div>
+          </div>
+          <div class="row row--between row--wrap" style="margin-bottom:var(--space-lg);gap:var(--space-md)">
+            <div class="segmented">
+              <button class="active">Monthly</button>
+              <button>Pacing</button>
+              <button>Growing</button>
+            </div>
+            <div class="row row--wrap" style="gap:var(--space-xs)">
+              <span class="badge badge--warning">Platform Eng +96%</span>
+              <span class="badge badge--warning">QA Automation +143%</span>
+            </div>
+          </div>
+
+          <div class="hist-bars">
+            <div class="hb is-muted"><div class="fill" style="height:44%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:40%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:50%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:46%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:54%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:58%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:62%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:60%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:68%"></div></div>
+            <div class="hb is-muted"><div class="fill" style="height:72%"></div></div>
+            <div class="hb"><div class="fill" style="height:78%"></div></div>
+            <!-- current month, with dashed projected overlay -->
+            <div class="hb"><div class="fill is-proj" style="height:100%"></div><div class="fill" style="height:74%"></div></div>
+          </div>
+          <div class="axis">
+            <span>Jul</span><span>Sep</span><span>Nov</span><span>Jan</span><span>Mar</span><span>Jun</span>
+          </div>
+          <div class="caption t-secondary" style="margin-top:var(--space-md)">
+            Jan $12.4k &rarr; Jun $18.4k &middot; dashed = projected month-end overlay
+          </div>
+        </div>
+
+        <!-- Organization Billing — Monthly Billing Budget (stat-rows + util bar) -->
+        <div class="card card--pad-lg">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Organization Billing</div>
+              <div class="card-sub">Monthly billing budget &middot; thresholds at 80% / 100%</div>
+            </div>
+            <button class="btn btn--ghost btn--sm">Edit</button>
+          </div>
+
+          <div class="stat-list">
+            <div class="stat-row">
+              <span class="label">CURRENT SPEND</span>
+              <span class="value num-tab">$18,420.55 <span class="t-disabled">&middot; 61% of $30,000.00</span></span>
+            </div>
+            <div class="stat-row">
+              <span class="label">PROJECTED MONTH-END</span>
+              <span class="value value--warning num-tab">$31,800.00 <span class="t-disabled">&middot; 106% of budget</span></span>
+            </div>
+            <div class="stat-row">
+              <span class="label">MONTHLY BUDGET</span>
+              <span class="value value--display num-tab">$30,000.00</span>
+            </div>
+          </div>
+
+          <div style="margin-top:var(--space-lg)">
+            <div class="seg-head">
+              <span class="label">UTILIZATION &middot; +$612.40 EST. TODAY</span>
+              <span class="value mono num-tab">61%</span>
+            </div>
+            <!-- ~20 segments; 12/20 filled = 61% -->
+            <div class="seg-bar seg-bar--hero">
+              <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+              <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+              <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+              <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+              <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+            </div>
+            <div class="caption t-disabled" style="margin-top:var(--space-md)">
+              Credit balance is not exposed by the Anthropic API &mdash; view in console.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== Workspace Budgets — table of rows ===== -->
+      <div class="card card--pad-lg">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Workspace Budgets</div>
+            <div class="card-sub">Spend / limit &middot; utilization &middot; 6-month trend &middot; per-workspace limits</div>
+          </div>
+          <div class="row" style="gap:var(--space-sm)">
+            <span class="label">HIDE $0 + NO LIMIT</span>
+            <span class="switch on" role="switch" aria-checked="true"></span>
+          </div>
+        </div>
+
+        <div class="ws-list">
+
+          <!-- Platform Eng — over budget (warning/danger on VALUES only) -->
+          <div class="ws-row">
+            <div>
+              <div class="ws-name">
+                <span class="ws-dot" style="background:var(--text-display)"></span>
+                <a class="ws-link" href="./claude.html#ws-platform-eng">Platform Eng</a>
+              </div>
+              <div class="ws-badges">
+                <span class="badge badge--warning">Over budget</span>
+                <span class="badge badge--warning">112%</span>
+                <span class="badge"><span class="led" style="width:5px;height:5px;background:var(--success)"></span>Synced</span>
+              </div>
+            </div>
+            <div class="ws-spend num-tab">$7,240.00 <span class="of">of $6,500.00</span></div>
+            <div class="ws-util">
+              <span class="util-num value--warning">112%</span>
+              <span class="seg-bar seg-bar--compact">
+                <span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span>
+                <span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span>
+              </span>
+              <span class="on-pace">on pace $9,800 (151%)</span>
+            </div>
+            <div class="ws-spark">
+              <svg viewBox="0 0 120 28" width="120" height="28" fill="none" stroke="var(--text-display)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22 22 18 42 19 62 12 82 13 102 6 118 4"/></svg>
+              <span class="delta t-warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                +96%
+              </span>
+            </div>
+            <div class="ws-action"><button class="btn btn--secondary btn--sm">Edit limit</button></div>
+          </div>
+
+          <!-- Data Science — 80%+ amber -->
+          <div class="ws-row">
+            <div>
+              <div class="ws-name">
+                <span class="ws-dot" style="background:var(--text-secondary)"></span>
+                <a class="ws-link" href="./claude.html#ws-data-science">Data Science</a>
+              </div>
+              <div class="ws-badges">
+                <span class="badge badge--warning">82%</span>
+                <span class="badge"><span class="led" style="width:5px;height:5px;background:var(--success)"></span>Synced</span>
+              </div>
+            </div>
+            <div class="ws-spend num-tab">$4,110.00 <span class="of">of $5,000.00</span></div>
+            <div class="ws-util">
+              <span class="util-num value--warning">82%</span>
+              <span class="seg-bar seg-bar--compact">
+                <span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span>
+                <span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg is-warn"></span><span class="seg"></span><span class="seg"></span>
+              </span>
+              <span class="on-pace">on pace $5,560 (111%)</span>
+            </div>
+            <div class="ws-spark">
+              <svg viewBox="0 0 120 28" width="120" height="28" fill="none" stroke="var(--text-display)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 24 22 23 42 16 62 17 82 9 102 7 118 3"/></svg>
+              <span class="delta t-warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                +181%
+              </span>
+            </div>
+            <div class="ws-action"><button class="btn btn--secondary btn--sm">Edit limit</button></div>
+          </div>
+
+          <!-- Default Workspace — no limit, Default badge -->
+          <div class="ws-row">
+            <div>
+              <div class="ws-name">
+                <span class="ws-dot" style="background:var(--border-visible)"></span>
+                <a class="ws-link" href="./claude.html#ws-default">Default Workspace</a>
+              </div>
+              <div class="ws-badges">
+                <span class="badge">Default</span>
+                <span class="badge"><span class="led" style="width:5px;height:5px;background:var(--success)"></span>Synced</span>
+              </div>
+            </div>
+            <div class="ws-spend num-tab">$980.00 <span class="of">of no limit</span></div>
+            <div class="ws-util">
+              <span class="util-num t-disabled">no limit</span>
+              <span class="seg-bar seg-bar--compact">
+                <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+                <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+              </span>
+              <span class="on-pace">no projection</span>
+            </div>
+            <div class="ws-spark">
+              <svg viewBox="0 0 120 28" width="120" height="28" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14 22 13 42 15 62 13 82 14 102 13 118 14"/></svg>
+              <span class="delta t-secondary">flat</span>
+            </div>
+            <div class="ws-action"><button class="btn btn--secondary btn--sm">Set limit</button></div>
+          </div>
+
+          <!-- QA Automation — new, fast growing -->
+          <div class="ws-row">
+            <div>
+              <div class="ws-name">
+                <span class="ws-dot" style="background:var(--text-secondary)"></span>
+                <a class="ws-link" href="./claude.html#ws-qa-automation">QA Automation</a>
+              </div>
+              <div class="ws-badges">
+                <span class="badge">new</span>
+                <span class="badge"><span class="led" style="width:5px;height:5px;background:var(--warning)"></span>Stale</span>
+              </div>
+            </div>
+            <div class="ws-spend num-tab">$1,250.00 <span class="of">of $2,000.00</span></div>
+            <div class="ws-util">
+              <span class="util-num t-primary">63%</span>
+              <span class="seg-bar seg-bar--compact">
+                <span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span><span class="seg is-filled"></span>
+                <span class="seg is-filled"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+              </span>
+              <span class="on-pace">on pace $1,690 (85%)</span>
+            </div>
+            <div class="ws-spark">
+              <svg viewBox="0 0 120 28" width="120" height="28" fill="none" stroke="var(--text-display)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 25 22 24 42 20 62 18 82 12 102 8 118 5"/></svg>
+              <span class="delta t-warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                +143%
+              </span>
+            </div>
+            <div class="ws-action"><button class="btn btn--secondary btn--sm">Edit limit</button></div>
+          </div>
+
+        </div>
+
+        <!-- Show hidden expander (localStorage-persisted toggle) -->
+        <button class="show-hidden">
+          <!-- chevron-down -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          Show 5 hidden workspaces ($0 + no limit, incl. Research Sandbox)
+        </button>
+      </div>
+
+      <!-- ===== Empty state (alternate, never-synced) — kept for reference parity ===== -->
+      <!-- Shown only before first sync; hidden in the populated view above.
+      <div class="card card--pad-lg empty section-gap">
+        <div style="display:grid;place-items:center;margin-bottom:var(--space-md);color:var(--text-secondary)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:40px;height:40px"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13.5" r="0.6" fill="currentColor"/><circle cx="15" cy="13.5" r="0.6" fill="currentColor"/><path d="M9.5 16.5h5"/></svg>
+        </div>
+        <div class="empty-title">No data yet</div>
+        <div class="empty-sub">Workspace cost data will appear after the first sync. You can trigger a sync manually.</div>
+      </div>
+      -->
+
+    </main>
+  </div>
+</body>
+</html>

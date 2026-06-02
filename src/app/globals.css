@@ -4,6 +4,17 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* =============================================================================
+   NOTHING DESIGN SYSTEM — token layer for AI Developer Hub (spec 028).
+   shadcn semantic var names are kept and re-pointed onto Nothing values so every
+   primitive keeps resolving. Light is the :root default (printed-manual canvas),
+   dark is the .dark override (instrument panel) — next-themes attribute="class".
+
+   Collision note: shadcn's --accent is a NEUTRAL hover background, NOT the loud
+   Nothing red. The single red interrupt + all error/destructive states route
+   through --destructive (#d71921). Status greens/ambers are value-text-only.
+   ============================================================================= */
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -12,6 +23,13 @@
     --radius-2xl: calc(var(--radius) + 8px);
     --radius-3xl: calc(var(--radius) + 12px);
     --radius-4xl: calc(var(--radius) + 16px);
+
+    /* Three-family Nothing stack, chained to the next/font-injected variables
+       (font-specific names dodge a circular --font-sans: var(--font-sans)). */
+    --font-sans: var(--font-space-grotesk), "DM Sans", system-ui, sans-serif;
+    --font-mono: var(--font-space-mono), "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    --font-display: var(--font-doto), var(--font-space-mono), monospace;
+
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -27,6 +45,7 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
+    --color-destructive-subtle: var(--destructive-subtle);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
@@ -43,75 +62,113 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Nothing extras shadcn lacks: 100% ink, 40% faint, status, segmented track. */
+    --color-ink: var(--ink);
+    --color-faint: var(--faint);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-seg-empty: var(--seg-empty);
+    --color-border-strong: var(--input);
+    --color-interactive: var(--interactive);
 }
 
+/* ---------------------------------------------------------------------------
+   LIGHT — :root default. Nothing "printed manual".
+   --------------------------------------------------------------------------- */
 :root {
-    --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.78 0.19 120);
-    --primary-foreground: oklch(0.18 0 0);
-    --secondary: oklch(0.96 0 0);
-    --secondary-foreground: oklch(0.20 0 0);
-    --muted: oklch(0.96 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.95 0.03 120);
-    --accent-foreground: oklch(0.20 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.91 0 0);
-    --input: oklch(0.91 0 0);
-    --ring: oklch(0.78 0.19 120);
-    --chart-1: oklch(0.78 0.19 120);
-    --chart-2: oklch(0.55 0.15 250);
-    --chart-3: oklch(0.65 0.18 45);
-    --chart-4: oklch(0.50 0.15 300);
-    --chart-5: oklch(0.60 0.12 180);
-    --sidebar: oklch(0.98 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.78 0.19 120);
-    --sidebar-primary-foreground: oklch(0.18 0 0);
-    --sidebar-accent: oklch(0.96 0 0);
-    --sidebar-accent-foreground: oklch(0.20 0 0);
-    --sidebar-border: oklch(0.91 0 0);
-    --sidebar-ring: oklch(0.78 0.19 120);
+    --radius: 0.5rem; /* technical scale; cards override to 14px in card.tsx */
+
+    --background: #f5f5f5;          /* Nothing --black (light canvas) */
+    --foreground: #1a1a1a;          /* --text-primary */
+    --card: #ffffff;                /* --surface */
+    --card-foreground: #1a1a1a;
+    --popover: #f0f0f0;             /* --surface-raised (dropdowns/popovers) */
+    --popover-foreground: #1a1a1a;
+    --primary: #000000;             /* --text-display — greyscale fill, NOT a hue */
+    --primary-foreground: #f5f5f5;  /* --black */
+    --secondary: #f0f0f0;           /* --surface-raised */
+    --secondary-foreground: #1a1a1a;
+    --muted: #ffffff;               /* --surface */
+    --muted-foreground: #666666;    /* --text-secondary */
+    --accent: #f0f0f0;              /* shadcn hover bg — NEUTRAL surface-raised */
+    --accent-foreground: #1a1a1a;
+    --destructive: #d71921;         /* THE one interrupt + all errors */
+    --border: #e8e8e8;              /* --border (dividers) */
+    --input: #cccccc;               /* --border-visible (interactive edges) */
+    --ring: #d71921;                /* focus = red, passes both modes */
+    --chart-1: #1a1a1a;
+    --chart-2: #555555;
+    --chart-3: #888888;
+    --chart-4: #aaaaaa;
+    --chart-5: #c8c8c8;
+    --sidebar: #f5f5f5;             /* sidebar == canvas */
+    --sidebar-foreground: #1a1a1a;
+    --sidebar-primary: #000000;
+    --sidebar-primary-foreground: #f5f5f5;
+    --sidebar-accent: #f0f0f0;
+    --sidebar-accent-foreground: #000000;
+    --sidebar-border: #e8e8e8;
+    --sidebar-ring: #d71921;
+
+    /* Nothing extras */
+    --ink: #000000;                 /* --text-display (100%) */
+    --faint: #999999;               /* --text-disabled (40%) */
+    --success: #2e7d32;             /* darkened for ≥4.5:1 value text on light (see notes) */
+    --warning: #946c00;             /* darkened for ≥4.5:1 value text on light (see notes) */
+    --seg-empty: #e0e0e0;
+    --destructive-subtle: rgba(215, 25, 33, 0.10);
+    --accent-subtle: rgba(215, 25, 33, 0.10);
+    --interactive: #007aff;
+
+    --font-ui: var(--font-sans);    /* mockup-vocabulary alias */
 }
 
+/* ---------------------------------------------------------------------------
+   DARK — .dark override. Nothing "instrument panel" (OLED black).
+   --------------------------------------------------------------------------- */
 .dark {
-    --background: oklch(0.16 0 0);
-    --foreground: oklch(0.97 0 0);
-    --card: oklch(0.21 0 0);
-    --card-foreground: oklch(0.98 0 0);
-    --popover: oklch(0.21 0 0);
-    --popover-foreground: oklch(0.98 0 0);
-    --primary: oklch(0.78 0.19 120);
-    --primary-foreground: oklch(0.18 0 0);
-    --secondary: oklch(0.25 0 0);
-    --secondary-foreground: oklch(0.98 0 0);
-    --muted: oklch(0.25 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.25 0.03 120);
-    --accent-foreground: oklch(0.98 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.78 0.19 120);
-    --chart-1: oklch(0.80 0.19 120);
-    --chart-2: oklch(0.65 0.17 250);
-    --chart-3: oklch(0.72 0.18 45);
-    --chart-4: oklch(0.62 0.16 300);
-    --chart-5: oklch(0.68 0.14 180);
-    --sidebar: oklch(0.21 0 0);
-    --sidebar-foreground: oklch(0.98 0 0);
-    --sidebar-primary: oklch(0.78 0.19 120);
-    --sidebar-primary-foreground: oklch(0.18 0 0);
-    --sidebar-accent: oklch(0.25 0 0);
-    --sidebar-accent-foreground: oklch(0.98 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.78 0.19 120);
+    --background: #000000;
+    --foreground: #e8e8e8;
+    --card: #111111;
+    --card-foreground: #e8e8e8;
+    --popover: #1a1a1a;
+    --popover-foreground: #e8e8e8;
+    --primary: #ffffff;
+    --primary-foreground: #000000;
+    --secondary: #1a1a1a;
+    --secondary-foreground: #e8e8e8;
+    --muted: #111111;
+    --muted-foreground: #999999;
+    --accent: #1a1a1a;              /* neutral hover */
+    --accent-foreground: #e8e8e8;
+    --destructive: #d71921;
+    --border: #222222;
+    --input: #333333;
+    --ring: #d71921;
+    --chart-1: #ffffff;
+    --chart-2: #cccccc;
+    --chart-3: #999999;
+    --chart-4: #666666;
+    --chart-5: #444444;
+    --sidebar: #000000;
+    --sidebar-foreground: #e8e8e8;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #000000;
+    --sidebar-accent: #1a1a1a;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #222222;
+    --sidebar-ring: #d71921;
+
+    /* Nothing extras (spec values pass on black) */
+    --ink: #ffffff;
+    --faint: #666666;
+    --success: #4a9e5c;
+    --warning: #d4a843;
+    --seg-empty: #222222;
+    --destructive-subtle: rgba(215, 25, 33, 0.15);
+    --accent-subtle: rgba(215, 25, 33, 0.15);
+    --interactive: #5b9bf6;
 }
 
 @layer base {
@@ -119,7 +176,7 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
     }
 }
 

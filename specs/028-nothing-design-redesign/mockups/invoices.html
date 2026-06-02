@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Invoices · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="wordmark">AI&middot;HUB</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="./dashboard.html">Dashboard</a>
+        <a class="nav-item" href="./tools.html">Tools</a>
+        <a class="nav-item" href="./users.html">Users</a>
+        <a class="nav-item" href="./assignments.html">Assignments</a>
+        <a class="nav-item" href="./requests.html">Requests</a>
+        <a class="nav-item" href="./budget.html">Budget</a>
+        <a class="nav-item" href="./reports.html">Reports</a>
+        <a class="nav-item" href="./copilot.html">Copilot</a>
+        <a class="nav-item" href="./claude.html">Claude Console</a>
+        <a class="nav-item active" href="./invoices.html">Invoices</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span class="avatar">TS</span>
+          <span class="stack">
+            <span class="t-primary" style="font-size:13px">Tobias Studer</span>
+            <span class="label">Admin</span>
+          </span>
+        </div>
+        <a class="nav-item" href="./login.html">Sign Out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="label eyebrow">BILLING&nbsp;/&nbsp;INVOICE ARCHIVE</div>
+          <h1 class="display-md">Invoices</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="btn btn--secondary btn--sm" href="./invoices.html#bulk">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Bulk Upload
+          </a>
+          <a class="btn btn--primary btn--sm" href="./invoices.html#new">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Upload Invoice
+          </a>
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== SCREEN CONTENT ===== -->
+
+      <!-- HERO METRIC — primary layer -->
+      <div class="metric metric-hero" style="margin-bottom: var(--space-2xl)">
+        <span class="label">ARCHIVED INVOICES</span>
+        <span class="metric-value is-doto">42<span class="metric-unit">invoices</span></span>
+        <span class="metric-trend t-secondary">Total PDF invoices uploaded and archived &middot; admin-only view, sorted newest first</span>
+      </div>
+
+      <!-- PRIMARY SECTION — Invoice Archive Table (heaviest treatment) -->
+      <div class="card card--pad-lg">
+        <div class="row row--between row--wrap" style="margin-bottom: var(--space-lg); gap: var(--space-md)">
+          <div class="stack stack--sm">
+            <span class="label">INVOICE ARCHIVE TABLE</span>
+            <span class="caption">42 archived &middot; showing 1–5 of 42</span>
+          </div>
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" placeholder="Search invoices..." value="" />
+          </div>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>
+                <span class="row" style="gap:6px; display:inline-flex; align-items:center">Invoice Number
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:.6"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+              </th>
+              <th>
+                <span class="row" style="gap:6px; display:inline-flex; align-items:center">Date
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:1"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                </span>
+              </th>
+              <th class="num">
+                <span class="row" style="gap:6px; display:inline-flex; align-items:center; justify-content:flex-end">Amount
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:.6"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+              </th>
+              <th>
+                <span class="row" style="gap:6px; display:inline-flex; align-items:center">Vendor
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:.6"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+              </th>
+              <th>Budget Period</th>
+              <th>Uploaded By</th>
+              <th class="num">Download</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cell-strong">INV-1042</td>
+              <td class="num">Mar 3, 2026</td>
+              <td class="num">$12,480.00</td>
+              <td>Anthropic</td>
+              <td><span class="tag tag--tech">2026-Q1</span></td>
+              <td>Tobias Studer</td>
+              <td class="num">
+                <a class="btn btn--ghost btn--icon" href="./invoices.html#pdf-1042" aria-label="Download invoice INV-1042" title="Download" style="margin-left:auto">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="cell-strong">INV-2087</td>
+              <td class="num">Feb 28, 2026</td>
+              <td class="num">$3,250.50</td>
+              <td>GitHub</td>
+              <td><span class="tag tag--tech">2026-02</span></td>
+              <td>Tobias Studer</td>
+              <td class="num">
+                <a class="btn btn--ghost btn--icon" href="./invoices.html#pdf-2087" aria-label="Download invoice INV-2087" title="Download" style="margin-left:auto">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="cell-strong">INV-9921</td>
+              <td class="num">Feb 14, 2026</td>
+              <td class="num">$899.00</td>
+              <td>Cursor</td>
+              <td><span class="tag tag--tech">2026-Q1</span></td>
+              <td>Admin</td>
+              <td class="num">
+                <a class="btn btn--ghost btn--icon" href="./invoices.html#pdf-9921" aria-label="Download invoice INV-9921" title="Download" style="margin-left:auto">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="cell-strong">INV-1043</td>
+              <td class="num">Jan 31, 2026</td>
+              <td class="num">$12,480.00</td>
+              <td>Anthropic</td>
+              <td><span class="tag tag--tech">2026-01</span></td>
+              <td>Tobias Studer</td>
+              <td class="num">
+                <a class="btn btn--ghost btn--icon" href="./invoices.html#pdf-1043" aria-label="Download invoice INV-1043" title="Download" style="margin-left:auto">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="cell-strong">INV-7755</td>
+              <td class="num">Jan 9, 2026</td>
+              <td class="num">$540.00</td>
+              <td class="t-disabled">&mdash;</td>
+              <td class="t-disabled">&mdash;</td>
+              <td class="t-disabled">&mdash;</td>
+              <td class="num">
+                <a class="btn btn--ghost btn--icon" href="./invoices.html#pdf-7755" aria-label="Download invoice INV-7755" title="Download" style="margin-left:auto">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- pagination + rows-per-page -->
+        <div class="row row--between row--wrap" style="margin-top: var(--space-lg); gap: var(--space-md)">
+          <div class="row" style="gap: var(--space-sm)">
+            <span class="label">ROWS PER PAGE</span>
+            <div class="segmented">
+              <button class="active">10</button>
+              <button>25</button>
+              <button>50</button>
+              <button>100</button>
+            </div>
+          </div>
+          <div class="period-nav">
+            <a class="nav-arrow" href="./invoices.html#prev" aria-label="Previous page">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </a>
+            <span class="period-label">PAGE 1 / 5</span>
+            <a class="nav-arrow" href="./invoices.html#next" aria-label="Next page">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- SECONDARY SECTIONS — varied forms -->
+      <div class="grid grid--2">
+
+        <!-- Row Action — Download (stat-list form) -->
+        <div class="card--bare">
+          <span class="label card-label">ROW ACTION &middot; DOWNLOAD</span>
+          <div class="stat-list">
+            <div class="stat-row">
+              <span class="label">CONTROL</span>
+              <span class="value">
+                <span class="row" style="gap:8px; display:inline-flex; align-items:center">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                  Ghost icon button
+                </span>
+              </span>
+            </div>
+            <div class="stat-row">
+              <span class="label">TOOLTIP</span>
+              <span class="value">Download</span>
+            </div>
+            <div class="stat-row">
+              <span class="label">ARIA-LABEL</span>
+              <span class="value">Download invoice INV-1042</span>
+            </div>
+            <div class="stat-row">
+              <span class="label">TARGET</span>
+              <span class="value t-secondary">/api/invoices/{id}/pdf</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State (no invoices) -->
+        <div class="card">
+          <span class="label card-label">EMPTY STATE &middot; NO INVOICES</span>
+          <div class="empty" style="padding: var(--space-2xl) var(--space-md)">
+            <div class="empty-title">No invoices archived yet.</div>
+            <div class="empty-sub" style="margin-bottom: var(--space-lg)">Shown only when the archive is empty</div>
+            <a class="btn btn--secondary btn--sm" href="./invoices.html#new">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Upload your first invoice
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status / tag legend — extraction states from the upload flows -->
+      <div class="card--bare section-gap">
+        <span class="label card-label">UPLOAD &amp; SYNC STATUS &middot; FROM /invoices/new &amp; /invoices/bulk</span>
+        <div class="row row--wrap" style="gap: var(--space-sm)">
+          <span class="tag tag--success"><span class="led"></span>Synced</span>
+          <span class="tag tag--active"><span class="led"></span>Linked</span>
+          <span class="tag">Unlinked &middot; &mdash;</span>
+          <span class="tag tag--accent"><span class="led"></span>Duplicate</span>
+          <span class="tag tag--warning"><span class="led"></span>Low confidence</span>
+          <span class="tag tag--success">High confidence</span>
+        </div>
+        <p class="caption" style="margin-top: var(--space-md); max-width: 64ch">
+          Single upload runs AI field extraction with confidence highlighting on Invoice Number / Date / Amount / Vendor; a duplicate triggers a "Duplicate Invoice Detected" dialog (Skip vs Overwrite). Bulk upload accepts a ZIP of PDFs and returns a sync-results review.
+        </p>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

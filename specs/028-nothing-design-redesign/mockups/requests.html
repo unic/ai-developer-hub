@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Access Requests · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="wordmark">AI&middot;HUB</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="./dashboard.html">Dashboard</a>
+        <a class="nav-item" href="./tools.html">Tools</a>
+        <a class="nav-item" href="./users.html">Users</a>
+        <a class="nav-item" href="./assignments.html">Assignments</a>
+        <a class="nav-item active" href="./requests.html">Requests</a>
+        <a class="nav-item" href="./budget.html">Budget</a>
+        <a class="nav-item" href="./reports.html">Reports</a>
+        <a class="nav-item" href="./copilot.html">Copilot</a>
+        <a class="nav-item" href="./claude.html">Claude Console</a>
+        <a class="nav-item" href="./invoices.html">Invoices</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span class="avatar">TS</span>
+          <span class="stack">
+            <span class="t-primary" style="font-size:13px">Tobias Studer</span>
+            <span class="label">Admin</span>
+          </span>
+        </div>
+        <a class="nav-item" href="./login.html">Sign Out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="label eyebrow">INBOX&nbsp;/&nbsp;APPROVALS</div>
+          <h1 class="display-md">Access Requests</h1>
+        </div>
+        <div class="topbar-actions">
+          <label class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" placeholder="Requester name or email…" />
+          </label>
+          <button class="btn btn--secondary btn--sm">
+            Status
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== SCREEN CONTENT ===== -->
+
+      <!-- PRIMARY: the one hero number — pending review queue depth -->
+      <section class="row row--between row--wrap" style="align-items:flex-end;gap:var(--space-2xl)">
+        <div class="metric">
+          <span class="label">PENDING REVIEW</span>
+          <span class="metric-value is-doto t-accent" style="font-size:var(--display-xl)">7<span class="metric-unit">requests</span></span>
+        </div>
+        <p class="caption" style="max-width:48ch;line-height:1.6;text-align:right">
+          Routed from Microsoft Forms via Power Automate. Any admin can claim any request &mdash; first to act wins.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- SECONDARY: faceted status filter, summary, pagination context -->
+      <div class="row row--between row--wrap" style="margin-bottom:var(--space-lg)">
+        <div class="segmented">
+          <button class="active">All</button>
+          <button>Pending review</button>
+          <button>Approved</button>
+          <button>Completed</button>
+          <button>Rejected</button>
+          <button>Cancelled</button>
+        </div>
+        <div class="row" style="gap:var(--space-lg)">
+          <span class="label">ROWS</span>
+          <div class="segmented">
+            <button class="active">10</button>
+            <button>25</button>
+            <button>50</button>
+            <button>100</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRIMARY SECTION: the request queue table (heaviest treatment) -->
+      <div class="card card--pad-lg">
+        <div class="row row--between" style="margin-bottom:var(--space-lg)">
+          <span class="label">LICENSE REQUESTS &middot; NEWEST FIRST</span>
+          <span class="caption mono">Showing 1&ndash;10 of 42</span>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Requester</th>
+              <th>Tool / tier</th>
+              <th>Status</th>
+              <th>Decided by</th>
+              <th class="num">Age</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="is-active">
+              <td class="num"><a href="#" class="cell-strong">REQ-042</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Mara Holzer</span>
+                  <span class="caption">mara.holzer@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  GitHub Copilot
+                  <span class="tag tag--tech">Business</span>
+                </span>
+              </td>
+              <td><span class="tag tag--active"><span class="led"></span>Pending review</span></td>
+              <td class="t-disabled">&mdash;</td>
+              <td class="num">3 hours ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-041</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Tobias Studer</span>
+                  <span class="caption">tobias.studer@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  Claude
+                  <span class="tag tag--tech">Team</span>
+                </span>
+              </td>
+              <td><span class="tag">Approved</span></td>
+              <td>Lena Brunner</td>
+              <td class="num">1 day ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-039</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">David K&uuml;min</span>
+                  <span class="caption">david.kuemin@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  Cursor
+                  <span class="tag tag--tech">Pro</span>
+                </span>
+              </td>
+              <td><span class="tag">Completed</span></td>
+              <td>Lena Brunner</td>
+              <td class="num">4 days ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-036</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Anita Frei</span>
+                  <span class="caption">anita.frei@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  ChatGPT Enterprise
+                  <span class="tag tag--tech">Standard</span>
+                </span>
+              </td>
+              <td><span class="tag">Rejected</span></td>
+              <td>Tobias Studer</td>
+              <td class="num">6 days ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-031</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Pascal Meier</span>
+                  <span class="caption">pascal.meier@unic.com</span>
+                </span>
+              </td>
+              <td>GitHub Copilot</td>
+              <td><span class="tag">Cancelled</span></td>
+              <td class="t-disabled">&mdash;</td>
+              <td class="num">2 weeks ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-029</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Sofia Bianchi</span>
+                  <span class="caption">sofia.bianchi@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  Claude
+                  <span class="tag tag--tech">Pro</span>
+                </span>
+              </td>
+              <td><span class="tag">Approved</span></td>
+              <td>Tobias Studer</td>
+              <td class="num">2 weeks ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-027</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Jonas Widmer</span>
+                  <span class="caption">jonas.widmer@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  GitHub Copilot
+                  <span class="tag tag--tech">Business</span>
+                </span>
+              </td>
+              <td><span class="tag">Completed</span></td>
+              <td>Lena Brunner</td>
+              <td class="num">3 weeks ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-024</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Elena Vogt</span>
+                  <span class="caption">elena.vogt@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  Cursor
+                  <span class="tag tag--tech">Pro</span>
+                </span>
+              </td>
+              <td><span class="tag">Completed</span></td>
+              <td>Tobias Studer</td>
+              <td class="num">1 month ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-022</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Marco Steiner</span>
+                  <span class="caption">marco.steiner@unic.com</span>
+                </span>
+              </td>
+              <td>
+                <span class="row" style="gap:var(--space-sm)">
+                  ChatGPT Enterprise
+                  <span class="tag tag--tech">Standard</span>
+                </span>
+              </td>
+              <td><span class="tag">Rejected</span></td>
+              <td>Lena Brunner</td>
+              <td class="num">1 month ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+            <tr>
+              <td class="num"><a href="#" class="cell-strong">REQ-019</a></td>
+              <td>
+                <span class="stack">
+                  <span class="cell-strong">Nadia Keller</span>
+                  <span class="caption">nadia.keller@unic.com</span>
+                </span>
+              </td>
+              <td>GitHub Copilot</td>
+              <td><span class="tag">Cancelled</span></td>
+              <td class="t-disabled">&mdash;</td>
+              <td class="num">2 months ago</td>
+              <td class="num"><a href="#" class="btn btn--ghost btn--sm">Open</a></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- pagination -->
+        <div class="row row--between" style="margin-top:var(--space-lg)">
+          <span class="caption mono">Page 1 of 5</span>
+          <div class="row" style="gap:var(--space-sm)">
+            <button class="btn btn--secondary btn--sm" disabled style="opacity:0.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              Prev
+            </button>
+            <button class="btn btn--secondary btn--sm">
+              Next
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TERTIARY: drill-in context (varied form — stat-list, not a card grid) -->
+      <div class="section-gap">
+        <div class="row row--between" style="margin-bottom:var(--space-md)">
+          <span class="label">ROW &rarr; DETAIL DRILL-IN</span>
+          <span class="caption mono">/requests/&#123;id&#125;</span>
+        </div>
+        <div class="grid grid--2">
+          <div class="card">
+            <span class="label card-label">WHAT THE DETAIL PAGE SHOWS</span>
+            <div class="stat-list">
+              <div class="stat-row"><span class="label">STATUS BADGE</span><span class="value">Pending review</span></div>
+              <div class="stat-row"><span class="label">REQUESTER CARD</span><span class="value">Name · Email · Hub match · Assignment #</span></div>
+              <div class="stat-row"><span class="label">REQUEST PAYLOAD</span><span class="value">Tool · Tier · Raw Forms fields</span></div>
+              <div class="stat-row"><span class="label">SENT MESSAGES</span><span class="value">Approval · Completion · Rejection (Teams)</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <span class="label card-label">ACTION BAR · FIRST-WRITE-WINS</span>
+            <p class="caption" style="line-height:1.7;margin-bottom:var(--space-lg)">
+              Any admin can act on this request. First-write-wins &mdash; the first decision is recorded and the
+              request leaves the pending queue. Admin-only route (AuthGuard requiredRole&nbsp;=&nbsp;&quot;admin&quot;).
+            </p>
+            <div class="row row--wrap" style="gap:var(--space-sm)">
+              <span class="btn btn--primary btn--sm">Approve</span>
+              <span class="btn btn--secondary btn--sm">Complete</span>
+              <span class="btn btn--secondary btn--sm">Cancel request</span>
+              <span class="btn btn--secondary btn--sm">Reject</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

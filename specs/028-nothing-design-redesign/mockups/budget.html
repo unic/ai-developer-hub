@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Budget · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="wordmark">AI&middot;HUB</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="./dashboard.html">Dashboard</a>
+        <a class="nav-item" href="./tools.html">Tools</a>
+        <a class="nav-item" href="./users.html">Users</a>
+        <a class="nav-item" href="./assignments.html">Assignments</a>
+        <a class="nav-item" href="./requests.html">Requests</a>
+        <a class="nav-item active" href="./budget.html">Budget</a>
+        <a class="nav-item" href="./reports.html">Reports</a>
+        <a class="nav-item" href="./copilot.html">Copilot</a>
+        <a class="nav-item" href="./claude.html">Claude Console</a>
+        <a class="nav-item" href="./invoices.html">Invoices</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span class="avatar">TS</span>
+          <span class="stack">
+            <span class="t-primary" style="font-size:13px">Tobias Studer</span>
+            <span class="label">Admin</span>
+          </span>
+        </div>
+        <a class="nav-item" href="./login.html">Sign Out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="label eyebrow">SPEND&nbsp;TRACKING</div>
+          <h1 class="display-md">Budget</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="btn btn--ghost btn--sm" href="./budget-history.html">All budgets</a>
+          <a class="btn btn--secondary btn--sm" href="./budget-new.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            New Budget
+          </a>
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== SCREEN CONTENT ===== -->
+
+      <!-- Breadcrumb (suppressed on /budget landing; shown here for the FY detail view) -->
+      <nav class="row" style="gap:var(--space-sm);margin-bottom:var(--space-lg)">
+        <a href="./budget-history.html" class="caption mono t-secondary">Budget history</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--text-disabled)"><path d="m9 18 6-6-6-6"/></svg>
+        <span class="caption mono t-primary">FY 2026</span>
+      </nav>
+
+      <!-- Budget title row: FY name + eyebrow, status badge, period-type caption -->
+      <section class="row row--between row--wrap" style="align-items:flex-end;margin-bottom:var(--space-lg)">
+        <div class="stack stack--sm">
+          <span class="label eyebrow">ANNUAL&nbsp;AI&nbsp;TOOL&nbsp;BUDGET</span>
+          <div class="row" style="gap:var(--space-md)">
+            <span class="heading">FY 2026 Budget</span>
+            <span class="tag tag--active"><span class="led"></span>Active</span>
+          </div>
+        </div>
+        <span class="caption mono">Monthly allocation</span>
+      </section>
+
+      <!-- ================= PRIMARY SECTION: Budget health hero (heaviest treatment) ================= -->
+      <div class="card card--pad-lg">
+        <!-- top: narrative + status on left, hero ceiling on right -->
+        <div class="row row--between row--wrap" style="align-items:flex-start;gap:var(--space-2xl);margin-bottom:var(--space-xl)">
+          <div class="stack stack--md" style="max-width:46ch">
+            <div class="row" style="gap:var(--space-md)">
+              <span class="tag tag--warning"><span class="led"></span>At risk</span>
+              <span class="caption mono t-warning">Variance +$3,200.00 through May 2026</span>
+            </div>
+            <p class="subheading" style="line-height:1.5">
+              Tracking <span class="mono t-warning">$3,200.00</span> over the closed-period plan &mdash;
+              actual <span class="mono">$52,300.00</span> vs <span class="mono">$49,100.00</span> expected through May.
+              Projected to land under ceiling.
+            </p>
+          </div>
+          <div class="metric" style="align-items:flex-end;text-align:right">
+            <span class="label">ANNUAL CEILING</span>
+            <span class="metric-value is-doto" style="font-size:var(--display-xl)">240,000<span class="metric-unit">USD</span></span>
+            <span class="metric-trend t-secondary">$18,500.00 unallocated</span>
+          </div>
+        </div>
+
+        <!-- SIGNATURE VIZ: multi-marker segmented progress bar -->
+        <div class="seg-head">
+          <span class="label">SPEND vs CEILING &middot; FY 2026</span>
+          <span class="value value--display mono">Ceiling $240,000.00</span>
+        </div>
+        <!-- 20 segments: actual YTD fill (~8), allocated-remaining (~10), empty headroom (~2) -->
+        <div class="seg-bar seg-bar--hero">
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled"></span>
+          <span class="seg is-filled" style="opacity:0.5"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg" style="background:var(--border-visible)"></span>
+          <span class="seg"></span>
+          <span class="seg"></span>
+        </div>
+
+        <!-- marker legend -->
+        <div class="legend" style="margin-top:var(--space-md)">
+          <span class="legend-item"><span class="swatch" style="background:var(--text-display)"></span>Actual YTD &middot; <span class="mono t-primary">$100,520.00</span></span>
+          <span class="legend-item"><span class="swatch" style="background:var(--border-visible)"></span>Allocated remaining</span>
+          <span class="legend-item"><span class="swatch" style="width:2px;height:12px;background:var(--text-secondary)"></span>Planned YTD &middot; <span class="mono">$100,000.00</span></span>
+          <span class="legend-item"><span class="swatch" style="width:2px;height:12px;background:var(--warning)"></span>Expected through May 2026 &middot; <span class="mono">$49,100.00</span></span>
+        </div>
+
+        <hr class="divider" style="margin:var(--space-xl) 0" />
+
+        <!-- 4-tile KPI grid -->
+        <div class="grid grid--kpi">
+          <div class="card card--raised">
+            <span class="label card-label">BILLED YTD</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">96,400<span class="metric-unit">USD</span></span>
+              <span class="caption mono t-secondary">+ $4,120.00 running API</span>
+            </div>
+          </div>
+          <div class="card card--raised">
+            <span class="label card-label">ACTUAL YTD</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">100,520<span class="metric-unit">USD</span></span>
+              <span class="caption mono t-secondary">$8,300.00 in Jun 2026 so far</span>
+            </div>
+          </div>
+          <div class="card card--raised">
+            <span class="label card-label">PROJECTED YEAR-END</span>
+            <div class="metric">
+              <span class="metric-value" style="font-size:var(--display-md)">231,800<span class="metric-unit">USD</span></span>
+              <span class="caption mono t-success">$8,200.00 under ceiling</span>
+            </div>
+          </div>
+          <div class="card card--raised">
+            <span class="label card-label">VARIANCE THRU MAY 2026</span>
+            <div class="metric">
+              <span class="metric-value t-warning" style="font-size:var(--display-md)">+3,200<span class="metric-unit">USD</span></span>
+              <span class="caption mono t-secondary">$52,300.00 vs $49,100.00 expected</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SECONDARY: Past month spotlight (varied form — eyebrow card + KPI grid) ================= -->
+      <div class="section-gap">
+        <div class="card card--pad-lg">
+          <span class="label card-label">PAST MONTH SPOTLIGHT</span>
+          <div class="row row--between row--wrap" style="align-items:baseline;margin-bottom:var(--space-lg)">
+            <span class="heading">May 2026 &mdash; $19,800.00 actual vs $20,000.00 planned</span>
+            <span class="caption mono t-success">On track &middot; within plan</span>
+          </div>
+          <div class="grid grid--4">
+            <div class="stack stack--sm">
+              <span class="label">PLANNED</span>
+              <span class="metric-value mono" style="font-size:var(--heading)">$20,000.00</span>
+              <span class="caption">Allocated</span>
+            </div>
+            <div class="stack stack--sm">
+              <span class="label">EXPECTED</span>
+              <span class="metric-value mono" style="font-size:var(--heading)">$18,500.00</span>
+              <span class="caption">From license assignments</span>
+            </div>
+            <div class="stack stack--sm">
+              <span class="label">ACTUAL</span>
+              <span class="metric-value mono" style="font-size:var(--heading)">$19,800.00</span>
+              <span class="caption">$18,940.00 billed + $860.00 API</span>
+            </div>
+            <div class="stack stack--sm">
+              <span class="label">VARIANCE %</span>
+              <span class="metric-value mono t-warning" style="font-size:var(--heading)">+7.0%</span>
+              <span class="caption">+$1,300.00 vs expected</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= PRIMARY DATA: Period allocations & billed costs table ================= -->
+      <div class="section-gap">
+        <div class="row row--between" style="margin-bottom:var(--space-md)">
+          <span class="label">PERIOD ALLOCATIONS &amp; BILLED COSTS</span>
+          <span class="caption mono">12 monthly periods &middot; click <span class="t-primary">&#9662;</span> to expand line items</span>
+        </div>
+
+        <div class="card card--pad-lg">
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:34px"></th>
+                <th>Period</th>
+                <th class="num">Planned</th>
+                <th class="num">Expected</th>
+                <th class="num">Actual</th>
+                <th class="num">Variance</th>
+                <th class="num">% Diff</th>
+                <th style="width:80px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- January -->
+              <tr>
+                <td class="num">
+                  <button class="nav-arrow" style="width:24px;height:24px;color:var(--text-secondary)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                </td>
+                <td class="cell-strong">Jan 2026</td>
+                <td class="num"><input value="$20,000.00" readonly style="all:unset;font-family:var(--font-mono);font-size:var(--body-sm);color:var(--text-display);text-align:right;border-bottom:1px solid var(--border-visible);min-width:96px" /></td>
+                <td class="num t-secondary">$18,500.00</td>
+                <td class="num">$18,940.00</td>
+                <td class="num value--success">-$420.00</td>
+                <td class="num"><span class="tag tag--success">-2%</span></td>
+                <td class="num">
+                  <span class="row" style="gap:var(--space-xs);justify-content:flex-end">
+                    <button class="nav-arrow" style="width:24px;height:24px" title="Add billed cost">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+                    </button>
+                  </span>
+                </td>
+              </tr>
+
+              <!-- January expanded: line items (raised surface, no box-shadow rail) -->
+              <tr>
+                <td style="background:var(--surface-raised)"></td>
+                <td colspan="7" style="padding-top:0;background:var(--surface-raised)">
+                  <div class="stat-list" style="margin:var(--space-xs) 0 var(--space-sm)">
+                    <div class="stat-row">
+                      <span class="stack">
+                        <span class="t-primary" style="font-size:13px">GitHub Copilot Business &mdash; March invoice</span>
+                        <span class="caption">Ref: INV-2026-001 &middot; 2026-03-31</span>
+                      </span>
+                      <span class="row" style="gap:var(--space-md)">
+                        <span class="value mono">$4,200.00</span>
+                        <button class="nav-arrow" style="width:24px;height:24px" title="Edit">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        </button>
+                        <button class="nav-arrow" style="width:24px;height:24px" title="Delete">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        </button>
+                      </span>
+                    </div>
+                    <!-- running API row — neutral surface/label; blue stays on the value text only -->
+                    <div class="stat-row">
+                      <span class="stack">
+                        <span class="row" style="gap:var(--space-sm)">
+                          <span class="t-secondary" style="font-size:13px">Anthropic API</span>
+                          <span class="tag tag--tech">[LIVE]</span>
+                        </span>
+                        <span class="caption">Workspace: Default &middot; Updated Jun 2, 2026 14:05</span>
+                      </span>
+                      <span class="value mono" style="color:var(--interactive)">$4,120.00 <span class="caption">(API)</span></span>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- May — the single over-budget period (ONE red moment) -->
+              <tr>
+                <td class="num">
+                  <button class="nav-arrow" style="width:24px;height:24px;color:var(--text-secondary)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                </td>
+                <td class="cell-strong">May 2026</td>
+                <td class="num"><input value="$20,000.00" readonly style="all:unset;font-family:var(--font-mono);font-size:var(--body-sm);color:var(--text-display);text-align:right;border-bottom:1px solid var(--border-visible);min-width:96px" /></td>
+                <td class="num t-secondary">$18,500.00</td>
+                <td class="num">$21,300.00</td>
+                <td class="num value--accent">+$2,800.00</td>
+                <td class="num"><span class="tag tag--accent">+15%</span></td>
+                <td class="num">
+                  <button class="nav-arrow" style="width:24px;height:24px" title="Add billed cost">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </td>
+              </tr>
+
+              <!-- June — current, partial period with running API -->
+              <tr>
+                <td class="num">
+                  <button class="nav-arrow" style="width:24px;height:24px;color:var(--text-secondary)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                </td>
+                <td>
+                  <span class="row" style="gap:var(--space-sm)">
+                    <span class="cell-strong">Jun 2026</span>
+                    <span class="tag tag--active"><span class="led"></span>Current</span>
+                  </span>
+                </td>
+                <td class="num"><input value="$20,000.00" readonly style="all:unset;font-family:var(--font-mono);font-size:var(--body-sm);color:var(--text-display);text-align:right;border-bottom:1px solid var(--border-visible);min-width:96px" /></td>
+                <td class="num t-secondary">$18,500.00</td>
+                <td class="num" style="color:var(--interactive)">$8,300.00 <span class="caption">(API)</span></td>
+                <td class="num t-disabled">&mdash;</td>
+                <td class="num t-disabled">&mdash;</td>
+                <td class="num">
+                  <button class="nav-arrow" style="width:24px;height:24px" title="Add billed cost">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </td>
+              </tr>
+
+              <!-- Total footer -->
+              <tr>
+                <td></td>
+                <td class="cell-strong">Total through May 2026</td>
+                <td class="num cell-strong">$238,000.00</td>
+                <td class="num t-secondary">$92,500.00</td>
+                <td class="num cell-strong">$96,640.00</td>
+                <td class="num value--warning">+$4,140.00</td>
+                <td class="num"></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Save row + over-allocation warning (admin, non-archived) -->
+          <div class="row row--between row--wrap" style="margin-top:var(--space-lg);gap:var(--space-md)">
+            <span class="caption mono t-secondary">Inline-edit any Planned cell, then save. Archived budgets are read-only.</span>
+            <div class="row" style="gap:var(--space-md)">
+              <span class="caption mono t-warning">Allocations exceed budget by $4,000.00</span>
+              <button class="btn btn--primary btn--sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Save Allocations
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= TERTIARY: dialogs & alternate states (reference forms) ================= -->
+      <div class="section-gap">
+        <div class="row row--between" style="margin-bottom:var(--space-md)">
+          <span class="label">DIALOGS &amp; STATES</span>
+          <span class="caption mono">Add / edit billed cost &middot; delete &middot; empty</span>
+        </div>
+
+        <div class="grid grid--2">
+          <!-- Add / Edit Billed Cost dialog -->
+          <div class="card card--pad-lg">
+            <div class="row row--between" style="margin-bottom:var(--space-lg)">
+              <span class="heading">Add Billed Cost</span>
+              <button class="nav-arrow" style="width:24px;height:24px" title="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:18px;height:18px"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="stack stack--lg">
+              <div class="field">
+                <label class="label">AMOUNT ($)</label>
+                <input class="control" type="text" value="4200.00" />
+              </div>
+              <div class="field">
+                <label class="label">INVOICE DATE</label>
+                <input class="control" type="text" value="2026-03-31" />
+              </div>
+              <div class="field">
+                <label class="label">DESCRIPTION</label>
+                <input class="control" type="text" value="GitHub Copilot Business - March invoice" />
+              </div>
+              <div class="field">
+                <label class="label">VENDOR REFERENCE (OPTIONAL)</label>
+                <input class="control" type="text" value="INV-2026-001" />
+              </div>
+            </div>
+            <div class="row row--between" style="margin-top:var(--space-xl)">
+              <button class="btn btn--ghost btn--sm">Cancel</button>
+              <div class="row" style="gap:var(--space-sm)">
+                <span class="caption mono t-secondary">Add Cost / Save Changes</span>
+                <button class="btn btn--primary btn--sm">Add Cost</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack stack--lg">
+            <!-- Delete confirmation (destructive AlertDialog) -->
+            <div class="card card--pad-lg">
+              <span class="label card-label">CONFIRM &middot; ALERTDIALOG</span>
+              <h2 class="heading" style="margin-bottom:var(--space-sm)">Delete billed cost?</h2>
+              <p class="caption" style="line-height:1.7;margin-bottom:var(--space-lg)">
+                This will permanently remove the billed cost entry
+                &ldquo;GitHub Copilot Business - March invoice&rdquo;
+                (<span class="mono t-primary">$4,200.00</span>). This action cannot be undone.
+              </p>
+              <div class="row" style="gap:var(--space-sm);justify-content:flex-end">
+                <button class="btn btn--ghost btn--sm">Cancel</button>
+                <button class="btn btn--secondary btn--sm">Delete</button>
+              </div>
+            </div>
+
+            <!-- Empty state (no active budget) -->
+            <div class="card card--pad-lg">
+              <span class="label card-label">EMPTY &middot; NO ACTIVE BUDGET</span>
+              <div class="empty" style="padding:var(--space-2xl) var(--space-md)">
+                <div class="empty-title">No active budget for the current fiscal year.</div>
+                <div class="empty-sub" style="margin-bottom:var(--space-xl)">Annual AI tool budget planning.</div>
+                <div class="row" style="gap:var(--space-sm);justify-content:center">
+                  <a href="./budget-new.html" class="btn btn--primary btn--sm">Create Annual Budget</a>
+                  <a href="./budget-history.html" class="btn btn--secondary btn--sm">View past budgets</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

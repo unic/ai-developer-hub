@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk, Space_Mono, Doto } from "next/font/google";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { isPublicPath } from "@/lib/routes";
@@ -16,7 +16,30 @@ import { getActiveAlerts } from "@/actions/alerts";
 import { AlertBanner } from "@/components/alert-banner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+// Nothing three-family stack — self-hosted via next/font (auto fallback metrics),
+// NOT the mockup's render-blocking Google @import. Space Grotesk is the UI/body
+// default and the only preloaded family; Space Mono (data/labels) and Doto
+// (36px+ hero only) are loaded but not preloaded.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+  preload: true,
+});
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
+  display: "swap",
+  preload: false,
+});
+const doto = Doto({
+  subsets: ["latin"],
+  variable: "--font-doto",
+  display: "swap",
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: "AI Developer Hub",
   description: "AI Tool Access & Budget Tracker",
@@ -37,7 +60,9 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body
+        className={`${spaceGrotesk.variable} ${spaceMono.variable} ${doto.variable} font-sans antialiased`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

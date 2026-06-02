@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Nothing Redesign · Gallery</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+  <style>
+    /* Scoped gallery layout — tokens only, no new colours/shadows. */
+
+    /* centered, chrome-less container (no sidebar) */
+    .gallery {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: var(--space-4xl) var(--space-2xl) var(--space-4xl);
+    }
+    @media (max-width: 720px) {
+      .gallery { padding: var(--space-2xl) var(--space-lg) var(--space-3xl); }
+    }
+
+    /* hero header */
+    .gallery-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-lg);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-3xl);
+    }
+    .gallery-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--display-xl);
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-display);
+    }
+    @media (max-width: 720px) {
+      .gallery-title { font-size: var(--display-lg); }
+    }
+    .gallery-sub {
+      font-family: var(--font-mono);
+      font-size: var(--body-sm);
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin-top: var(--space-md);
+    }
+
+    /* gallery cards as links */
+    .screen-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      min-height: 168px;
+      transition: border-color var(--dur-micro) var(--ease);
+    }
+    .screen-card:hover { border-color: var(--border-visible); }
+    .screen-card .screen-name {
+      font-family: var(--font-ui);
+      font-size: var(--subheading);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--text-display);
+    }
+    .screen-card .screen-route {
+      font-family: var(--font-mono);
+      font-size: var(--label);
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+    }
+    .screen-card .screen-desc {
+      font-family: var(--font-ui);
+      font-size: var(--body-sm);
+      color: var(--text-primary);
+      margin-top: auto;
+    }
+    .screen-card .screen-index {
+      font-family: var(--font-mono);
+      font-size: var(--label);
+      letter-spacing: 0.1em;
+      color: var(--text-disabled);
+    }
+    .screen-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-sm);
+    }
+
+    .gallery-foot {
+      margin-top: var(--space-3xl);
+      padding-top: var(--space-lg);
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: var(--caption);
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      max-width: 70ch;
+      line-height: 1.6;
+    }
+    .gallery-foot .mono-key { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="gallery">
+    <header class="gallery-head">
+      <div>
+        <div class="label eyebrow">PROPOSAL&nbsp;/&nbsp;SPEC&nbsp;028</div>
+        <h1 class="gallery-title">AI&nbsp;DEVELOPER&nbsp;HUB</h1>
+        <p class="gallery-sub">Nothing design system — proposed redesign</p>
+      </div>
+      <div class="theme-toggle">
+        <button data-theme="dark" class="active">Dark</button>
+        <button data-theme="light">Light</button>
+      </div>
+    </header>
+
+    <div class="grid grid--kpi">
+      <a class="card screen-card" href="./dashboard.html">
+        <div class="screen-head">
+          <span class="screen-name">Dashboard</span>
+          <span class="screen-index">01</span>
+        </div>
+        <span class="screen-route">/</span>
+        <span class="screen-desc">Annual budget hero, spend progress, and the at-a-glance instrument panel.</span>
+      </a>
+
+      <a class="card screen-card" href="./tools.html">
+        <div class="screen-head">
+          <span class="screen-name">AI Tools</span>
+          <span class="screen-index">02</span>
+        </div>
+        <span class="screen-route">/tools</span>
+        <span class="screen-desc">Catalog of tracked AI tools with vendor, seats, and monthly spend.</span>
+      </a>
+
+      <a class="card screen-card" href="./users.html">
+        <div class="screen-head">
+          <span class="screen-name">Users</span>
+          <span class="screen-index">03</span>
+        </div>
+        <span class="screen-route">/users</span>
+        <span class="screen-desc">Team directory, roles, and invite state across the organization.</span>
+      </a>
+
+      <a class="card screen-card" href="./assignments.html">
+        <div class="screen-head">
+          <span class="screen-name">License Assignments</span>
+          <span class="screen-index">04</span>
+        </div>
+        <span class="screen-route">/assignments</span>
+        <span class="screen-desc">Who holds which seat, mapping licenses to people and tools.</span>
+      </a>
+
+      <a class="card screen-card" href="./requests.html">
+        <div class="screen-head">
+          <span class="screen-name">Access Requests</span>
+          <span class="screen-index">05</span>
+        </div>
+        <span class="screen-route">/requests</span>
+        <span class="screen-desc">Pending seat requests awaiting approve or deny review.</span>
+      </a>
+
+      <a class="card screen-card" href="./budget.html">
+        <div class="screen-head">
+          <span class="screen-name">Budget</span>
+          <span class="screen-index">06</span>
+        </div>
+        <span class="screen-route">/budget</span>
+        <span class="screen-desc">Annual budget vs. billed costs, period by period.</span>
+      </a>
+
+      <a class="card screen-card" href="./reports.html">
+        <div class="screen-head">
+          <span class="screen-name">Reports</span>
+          <span class="screen-index">07</span>
+        </div>
+        <span class="screen-route">/reports</span>
+        <span class="screen-desc">Spend trends, breakdowns, and exportable cost analysis.</span>
+      </a>
+
+      <a class="card screen-card" href="./copilot.html">
+        <div class="screen-head">
+          <span class="screen-name">GitHub Copilot</span>
+          <span class="screen-index">08</span>
+        </div>
+        <span class="screen-route">/copilot</span>
+        <span class="screen-desc">Copilot seat usage, member sync, and billing detail.</span>
+      </a>
+
+      <a class="card screen-card" href="./claude.html">
+        <div class="screen-head">
+          <span class="screen-name">Claude Console</span>
+          <span class="screen-index">09</span>
+        </div>
+        <span class="screen-route">/claude</span>
+        <span class="screen-desc">Anthropic API cost metrics, token usage, and daily estimates.</span>
+      </a>
+
+      <a class="card screen-card" href="./invoices.html">
+        <div class="screen-head">
+          <span class="screen-name">Invoices</span>
+          <span class="screen-index">10</span>
+        </div>
+        <span class="screen-route">/invoices</span>
+        <span class="screen-desc">Ingested invoices linked to budgets, with PDF source records.</span>
+      </a>
+
+      <a class="card screen-card" href="./settings.html">
+        <div class="screen-head">
+          <span class="screen-name">Settings</span>
+          <span class="screen-index">11</span>
+        </div>
+        <span class="screen-route">/settings</span>
+        <span class="screen-desc">Integrations, sync configuration, and account preferences.</span>
+      </a>
+
+      <a class="card screen-card" href="./login.html">
+        <div class="screen-head">
+          <span class="screen-name">Sign In</span>
+          <span class="screen-index">12</span>
+        </div>
+        <span class="screen-route">/login</span>
+        <span class="screen-desc">Chrome-less centered auth — the first impression of the system.</span>
+      </a>
+    </div>
+
+    <footer class="gallery-foot">
+      <span class="mono-key">./styles/nothing.css</span> is the proposed single source of truth — one
+      coherent Nothing system that would replace the current green-primary shadcn theme across every
+      screen above. Flip the toggle: both dark and light are first-class.
+    </footer>
+  </div>
+</body>
+</html>

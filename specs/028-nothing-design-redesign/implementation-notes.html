@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Nothing Redesign · Implementation Notes</title>
+  <link rel="stylesheet" href="./mockups/styles/nothing.css" />
+  <script src="./mockups/styles/theme.js"></script>
+  <style>
+    /* Scoped doc styles — tokens only, eats its own dog food (mirrors implementation-plan.html). */
+    .doc-main { min-width: 0; padding: var(--space-2xl) var(--space-2xl) var(--space-4xl); max-width: 920px; margin: 0 auto; }
+    .doc-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-lg); margin-bottom: var(--space-2xl); }
+    section { margin-top: var(--space-3xl); }
+    section:first-of-type { margin-top: var(--space-xl); }
+    .prose p { font-family: var(--font-ui); font-size: var(--body); color: var(--text-primary); line-height: 1.6; margin: var(--space-md) 0; max-width: 74ch; }
+    .lead { font-family: var(--font-ui); font-size: var(--subheading); color: var(--text-secondary); line-height: 1.5; max-width: 74ch; }
+    .section-head { display: flex; align-items: baseline; gap: var(--space-md); margin-bottom: var(--space-md); }
+    .section-head .heading { margin: 0; }
+    code, .code { font-family: var(--font-mono); font-size: var(--caption); background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-tech); padding: 2px 6px; color: var(--text-display); }
+    .note { border: 1px solid var(--border-visible); border-left: 2px solid var(--text-display); border-radius: var(--radius-compact); padding: var(--space-md) var(--space-lg); margin: var(--space-md) 0; }
+    .note--decision { border-left-color: var(--success); }
+    .note--deviation { border-left-color: var(--warning); }
+    .note--tradeoff { border-left-color: var(--interactive); }
+    .note--open { border-left-color: var(--accent); }
+    .note .kind { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: var(--space-xs); display: block; }
+    .note .title { font-family: var(--font-ui); font-size: var(--body); font-weight: 500; color: var(--text-display); margin-bottom: var(--space-xs); }
+    .note p { font-family: var(--font-ui); font-size: var(--body-sm); color: var(--text-primary); line-height: 1.55; margin: var(--space-xs) 0; max-width: 74ch; }
+    .phase-tag { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.08em; color: var(--accent); margin-right: var(--space-sm); }
+    .meta-line { font-family: var(--font-mono); font-size: var(--caption); color: var(--text-disabled); letter-spacing: 0.04em; }
+    ul.bullets { margin: var(--space-md) 0; padding-left: var(--space-lg); list-style: disc; max-width: 74ch; }
+    ul.bullets li { font-family: var(--font-ui); font-size: var(--body-sm); color: var(--text-primary); line-height: 1.6; margin: 6px 0; }
+    ul.bullets li::marker { color: var(--text-disabled); }
+  </style>
+</head>
+<body>
+  <main class="doc-main">
+    <div class="doc-topbar">
+      <div>
+        <span class="label eyebrow">SPEC 028 · IMPLEMENTATION NOTES</span>
+        <h1 class="display-md" style="margin-top: var(--space-sm);">Nothing Redesign — Build Log</h1>
+      </div>
+      <div class="theme-toggle" role="group" aria-label="Theme">
+        <button data-theme="dark" class="active">Dark</button>
+        <button data-theme="light">Light</button>
+      </div>
+    </div>
+
+    <p class="lead">A running record of how the implementation interprets, extends, or departs from
+      <code>spec 028</code> and its <code>implementation-plan.html</code>. Updated continuously as phases land.
+      Categories: <span class="t-success">decisions</span>, <span class="t-warning">deviations</span>,
+      <span style="color:var(--interactive)">tradeoffs</span>, <span class="t-accent">open questions</span>.</p>
+
+    <!-- ===================================================================== -->
+    <section id="status">
+      <div class="section-head"><span class="label">00</span><h2 class="heading">Phase status</h2></div>
+      <div class="stat-list">
+        <div class="stat-row"><span class="label">P0 · Tokens &amp; fonts</span><span class="value value--success" id="st-p0">DONE · build green</span></div>
+        <div class="stat-row"><span class="label">P1 · Primitives &amp; overlays</span><span class="value t-secondary" id="st-p1">PENDING</span></div>
+        <div class="stat-row"><span class="label">P2 · App shell &amp; layout</span><span class="value t-secondary" id="st-p2">PENDING</span></div>
+        <div class="stat-row"><span class="label">P3 · Shared tables &amp; charts</span><span class="value t-secondary" id="st-p3">PENDING</span></div>
+        <div class="stat-row"><span class="label">P4 · Page migration</span><span class="value t-secondary" id="st-p4">PENDING</span></div>
+        <div class="stat-row"><span class="label">P5 · QA gate &amp; PR</span><span class="value t-secondary" id="st-p5">PENDING</span></div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <section id="decisions">
+      <div class="section-head"><span class="label">01</span><h2 class="heading">Design decisions</h2></div>
+      <p class="prose">Choices made where the spec or plan left room for interpretation.</p>
+
+      <div class="note note--decision">
+        <span class="kind">Decision</span>
+        <span class="title"><span class="phase-tag">P0</span>shadcn <code>--accent</code> stays NEUTRAL; the Nothing red routes through <code>--destructive</code></span>
+        <p>The plan's flagged naming collision: shadcn's <code>--accent</code> is a subtle hover background used
+          all over (<code>bg-accent</code>, <code>data-[state]:bg-accent</code>), NOT the loud Nothing red.
+          So <code>--accent</code> is mapped to a neutral surface (<code>#f0f0f0</code> light / <code>#1a1a1a</code>
+          dark) and the single red interrupt + every error/destructive state route through
+          <code>--destructive</code> = <code>#d71921</code> (also <code>--ring</code>). This dodges the collision
+          cleanly and means re-skinned primitives keep their hover semantics. New tokens shadcn lacks were added
+          and registered in <code>@theme inline</code>: <code>--color-ink</code> (100% display text),
+          <code>--color-faint</code> (40% tertiary), <code>--color-success</code>, <code>--color-warning</code>,
+          <code>--color-seg-empty</code>, <code>--color-destructive-subtle</code>, <code>--color-border-strong</code>.</p>
+      </div>
+
+      <div class="note note--decision">
+        <span class="kind">Decision</span>
+        <span class="title"><span class="phase-tag">P0</span>Direct per-mode token assignment (two blocks), not a raw-token+alias indirection</span>
+        <p>Values are assigned straight onto the shadcn var names per mode — light on <code>:root</code>, dark on
+          <code>.dark</code> — mirroring the file's original two-block shape. This keeps the diff legible and the
+          theme mechanism identical to before (next-themes <code>attribute="class"</code>, <code>defaultTheme</code>
+          and <code>system</code> retained). <code>--radius</code> drops to <code>0.5rem</code> (technical scale);
+          cards get an explicit 14px in P1. The color vocabulary for downstream phases:
+          <code>text-ink</code> (hero/headings, 100%), <code>text-foreground</code> (body, 90%),
+          <code>text-muted-foreground</code> (labels, 60%), <code>text-faint</code> (tertiary, 40%),
+          <code>bg-primary</code>/<code>text-primary-foreground</code> (greyscale fill),
+          <code>text/border/bg-destructive</code> (the one red), <code>text-success</code>/<code>text-warning</code>
+          (value text only).</p>
+      </div>
+
+      <div class="note note--decision">
+        <span class="kind">Decision</span>
+        <span class="title"><span class="phase-tag">P0</span>next/font variable names are font-specific, not <code>--font-sans</code> directly</span>
+        <p>To avoid a circular <code>--font-sans: var(--font-sans)</code> in Tailwind v4's <code>@theme inline</code>,
+          next/font injects <code>--font-space-grotesk</code> / <code>--font-space-mono</code> / <code>--font-doto</code>,
+          and <code>@theme inline</code> chains <code>--font-sans</code>/<code>--font-mono</code>/<code>--font-display</code>
+          to those (with fallbacks). The mockup vocabulary alias <code>--font-ui</code> is also defined
+          (<code>= var(--font-sans)</code>) so any ported Nothing class keeps resolving.</p>
+      </div>
+
+      <div class="note note--decision">
+        <span class="kind">Decision</span>
+        <span class="title"><span class="phase-tag">P0</span>Nothing component classes become React components, not global CSS classes</span>
+        <p>The mockups use generic class names (<code>.card</code>, <code>.grid</code>, <code>.label</code>,
+          <code>.table</code>, <code>.row</code>). Dumping those into <code>globals.css</code> would collide with
+          Tailwind utilities (notably <code>.grid</code>) and arbitrary <code>className</code>s. Instead the app
+          keeps using re-skinned shadcn primitives (Button, Card, Badge, …) plus a small set of new, clearly-named
+          React components for Nothing-specific idioms (<code>&lt;SegmentedBar&gt;</code>, <code>&lt;Metric&gt;</code>,
+          <code>&lt;StatusText&gt;</code>, <code>&lt;LoadingState&gt;</code>, <code>&lt;PeriodNav&gt;</code>). Only
+          non-colliding type/utility helpers are added globally. This is the idiomatic React/Tailwind path and
+          keeps the mockup look without the collision risk.</p>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <section id="deviations">
+      <div class="section-head"><span class="label">02</span><h2 class="heading">Deviations</h2></div>
+      <p class="prose">Intentional departures from the spec/plan, with rationale.</p>
+
+      <div class="note note--deviation">
+        <span class="kind">Deviation</span>
+        <span class="title"><span class="phase-tag">P0</span>Light-mode status colors darkened for WCAG, unlike the mockups</span>
+        <p>The mockups (and <code>nothing.css</code>) use the same <code>--success #4a9e5c</code> /
+          <code>--warning #d4a843</code> in both modes. As <em>value text</em> on the light canvas those fail the
+          plan's own P5 a11y gate (≥4.5:1): amber <code>#d4a843</code> on <code>#f5f5f5</code> is ~1.9:1 and the
+          green is ~3:1. Since the spec mandates status colors be value-text-only AND demands ≥4.5:1, I kept the
+          spec values in dark mode (they pass on black) and darkened the light-mode values to
+          <code>--success #2e7d32</code> and <code>--warning #946c00</code> (both ≥4.5:1 on the light canvas).
+          The red <code>#d71921</code> needs no per-mode variant (passes both). Trade: light-mode warning reads
+          more olive than the mockup amber. Contrast to be re-confirmed with axe/Lighthouse in P5; revert if you
+          prefer literal mockup hues over the a11y gate.</p>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <section id="tradeoffs">
+      <div class="section-head"><span class="label">03</span><h2 class="heading">Tradeoffs</h2></div>
+      <p class="prose">Alternatives considered and why the chosen path won.</p>
+      <p class="meta-line">— none recorded yet —</p>
+    </section>
+
+    <!-- ===================================================================== -->
+    <section id="open">
+      <div class="section-head"><span class="label">04</span><h2 class="heading">Open questions</h2></div>
+      <p class="prose">Things worth a confirm or a later revision.</p>
+      <p class="meta-line">— none recorded yet —</p>
+    </section>
+
+    <div class="divider"></div>
+    <p class="caption t-disabled">AI Developer Hub · Spec 028 — Nothing Design Redesign · Implementation Notes ·
+      Styled with the Nothing design system (tokens only). Dark default; flip the toggle top-right.</p>
+  </main>
+</body>
+</html>

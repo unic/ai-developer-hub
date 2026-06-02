@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Sign In · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+  <style>
+    /* Scoped auth layout — tokens only. Two columns on large screens; brand panel
+       hidden below lg, where a Bot avatar sits at the top of the card instead.
+       NOTE: .auth-shell intentionally supersedes the canonical .auth-card here —
+       the contract's .auth-card caps width at 400px (single-column), but this
+       screen needs a wider 920px two-column split. Other single-column auth
+       screens should still use .auth-card. */
+    .auth-shell { width: 100%; max-width: 920px; }
+    .auth-split {
+      display: grid;
+      grid-template-columns: 1fr;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      background: var(--surface);
+    }
+    @media (min-width: 992px) {
+      .auth-split { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* Decorative left column — large screens only */
+    .brand-panel {
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: var(--space-2xl);
+      padding: var(--space-2xl);
+      background: var(--surface-raised);
+      border-right: 1px solid var(--border);
+    }
+    @media (min-width: 992px) { .brand-panel { display: flex; } }
+
+    .brand-mark { display: inline-flex; align-items: center; gap: var(--space-sm); }
+    .brand-mark .glyph {
+      width: 36px; height: 36px; border-radius: var(--radius-compact);
+      border: 1px solid var(--border-visible);
+      display: grid; place-items: center; color: var(--text-display);
+    }
+    .brand-mark .glyph svg { width: 20px; height: 20px; }
+    .brand-mark .name {
+      font-family: var(--font-mono); font-size: var(--body-sm);
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-display);
+    }
+
+    .brand-quote {
+      font-family: var(--font-ui); font-weight: 300;
+      font-size: var(--subheading); line-height: 1.45;
+      color: var(--text-primary); max-width: 34ch;
+    }
+    .brand-foot { display: flex; flex-direction: column; gap: var(--space-sm); }
+
+    /* Right column — the credentials card */
+    .auth-pane { padding: var(--space-2xl); }
+    @media (max-width: 480px) { .auth-pane, .brand-panel { padding: var(--space-xl); } }
+
+    .mobile-avatar {
+      width: 56px; height: 56px; border-radius: var(--radius-pill);
+      background: var(--surface-raised);
+      border: 1px solid var(--border-visible);
+      display: grid; place-items: center; color: var(--text-display);
+      margin-bottom: var(--space-lg);
+    }
+    .mobile-avatar svg { width: 26px; height: 26px; }
+    @media (min-width: 992px) { .mobile-avatar { display: none; } }
+
+    .auth-form { display: flex; flex-direction: column; gap: var(--space-lg); margin-top: var(--space-xl); }
+
+    /* destructive Alert — the single red moment */
+    .alert--error {
+      display: flex; align-items: flex-start; gap: var(--space-sm);
+      padding: 12px 14px;
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-compact);
+      background: var(--accent-subtle);
+    }
+    .alert--error svg { width: 18px; height: 18px; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+    .alert--error .alert-text {
+      font-family: var(--font-mono); font-size: var(--caption);
+      line-height: 1.4; letter-spacing: 0.02em; color: var(--accent);
+    }
+
+    .auth-foot { margin-top: var(--space-xl); }
+  </style>
+</head>
+<body>
+  <div class="auth-screen">
+    <div class="auth-shell stack stack--lg">
+
+      <div class="auth-split">
+
+        <!-- ===== Brand side panel (lg only) ===== -->
+        <aside class="brand-panel">
+          <div class="brand-mark">
+            <span class="glyph">
+              <!-- bot -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13.5" r="0.6" fill="currentColor"/><circle cx="15" cy="13.5" r="0.6" fill="currentColor"/><path d="M9.5 16.5h5"/></svg>
+            </span>
+            <span class="name">AI Developer Hub</span>
+          </div>
+
+          <p class="brand-quote">
+            Centralise your AI tool budgets, licences, and usage data in one
+            place &mdash; so your team can focus on building.
+          </p>
+
+          <div class="brand-foot">
+            <span class="label">Budget Tracker &middot; Licence Manager &middot; Usage Reports</span>
+            <span class="caption t-disabled">&copy; 2026 AI Developer Hub</span>
+          </div>
+        </aside>
+
+        <!-- ===== Credentials pane ===== -->
+        <section class="auth-pane">
+
+          <!-- mobile-only avatar (hidden on lg) -->
+          <div class="mobile-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M9 4h6"/><circle cx="9" cy="13.5" r="0.6" fill="currentColor"/><circle cx="15" cy="13.5" r="0.6" fill="currentColor"/><path d="M9.5 16.5h5"/></svg>
+          </div>
+
+          <div class="stack stack--sm">
+            <span class="label eyebrow">AI DEVELOPER HUB</span>
+            <h1 class="display-md doto">Welcome back</h1>
+            <p class="subheading t-secondary">Sign in to your AI Developer Hub account</p>
+          </div>
+
+          <form class="auth-form" onsubmit="return false">
+
+            <!-- destructive Alert — single red interrupt -->
+            <div class="alert--error" role="alert">
+              <!-- alert-circle -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16" r="0.6" fill="currentColor"/></svg>
+              <span class="alert-text">Invalid email or password</span>
+            </div>
+
+            <div class="field">
+              <label class="label" for="email">Email</label>
+              <input class="control" id="email" type="email" placeholder="you@company.com" value="tobias.studer@unic.com" autocomplete="email" />
+            </div>
+
+            <div class="field">
+              <label class="label" for="password">Password</label>
+              <input class="control" id="password" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password" />
+            </div>
+
+            <button class="btn btn--primary" type="submit" style="width:100%">Sign In</button>
+          </form>
+
+          <div class="auth-foot stack stack--sm">
+            <span class="caption t-disabled">Access is invite-only. New here? Check your email for an invite link.</span>
+          </div>
+
+        </section>
+      </div>
+
+      <!-- theme toggle below the card -->
+      <div class="row row--between" style="align-items:center">
+        <span class="caption t-disabled">SECURE&nbsp;SESSION&nbsp;&middot;&nbsp;NEXTAUTH</span>
+        <div class="theme-toggle">
+          <button data-theme="dark" class="active">Dark</button>
+          <button data-theme="light">Light</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
