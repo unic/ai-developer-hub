@@ -44,7 +44,7 @@ function isItemActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   // Settings nav points at /settings/appearance; treat any /settings/* as active.
   if (href.startsWith("/settings")) return pathname.startsWith("/settings");
-  return pathname === href || pathname.startsWith(href + "/") || pathname === href;
+  return pathname === href || pathname.startsWith(href + "/");
 }
 
 function Brand() {

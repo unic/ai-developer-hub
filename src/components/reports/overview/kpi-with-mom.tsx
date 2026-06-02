@@ -43,13 +43,7 @@ export function KpiWithMom({
               <p className="font-mono text-2xl tabular-nums text-ink">{value}</p>
               {delta && (
                 <Badge
-                  variant={
-                    delta.variant === "up"
-                      ? "active"
-                      : delta.variant === "down"
-                        ? "secondary"
-                        : "secondary"
-                  }
+                  variant={delta.variant === "up" ? "active" : "secondary"}
                   className="font-mono text-[11px]"
                 >
                   {delta.label}
