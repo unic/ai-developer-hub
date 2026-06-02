@@ -58,8 +58,8 @@
         <div class="stat-row"><span class="label">P1 · Primitives &amp; overlays</span><span class="value value--success" id="st-p1">DONE · verified</span></div>
         <div class="stat-row"><span class="label">P2 · App shell &amp; layout</span><span class="value value--success" id="st-p2">DONE · verified both modes</span></div>
         <div class="stat-row"><span class="label">P3 · Shared tables &amp; charts</span><span class="value value--success" id="st-p3">DONE</span></div>
-        <div class="stat-row"><span class="label">P4 · Page migration</span><span class="value t-warning" id="st-p4">PARTIAL · shared-driven; tint sweep pending</span></div>
-        <div class="stat-row"><span class="label">P5 · QA gate &amp; PR</span><span class="value t-warning" id="st-p5">PARTIAL · gates green, PR open; full a11y/grep audit pending</span></div>
+        <div class="stat-row"><span class="label">P4 · Page migration</span><span class="value value--success" id="st-p4">DONE · shared-driven + tint sweep</span></div>
+        <div class="stat-row"><span class="label">P5 · QA gate &amp; PR</span><span class="value t-warning" id="st-p5">PARTIAL · grep gate clean, PR open; axe/Lighthouse pending</span></div>
       </div>
     </section>
 
@@ -228,14 +228,14 @@
         token + primitive + shell + table/chart re-skin already propagates the Nothing look to essentially every
         route. The items below are the scoped follow-ups that remain.</p>
       <ul class="bullets prose">
-        <li><strong>Page-level literal color sweep (~23 files, ~57 sites).</strong> A workflow to convert scattered
-          literal Tailwind status tints (<code>text-yellow-600</code>, <code>bg-red-100</code>, …) to value-text
-          tokens was authored but <em>did not run</em> — every agent hit the account session limit (resets 1:30pm
-          Europe/Warsaw), so those files are unchanged from their P0-tokenized state. Re-run
-          <code>p4-literal-colors</code> when the limit resets. Files: claude/{sync-status-pill, cumulative-pacing,
-          org-credits, workspace-budget-list, kpi-strip, user-kpi-strip}, copilot/metrics-freshness,
-          dashboard/{viewer/my-usage, viewer/identity, admin/activity-timeline, admin/admin-dashboard},
-          reports/what-changed, ui/json-viewer, and the invoices/budget/settings/claude detail clients.</li>
+        <li><strong>Page-level literal color sweep — DONE.</strong> The 23-file workflow first hit the account
+          session limit; on re-run it completed. All scattered literal Tailwind tints now map to value-text-only
+          Nothing tokens (<code>text-emerald/amber/green-*</code> → <code>text-success</code>/<code>text-warning</code>,
+          <code>bg-amber-500</code> fills → <code>bg-warning</code>, green success callouts → token borders on
+          transparent bg, chart hex series → greyscale chart tokens), routine month-over-month deltas neutralized,
+          and the last <code>animate-pulse</code> placeholders → <code>&lt;LoadingState&gt;</code>. Anti-pattern
+          grep gate now: <strong>0</strong> literal rainbow classes, <strong>0</strong> <code>animate-pulse</code>,
+          <strong>0</strong> <code>&lt;Skeleton&gt;</code>, <strong>0</strong> <code>shadow-*</code> on ui primitives.</li>
         <li><strong>Full toast removal.</strong> The flattened Sonner toast is the interim feedback; converting all
           ~183 <code>toast.*</code> sites to inline <code>&lt;StatusText&gt;</code> and deleting Sonner is the
           remaining behavioural change (primitive + hook are ready).</li>
