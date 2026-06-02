@@ -125,11 +125,7 @@ export function UserDetailClient({ userId, initial }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <WorkspaceDailyChart
-            dailyTotals={detail.dailyTotals}
-            color={detail.workspace.displayColor}
-            limitCents={null}
-          />
+          <WorkspaceDailyChart dailyTotals={detail.dailyTotals} limitCents={null} />
         </CardContent>
       </Card>
 

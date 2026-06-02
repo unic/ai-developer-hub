@@ -212,7 +212,6 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
         <CardContent>
           <WorkspaceDailyChart
             dailyTotals={detail.dailyTotals}
-            color={detail.workspace.displayColor}
             limitCents={detail.limitCents}
             daysInMonth={getDaysInMonth(parseISO(`${month}-01`))}
             estimatedTodayCents={detail.todayEstimate?.cents ?? null}
