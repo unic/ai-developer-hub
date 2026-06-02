@@ -34,7 +34,7 @@ import {
   UserPlus,
   SkipForward,
 } from "lucide-react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   fetchGitHubSyncPreview,
   confirmGitHubSync,
@@ -65,6 +65,7 @@ export function GitHubMemberSyncSheet({
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const status = useInlineStatus();
 
   // Resolution state: keyed by githubLogin
   const [resolutions, setResolutions] = useState<
@@ -217,21 +218,13 @@ export function GitHubMemberSyncSheet({
         newUsers,
       });
       if (result.success) {
-        const d = result.data;
-        const parts: string[] = [];
-        if (d.enrichedCount > 0) parts.push(`${d.enrichedCount} enriched`);
-        if (d.importedCount > 0) parts.push(`${d.importedCount} imported`);
-        if (d.manuallyMatchedCount > 0)
-          parts.push(`${d.manuallyMatchedCount} matched`);
-        if (d.createdCount > 0) parts.push(`${d.createdCount} created`);
-        if (d.skippedCount > 0) parts.push(`${d.skippedCount} skipped`);
-        toast.success(`Sync complete: ${parts.join(", ")}`);
+        // Success closes the sheet — the navigation is the feedback.
         onOpenChange(false);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to confirm sync");
+      status.error("Sync failed");
     } finally {
       setConfirming(false);
     }
@@ -354,7 +347,8 @@ export function GitHubMemberSyncSheet({
               )}
 
               {/* Confirm / Cancel */}
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                <StatusText status={status.status} />
                 <Button
                   variant="outline"
                   onClick={() => onOpenChange(false)}

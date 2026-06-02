@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useTheme } from "next-themes";
 import { useSession } from "next-auth/react";
-import { toast } from "sonner";
 import { updatePreferences } from "@/actions/preferences";
 
 export function useThemePreference() {
@@ -49,8 +48,9 @@ export function useThemePreference() {
         try {
           await persistPreferences(value);
         } catch {
+          // Revert the optimistic theme change; the visual revert is the
+          // feedback (no toasts in the Nothing system).
           setTheme(prevTheme);
-          toast.error("Failed to save theme preference");
         }
       });
     },

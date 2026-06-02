@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { getSyncStatus } from "@/actions/sync";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { ScheduledJobsTable } from "./scheduled-jobs-table";
 import { ManualJobsTable } from "./manual-jobs-table";
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
@@ -34,6 +34,7 @@ export function SyncDashboard({
   initialManualEvents,
 }: SyncDashboardProps) {
   const router = useRouter();
+  const status = useInlineStatus();
   const manualEvents = initialManualEvents;
   const sourcesRef = useRef(initialSources);
   const [sources, setSources] = useState(initialSources);
@@ -85,7 +86,7 @@ export function SyncDashboard({
         sourcesRef.current.map((s) => [s.sourceType, s])
       );
 
-      // Show toasts for completion transitions
+      // Show inline status for completion transitions
       for (const source of updated) {
         const prev = prevMap.get(source.sourceType);
         const prevOutcome = prev?.lastEvent?.outcome ?? null;
@@ -95,13 +96,11 @@ export function SyncDashboard({
           const label = source.sourceType;
           if (curOutcome === "success" || curOutcome === "partial") {
             const ev = source.lastEvent;
-            toast.success(
-              `${label} complete: ${ev?.createdCount ?? 0} created, ${ev?.updatedCount ?? 0} updated`
+            status.ok(
+              `${label} done: ${ev?.createdCount ?? 0} new, ${ev?.updatedCount ?? 0} updated`
             );
           } else if (curOutcome === "failed") {
-            toast.error(
-              `${label} failed: ${source.lastEvent?.errorMessage ?? "Unknown error"}`
-            );
+            status.error(`${label} failed`);
           }
         }
       }
@@ -118,12 +117,15 @@ export function SyncDashboard({
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [isPolling, router]);
+  }, [isPolling, router, status]);
 
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-semibold mb-3">Scheduled Jobs</h3>
+        <div className="mb-3 flex items-center gap-3">
+          <h3 className="text-lg font-semibold">Scheduled Jobs</h3>
+          <StatusText status={status.status} />
+        </div>
         <ScheduledJobsTable sources={sources} />
       </div>
 

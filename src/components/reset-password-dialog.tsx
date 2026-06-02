@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
 import { resetUserPassword } from "@/actions/invite";
 import { InviteLinkDialog } from "@/components/invite-link-dialog";
 import {
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 
 interface ResetPasswordDialogProps {
   user: { id: number; name: string; email: string };
@@ -34,6 +34,7 @@ export function ResetPasswordDialog({
   const [showInviteLink, setShowInviteLink] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [emailSent, setEmailSent] = useState(false);
+  const status = useInlineStatus();
 
   async function handleResetPassword() {
     try {
@@ -43,17 +44,12 @@ export function ResetPasswordDialog({
         setInviteUrl(result.data.inviteUrl);
         setEmailSent(result.data.emailSent);
         setShowInviteLink(true);
-        if (result.data.emailSent) {
-          toast.success("Password reset. Invite email sent.");
-        } else {
-          toast.success("Password reset. Share the invite link with the user.");
-        }
         onSuccess?.();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("An unexpected error occurred");
+      status.error("Unexpected error");
     }
   }
 
@@ -86,6 +82,7 @@ export function ResetPasswordDialog({
             </Label>
           </div>
           <AlertDialogFooter>
+            <StatusText status={status.status} />
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleResetPassword}>
               Reset Password

@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "sonner";
 import { createTool, createTier } from "@/actions/tools";
 import { toolSchema } from "@/lib/validators";
 import { Button } from "@/components/ui/button";
@@ -25,6 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Plus, Trash2 } from "lucide-react";
 
 const newToolSchema = toolSchema.extend({
@@ -43,6 +43,7 @@ type NewToolInput = z.infer<typeof newToolSchema>;
 
 export function NewToolForm() {
   const router = useRouter();
+  const status = useInlineStatus();
 
   const form = useForm<NewToolInput>({
     resolver: zodResolver(newToolSchema),
@@ -68,7 +69,7 @@ export function NewToolForm() {
     });
 
     if (!toolResult.success) {
-      toast.error(toolResult.error);
+      status.error(toolResult.error);
       return;
     }
 
@@ -82,11 +83,10 @@ export function NewToolForm() {
       });
 
       if (!tierResult.success) {
-        toast.error(`Failed to create tier "${tier.name}": ${tierResult.error}`);
+        status.error(`Tier "${tier.name}" failed`);
       }
     }
 
-    toast.success("Tool created successfully");
     router.push("/tools");
   }
 
@@ -264,7 +264,7 @@ export function NewToolForm() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <Button
               type="submit"
               disabled={form.formState.isSubmitting}
@@ -278,6 +278,7 @@ export function NewToolForm() {
             >
               Cancel
             </Button>
+            <StatusText status={status.status} />
           </div>
         </form>
       </Form>

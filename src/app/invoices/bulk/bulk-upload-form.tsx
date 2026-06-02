@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback } from "react";
-import { toast } from "sonner";
 import { Loader2, Upload, ArrowLeft, AlertTriangle } from "lucide-react";
 import {
   useReactTable,
@@ -27,6 +26,7 @@ import {
   type BulkSaveOutcome,
 } from "@/actions/invoices";
 import { cn } from "@/lib/utils";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -121,6 +121,7 @@ export function BulkUploadForm() {
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [outcomes, setOutcomes] = useState<BulkSaveOutcome[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const status = useInlineStatus();
 
   // ---- row mutation helper ----
   const updateRow = useCallback(
@@ -270,7 +271,7 @@ export function BulkUploadForm() {
   // ---- upload handler ----
   async function handleUpload(file: File) {
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("File too large. Maximum size is 50 MB.");
+      status.error("File too large (max 50 MB)");
       return;
     }
 
@@ -342,14 +343,12 @@ export function BulkUploadForm() {
         skipped.length > 0
           ? ` (${skipped.length} non-PDF files skipped)`
           : "";
-      toast.success(
-        `Extracted ${drafts.length} invoice(s). Please review.${skippedMsg}`,
-      );
+      status.ok(`Extracted ${drafts.length} — review${skippedMsg}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setErrorMessage(message);
       setState("error");
-      toast.error(message);
+      status.error(message);
     }
   }
 
@@ -366,9 +365,7 @@ export function BulkUploadForm() {
           (!r.invoiceNumber || !r.invoiceDate || !r.amountDollars),
       );
       if (incomplete.length > 0) {
-        toast.error(
-          `${incomplete.length} row(s) have missing required fields.`,
-        );
+        status.error(`${incomplete.length} row(s) missing fields`);
         setState("reviewing");
         return;
       }
@@ -394,12 +391,12 @@ export function BulkUploadForm() {
 
       setOutcomes(result.data);
       setState("done");
-      toast.success("Invoices saved successfully.");
+      status.ok("Saved");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Save failed";
       setErrorMessage(message);
       setState("error");
-      toast.error(message);
+      status.error(message);
     }
   }
 
@@ -442,6 +439,7 @@ export function BulkUploadForm() {
             <Upload className="mr-2 size-4" />
             Upload Zip
           </Button>
+          <StatusText status={status.status} />
         </div>
       )}
 
@@ -507,7 +505,10 @@ export function BulkUploadForm() {
             </Table>
           </div>
 
-          <Button onClick={handleSave}>Save All</Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleSave}>Save All</Button>
+            <StatusText status={status.status} />
+          </div>
         </div>
       )}
 

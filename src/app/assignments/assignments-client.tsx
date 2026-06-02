@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ColumnDef } from "@tanstack/react-table";
@@ -17,6 +16,7 @@ import { getToolWithTiers } from "@/actions/tools";
 import { updateAssignmentSchema } from "@/lib/validators";
 import type { UpdateAssignmentInput } from "@/lib/validators";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { UserCombobox } from "@/components/user-combobox";
 import { formatCurrency, formatDate, cn, formatDateOnly, NO_WORKSPACE_SENTINEL } from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
@@ -119,6 +119,7 @@ function EditAssignmentDialog({
   const [saving, setSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const status = useInlineStatus();
 
   const form = useForm<UpdateAssignmentInput>({
     resolver: zodResolver(updateAssignmentSchema),
@@ -151,11 +152,11 @@ function EditAssignmentDialog({
       const tool = await getToolWithTiers(assignment.tool.id);
       setTiers(tool?.accessTiers.filter((t) => t.isActive) ?? []);
     } catch {
-      toast.error("Failed to load tiers");
+      status.error("Tiers load failed");
     } finally {
       setLoadingTiers(false);
     }
-  }, [assignment.tool.id]);
+  }, [assignment.tool.id, status]);
 
   useEffect(() => {
     if (open) {
@@ -189,17 +190,17 @@ function EditAssignmentDialog({
       const result = await updateAssignment(payload);
       if (result.success) {
         if (result.warning) {
-          toast.warning(result.warning);
+          status.info(result.warning);
         } else {
-          toast.success("Assignment updated");
+          status.ok("Updated");
         }
         setOpen(false);
         onSaved();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("An unexpected error occurred");
+      status.error("Unexpected error");
     } finally {
       setSaving(false);
     }
@@ -210,9 +211,9 @@ function EditAssignmentDialog({
     if (value) {
       try {
         await navigator.clipboard.writeText(value);
-        toast.success("Copied to clipboard");
+        status.ok("Copied");
       } catch {
-        toast.error("Failed to copy to clipboard");
+        status.error("Copy failed");
       }
     }
   }
@@ -400,7 +401,8 @@ function EditAssignmentDialog({
               )}
             />
 
-            <DialogFooter>
+            <DialogFooter className="items-center">
+              <StatusText status={status.status} className="mr-auto" />
               <Button
                 type="button"
                 variant="outline"
@@ -662,6 +664,7 @@ export function AssignmentsClient({
   isAdmin,
 }: Props) {
   const router = useRouter();
+  const status = useInlineStatus();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedToolId, setSelectedToolId] = useState<string>("");
@@ -673,12 +676,12 @@ export function AssignmentsClient({
   const handleRevoke = useCallback(async (id: number) => {
     const result = await revokeLicense({ id });
     if (result.success) {
-      toast.success("License revoked");
+      status.ok("Revoked");
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
-  }, [router]);
+  }, [router, status]);
   const columns = useMemo(
     () => getColumns(isAdmin, handleRevoke, handleRefresh),
     [isAdmin, handleRevoke, handleRefresh]
@@ -736,14 +739,14 @@ export function AssignmentsClient({
     });
     setAssigning(false);
     if (result.success) {
-      toast.success("License assigned");
+      status.ok("Assigned");
       setDialogOpen(false);
       setSelectedUserId("");
       setSelectedToolId("");
       setSelectedTierId("");
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -757,7 +760,8 @@ export function AssignmentsClient({
           </p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <StatusText status={status.status} />
             <Button asChild variant="outline">
               <Link href="/assignments/import">Bulk Import</Link>
             </Button>

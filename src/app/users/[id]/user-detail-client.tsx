@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { updateUser, deactivateUser } from "@/actions/users";
 import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
@@ -104,6 +104,8 @@ export function UserDetailClient({
   costAvailableMonths,
 }: Props) {
   const router = useRouter();
+  const status = useInlineStatus();
+  const assignStatus = useInlineStatus();
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [tools, setTools] = useState<AiTool[]>([]);
@@ -136,32 +138,30 @@ export function UserDetailClient({
   async function onSubmit(data: EditUserInput) {
     const result = await updateUser({ id: user.id, ...data });
     if (result.success) {
-      toast.success("User updated");
+      status.ok("Saved");
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
   async function handleDeactivate() {
     const result = await deactivateUser({ id: user.id });
     if (result.success) {
-      toast.success(
-        `User deactivated. ${result.data.revokedCount} license(s) revoked.`
-      );
+      status.ok(`Deactivated · ${result.data.revokedCount} revoked`);
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
   async function handleRevoke(assignmentId: number) {
     const result = await revokeLicense({ id: assignmentId });
     if (result.success) {
-      toast.success("License revoked");
+      status.ok("Revoked");
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -202,11 +202,10 @@ export function UserDetailClient({
     });
     setAssigning(false);
     if (result.success) {
-      toast.success("License assigned");
       closeAssignDialog();
       router.refresh();
     } else {
-      toast.error(result.error);
+      assignStatus.error(result.error);
     }
   }
 
@@ -219,10 +218,10 @@ export function UserDetailClient({
     });
     setReactivatingId(null);
     if (result.success) {
-      toast.success("License reactivated");
+      status.ok("Reactivated");
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -493,6 +492,7 @@ export function UserDetailClient({
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  <StatusText status={status.status} className="self-center" />
                 </div>
                 <ResetPasswordDialog
                   user={user}
@@ -703,6 +703,7 @@ export function UserDetailClient({
             </div>
           </div>
           <DialogFooter>
+            <StatusText status={assignStatus.status} className="mr-auto self-center" />
             <Button
               variant="outline"
               onClick={closeAssignDialog}

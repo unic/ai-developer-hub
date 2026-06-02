@@ -13,7 +13,7 @@ import {
   getWorkspaceDetail,
   setWorkspaceLimit,
 } from "@/actions/anthropic-global";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { WorkspaceDetail } from "@/types";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -35,6 +35,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
     detail.limitCents != null ? String(detail.limitCents / 100) : ""
   );
   const [savingLimit, savingTransition] = useTransition();
+  const status = useInlineStatus();
 
   function handleMonthChange(next: string) {
     setMonth(next);
@@ -53,12 +54,12 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           : Math.round(dollars * 100);
       const r = await setWorkspaceLimit(detail.workspace.id, cents);
       if (r.success) {
-        toast.success("Limit updated.");
+        status.ok("Limit updated");
         setEditing(false);
         const refreshed = await getWorkspaceDetail(workspaceIdParam, month);
         if (refreshed) setDetail(refreshed);
       } else {
-        toast.error(`Failed: ${r.error}`);
+        status.error(r.error);
       }
     });
   }
@@ -187,6 +188,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={savingLimit}>
                 Cancel
               </Button>
+              <StatusText status={status.status} />
             </div>
             {detail.workspace.isDefault && (
               <p className="text-xs text-muted-foreground">

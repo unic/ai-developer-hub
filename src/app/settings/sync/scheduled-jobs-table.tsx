@@ -28,7 +28,7 @@ import { BACKFILL_SOURCES, SOURCE_LABELS, type SyncSourceType } from "@/lib/sync
 import type { SyncSourceWithLastEvent } from "@/lib/sync/registry";
 import type { SyncResult } from "@/types";
 import { ChevronDown, Eye, RefreshCw, Users } from "lucide-react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 
@@ -92,23 +92,22 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
   const [applyLoading, setApplyLoading] = useState(false);
   const [memberSyncOpen, setMemberSyncOpen] = useState(false);
   const router = useRouter();
+  const status = useInlineStatus();
 
   async function handleDryRun() {
     setDryRunLoading(true);
-    toast.info("Running invoice sync preview...");
+    status.pending("Previewing");
     try {
       const result = await syncInvoices({ dryRun: true });
       if (result.success) {
         setDryRunResult(result.data);
         setDryRunDialogOpen(true);
-        toast.success(
-          `Preview complete: ${result.data.totalProcessed} invoices analyzed`
-        );
+        status.ok(`${result.data.totalProcessed} analyzed`);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to run dry run");
+      status.error("Dry run failed");
     } finally {
       setDryRunLoading(false);
     }
@@ -116,19 +115,18 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
 
   async function handleApplyFromDryRun() {
     setApplyLoading(true);
-    toast.info("Starting Invoice-Period Matching sync...");
+    status.pending("Starting sync");
     try {
       const result = await triggerSync("invoice_period_matching");
       if (result.success) {
-        toast.success("Invoice-Period Matching sync started");
         setDryRunDialogOpen(false);
         setDryRunResult(null);
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to apply changes");
+      status.error("Apply failed");
     } finally {
       setApplyLoading(false);
     }
@@ -136,6 +134,9 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
 
   return (
     <>
+      <div className="flex justify-end">
+        <StatusText status={status.status} />
+      </div>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -266,20 +267,21 @@ function InvoiceSyncDropdown({
 }) {
   const [syncLoading, setSyncLoading] = useState(false);
   const router = useRouter();
+  const status = useInlineStatus();
 
   async function handleSync() {
     setSyncLoading(true);
-    toast.info("Starting Invoice-Period Matching sync...");
+    status.pending("Starting sync");
     try {
       const result = await triggerSync("invoice_period_matching");
       if (result.success) {
-        toast.success("Invoice-Period Matching sync started");
+        status.ok("Sync started");
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to trigger sync");
+      status.error("Trigger failed");
     } finally {
       setSyncLoading(false);
     }
@@ -288,26 +290,29 @@ function InvoiceSyncDropdown({
   const loading = syncLoading || dryRunLoading;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={disabled || loading}>
-          <RefreshCw
-            className={`h-3 w-3 mr-1 ${loading ? "animate-spin" : ""}`}
-          />
-          Sync
-          <ChevronDown className="h-3 w-3 ml-1" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleSync} disabled={loading}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Sync Now
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onDryRun} disabled={loading}>
-          <Eye className="h-4 w-4 mr-2" />
-          Preview Changes (Dry Run)
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" disabled={disabled || loading}>
+            <RefreshCw
+              className={`h-3 w-3 mr-1 ${loading ? "animate-spin" : ""}`}
+            />
+            Sync
+            <ChevronDown className="h-3 w-3 ml-1" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={handleSync} disabled={loading}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync Now
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onDryRun} disabled={loading}>
+            <Eye className="h-4 w-4 mr-2" />
+            Preview Changes (Dry Run)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <StatusText status={status.status} />
+    </div>
   );
 }

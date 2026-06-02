@@ -3,11 +3,20 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Card,
   CardContent,
@@ -58,22 +67,23 @@ export function RequestDetailClient({
   approver,
 }: Props) {
   const router = useRouter();
+  const status = useInlineStatus();
   const [approveOpen, setApproveOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const isPending = detail.status === "pending_review";
   const isApproved = detail.status === "approved";
   const canCancel = isPending || isApproved;
 
   async function handleCancel() {
-    if (!confirm("Cancel this request? Any pending approver activity will be discarded.")) return;
     const result = await cancelRequest({ requestId: detail.id });
     if (result.success) {
-      toast.success("Request cancelled");
+      setCancelOpen(false);
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -199,9 +209,10 @@ export function RequestDetailClient({
           <p className="text-sm text-muted-foreground">
             Any admin can act on this request. First-write-wins.
           </p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <StatusText status={status.status} />
             {canCancel && (
-              <Button variant="ghost" onClick={handleCancel}>
+              <Button variant="ghost" onClick={() => setCancelOpen(true)}>
                 Cancel request
               </Button>
             )}
@@ -219,6 +230,24 @@ export function RequestDetailClient({
           </div>
         </div>
       )}
+
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Any pending approver activity will be discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <StatusText status={status.status} />
+            <AlertDialogCancel>Keep request</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleCancel}>
+              Cancel request
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isPending && (
         <>

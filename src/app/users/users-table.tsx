@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
@@ -36,6 +35,7 @@ import { Eye, MoreHorizontal, Pencil, UserX, Mail, KeyRound } from "lucide-react
 import { deactivateUser } from "@/actions/users";
 import { sendInviteEmail, sendBatchInviteEmails } from "@/actions/invite";
 import { ResetPasswordDialog } from "@/components/reset-password-dialog";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   DISCIPLINES,
   DISCIPLINE_ICON,
@@ -57,22 +57,24 @@ function UserRowActions({
 }) {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const status = useInlineStatus();
 
   async function handleSendInvite() {
     try {
       const result = await sendInviteEmail(row.id);
       if (result.success) {
-        toast.success("Invite email sent");
+        status.ok("Invite sent");
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to send invite email");
+      status.error("Invite failed");
     }
   }
 
   return (
     <div className="flex items-center gap-1">
+      <StatusText status={status.status} />
       <Tooltip>
         <TooltipTrigger asChild>
           <Button size="sm" variant="ghost" aria-label={`View ${row.name}`} asChild>
@@ -140,17 +142,18 @@ function UserRowActions({
                   try {
                     const result = await deactivateUser({ id: row.id });
                     if (result.success) {
-                      toast.success(`User deactivated. ${result.data.revokedCount} license(s) revoked.`);
+                      status.ok("Deactivated");
                       onDeactivated();
                     } else {
-                      toast.error(result.error);
+                      status.error(result.error);
                     }
                   } catch {
-                    toast.error("An unexpected error occurred");
+                    status.error("Unexpected error");
                   }
                 }}>
                   Deactivate
                 </AlertDialogAction>
+                <StatusText status={status.status} />
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -325,6 +328,7 @@ export function UsersTable({
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [batchSending, setBatchSending] = useState(false);
+  const batchStatus = useInlineStatus();
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
   const handleEditUser = useCallback((user: User) => {
@@ -342,16 +346,16 @@ export function UsersTable({
       if (result.success) {
         const { sent, failed, total } = result.data;
         if (failed > 0) {
-          toast.warning(`Sent ${sent} of ${total} invite emails. ${failed} failed.`);
+          batchStatus.info(`Sent ${sent}/${total}, ${failed} failed`);
         } else {
-          toast.success(`Sent ${sent} invite email(s) to all pending users.`);
+          batchStatus.ok(`Sent ${sent}`);
         }
         handleRefresh();
       } else {
-        toast.error(result.error);
+        batchStatus.error(result.error);
       }
     } catch {
-      toast.error("An unexpected error occurred");
+      batchStatus.error("Unexpected error");
     } finally {
       setBatchSending(false);
       setShowBatchDialog(false);
@@ -398,6 +402,7 @@ export function UsersTable({
             <Mail className="mr-2 size-4" />
             Send Invites to All Pending ({pendingCount})
           </Button>
+          <StatusText status={batchStatus.status} />
         </div>
       )}
       <DataTable
@@ -420,6 +425,7 @@ export function UsersTable({
             <AlertDialogAction onClick={handleBatchInvite} disabled={batchSending}>
               {batchSending ? "Sending..." : "Send Invites"}
             </AlertDialogAction>
+            <StatusText status={batchStatus.status} />
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

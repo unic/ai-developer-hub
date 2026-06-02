@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +59,7 @@ const SAMPLE_CONTEXT: TemplateContext = {
 export function TemplateEditorDialog({ open, onOpenChange, state }: Props) {
   const [bodyMd, setBodyMd] = useState(state.bodyMd);
   const [pending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   // Build the actual sample context for THIS template (tool / tier names match).
   const ctx: TemplateContext = useMemo(
@@ -83,10 +84,9 @@ export function TemplateEditorDialog({ open, onOpenChange, state }: Props) {
         bodyMd,
       });
       if (result.success) {
-        toast.success("Template saved");
         onOpenChange(false);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -96,10 +96,9 @@ export function TemplateEditorDialog({ open, onOpenChange, state }: Props) {
     startTransition(async () => {
       const result = await deleteMessageTemplate({ id: state.existingId! });
       if (result.success) {
-        toast.success("Template deleted");
         onOpenChange(false);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -201,7 +200,8 @@ export function TemplateEditorDialog({ open, onOpenChange, state }: Props) {
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <StatusText status={status.status} />
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
               Cancel
             </Button>

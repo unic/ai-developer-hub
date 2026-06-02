@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ interface Props {
 export function RejectionDialog({ open, onOpenChange, detail, onSuccess }: Props) {
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   // Clear the draft note every time the dialog opens — matches the
   // reset-on-open behavior of CompletionDialog and ApprovalDialog.
@@ -39,11 +40,10 @@ export function RejectionDialog({ open, onOpenChange, detail, onSuccess }: Props
         decisionNote: note.trim(),
       });
       if (result.success) {
-        toast.success("Rejection sent");
         onOpenChange(false);
         onSuccess();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -75,6 +75,7 @@ export function RejectionDialog({ open, onOpenChange, detail, onSuccess }: Props
           </p>
         </div>
         <DialogFooter>
+          <StatusText status={status.status} />
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             Cancel
           </Button>

@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setOrgBillingBudget } from "@/actions/anthropic-global";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { formatCurrency } from "@/lib/utils";
 import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
 import { EstChip } from "@/components/claude/today-estimate";
@@ -37,6 +37,7 @@ export function OrgBillingBudgetCard({
       : ""
   );
   const [isPending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   function handleSave() {
     startTransition(async () => {
@@ -47,10 +48,10 @@ export function OrgBillingBudgetCard({
           : Math.round(dollars * 100);
       const result = await setOrgBillingBudget(limitCents);
       if (result.success) {
-        toast.success("Billing budget updated.");
+        status.ok("Saved");
         setEditing(false);
       } else {
-        toast.error(`Failed to update: ${result.error}`);
+        status.error(result.error);
       }
     });
   }
@@ -163,6 +164,7 @@ export function OrgBillingBudgetCard({
                   >
                     Cancel
                   </Button>
+                  <StatusText status={status.status} />
                 </div>
               </>
             ) : (

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { bulkImportUsers, checkExistingUsers } from "@/actions/users";
 import type { ExistingUserFields } from "@/types";
 import { getChangedUserFields } from "@/lib/utils";
@@ -24,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Download } from "lucide-react";
 import { toCsv } from "@/lib/csv";
 import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
@@ -119,6 +119,7 @@ function enrichRows(
 
 export function BulkImportForm() {
   const router = useRouter();
+  const status = useInlineStatus();
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -143,9 +144,9 @@ export function BulkImportForm() {
             setParsedUsers(enrichRows(rows, result.data));
             return;
           }
-          toast.error("Failed to check existing users");
+          status.error("Check failed");
         } catch {
-          toast.error("Failed to check existing users");
+          status.error("Check failed");
         } finally {
           setLoading(false);
         }
@@ -171,7 +172,7 @@ export function BulkImportForm() {
       }));
 
     if (validUsers.length === 0) {
-      toast.error("No valid users to import");
+      status.error("No valid users");
       return;
     }
 
@@ -186,14 +187,16 @@ export function BulkImportForm() {
       if (updated > 0) parts.push(`${updated} updated`);
       if (skipped > 0) parts.push(`${skipped} skipped`);
       if (failed > 0) parts.push(`${failed} failed`);
-      toast.success(parts.join(", ") || "No changes");
       if (result.data.inviteLinks && result.data.inviteLinks.length > 0) {
+        status.ok("Imported");
         setInviteLinks(result.data.inviteLinks);
       } else if (created > 0 || updated > 0) {
         router.push("/users");
+      } else {
+        status.ok(parts.join(", ") || "No changes");
       }
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -359,6 +362,7 @@ export function BulkImportForm() {
               >
                 Cancel
               </Button>
+              <StatusText status={status.status} />
             </div>
           </CardContent>
         </Card>

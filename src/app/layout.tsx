@@ -6,7 +6,6 @@ import { isPublicPath } from "@/lib/routes";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
-import { Toaster } from "@/components/ui/sonner";
 import { getActiveAlerts } from "@/actions/alerts";
 import { AlertBanner } from "@/components/alert-banner";
 import "./globals.css";
@@ -81,7 +80,6 @@ export default async function RootLayout({
             ) : (
               children
             )}
-            <Toaster />
           </SessionProvider>
         </ThemeProvider>
       </body>

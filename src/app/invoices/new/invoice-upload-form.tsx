@@ -4,7 +4,6 @@ import { useState, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +34,7 @@ import {
   overwriteInvoice,
 } from "@/actions/invoices";
 import { cn, formatCurrency } from "@/lib/utils";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { UseFormRegisterReturn } from "react-hook-form";
 
 type UploadState = "idle" | "uploading" | "extracting" | "extracted" | "error";
@@ -141,6 +141,8 @@ export function InvoiceUploadForm() {
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [isOverwriting, setIsOverwriting] = useState(false);
+  const status = useInlineStatus();
+  const dupStatus = useInlineStatus();
 
   const {
     register,
@@ -177,7 +179,7 @@ export function InvoiceUploadForm() {
     if (!file) return;
 
     if (file.type !== "application/pdf") {
-      toast.error("Only PDF files are accepted.");
+      status.error("PDF only");
       return;
     }
 
@@ -207,7 +209,7 @@ export function InvoiceUploadForm() {
       const result = await extractInvoiceFieldsAction({ objectKey });
       if (!result.success) {
         setUploadState("error");
-        toast.error(result.error);
+        status.error(result.error);
         return;
       }
 
@@ -233,7 +235,7 @@ export function InvoiceUploadForm() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setUploadState("error");
-      toast.error(message);
+      status.error(message);
     }
   };
 
@@ -249,7 +251,8 @@ export function InvoiceUploadForm() {
     setExtractionResult(null);
     setDuplicateInfo(null);
     setDuplicateDialogOpen(false);
-    toast.info("Upload skipped — duplicate invoice cancelled.");
+    dupStatus.clear();
+    status.info("Skipped");
   };
 
   // T009: Overwrite existing action
@@ -261,7 +264,7 @@ export function InvoiceUploadForm() {
       const formValues = watch();
       const parsedAmount = parseFloat(amountDollars);
       if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        toast.error("Please enter a valid positive amount before overwriting.");
+        dupStatus.error("Invalid amount");
         setIsOverwriting(false);
         return;
       }
@@ -278,20 +281,14 @@ export function InvoiceUploadForm() {
       });
 
       if (!result.success) {
-        toast.error(result.error);
+        dupStatus.error(result.error);
         return;
       }
 
-      if (result.linkWarning) {
-        toast.warning("Invoice overwritten.", { description: result.linkWarning });
-      } else if (result.linkedPeriodLabel) {
-        toast.success(`Invoice overwritten. Linked to ${result.linkedPeriodLabel}.`);
-      } else {
-        toast.success("Invoice overwritten successfully.");
-      }
+      // Success navigates to /invoices — navigation is the feedback.
       router.push("/invoices");
     } catch {
-      toast.error("Failed to overwrite invoice.");
+      dupStatus.error("Overwrite failed");
     } finally {
       setIsOverwriting(false);
       setDuplicateDialogOpen(false);
@@ -313,16 +310,10 @@ export function InvoiceUploadForm() {
 
     const result = await saveInvoice(submitData);
     if (!result.success) {
-      toast.error(result.error);
+      status.error(result.error);
       return;
     }
-    if (result.linkWarning) {
-      toast.warning("Invoice saved.", { description: result.linkWarning });
-    } else if (result.linkedPeriodLabel) {
-      toast.success(`Invoice saved. Linked to ${result.linkedPeriodLabel}.`);
-    } else {
-      toast.success("Invoice saved to archive.");
-    }
+    // Success navigates to /invoices — navigation is the feedback.
     router.push("/invoices");
   };
 
@@ -365,6 +356,7 @@ export function InvoiceUploadForm() {
             className="hidden"
             onChange={handleFileChange}
           />
+          {!showForm && <StatusText status={status.status} />}
         </div>
       </div>
 
@@ -447,16 +439,19 @@ export function InvoiceUploadForm() {
             error={errors.vendor?.message}
           />
 
-          <Button type="submit" disabled={isSubmitting || !blobPathname || !!duplicateInfo?.isDuplicate}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              "Save to Archive"
-            )}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={isSubmitting || !blobPathname || !!duplicateInfo?.isDuplicate}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save to Archive"
+              )}
+            </Button>
+            <StatusText status={status.status} />
+          </div>
         </form>
       )}
 
@@ -489,7 +484,8 @@ export function InvoiceUploadForm() {
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="items-center">
+            <StatusText status={dupStatus.status} className="mr-auto" />
             <AlertDialogCancel onClick={handleSkipDuplicate} disabled={isOverwriting}>
               Skip (Cancel Upload)
             </AlertDialogCancel>

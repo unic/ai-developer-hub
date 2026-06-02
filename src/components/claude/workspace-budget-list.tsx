@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-react";
 import { setWorkspaceLimit } from "@/actions/anthropic-global";
 import { Sparkline } from "@/components/ui/sparkline";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { WorkspaceListItem, WorkspaceSparkline } from "@/types";
 import {
   cn,
@@ -110,6 +110,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
     workspace.limitCents != null ? String(workspace.limitCents / 100) : ""
   );
   const [isPending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   function handleSave() {
     startTransition(async () => {
@@ -121,13 +122,13 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
       try {
         const result = await setWorkspaceLimit(workspace.workspaceId, limitCents);
         if (result.success) {
-          toast.success("Budget limit updated.");
+          status.ok("Saved");
           setEditing(false);
         } else {
-          toast.error(`Failed to update limit: ${result.error}`);
+          status.error(result.error);
         }
       } catch {
-        toast.error("Failed to update limit: network error.");
+        status.error("Network error");
       }
     });
   }
@@ -245,11 +246,15 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
             >
               Cancel
             </Button>
+            <StatusText status={status.status} />
           </>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            {workspace.limitCents != null ? "Edit limit" : "Set limit"}
-          </Button>
+          <>
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              {workspace.limitCents != null ? "Edit limit" : "Set limit"}
+            </Button>
+            <StatusText status={status.status} />
+          </>
         )}
       </div>
     </div>

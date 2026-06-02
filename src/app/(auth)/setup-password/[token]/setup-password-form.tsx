@@ -6,7 +6,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { setupPasswordSchema } from "@/lib/validators";
 import { setupPassword } from "@/actions/invite";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ interface SetupPasswordFormProps {
 
 export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
   const router = useRouter();
+  const status = useInlineStatus();
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm({
@@ -56,15 +57,15 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
       });
 
       if (signInResult?.ok) {
-        toast.success("Password set successfully. Redirecting...");
+        // Navigation is the feedback for the success path.
         router.push("/");
         router.refresh();
       } else {
         // Fallback: send to login page if auto-sign-in fails
-        toast.success("Password set successfully. Please sign in.");
         router.push("/login");
       }
     } else {
+      status.error(result.error);
       setError(result.error);
     }
   }
@@ -138,6 +139,9 @@ export function SetupPasswordForm({ token, userName }: SetupPasswordFormProps) {
             "Set Password"
           )}
         </Button>
+        <div className="flex justify-center">
+          <StatusText status={status.status} />
+        </div>
       </form>
     </Form>
   );

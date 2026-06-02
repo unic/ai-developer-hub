@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { triggerSync } from "@/actions/sync";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { SyncSourceType } from "@/lib/sync/framework";
 
 interface SyncNowButtonProps {
@@ -16,33 +16,37 @@ interface SyncNowButtonProps {
 export function SyncNowButton({ sourceType, disabled }: SyncNowButtonProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const status = useInlineStatus();
 
   async function handleClick() {
     setLoading(true);
     try {
       const result = await triggerSync(sourceType);
       if (result.success) {
-        toast.success("Sync started");
+        status.ok("Sync started");
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to trigger sync");
+      status.error("Sync failed");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleClick}
-      disabled={disabled || loading}
-    >
-      <RefreshCw className={`h-3 w-3 mr-1 ${loading ? "animate-spin" : ""}`} />
-      Sync
-    </Button>
+    <div className="inline-flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleClick}
+        disabled={disabled || loading}
+      >
+        <RefreshCw className={`h-3 w-3 mr-1 ${loading ? "animate-spin" : ""}`} />
+        Sync
+      </Button>
+      <StatusText status={status.status} />
+    </div>
   );
 }

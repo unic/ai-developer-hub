@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Copy, Mail, Check } from "lucide-react";
-import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { sendInviteEmail } from "@/actions/invite";
 
 interface InviteLinkDialogProps {
@@ -32,6 +32,7 @@ export function InviteLinkDialog({
   const [currentUrl, setCurrentUrl] = useState(inviteUrl);
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+  const status = useInlineStatus();
 
   // Sync with parent when the prop changes (e.g. token generated after mount)
   useEffect(() => {
@@ -42,10 +43,10 @@ export function InviteLinkDialog({
     try {
       await navigator.clipboard.writeText(currentUrl);
       setCopied(true);
-      toast.success("Invite link copied to clipboard");
+      status.ok("Copied");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Failed to copy link");
+      status.error("Copy failed");
     }
   }
 
@@ -54,13 +55,13 @@ export function InviteLinkDialog({
     try {
       const result = await sendInviteEmail(userId);
       if (result.success) {
-        toast.success("Invite email sent successfully");
+        status.ok("Invite sent");
         if (result.data?.inviteUrl) setCurrentUrl(result.data.inviteUrl);
       } else {
-        toast.error(result.error ?? "Failed to send invite email");
+        status.error(result.error ?? "Send failed");
       }
     } catch {
-      toast.error("Failed to send invite email");
+      status.error("Send failed");
     } finally {
       setSending(false);
     }
@@ -114,6 +115,10 @@ export function InviteLinkDialog({
             {sending ? "Sending..." : "Send Invite Email"}
           </Button>
         )}
+
+        <div className="flex justify-end">
+          <StatusText status={status.status} />
+        </div>
       </DialogContent>
     </Dialog>
   );
