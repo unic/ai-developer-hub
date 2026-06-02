@@ -58,7 +58,7 @@
         <div class="stat-row"><span class="label">P1 · Primitives &amp; overlays</span><span class="value value--success" id="st-p1">DONE · verified</span></div>
         <div class="stat-row"><span class="label">P2 · App shell &amp; layout</span><span class="value value--success" id="st-p2">DONE · verified both modes</span></div>
         <div class="stat-row"><span class="label">P3 · Shared tables &amp; charts</span><span class="value value--success" id="st-p3">DONE</span></div>
-        <div class="stat-row"><span class="label">P4 · Page migration</span><span class="value t-warning" id="st-p4">IN PROGRESS · shared-driven + sweeps</span></div>
+        <div class="stat-row"><span class="label">P4 · Page migration</span><span class="value t-warning" id="st-p4">PARTIAL · shared-driven; tint sweep pending</span></div>
         <div class="stat-row"><span class="label">P5 · QA gate &amp; PR</span><span class="value t-secondary" id="st-p5">PENDING</span></div>
       </div>
     </section>
@@ -217,6 +217,34 @@
           the topbar to match the mockups exactly, that requires a shared <code>&lt;Topbar&gt;</code> the pages
           adopt — a larger P4 change.</p>
       </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <section id="remaining">
+      <div class="section-head"><span class="label">05</span><h2 class="heading">Remaining work (not yet done)</h2></div>
+      <p class="prose">What this pass delivered: the full design system (P0 tokens+fonts, P1 every primitive/overlay,
+        P2 shell, P3 shared tables + chart wrapper + segmented bar + loaders + monochrome charts), verified in a
+        browser on an isolated Neon branch in both modes. Because the app is built on shared components, the
+        token + primitive + shell + table/chart re-skin already propagates the Nothing look to essentially every
+        route. The items below are the scoped follow-ups that remain.</p>
+      <ul class="bullets prose">
+        <li><strong>Page-level literal color sweep (~23 files, ~57 sites).</strong> A workflow to convert scattered
+          literal Tailwind status tints (<code>text-yellow-600</code>, <code>bg-red-100</code>, …) to value-text
+          tokens was authored but <em>did not run</em> — every agent hit the account session limit (resets 1:30pm
+          Europe/Warsaw), so those files are unchanged from their P0-tokenized state. Re-run
+          <code>p4-literal-colors</code> when the limit resets. Files: claude/{sync-status-pill, cumulative-pacing,
+          org-credits, workspace-budget-list, kpi-strip, user-kpi-strip}, copilot/metrics-freshness,
+          dashboard/{viewer/my-usage, viewer/identity, admin/activity-timeline, admin/admin-dashboard},
+          reports/what-changed, ui/json-viewer, and the invoices/budget/settings/claude detail clients.</li>
+        <li><strong>Full toast removal.</strong> The flattened Sonner toast is the interim feedback; converting all
+          ~183 <code>toast.*</code> sites to inline <code>&lt;StatusText&gt;</code> and deleting Sonner is the
+          remaining behavioural change (primitive + hook are ready).</li>
+        <li><strong>Per-page polish vs mockups.</strong> Hero <code>Doto</code> moments, mono-caps field labels on
+          forms (login still uses sentence-case labels), the two calendar date pickers → Space-Mono date inputs,
+          and the <code>requests</code> native <code>confirm()</code> → Nothing modal.</li>
+        <li><strong>"One red per screen" audit + light-mode contrast (axe/Lighthouse).</strong> The P5 automated
+          a11y gate and the per-screen single-interrupt audit (see Open questions) still to run.</li>
+      </ul>
     </section>
 
     <div class="divider"></div>
