@@ -46,6 +46,7 @@ import {
 import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { Search } from "lucide-react";
 import { DataTableFacetedFilter } from "@/components/data-table-faceted-filter";
 
 interface FacetedFilterConfig {
@@ -95,22 +96,28 @@ export function DataTable<TData, TValue>({
     <TooltipProvider>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          placeholder={searchPlaceholder}
-          value={
-            searchKey
-              ? (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
-              : globalFilter
-          }
-          onChange={(e) => {
-            if (searchKey) {
-              table.getColumn(searchKey)?.setFilterValue(e.target.value);
-            } else {
-              setGlobalFilter(e.target.value);
+        <div className="relative w-full max-w-xs">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            strokeWidth={1.5}
+          />
+          <Input
+            placeholder={searchPlaceholder}
+            value={
+              searchKey
+                ? (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
+                : globalFilter
             }
-          }}
-          className="max-w-sm"
-        />
+            onChange={(e) => {
+              if (searchKey) {
+                table.getColumn(searchKey)?.setFilterValue(e.target.value);
+              } else {
+                setGlobalFilter(e.target.value);
+              }
+            }}
+            className="rounded-full pl-9"
+          />
+        </div>
         {facetedFilters?.map((filter) => {
           const column = table.getColumn(filter.columnId);
           if (!column) return null;
@@ -124,7 +131,7 @@ export function DataTable<TData, TValue>({
           );
         })}
       </div>
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-[14px] border border-border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -160,16 +167,16 @@ export function DataTable<TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24 text-center font-mono text-xs tracking-[0.1em] uppercase text-muted-foreground"
                 >
-                  No results.
+                  [ No results ]
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-between gap-4">
         <Select
           value={String(table.getState().pagination.pageSize)}
           onValueChange={(value) => {
@@ -177,7 +184,7 @@ export function DataTable<TData, TValue>({
             table.setPageIndex(0);
           }}
         >
-          <SelectTrigger className="h-8 w-[70px]">
+          <SelectTrigger size="sm" className="w-[88px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -187,22 +194,30 @@ export function DataTable<TData, TValue>({
             <SelectItem value="100">100</SelectItem>
           </SelectContent>
         </Select>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-[11px] tracking-[0.1em] uppercase text-muted-foreground">
+            Page {table.getState().pagination.pageIndex + 1} /{" "}
+            {Math.max(1, table.getPageCount())}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Prev
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
     </TooltipProvider>

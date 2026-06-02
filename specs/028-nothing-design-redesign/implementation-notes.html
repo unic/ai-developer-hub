@@ -55,8 +55,8 @@
       <div class="section-head"><span class="label">00</span><h2 class="heading">Phase status</h2></div>
       <div class="stat-list">
         <div class="stat-row"><span class="label">P0 · Tokens &amp; fonts</span><span class="value value--success" id="st-p0">DONE · build green</span></div>
-        <div class="stat-row"><span class="label">P1 · Primitives &amp; overlays</span><span class="value t-secondary" id="st-p1">PENDING</span></div>
-        <div class="stat-row"><span class="label">P2 · App shell &amp; layout</span><span class="value t-secondary" id="st-p2">PENDING</span></div>
+        <div class="stat-row"><span class="label">P1 · Primitives &amp; overlays</span><span class="value value--success" id="st-p1">DONE · verified</span></div>
+        <div class="stat-row"><span class="label">P2 · App shell &amp; layout</span><span class="value value--success" id="st-p2">DONE · verified both modes</span></div>
         <div class="stat-row"><span class="label">P3 · Shared tables &amp; charts</span><span class="value t-secondary" id="st-p3">PENDING</span></div>
         <div class="stat-row"><span class="label">P4 · Page migration</span><span class="value t-secondary" id="st-p4">PENDING</span></div>
         <div class="stat-row"><span class="label">P5 · QA gate &amp; PR</span><span class="value t-secondary" id="st-p5">PENDING</span></div>
@@ -128,6 +128,32 @@
 
       <div class="note note--deviation">
         <span class="kind">Deviation</span>
+        <span class="title"><span class="phase-tag">P2</span>Sonner kept as a flattened transitional toast; full 183-site removal staged</span>
+        <p>The plan bans toasts and removes Sonner, replacing all ~183 <code>toast.*</code> sites with inline
+          <code>&lt;StatusText&gt;</code>. The inline primitive + <code>useInlineStatus</code> hook are built and
+          adopted on migrated surfaces. But removing the global <code>&lt;Toaster/&gt;</code> while 183 call sites
+          remain turns them into silent no-ops (lost success/error + lost screen-reader announcements) — a
+          regression that can't be safely verified across 41 files in one pass. So the global Toaster stays
+          mounted, <strong>re-skinned to the Nothing look</strong> (flat, no shadow, Space Mono, monochrome
+          surface, status color on text only, red errors), and toast→inline conversion proceeds incrementally on
+          key forms. Net: feedback never breaks and looks on-system; finishing the long tail of conversions +
+          deleting Sonner is tracked as remaining work (P5 grep gate will still flag residual <code>toast.*</code>).</p>
+      </div>
+
+      <div class="note note--deviation">
+        <span class="kind">Deviation</span>
+        <span class="title"><span class="phase-tag">P2</span>Simplified shell: fixed rail + mobile drawer, no collapsible/Cmd+B/cookie</span>
+        <p>The plan keeps the shadcn <code>SidebarProvider</code> machinery (collapsible rail, Cmd+B, cookie
+          persistence, mobile Sheet) and re-skins it. I replaced it with a plain CSS-grid <code>.app</code> +
+          a self-contained responsive sidebar: a fixed 248px desktop rail and a lightweight mobile drawer
+          (state + backdrop). The Nothing design has a fixed rail (no collapse), so the collapsible/keyboard/cookie
+          features aren't part of the target; dropping them removes a dependency on the large <code>sidebar.tsx</code>
+          and keeps the shell legible. <code>sidebar.tsx</code> remains in the repo (unused by the shell).
+          Nav is <strong>text-only</strong> (Lucide row icons dropped) to match the mockups' text nav.</p>
+      </div>
+
+      <div class="note note--deviation">
+        <span class="kind">Deviation</span>
         <span class="title"><span class="phase-tag">P0</span>Light-mode status colors darkened for WCAG, unlike the mockups</span>
         <p>The mockups (and <code>nothing.css</code>) use the same <code>--success #4a9e5c</code> /
           <code>--warning #d4a843</code> in both modes. As <em>value text</em> on the light canvas those fail the
@@ -145,14 +171,52 @@
     <section id="tradeoffs">
       <div class="section-head"><span class="label">03</span><h2 class="heading">Tradeoffs</h2></div>
       <p class="prose">Alternatives considered and why the chosen path won.</p>
-      <p class="meta-line">— none recorded yet —</p>
+
+      <div class="note note--tradeoff">
+        <span class="kind">Tradeoff</span>
+        <span class="title"><span class="phase-tag">P1</span>Parallel agent fan-out to re-skin primitives vs hand-editing all 22</span>
+        <p>The 4 defining primitives (button/badge/card/input) + the net-new shared helpers were hand-built for
+          control; the remaining 18 were re-skinned by one agent each in a single parallel workflow (each owns one
+          file, so no write conflicts), against a shared "Nothing primitive contract" + per-file spec. Faster and
+          consistent, at the cost of a review pass — caught by the build/lint gate and a browser spot-check.</p>
+      </div>
+
+      <div class="note note--tradeoff">
+        <span class="kind">Tradeoff</span>
+        <span class="title"><span class="phase-tag">P3</span>Re-theme Recharts in place vs rebuilding every chart as CSS/SVG</span>
+        <p>Per the plan's P3 gate: re-theme the shared <code>ui/chart.tsx</code> wrapper once (mono axes, no legend
+          boxes, shadowless tooltip, monochrome ramp) and keep Recharts for line/bar (preserves
+          tooltips/responsiveness/accessibility), rebuilding only the idioms Nothing forbids (donut → segmented
+          proportion; area fill → line). The signature segmented bar becomes a reusable React
+          <code>&lt;SegmentedBar&gt;</code> replacing the continuous SpendProgressBar / multi-marker bar.</p>
+      </div>
     </section>
 
     <!-- ===================================================================== -->
     <section id="open">
       <div class="section-head"><span class="label">04</span><h2 class="heading">Open questions</h2></div>
       <p class="prose">Things worth a confirm or a later revision.</p>
-      <p class="meta-line">— none recorded yet —</p>
+
+      <div class="note note--open">
+        <span class="kind">Open question</span>
+        <span class="title">"One red per screen" on dense admin screens</span>
+        <p>The admin dashboard legitimately surfaces several reds at once: the active-nav bar, the budget-at-risk
+          card (border + icon + tag), and failed-invoice dots in the activity timeline. The plan's mitigation is
+          to demote the active-nav / active-row indicator to neutral <code>--ink</code> when an error/at-risk
+          state is present on that view. Confirm you want that auto-demotion logic wired globally, or whether a
+          per-screen judgement (e.g. dashboard keeps the budget red as the one moment, nav goes neutral) is
+          enough. Currently the nav active bar is always red.</p>
+      </div>
+
+      <div class="note note--open">
+        <span class="kind">Open question</span>
+        <span class="title">Theme toggle placement — sidebar footer vs page topbar</span>
+        <p>The mockups put the Dark/Light toggle in each page's top-right action area. Because the 40 routes
+          already render their own page headers (no shared Topbar contract was force-adopted), I placed the
+          segmented toggle in the sidebar footer instead (always visible, no per-page change). If you want it in
+          the topbar to match the mockups exactly, that requires a shared <code>&lt;Topbar&gt;</code> the pages
+          adopt — a larger P4 change.</p>
+      </div>
     </section>
 
     <div class="divider"></div>
