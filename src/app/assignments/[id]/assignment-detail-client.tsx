@@ -236,7 +236,7 @@ export function AssignmentDetailClient({
             Back to Assignments
           </Link>
         </Button>
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-3xl font-medium tracking-tight text-ink">
           <Link
             href={`/users/${assignment.user.id}`}
             className="hover:underline"

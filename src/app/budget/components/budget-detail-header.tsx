@@ -45,7 +45,7 @@ export function BudgetDetailHeader({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold">FY {budget.fiscalYear} Budget</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">FY {budget.fiscalYear} Budget</h1>
           <Badge variant={isArchived ? "secondary" : "default"}>
             {budget.status}
           </Badge>

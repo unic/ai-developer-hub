@@ -120,7 +120,7 @@ export function SyncDashboard({
   }, [isPolling, router, status]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <div className="mb-3 flex items-center gap-3">
           <h3 className="text-lg font-semibold">Scheduled Jobs</h3>

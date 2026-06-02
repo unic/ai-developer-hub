@@ -207,7 +207,7 @@ export function BulkImportForm() {
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Bulk Import Users</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">Bulk Import Users</h1>
           <p className="text-muted-foreground">
             Upload a CSV file with columns: name, email (required); circle (or
             department), discipline, role, github_username, profile (optional).
@@ -306,11 +306,11 @@ export function BulkImportForm() {
                 <TableBody>
                   {parsedUsers.map((user, i) => {
                     const changed = user.changes ?? [];
-                    const hl = "font-semibold text-primary";
+                    const hl = "font-semibold text-ink";
                     return (
                       <TableRow
                         key={i}
-                        className={!user.valid ? "bg-destructive/10" : ""}
+                        className=""
                       >
                         <TableCell>
                           {user.action === "update" ? (

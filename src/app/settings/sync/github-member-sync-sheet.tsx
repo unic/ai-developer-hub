@@ -391,7 +391,7 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-md border p-3 text-center">
-      <p className="text-2xl font-bold tabular-nums">{count}</p>
+      <p className="text-2xl font-mono tabular-nums">{count}</p>
       <p
         className={`text-xs ${
           variant === "warning" && count > 0
@@ -424,35 +424,35 @@ function ResolutionSummaryPanel({
       <p className="text-sm font-medium">Resolution Summary</p>
       <div className="grid grid-cols-5 gap-2 text-center">
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.imported}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.imported}</p>
           <p className="text-[10px] text-muted-foreground">
             <Download className="size-3 inline mr-0.5" />
             Import
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.matched}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.matched}</p>
           <p className="text-[10px] text-muted-foreground">
             <UserCheck className="size-3 inline mr-0.5" />
             Matched
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.created}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.created}</p>
           <p className="text-[10px] text-muted-foreground">
             <UserPlus className="size-3 inline mr-0.5" />
             New User
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.skipped}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.skipped}</p>
           <p className="text-[10px] text-muted-foreground">
             <SkipForward className="size-3 inline mr-0.5" />
             Skipped
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">
+          <p className="text-lg font-mono tabular-nums">
             {summary.unresolved}
           </p>
           <p className="text-[10px] text-muted-foreground">Unresolved</p>

@@ -229,7 +229,7 @@ export function UserDetailClient({
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{user.name}</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">{user.name}</h1>
           <p className="text-muted-foreground">{user.email}</p>
         </div>
         <div className="flex gap-2">

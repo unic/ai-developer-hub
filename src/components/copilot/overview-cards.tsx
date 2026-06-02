@@ -63,7 +63,7 @@ export function OverviewCards({
             <card.icon className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{card.value}</div>
+            <div className="text-2xl font-mono">{card.value}</div>
             {card.description && (
               <p className="text-xs text-muted-foreground">
                 {card.description}

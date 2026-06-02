@@ -754,7 +754,7 @@ export function AssignmentsClient({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">License Assignments</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">License Assignments</h1>
           <p className="text-muted-foreground">
             Track user-to-tool license assignments
           </p>

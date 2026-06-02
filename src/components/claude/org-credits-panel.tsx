@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setOrgBillingBudget } from "@/actions/anthropic-global";
 import { StatusText, useInlineStatus } from "@/components/ui/status-text";
+import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { formatCurrency } from "@/lib/utils";
 import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
 import { EstChip } from "@/components/claude/today-estimate";
@@ -181,19 +182,18 @@ export function OrgBillingBudgetCard({
         </div>
 
         {limitCents != null && (
-          <div className="mt-4 space-y-1">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  (utilizationPct ?? 0) >= 100
-                    ? "bg-destructive"
-                    : (utilizationPct ?? 0) >= 80
-                    ? "bg-warning"
-                    : "bg-primary"
-                }`}
-                style={{ width: `${Math.min(utilizationPct ?? 0, 100)}%` }}
-              />
-            </div>
+          <div className="mt-4">
+            <SegmentedBar
+              value={Math.min(utilizationPct ?? 0, 100) / 100}
+              tone={
+                (utilizationPct ?? 0) >= 100
+                  ? "over"
+                  : (utilizationPct ?? 0) >= 80
+                    ? "warn"
+                    : "filled"
+              }
+              ariaLabel={`${utilizationPct ?? 0}% of monthly budget used`}
+            />
           </div>
         )}
       </CardContent>

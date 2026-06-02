@@ -45,7 +45,7 @@ function KpiTileCard({ tile }: { tile: KpiTile }) {
           {tile.icon}
         </div>
         <p
-          className="mt-2 text-2xl font-bold tabular-nums tracking-tight"
+          className="mt-2 text-2xl font-mono tabular-nums tracking-tight"
           aria-describedby={captionId}
         >
           {tile.value}

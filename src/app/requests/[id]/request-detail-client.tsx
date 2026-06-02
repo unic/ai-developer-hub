@@ -97,7 +97,7 @@ export function RequestDetailClient({
           <ArrowLeft className="size-3" /> Back to requests
         </Link>
         <div className="flex items-center gap-3 mt-2">
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-3xl font-medium tracking-tight text-ink">
             Request REQ-{String(detail.id).padStart(3, "0")}
           </h1>
           <Badge variant={STATUS_VARIANT[detail.status]}>

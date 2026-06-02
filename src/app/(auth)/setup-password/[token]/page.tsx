@@ -21,13 +21,13 @@ export default async function SetupPasswordPage({
 
   if (!result.success) {
     return (
-      <Card className="border-none shadow-lg">
+      <Card className="border-none">
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 lg:hidden">
             <Bot className="size-6 text-primary" />
           </div>
           <div className="space-y-1.5">
-            <CardTitle className="text-2xl font-bold tracking-tight">
+            <CardTitle className="text-2xl font-medium tracking-tight">
               AI Developer Hub
             </CardTitle>
           </div>
@@ -73,13 +73,13 @@ export default async function SetupPasswordPage({
   }
 
   return (
-    <Card className="border-none shadow-lg">
+    <Card className="border-none">
       <CardHeader className="space-y-3 text-center">
         <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 lg:hidden">
           <Bot className="size-6 text-primary" />
         </div>
         <div className="space-y-1.5">
-          <CardTitle className="text-2xl font-bold tracking-tight">
+          <CardTitle className="text-2xl font-medium tracking-tight">
             Set your password
           </CardTitle>
           <CardDescription className="text-balance">

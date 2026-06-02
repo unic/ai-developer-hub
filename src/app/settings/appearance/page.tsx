@@ -23,7 +23,7 @@ export default function AppearancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Appearance</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Appearance</h1>
         <p className="text-muted-foreground">
           Customize the look and feel of the application.
         </p>

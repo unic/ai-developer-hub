@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-react";
 import { setWorkspaceLimit } from "@/actions/anthropic-global";
 import { Sparkline } from "@/components/ui/sparkline";
+import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { WorkspaceListItem, WorkspaceSparkline } from "@/types";
 import {
@@ -136,11 +137,6 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
   const pct = workspace.utilizationPct;
   const isOver = pct != null && pct >= 100;
   const isWarn = pct != null && pct >= 80 && pct < 100;
-  const barClass = isOver
-    ? "bg-destructive"
-    : isWarn
-    ? "bg-warning"
-    : "bg-primary";
 
   return (
     <div className="group flex items-center justify-between gap-4 py-3">
@@ -197,12 +193,12 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
         </div>
         {workspace.limitCents != null && (
           <div className="mt-1.5 space-y-1">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn("h-full rounded-full transition-all", barClass)}
-                style={{ width: `${Math.min(workspace.utilizationPct ?? 0, 100)}%` }}
-              />
-            </div>
+            <SegmentedBar
+              value={Math.min(workspace.utilizationPct ?? 0, 100) / 100}
+              tone={isOver ? "over" : isWarn ? "warn" : "filled"}
+              size="compact"
+              ariaLabel={`${workspace.utilizationPct ?? 0}% of limit used`}
+            />
             <PaceLabel workspace={workspace} />
           </div>
         )}

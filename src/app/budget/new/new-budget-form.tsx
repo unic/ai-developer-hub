@@ -70,7 +70,7 @@ export function NewBudgetForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Create Annual Budget</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Create Annual Budget</h1>
         <p className="text-muted-foreground">
           Set up a new fiscal year budget for AI tools
         </p>

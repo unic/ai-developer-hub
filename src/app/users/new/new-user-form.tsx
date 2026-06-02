@@ -74,7 +74,7 @@ export function NewUserForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Add New User</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Add New User</h1>
         <p className="text-muted-foreground">
           Create a new company user account
         </p>

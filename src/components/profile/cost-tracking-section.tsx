@@ -137,7 +137,7 @@ export function CostTrackingSection({
         {/* Monthly total */}
         <div className="rounded-lg border p-4">
           <p className="text-sm text-muted-foreground">Monthly Total</p>
-          <p className={`text-3xl font-bold ${isPending ? "opacity-50" : ""}`}>
+          <p className={`text-3xl font-mono ${isPending ? "opacity-50" : ""}`}>
             {formatCurrency(costData.monthlyTotalCents)}
           </p>
           {costData.latestDataDate && (

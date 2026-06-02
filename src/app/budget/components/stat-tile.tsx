@@ -10,10 +10,10 @@ export function StatTile({ label, value, sub, tone = "default" }: Props) {
     tone === "danger"
       ? "text-destructive"
       : tone === "success"
-        ? "text-primary"
+        ? "text-success"
         : "";
   return (
-    <div className="rounded-lg border bg-card/60 p-4">
+    <div className="rounded-[14px] border bg-card/60 p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </p>

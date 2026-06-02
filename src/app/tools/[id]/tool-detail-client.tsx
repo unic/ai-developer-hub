@@ -302,7 +302,7 @@ export function ToolDetailClient({
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{tool.name}</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">{tool.name}</h1>
           <p className="text-muted-foreground">{tool.vendor}</p>
         </div>
         <Badge variant={tool.status === "active" ? "default" : "secondary"}>
@@ -490,7 +490,7 @@ export function ToolDetailClient({
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="font-medium">
+                      <p className="font-mono">
                         {formatCurrency(tier.monthlyCostCents)}/mo
                       </p>
                       <p className="text-sm text-muted-foreground">

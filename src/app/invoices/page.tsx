@@ -30,7 +30,7 @@ export default async function InvoicesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Invoices</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/invoices/bulk">Bulk Upload</Link>
