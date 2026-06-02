@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentProps } from "react";
 import {
   Bar,
   BarChart,
@@ -37,7 +38,36 @@ const chartConfig: ChartConfig = {
   forecast: { label: "Forecast", color: "var(--chart-4)" },
 };
 
-export function PlanVsActualChart({ periods, forecast }: PlanVsActualChartProps) {
+// "Billed" segments turn red (var(--destructive)) on any month where actual
+// spend exceeds the plan — that's a conditional alert state on the Billed
+// series, not a series of its own. Recharts colors each legend entry from its
+// <Bar>'s fill and ignores per-<Cell> overrides, so the red would otherwise
+// never appear in the legend. Append an explicit "Over budget" swatch (only
+// when a breach exists) so the red bars are accounted for.
+function PlanVsActualLegend({
+  showOverBudget,
+  ...props
+}: ComponentProps<typeof ChartLegendContent> & { showOverBudget: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-3">
+      <ChartLegendContent {...props} className="!p-0" />
+      {showOverBudget && (
+        <div className="flex items-center gap-1.5">
+          <div
+            className="h-2 w-2 shrink-0 rounded-[2px]"
+            style={{ backgroundColor: "var(--destructive)" }}
+          />
+          Over budget
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PlanVsActualChart({
+  periods,
+  forecast,
+}: PlanVsActualChartProps) {
   const today = new Date();
   const projection = buildProjectionLookup(forecast);
 
@@ -57,6 +87,12 @@ export function PlanVsActualChart({ periods, forecast }: PlanVsActualChartProps)
     periods.length > 0
       ? periods.reduce((s, p) => s + p.plannedAmountCents, 0) / periods.length
       : 0;
+
+  // Mirror the per-Cell red condition below so the legend only explains the
+  // alert color when at least one month actually breaches its plan.
+  const anyOverBudget = data.some(
+    (d) => d.planned > 0 && d.billed + d.running > d.planned,
+  );
 
   return (
     <ChartContainer config={chartConfig} className="h-[340px] w-full">
@@ -103,8 +139,14 @@ export function PlanVsActualChart({ periods, forecast }: PlanVsActualChartProps)
             />
           }
         />
-        <ChartLegend content={<ChartLegendContent />} />
-        <Bar dataKey="planned" fill="var(--color-planned)" radius={[4, 4, 0, 0]} />
+        <ChartLegend
+          content={<PlanVsActualLegend showOverBudget={anyOverBudget} />}
+        />
+        <Bar
+          dataKey="planned"
+          fill="var(--color-planned)"
+          radius={[4, 4, 0, 0]}
+        />
         <Bar
           dataKey="billed"
           stackId="actual"

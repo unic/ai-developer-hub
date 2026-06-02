@@ -2,11 +2,13 @@
 
 import { useState, useTransition, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -388,7 +390,7 @@ export function GlobalMetricsClient({
                     />
                   }
                 />
-                <Legend wrapperStyle={{ paddingTop: 8 }} />
+                <ChartLegend content={<ChartLegendContent />} />
                 {stackedSeries.map((s) => (
                   <Bar
                     key={s.key}

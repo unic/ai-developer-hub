@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,7 +88,7 @@ export function DailyByUserChart({ data }: { data: DailyByUserResult }) {
         }
         return row;
       }),
-    [data.days, stackedSeries]
+    [data.days, stackedSeries],
   );
 
   const periodTotal = data.topUsers.reduce((s, u) => s + u.totalCents, 0);
@@ -102,7 +104,9 @@ export function DailyByUserChart({ data }: { data: DailyByUserResult }) {
           {periodTotal > 0 && (
             <>
               {" · "}
-              <span className="tabular-nums">{formatCurrency(periodTotal)}</span>{" "}
+              <span className="tabular-nums">
+                {formatCurrency(periodTotal)}
+              </span>{" "}
               this period
             </>
           )}
@@ -147,7 +151,10 @@ export function DailyByUserChart({ data }: { data: DailyByUserResult }) {
                   />
                 }
               />
-              <Legend wrapperStyle={{ paddingTop: 8 }} verticalAlign="top" />
+              <ChartLegend
+                verticalAlign="top"
+                content={<ChartLegendContent />}
+              />
               {stackedSeries.map((s) => (
                 <Bar
                   key={s.key}
