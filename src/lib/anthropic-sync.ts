@@ -236,7 +236,7 @@ function formatAnthropicTimestamp(date: Date): string {
   return date.toISOString().replace(/\.\d+Z$/, "Z");
 }
 
-function computeSyncWindow(latestDateStr: string | null): { startingAt: string; endingAt: string } {
+export function computeSyncWindow(latestDateStr: string | null): { startingAt: string; endingAt: string } {
   const now = new Date();
   now.setUTCHours(0, 0, 0, 0);
   let startDate: Date;
@@ -250,6 +250,21 @@ function computeSyncWindow(latestDateStr: string | null): { startingAt: string; 
   }
   // End at start-of-today; today is covered separately with hourly buckets
   const endDate = new Date(now);
+
+  // Guard against a zero-width or inverted range. With bucket_width=1d the
+  // usage_report API rejects ending_at <= starting_at with a 400 ("ending date
+  // must be after starting date"), the same failure that hit the cost path on
+  // the 1st (#103). latestDateStr should always be < today, and even a same-day
+  // row is safe because we subtract a day (latest == today still yields a valid
+  // [yesterday, today) window). Only a future-dated row (bad backfill, clock
+  // skew, timezone edge) could push startDate to/after endDate. Clamp so the
+  // historical window always spans at least one complete day ending at
+  // start-of-today.
+  const maxStart = new Date(endDate);
+  maxStart.setUTCDate(maxStart.getUTCDate() - 1);
+  if (startDate.getTime() > maxStart.getTime()) {
+    startDate = maxStart;
+  }
 
   return {
     startingAt: formatAnthropicTimestamp(startDate),
