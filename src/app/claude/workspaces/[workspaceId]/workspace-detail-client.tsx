@@ -19,6 +19,7 @@ import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { getDaysInMonth, parseISO } from "date-fns";
 import { totalTileCaption } from "@/components/claude/today-estimate";
+import { InlineSpinner } from "@/components/ui/loading-state";
 
 type Props = {
   workspaceIdParam: string;
@@ -75,11 +76,11 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
       detail.momDeltaPct === null ? (
         <span className="text-muted-foreground">— no spend last month</span>
       ) : detail.momDeltaPct >= 0 ? (
-        <span className="inline-flex items-center gap-1 text-emerald-500">
+        <span className="inline-flex items-center gap-1 text-foreground">
           <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior month
         </span>
       ) : (
-        <span className="inline-flex items-center gap-1 text-destructive">
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
           <TrendingDown className="size-3" /> {detail.momDeltaPct}% vs prior month
         </span>
       );
@@ -165,11 +166,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
             onChange={handleMonthChange}
             months={detail.availableMonths.length > 0 ? detail.availableMonths : [month]}
           />
-          {isPending && (
-            <span className="text-sm text-muted-foreground animate-pulse">
-              Loading…
-            </span>
-          )}
+          {isPending && <InlineSpinner />}
         </div>
         {editing ? (
           <div className="flex flex-col items-end gap-1">

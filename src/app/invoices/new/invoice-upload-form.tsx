@@ -118,7 +118,7 @@ function ConfidenceInput({
               id={id}
               type={type}
               {...mergedRegisterProps}
-              className={cn(low ? "border-amber-400" : "")}
+              className={cn(low ? "border-warning" : "")}
               placeholder={placeholder}
               step={step}
               min={min}
@@ -419,7 +419,7 @@ export function InvoiceUploadForm() {
                         confidence?.amountCents,
                         amountDollars || undefined
                       )
-                        ? "border-amber-400"
+                        ? "border-warning"
                         : ""
                     )}
                   />

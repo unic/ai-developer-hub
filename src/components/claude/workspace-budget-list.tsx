@@ -138,7 +138,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
   const barClass = isOver
     ? "bg-destructive"
     : isWarn
-    ? "bg-amber-500"
+    ? "bg-warning"
     : "bg-primary";
 
   return (
@@ -169,7 +169,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
           {isWarn && (
             <Badge
               variant="outline"
-              className="shrink-0 border-amber-500 text-amber-500 text-xs"
+              className="shrink-0 border-warning text-warning text-xs"
             >
               {pct}%
             </Badge>

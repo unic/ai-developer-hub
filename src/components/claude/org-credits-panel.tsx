@@ -186,7 +186,7 @@ export function OrgBillingBudgetCard({
                   (utilizationPct ?? 0) >= 100
                     ? "bg-destructive"
                     : (utilizationPct ?? 0) >= 80
-                    ? "bg-amber-500"
+                    ? "bg-warning"
                     : "bg-primary"
                 }`}
                 style={{ width: `${Math.min(utilizationPct ?? 0, 100)}%` }}

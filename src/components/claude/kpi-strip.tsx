@@ -114,7 +114,7 @@ export function buildOrgKpiTiles(args: {
     momDeltaPct === null ? (
       <span className="text-muted-foreground">— no spend last month</span>
     ) : momDeltaPct >= 0 ? (
-      <span className="inline-flex items-center gap-1 text-emerald-500">
+      <span className="inline-flex items-center gap-1 text-success">
         <TrendingUp className="size-3" /> +{momDeltaPct}% vs prior month
       </span>
     ) : (

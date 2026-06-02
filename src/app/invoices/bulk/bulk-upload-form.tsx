@@ -154,7 +154,7 @@ export function BulkUploadForm() {
           const dup = row.original.duplicateType;
           if (dup === "db-duplicate") {
             return (
-              <Badge variant="outline" className="text-amber-600">
+              <Badge variant="outline" className="text-warning">
                 <AlertTriangle className="mr-1 size-3" />
                 Duplicate — will be skipped
               </Badge>
@@ -162,7 +162,7 @@ export function BulkUploadForm() {
           }
           if (dup === "within-batch-duplicate") {
             return (
-              <Badge variant="outline" className="text-amber-600">
+              <Badge variant="outline" className="text-warning">
                 <AlertTriangle className="mr-1 size-3" />
                 Within-batch duplicate — will be skipped
               </Badge>
@@ -183,7 +183,7 @@ export function BulkUploadForm() {
               onChange={(e) =>
                 updateRow(row.index, "invoiceNumber", e.target.value)
               }
-              className={cn(lowConf && "border-amber-500")}
+              className={cn(lowConf && "border-warning")}
               aria-label={`Invoice number for ${row.original.filename}`}
               disabled={isDuplicate}
             />
@@ -202,7 +202,7 @@ export function BulkUploadForm() {
               onChange={(e) =>
                 updateRow(row.index, "invoiceDate", e.target.value)
               }
-              className={cn(lowConf && "border-amber-500")}
+              className={cn(lowConf && "border-warning")}
               aria-label={`Invoice date for ${row.original.filename}`}
               disabled={isDuplicate}
             />
@@ -224,7 +224,7 @@ export function BulkUploadForm() {
               onChange={(e) =>
                 updateRow(row.index, "amountDollars", e.target.value)
               }
-              className={cn(lowConf && "border-amber-500")}
+              className={cn(lowConf && "border-warning")}
               aria-label={`Amount in dollars for ${row.original.filename}`}
               disabled={isDuplicate}
             />
@@ -242,7 +242,7 @@ export function BulkUploadForm() {
             <Input
               value={row.original.vendor}
               onChange={(e) => updateRow(row.index, "vendor", e.target.value)}
-              className={cn(lowOrNull && "border-amber-500")}
+              className={cn(lowOrNull && "border-warning")}
               aria-label={`Vendor for ${row.original.filename}`}
               disabled={isDuplicate}
             />
@@ -528,7 +528,7 @@ export function BulkUploadForm() {
               {savedOutcomes.length} invoice(s) saved
             </Badge>
             {skippedOutcomes.length > 0 && (
-              <Badge variant="outline" className="text-amber-600">
+              <Badge variant="outline" className="text-warning">
                 {skippedOutcomes.length} invoice(s) skipped (duplicate)
               </Badge>
             )}
@@ -580,7 +580,7 @@ export function BulkUploadForm() {
                     <TableCell>—</TableCell>
                     <TableCell>—</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-amber-600">
+                      <Badge variant="outline" className="text-warning">
                         <AlertTriangle className="mr-1 size-3" />
                         Skipped — {outcome.skipReason === "within-batch-duplicate"
                           ? "within-batch duplicate"

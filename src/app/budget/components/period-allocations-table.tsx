@@ -44,9 +44,9 @@ function rowClassFor(args: {
   isUnderExpected: boolean;
   isFuture: boolean;
 }): string {
-  if (args.isCurrent) return "border-l-4 border-primary bg-primary/5";
-  if (args.isOverExpected) return "bg-destructive/10";
-  if (args.isUnderExpected) return "bg-emerald-500/5";
+  if (args.isCurrent) return "border-l-4 border-primary";
+  if (args.isOverExpected) return "border-l-4 border-destructive";
+  if (args.isUnderExpected) return "border-l-4 border-success";
   if (args.isFuture) return "text-muted-foreground";
   return "";
 }
@@ -207,7 +207,7 @@ export function PeriodAllocationsTable({
                     <TableCell>{formatCurrency(expected)}</TableCell>
                     <TableCell
                       className={
-                        runningCents > 0 ? "text-sky-700 dark:text-sky-300" : ""
+                        runningCents > 0 ? "text-foreground" : ""
                       }
                     >
                       {formatCurrency(actualCents)}
@@ -310,15 +310,15 @@ export function PeriodAllocationsTable({
                       {periodRunning && (
                         <TableRow
                           key={`running-${period.id}`}
-                          className="bg-sky-500/5 dark:bg-sky-500/10"
+                          className="bg-muted/30"
                         >
                           <TableCell />
                           <TableCell colSpan={2} className="text-sm pl-8">
-                            <span className="inline-flex items-center gap-2 font-medium text-sky-700 dark:text-sky-300">
+                            <span className="inline-flex items-center gap-2 font-medium text-foreground">
                               Anthropic API
                               <Badge
                                 variant="outline"
-                                className="h-5 border-sky-400/40 px-1.5 text-[10px] text-sky-700 dark:text-sky-300"
+                                className="h-5 px-1.5 text-[10px] text-muted-foreground"
                               >
                                 live
                               </Badge>
@@ -330,7 +330,7 @@ export function PeriodAllocationsTable({
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-sky-700 dark:text-sky-300">
+                          <TableCell className="text-sm text-foreground">
                             {formatCurrency(periodRunning.runningCostCents)}
                           </TableCell>
                           <TableCell />
@@ -346,7 +346,7 @@ export function PeriodAllocationsTable({
                                 ? `ws-${period.id}-${ws.workspaceId}`
                                 : `ws-${period.id}-idx-${index}`
                             }
-                            className="bg-sky-500/[0.03] dark:bg-sky-500/5"
+                            className="bg-muted/20"
                           >
                             <TableCell />
                             <TableCell

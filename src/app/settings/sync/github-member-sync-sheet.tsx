@@ -401,7 +401,7 @@ function SummaryCard({
       <p
         className={`text-xs ${
           variant === "warning" && count > 0
-            ? "text-amber-600 dark:text-amber-400 font-medium"
+            ? "text-warning font-medium"
             : "text-muted-foreground"
         }`}
       >
