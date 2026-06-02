@@ -18,7 +18,11 @@ export default async function CopilotAnalyticsPage() {
 
   if (!result.success) {
     return (
-      <Card><CardContent className="py-12 text-center"><p className="text-muted-foreground">{result.error}</p></CardContent></Card>
+      <Card>
+        <CardContent className="py-12 text-center">
+          <p className="text-muted-foreground">{result.error}</p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -33,7 +37,16 @@ export default async function CopilotAnalyticsPage() {
           <CardContent className="py-12 text-center space-y-3">
             <BarChart3 className="size-12 mx-auto text-muted-foreground" />
             <h3 className="text-lg font-medium">No analytics data yet</h3>
-            <p className="text-sm text-muted-foreground">Enable Copilot sync in <Link href="/settings/integrations" className="underline text-primary">Settings</Link> to start collecting usage analytics.</p>
+            <p className="text-sm text-muted-foreground">
+              Enable Copilot sync in{" "}
+              <Link
+                href="/settings/integrations"
+                className="underline text-primary"
+              >
+                Settings
+              </Link>{" "}
+              to start collecting usage analytics.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -44,8 +57,12 @@ export default async function CopilotAnalyticsPage() {
     <div className="space-y-6">
       <MetricsFreshnessCard freshness={freshness} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <LanguageChart data={data.byLanguage} />
-        <EditorChart data={data.byEditor} />
+        <div className="min-w-0">
+          <LanguageChart data={data.byLanguage} />
+        </div>
+        <div className="min-w-0">
+          <EditorChart data={data.byEditor} />
+        </div>
       </div>
       <ActivityDistribution data={data.activityDistribution} />
     </div>

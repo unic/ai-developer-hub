@@ -115,7 +115,7 @@ export function RequestDetailClient({
         <CardHeader>
           <CardTitle>Requester</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-[160px_1fr] gap-y-2 gap-x-4 text-sm">
+        <CardContent className="grid grid-cols-1 gap-y-1 text-sm sm:grid-cols-[160px_1fr] sm:gap-y-2 sm:gap-x-4">
           <span className="text-muted-foreground">Name</span>
           <span>{detail.requesterName}</span>
           <span className="text-muted-foreground">Email</span>
@@ -123,7 +123,10 @@ export function RequestDetailClient({
           <span className="text-muted-foreground">Hub user</span>
           <span>
             {detail.requesterUserId !== null ? (
-              <Link href={`/users/${detail.requesterUserId}`} className="text-primary hover:underline">
+              <Link
+                href={`/users/${detail.requesterUserId}`}
+                className="text-primary hover:underline"
+              >
                 Matched (user #{detail.requesterUserId})
               </Link>
             ) : (
@@ -166,12 +169,15 @@ export function RequestDetailClient({
       </Card>
 
       {/* Sent messages (audit) */}
-      {(detail.approvalMessageMd || detail.completionMessageMd || detail.decisionNote) && (
+      {(detail.approvalMessageMd ||
+        detail.completionMessageMd ||
+        detail.decisionNote) && (
         <Card>
           <CardHeader>
             <CardTitle>Sent messages</CardTitle>
             <CardDescription>
-              Audit log of what the Hub posted to the Teams channel + group chat.
+              Audit log of what the Hub posted to the Teams channel + group
+              chat.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -205,11 +211,11 @@ export function RequestDetailClient({
 
       {/* Action bar */}
       {(isPending || isApproved || canCancel) && (
-        <div className="flex justify-between items-center rounded-md border bg-muted/40 p-4">
+        <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Any admin can act on this request. First-write-wins.
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusText status={status.status} />
             {canCancel && (
               <Button variant="ghost" onClick={() => setCancelOpen(true)}>
@@ -218,7 +224,10 @@ export function RequestDetailClient({
             )}
             {isPending && (
               <>
-                <Button variant="destructive" onClick={() => setRejectOpen(true)}>
+                <Button
+                  variant="destructive"
+                  onClick={() => setRejectOpen(true)}
+                >
                   Reject
                 </Button>
                 <Button onClick={() => setApproveOpen(true)}>Approve</Button>
@@ -293,7 +302,7 @@ function FormPayloadList({
 }) {
   const entries = Object.entries(payload);
   return (
-    <dl className="grid grid-cols-[160px_1fr] gap-y-2 gap-x-4 text-sm">
+    <dl className="grid grid-cols-1 gap-y-1 text-sm sm:grid-cols-[160px_1fr] sm:gap-y-2 sm:gap-x-4">
       <dt className="text-muted-foreground">Tool</dt>
       <dd>{toolName}</dd>
       {tierName && (
@@ -347,8 +356,8 @@ function MessageBlock({
   return (
     <div className="rounded-md border-l-4 border-l-primary/60 bg-muted/40 p-3">
       <p className="text-xs text-muted-foreground mb-2">
-        <span className="font-medium">{kind}</span> · {actorName ?? "(unknown)"} ·{" "}
-        {at ? format(at, "yyyy-MM-dd HH:mm") : "—"}
+        <span className="font-medium">{kind}</span> · {actorName ?? "(unknown)"}{" "}
+        · {at ? format(at, "yyyy-MM-dd HH:mm") : "—"}
       </p>
       <div
         className="text-sm prose-sm dark:prose-invert"
@@ -359,9 +368,7 @@ function MessageBlock({
 }
 
 function prettifyKey(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function stringifyValue(v: unknown): string {

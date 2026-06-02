@@ -32,7 +32,9 @@ export const metadata: Metadata = { title: "Claude Console · Users" };
 // back to the current month cleanly instead of being silently passed through.
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-type SearchParamsPromise = Promise<Record<string, string | string[] | undefined>>;
+type SearchParamsPromise = Promise<
+  Record<string, string | string[] | undefined>
+>;
 
 export default async function ClaudeUsersPage({
   searchParams,
@@ -121,8 +123,12 @@ export default async function ClaudeUsersPage({
       <TopUsersCard users={list.users} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CostDistributionHistogram buckets={distribution} />
-        <UserTopMoversChips movers={movers} />
+        <div className="min-w-0">
+          <CostDistributionHistogram buckets={distribution} />
+        </div>
+        <div className="min-w-0">
+          <UserTopMoversChips movers={movers} />
+        </div>
       </div>
 
       <Card>
@@ -143,8 +149,8 @@ function UsersEmptyState() {
       <UsersIcon className="mb-4 size-12 text-muted-foreground" />
       <h2 className="mb-2 text-xl font-semibold">No user-level data yet</h2>
       <p className="mb-6 max-w-sm text-center text-muted-foreground">
-        User-level data will appear after the first sync. You can trigger a
-        sync manually.
+        User-level data will appear after the first sync. You can trigger a sync
+        manually.
       </p>
       <SyncButton />
     </div>

@@ -47,7 +47,11 @@ export function MyUsageCard({
   uncachedInputTokens,
   cacheSavingsCents,
 }: MyUsageCardProps) {
-  if (!cost.available || !cost.dailyBreakdown || cost.dailyBreakdown.length === 0) {
+  if (
+    !cost.available ||
+    !cost.dailyBreakdown ||
+    cost.dailyBreakdown.length === 0
+  ) {
     return (
       <Card>
         <CardHeader>
@@ -79,7 +83,9 @@ export function MyUsageCard({
 
   const totalCacheInput = cacheReadTokens + uncachedInputTokens;
   const cacheHitRate =
-    totalCacheInput > 0 ? Math.round((cacheReadTokens / totalCacheInput) * 100) : 0;
+    totalCacheInput > 0
+      ? Math.round((cacheReadTokens / totalCacheInput) * 100)
+      : 0;
 
   return (
     <Card>
@@ -91,24 +97,43 @@ export function MyUsageCard({
       </CardHeader>
       <CardContent>
         <div className="grid gap-5 lg:grid-cols-[1fr_180px]">
-          <div>
+          <div className="min-w-0">
             <p className="text-3xl font-semibold tabular-nums">
               {formatCurrency(cost.monthlyTotalCents)}
             </p>
             <p className="text-[11px] text-muted-foreground">
               Month to date
-              {cost.latestDataDate ? ` · data through ${cost.latestDataDate}` : ""}
+              {cost.latestDataDate
+                ? ` · data through ${cost.latestDataDate}`
+                : ""}
             </p>
 
             <ChartContainer
               config={chartConfig}
               className="mt-3 h-[160px] w-full"
             >
-              <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <AreaChart
+                data={data}
+                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              >
                 <defs>
-                  <linearGradient id="viewerSpendArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                  <linearGradient
+                    id="viewerSpendArea"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="var(--chart-1)"
+                      stopOpacity={0.45}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="var(--chart-1)"
+                      stopOpacity={0}
+                    />
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />

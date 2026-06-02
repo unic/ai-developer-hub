@@ -11,21 +11,36 @@ import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { assignLicense, revokeLicense } from "@/actions/assignments";
 import { getTools, getToolWithTiers } from "@/actions/tools";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { User, ChangeHistoryRecord, CostData, AiTool, AccessTier } from "@/types";
+import type {
+  User,
+  ChangeHistoryRecord,
+  CostData,
+  AiTool,
+  AccessTier,
+} from "@/types";
 import { AdminCostSection } from "@/components/profile/admin-cost-section";
-import { DISCIPLINES, DISCIPLINE_ICON, DISCIPLINE_LABEL, asDiscipline } from "@/lib/disciplines";
-import { Github, ExternalLink, BookOpen, KeyRound, Plus, RotateCcw, Eye, EyeOff } from "lucide-react";
+import {
+  DISCIPLINES,
+  DISCIPLINE_ICON,
+  DISCIPLINE_LABEL,
+  asDiscipline,
+} from "@/lib/disciplines";
+import {
+  Github,
+  ExternalLink,
+  BookOpen,
+  KeyRound,
+  Plus,
+  RotateCcw,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -227,18 +242,18 @@ export function UserDetailClient({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-medium tracking-tight text-ink">{user.name}</h1>
-          <p className="text-muted-foreground">{user.email}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-medium tracking-tight text-ink break-words">
+            {user.name}
+          </h1>
+          <p className="text-muted-foreground break-words">{user.email}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="capitalize">
             {user.role}
           </Badge>
-          <Badge
-            variant={user.status === "active" ? "default" : "secondary"}
-          >
+          <Badge variant={user.status === "active" ? "default" : "secondary"}>
             {user.status}
           </Badge>
           <Badge variant="outline" className="gap-1">
@@ -307,8 +322,7 @@ export function UserDetailClient({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground pt-1">
-                  Last synced{" "}
-                  {formatDate(githubProfile.lastSyncedAt)}
+                  Last synced {formatDate(githubProfile.lastSyncedAt)}
                 </p>
               </div>
             </div>
@@ -360,7 +374,13 @@ export function UserDetailClient({
                     <FormItem>
                       <FormLabel>Circle (optional)</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value || null)} />
+                        <Input
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value || null)
+                          }
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -458,7 +478,7 @@ export function UserDetailClient({
                     </FormItem>
                   )}
                 />
-                <div className="flex gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button type="submit" disabled={form.formState.isSubmitting}>
                     Save Changes
                   </Button>
@@ -552,9 +572,7 @@ export function UserDetailClient({
                   </Link>
                   <div className="flex items-center gap-2">
                     <Badge
-                      variant={
-                        a.status === "active" ? "default" : "secondary"
-                      }
+                      variant={a.status === "active" ? "default" : "secondary"}
                     >
                       {a.status}
                     </Badge>
@@ -567,46 +585,64 @@ export function UserDetailClient({
                         Revoke
                       </Button>
                     )}
-                    {isAdmin && a.status !== "active" && a.tool.status === "active" && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={reactivatingId === a.id}
-                          >
-                            <RotateCcw className="mr-1 size-3" />
-                            {reactivatingId === a.id ? "Reactivating..." : "Reactivate"}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Reactivate this license?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription asChild>
-                              <div className="space-y-2">
-                                <p>
-                                  This will create a new active license assignment
-                                  for <strong>{user.name}</strong>:
-                                </p>
-                                <ul className="list-disc pl-5 text-sm">
-                                  <li>Tool: <strong>{a.tool.name}</strong></li>
-                                  <li>Tier: <strong>{a.tier.name}</strong></li>
-                                  <li>Cost: <strong>{formatCurrency(a.costAtAssignmentCents)}/mo</strong></li>
-                                </ul>
-                              </div>
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleReactivate(a)}>
-                              Reactivate
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                    {isAdmin &&
+                      a.status !== "active" &&
+                      a.tool.status === "active" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={reactivatingId === a.id}
+                            >
+                              <RotateCcw className="mr-1 size-3" />
+                              {reactivatingId === a.id
+                                ? "Reactivating..."
+                                : "Reactivate"}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Reactivate this license?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription asChild>
+                                <div className="space-y-2">
+                                  <p>
+                                    This will create a new active license
+                                    assignment for <strong>{user.name}</strong>:
+                                  </p>
+                                  <ul className="list-disc pl-5 text-sm">
+                                    <li>
+                                      Tool: <strong>{a.tool.name}</strong>
+                                    </li>
+                                    <li>
+                                      Tier: <strong>{a.tier.name}</strong>
+                                    </li>
+                                    <li>
+                                      Cost:{" "}
+                                      <strong>
+                                        {formatCurrency(
+                                          a.costAtAssignmentCents,
+                                        )}
+                                        /mo
+                                      </strong>
+                                    </li>
+                                  </ul>
+                                </div>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleReactivate(a)}
+                              >
+                                Reactivate
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                   </div>
                 </div>
               ))}
@@ -620,10 +656,13 @@ export function UserDetailClient({
       </Card>
 
       {/* Assign License Dialog */}
-      <Dialog open={assignDialogOpen} onOpenChange={(open) => {
-        if (!open) resetAssignDialogState();
-        setAssignDialogOpen(open);
-      }}>
+      <Dialog
+        open={assignDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetAssignDialogState();
+          setAssignDialogOpen(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign License to {user.name}</DialogTitle>
@@ -631,16 +670,26 @@ export function UserDetailClient({
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Tool</label>
-              <Select value={selectedToolId} onValueChange={handleToolChange} disabled={loadingTools}>
+              <Select
+                value={selectedToolId}
+                onValueChange={handleToolChange}
+                disabled={loadingTools}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder={loadingTools ? "Loading tools..." : "Select tool"} />
+                  <SelectValue
+                    placeholder={
+                      loadingTools ? "Loading tools..." : "Select tool"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {tools.filter((t) => t.status === "active").map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
+                  {tools
+                    .filter((t) => t.status === "active")
+                    .map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -664,7 +713,9 @@ export function UserDetailClient({
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium">Workspace (optional)</label>
+              <label className="text-sm font-medium">
+                Workspace (optional)
+              </label>
               <Input
                 placeholder="e.g. team-alpha"
                 maxLength={200}
@@ -703,11 +754,11 @@ export function UserDetailClient({
             </div>
           </div>
           <DialogFooter>
-            <StatusText status={assignStatus.status} className="mr-auto self-center" />
-            <Button
-              variant="outline"
-              onClick={closeAssignDialog}
-            >
+            <StatusText
+              status={assignStatus.status}
+              className="mr-auto self-center"
+            />
+            <Button variant="outline" onClick={closeAssignDialog}>
               Cancel
             </Button>
             <Button
@@ -720,7 +771,11 @@ export function UserDetailClient({
         </DialogContent>
       </Dialog>
 
-      <AdminCostSection userId={user.id} initialData={costData} availableMonths={costAvailableMonths} />
+      <AdminCostSection
+        userId={user.id}
+        initialData={costData}
+        availableMonths={costAvailableMonths}
+      />
 
       <Card>
         <CardHeader>
@@ -730,10 +785,7 @@ export function UserDetailClient({
           {history.length > 0 ? (
             <div className="space-y-3">
               {history.map((record) => (
-                <div
-                  key={record.id}
-                  className="flex items-start gap-3 text-sm"
-                >
+                <div key={record.id} className="flex items-start gap-3 text-sm">
                   <span className="text-muted-foreground whitespace-nowrap">
                     {formatDate(record.createdAt)}
                   </span>

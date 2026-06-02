@@ -2,12 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +71,7 @@ function SparklineDeltaLabel({
   const last = months[months.length - 1].totalCents;
   const windowMonths = calendarMonthsCovered(
     months[0].month,
-    months[months.length - 1].month
+    months[months.length - 1].month,
   );
   if (first === 0 && last === 0) {
     return <span className="text-[10px] text-muted-foreground">flat</span>;
@@ -90,7 +85,7 @@ function SparklineDeltaLabel({
     <span
       className={cn(
         "text-[10px]",
-        big ? "text-warning font-medium" : "text-muted-foreground"
+        big ? "text-warning font-medium" : "text-muted-foreground",
       )}
     >
       {big ? "▲ " : ""}
@@ -108,7 +103,7 @@ type WorkspaceBudgetRowProps = {
 function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(
-    workspace.limitCents != null ? String(workspace.limitCents / 100) : ""
+    workspace.limitCents != null ? String(workspace.limitCents / 100) : "",
   );
   const [isPending, startTransition] = useTransition();
   const status = useInlineStatus();
@@ -121,7 +116,10 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
           ? null
           : Math.round(dollars * 100);
       try {
-        const result = await setWorkspaceLimit(workspace.workspaceId, limitCents);
+        const result = await setWorkspaceLimit(
+          workspace.workspaceId,
+          limitCents,
+        );
         if (result.success) {
           status.ok("Saved");
           setEditing(false);
@@ -214,7 +212,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
         <SparklineDeltaLabel months={sparkline?.months ?? []} />
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
         {editing ? (
           <>
             <div className="flex items-center gap-1">
@@ -246,7 +244,11 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
           </>
         ) : (
           <>
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditing(true)}
+            >
               {workspace.limitCents != null ? "Edit limit" : "Set limit"}
             </Button>
             <StatusText status={status.status} />
@@ -290,7 +292,8 @@ export function WorkspaceBudgetList({
   }, [hideZero, hydrated]);
 
   const { visible, hidden } = useMemo(() => {
-    if (!hideZero) return { visible: workspaces, hidden: [] as WorkspaceListItem[] };
+    if (!hideZero)
+      return { visible: workspaces, hidden: [] as WorkspaceListItem[] };
     const v: WorkspaceListItem[] = [];
     const h: WorkspaceListItem[] = [];
     for (const w of workspaces) {

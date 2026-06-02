@@ -47,7 +47,8 @@ export function UserDetailClient({ userId, initial }: Props) {
         <span className="text-muted-foreground">— no spend last month</span>
       ) : detail.momDeltaPct >= 0 ? (
         <span className="inline-flex items-center gap-1 text-foreground">
-          <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior month
+          <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior
+          month
         </span>
       ) : (
         <span className="inline-flex items-center gap-1 text-foreground">
@@ -103,7 +104,9 @@ export function UserDetailClient({ userId, initial }: Props) {
             value={month}
             onChange={handleMonthChange}
             months={
-              detail.availableMonths.length > 0 ? detail.availableMonths : [month]
+              detail.availableMonths.length > 0
+                ? detail.availableMonths
+                : [month]
             }
           />
           {isPending && <InlineSpinner />}
@@ -120,25 +123,29 @@ export function UserDetailClient({ userId, initial }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            Daily cost · {monthLabel}
-          </CardTitle>
+          <CardTitle className="text-base">Daily cost · {monthLabel}</CardTitle>
         </CardHeader>
         <CardContent>
-          <WorkspaceDailyChart dailyTotals={detail.dailyTotals} limitCents={null} />
+          <WorkspaceDailyChart
+            dailyTotals={detail.dailyTotals}
+            limitCents={null}
+          />
         </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Model breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <WorkspaceModelBreakdown rows={detail.modelBreakdown} scopeLabel="User" />
+            <WorkspaceModelBreakdown
+              rows={detail.modelBreakdown}
+              scopeLabel="User"
+            />
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Top dates this month</CardTitle>
           </CardHeader>

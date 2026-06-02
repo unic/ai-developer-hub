@@ -37,7 +37,7 @@ export function MonthPicker({ value, onChange, months }: MonthPickerProps) {
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[200px]">
+      <SelectTrigger className="w-full sm:w-[200px]">
         <SelectValue placeholder="Select month" />
       </SelectTrigger>
       <SelectContent>
