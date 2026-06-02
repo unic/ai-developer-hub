@@ -16,20 +16,25 @@ export default async function UsersPage() {
   return (
     <AuthGuard requiredRole="admin">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-medium tracking-tight text-ink">Users</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-medium tracking-tight text-ink">
+                Users
+              </h1>
               {pendingCount > 0 && (
                 <Badge variant="secondary">
-                  {pendingCount} user{pendingCount !== 1 ? "s" : ""} pending setup
+                  {pendingCount} user{pendingCount !== 1 ? "s" : ""} pending
+                  setup
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground">Manage company user directory</p>
+            <p className="text-muted-foreground">
+              Manage company user directory
+            </p>
           </div>
           {isAdmin && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" asChild>
                 <a href="/api/export/users" download>
                   <Download className="mr-2 size-4" />
@@ -48,7 +53,11 @@ export default async function UsersPage() {
             </div>
           )}
         </div>
-        <UsersTable data={userList} isAdmin={isAdmin} pendingCount={pendingCount} />
+        <UsersTable
+          data={userList}
+          isAdmin={isAdmin}
+          pendingCount={pendingCount}
+        />
       </div>
     </AuthGuard>
   );

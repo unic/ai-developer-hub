@@ -9,12 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -422,7 +417,7 @@ function ResolutionSummaryPanel({
   return (
     <div className="rounded-md border bg-muted/30 p-3 space-y-2">
       <p className="text-sm font-medium">Resolution Summary</p>
-      <div className="grid grid-cols-5 gap-2 text-center">
+      <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-5">
         <div>
           <p className="text-lg font-mono tabular-nums">{summary.imported}</p>
           <p className="text-[10px] text-muted-foreground">
@@ -452,9 +447,7 @@ function ResolutionSummaryPanel({
           </p>
         </div>
         <div>
-          <p className="text-lg font-mono tabular-nums">
-            {summary.unresolved}
-          </p>
+          <p className="text-lg font-mono tabular-nums">{summary.unresolved}</p>
           <p className="text-[10px] text-muted-foreground">Unresolved</p>
         </div>
       </div>
@@ -560,7 +553,10 @@ function UnmatchedGitHubResolutionList({
   const suggestionsMap = useMemo(() => {
     const map = new Map<string, ReturnType<typeof computeMatchSuggestions>>();
     for (const member of members) {
-      map.set(member.githubLogin, computeMatchSuggestions(member, unmatchedSystemUsers));
+      map.set(
+        member.githubLogin,
+        computeMatchSuggestions(member, unmatchedSystemUsers),
+      );
     }
     return map;
   }, [members, unmatchedSystemUsers]);

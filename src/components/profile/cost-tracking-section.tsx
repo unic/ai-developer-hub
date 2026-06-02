@@ -41,16 +41,20 @@ export function CostTrackingSection({
         modelTotals.set(m.model, (modelTotals.get(m.model) ?? 0) + m.costCents);
       }
     }
-    const top = Array.from(modelTotals.entries()).sort((a, b) => b[1] - a[1])[0];
+    const top = Array.from(modelTotals.entries()).sort(
+      (a, b) => b[1] - a[1],
+    )[0];
     if (!top) return "—";
     const match = top[0].match(/claude-(\w+)/);
-    return match ? match[1].charAt(0).toUpperCase() + match[1].slice(1) : top[0];
+    return match
+      ? match[1].charAt(0).toUpperCase() + match[1].slice(1)
+      : top[0];
   }, [costData.dailyBreakdown]);
 
   const peakDayLabel = useMemo(() => {
     if (costData.dailyBreakdown.length === 0) return "—";
     const peak = costData.dailyBreakdown.reduce((max, day) =>
-      day.totalCents > max.totalCents ? day : max
+      day.totalCents > max.totalCents ? day : max,
     );
     const d = new Date(peak.date + "T00:00:00");
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -106,12 +110,12 @@ export function CostTrackingSection({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
             <DollarSign className="size-5" />
             Claude API Costs
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusText status={status.status} />
             <MonthPicker
               value={selectedMonth}
@@ -173,15 +177,11 @@ export function CostTrackingSection({
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-sm text-muted-foreground">Top Model</p>
-              <p className="text-lg font-semibold truncate">
-                {topModelName}
-              </p>
+              <p className="text-lg font-semibold truncate">{topModelName}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-sm text-muted-foreground">Peak Day</p>
-              <p className="text-lg font-semibold">
-                {peakDayLabel}
-              </p>
+              <p className="text-lg font-semibold">{peakDayLabel}</p>
             </div>
           </div>
         )}

@@ -24,11 +24,7 @@ import {
   getDailyTotalsByWorkspace,
   getDashboardKpis,
 } from "@/actions/anthropic-global";
-import type {
-  DailyStackedRow,
-  DashboardKpis,
-  SyncStatus,
-} from "@/types";
+import type { DailyStackedRow, DashboardKpis, SyncStatus } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { formatDateLong, shareOfTotalFormatter } from "@/lib/chart-format";
 import { KpiStrip, buildOrgKpiTiles } from "@/components/claude/kpi-strip";
@@ -57,7 +53,7 @@ function seriesColor(
   key: string,
   displayColor: string | null,
   stackIdx: number,
-  useDbColors: boolean
+  useDbColors: boolean,
 ): string {
   // "Use workspace colors" on → the workspace's own hue (still capped at ≤5
   // stacked segments, so even the colour mode stays legible).
@@ -102,7 +98,8 @@ export function GlobalMetricsClient({
   const [kpis, setKpis] = useState<DashboardKpis>(initialKpis);
   const [daily, setDaily] = useState(initialDaily);
   const [selectedMonth, setSelectedMonth] = useState<string>(initialMonth);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(ALL_WORKSPACES);
+  const [selectedWorkspace, setSelectedWorkspace] =
+    useState<string>(ALL_WORKSPACES);
   const [useDbColors, setUseDbColors] = useState<boolean>(false);
   const [isPending, startTransition] = useTransition();
 
@@ -114,10 +111,7 @@ export function GlobalMetricsClient({
     if (saved === "true") setUseDbColors(true);
   }, []);
   useEffect(() => {
-    localStorage.setItem(
-      "claude-dashboard:useDbColors",
-      String(useDbColors)
-    );
+    localStorage.setItem("claude-dashboard:useDbColors", String(useDbColors));
   }, [useDbColors]);
 
   // Honor the ?workspace=<id> query param when returning from the
@@ -160,22 +154,22 @@ export function GlobalMetricsClient({
         topOverWorkspaceUtilizationPct: kpis.topOverWorkspaceUtilizationPct,
         todayEstimate: kpis.todayEstimate,
       }),
-    [kpis, orgBudgetCents, selectedMonth]
+    [kpis, orgBudgetCents, selectedMonth],
   );
 
   // Full server-provided series (top N + "Other") — used for the dropdown's
   // filter options so any top workspace can still be isolated.
   const allSeries = useMemo(
     () => daily.topWorkspaces.map((s) => ({ ...s })),
-    [daily.topWorkspaces]
+    [daily.topWorkspaces],
   );
   const seriesKeys = useMemo(
     () => new Set(allSeries.map((s) => s.key)),
-    [allSeries]
+    [allSeries],
   );
   const filterableOptions = useMemo(
     () => workspaceOptions.filter((w) => seriesKeys.has(w.key)),
-    [workspaceOptions, seriesKeys]
+    [workspaceOptions, seriesKeys],
   );
 
   // Fall back to "All workspaces" if a previously-selected workspace dropped
@@ -237,11 +231,11 @@ export function GlobalMetricsClient({
 
   const stackedTopCount = useMemo(
     () => stackedSeries.filter((s) => s.key !== OTHER_KEY).length,
-    [stackedSeries]
+    [stackedSeries],
   );
   const stackedHasOther = useMemo(
     () => stackedSeries.some((s) => s.key === OTHER_KEY),
-    [stackedSeries]
+    [stackedSeries],
   );
 
   const chartConfig = useMemo<ChartConfig>(() => {
@@ -278,7 +272,7 @@ export function GlobalMetricsClient({
         }
         return row;
       }),
-    [daily.rows, stackedSeries, showEstimate]
+    [daily.rows, stackedSeries, showEstimate],
   );
 
   return (
@@ -294,7 +288,7 @@ export function GlobalMetricsClient({
             value={selectedWorkspace}
             onValueChange={setSelectedWorkspace}
           >
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-full sm:w-[220px]">
               <SelectValue placeholder="All workspaces" />
             </SelectTrigger>
             <SelectContent>
@@ -331,7 +325,9 @@ export function GlobalMetricsClient({
                   ? `Stacked · top ${stackedTopCount} workspaces${stackedHasOther ? " + Other" : ""}`
                   : "Single workspace · filtered view"}
                 {" · "}
-                <span className="tabular-nums">{formatCurrency(kpis.totalCents)}</span>{" "}
+                <span className="tabular-nums">
+                  {formatCurrency(kpis.totalCents)}
+                </span>{" "}
                 this period
               </p>
             </div>
@@ -356,7 +352,10 @@ export function GlobalMetricsClient({
               No data for this period.
             </p>
           ) : (
-            <ChartContainer config={chartConfig} className="min-h-[320px] w-full">
+            <ChartContainer
+              config={chartConfig}
+              className="min-h-[320px] w-full"
+            >
               <BarChart data={chartData} accessibilityLayer>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis

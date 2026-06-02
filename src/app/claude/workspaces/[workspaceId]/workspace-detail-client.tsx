@@ -32,7 +32,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [limitInput, setLimitInput] = useState(
-    detail.limitCents != null ? String(detail.limitCents / 100) : ""
+    detail.limitCents != null ? String(detail.limitCents / 100) : "",
   );
   const [savingLimit, savingTransition] = useTransition();
   const status = useInlineStatus();
@@ -78,16 +78,19 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
         <span className="text-muted-foreground">— no spend last month</span>
       ) : detail.momDeltaPct >= 0 ? (
         <span className="inline-flex items-center gap-1 text-foreground">
-          <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior month
+          <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior
+          month
         </span>
       ) : (
         <span className="inline-flex items-center gap-1 text-muted-foreground">
-          <TrendingDown className="size-3" /> {detail.momDeltaPct}% vs prior month
+          <TrendingDown className="size-3" /> {detail.momDeltaPct}% vs prior
+          month
         </span>
       );
 
     const isOver =
-      detail.limitCents != null && detail.projectedMonthEndCents > detail.limitCents;
+      detail.limitCents != null &&
+      detail.projectedMonthEndCents > detail.limitCents;
     const projectedPct =
       detail.limitCents != null && detail.limitCents > 0
         ? Math.round((detail.projectedMonthEndCents / detail.limitCents) * 100)
@@ -97,7 +100,11 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
       detail.limitCents == null
         ? {
             label: "Utilization",
-            value: <span className="text-base text-muted-foreground">No limit set</span>,
+            value: (
+              <span className="text-base text-muted-foreground">
+                No limit set
+              </span>
+            ),
             caption: (
               <Button
                 size="sm"
@@ -117,8 +124,8 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
               (detail.utilizationPct ?? 0) >= 100
                 ? "danger"
                 : (detail.utilizationPct ?? 0) >= 80
-                ? "warn"
-                : "default",
+                  ? "warn"
+                  : "default",
           };
 
     return [
@@ -138,8 +145,8 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           detail.momDeltaPct === null
             ? "default"
             : detail.momDeltaPct >= 0
-            ? "success"
-            : "danger",
+              ? "success"
+              : "danger",
       },
       {
         label: "Projected Month-End",
@@ -150,9 +157,15 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
               ? "Run-rate incl. est. today"
               : "No limit set"
             : `${projectedPct ?? 0}% of ${formatCurrency(detail.limitCents)} limit${detail.todayEstimate ? " · incl. est. today" : ""}`,
-        tone: isOver ? "danger" : projectedPct != null && projectedPct >= 80 ? "warn" : "default",
+        tone: isOver
+          ? "danger"
+          : projectedPct != null && projectedPct >= 80
+            ? "warn"
+            : "default",
         ring: isOver,
-        icon: isOver ? <AlertTriangle className="size-3 text-destructive" /> : undefined,
+        icon: isOver ? (
+          <AlertTriangle className="size-3 text-destructive" />
+        ) : undefined,
       },
       utilizationTile,
     ];
@@ -165,7 +178,11 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           <MonthPicker
             value={month}
             onChange={handleMonthChange}
-            months={detail.availableMonths.length > 0 ? detail.availableMonths : [month]}
+            months={
+              detail.availableMonths.length > 0
+                ? detail.availableMonths
+                : [month]
+            }
           />
           {isPending && <InlineSpinner />}
         </div>
@@ -182,10 +199,19 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
                 onChange={(e) => setLimitInput(e.target.value)}
                 autoFocus
               />
-              <Button size="sm" onClick={handleSaveLimit} disabled={savingLimit}>
+              <Button
+                size="sm"
+                onClick={handleSaveLimit}
+                disabled={savingLimit}
+              >
                 {savingLimit ? "Saving…" : "Save"}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={savingLimit}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+                disabled={savingLimit}
+              >
                 Cancel
               </Button>
               <StatusText status={status.status} />
@@ -220,7 +246,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Top users this month</CardTitle>
           </CardHeader>
@@ -228,7 +254,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
             <WorkspaceTopUsers users={detail.topUsers} />
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Model breakdown</CardTitle>
           </CardHeader>

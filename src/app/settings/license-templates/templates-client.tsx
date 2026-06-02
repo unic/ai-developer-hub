@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil } from "lucide-react";
-import type { MessageTemplateRow, ToolWithTiers } from "@/actions/license-templates";
+import type {
+  MessageTemplateRow,
+  ToolWithTiers,
+} from "@/actions/license-templates";
 import { TemplateEditorDialog } from "./template-editor-dialog";
 
 interface Props {
@@ -44,12 +47,17 @@ export function TemplatesClient({ templates, toolsWithTiers }: Props) {
     kind: "approval" | "completion";
   }) {
     const existing = templates.find(
-      (t) => t.toolId === args.toolId && t.tierId === args.tierId && t.kind === args.kind,
+      (t) =>
+        t.toolId === args.toolId &&
+        t.tierId === args.tierId &&
+        t.kind === args.kind,
     );
     setEditor({
       ...args,
       existingId: existing?.id ?? null,
-      bodyMd: existing?.bodyMd ?? defaultBody(args.kind, args.toolName, args.tierName),
+      bodyMd:
+        existing?.bodyMd ??
+        defaultBody(args.kind, args.toolName, args.tierName),
     });
   }
 
@@ -114,7 +122,9 @@ export function TemplatesClient({ templates, toolsWithTiers }: Props) {
                   </h4>
                   {tool.tiers.map((tier) =>
                     (["approval", "completion"] as const).map((kind) => {
-                      const row = rows.find((r) => r.tierId === tier.id && r.kind === kind);
+                      const row = rows.find(
+                        (r) => r.tierId === tier.id && r.kind === kind,
+                      );
                       return (
                         <TemplateRow
                           key={`tier-${tier.id}-${kind}`}
@@ -166,12 +176,12 @@ function TemplateRow(props: {
     ? props.bodyMd.replace(/\s+/g, " ").slice(0, 80)
     : null;
   return (
-    <div className="flex items-center gap-3 rounded-md border bg-card px-3 py-2 text-sm">
+    <div className="flex flex-col items-start gap-2 rounded-md border bg-card px-3 py-2 text-sm sm:flex-row sm:items-center sm:gap-3">
       <span
         className={
           props.tierIsDefault
-            ? "text-muted-foreground italic w-40"
-            : "font-medium w-40"
+            ? "text-muted-foreground italic w-full sm:w-40"
+            : "font-medium w-full sm:w-40"
         }
       >
         {props.tierLabel}
@@ -187,10 +197,14 @@ function TemplateRow(props: {
       >
         {props.kindLabel}
       </Badge>
-      <span className="flex-1 truncate font-mono text-xs text-muted-foreground">
+      <span className="w-full min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
         {snippet ?? <span className="italic">no template set</span>}
       </span>
-      <Button size="sm" variant={snippet ? "outline" : "default"} onClick={props.onEdit}>
+      <Button
+        size="sm"
+        variant={snippet ? "outline" : "default"}
+        onClick={props.onEdit}
+      >
         {snippet ? (
           <>
             <Pencil className="size-3" />

@@ -36,7 +36,10 @@ const chartConfig: ChartConfig = {
   api: { label: "Anthropic API (running)", color: "var(--chart-2)" },
 };
 
-export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardProps) {
+export function SpendTrendCard({
+  spendSeries,
+  billedYtdCents,
+}: SpendTrendCardProps) {
   if (spendSeries.length === 0) {
     return null;
   }
@@ -50,7 +53,7 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
 
   const totalApi = spendSeries.reduce(
     (s, p) => s + (p.isForecast ? 0 : p.apiCents),
-    0
+    0,
   );
   const totalLicensesYtd = billedYtdCents;
   const grandTotal = totalLicensesYtd + totalApi || 1;
@@ -62,10 +65,8 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
   const billedMonths = spendSeries.filter((p) => !p.isForecast);
   const avgMonthlyActual =
     billedMonths.length > 0
-      ? billedMonths.reduce(
-          (s, p) => s + p.licensesCents + p.apiCents,
-          0
-        ) / billedMonths.length
+      ? billedMonths.reduce((s, p) => s + p.licensesCents + p.apiCents, 0) /
+        billedMonths.length
       : 0;
 
   return (
@@ -73,17 +74,20 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
       <CardHeader>
         <CardTitle>Spend over time</CardTitle>
         <CardDescription>
-          Stacked monthly cost · Licenses (billed) + Anthropic API (running) · last 12
-          months
+          Stacked monthly cost · Licenses (billed) + Anthropic API (running) ·
+          last 12 months
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid gap-6 lg:grid-cols-[1fr_220px]">
           <ChartContainer
             config={chartConfig}
-            className="h-[260px] w-full"
+            className="h-[260px] w-full min-w-0"
           >
-            <BarChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+            <BarChart
+              data={data}
+              margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
+            >
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis
                 dataKey="month"
@@ -121,7 +125,11 @@ export function SpendTrendCard({ spendSeries, billedYtdCents }: SpendTrendCardPr
                   />
                 }
               />
-              <Bar dataKey="licenses" stackId="actual" fill="var(--color-licenses)">
+              <Bar
+                dataKey="licenses"
+                stackId="actual"
+                fill="var(--color-licenses)"
+              >
                 {data.map((d, i) => (
                   <Cell
                     key={`lic-${i}`}
@@ -197,7 +205,9 @@ function LegendRow({
       </span>
       <div className="text-right">
         <p className="tabular-nums">{value}</p>
-        <p className="text-[10px] text-muted-foreground tabular-nums">{share}%</p>
+        <p className="text-[10px] text-muted-foreground tabular-nums">
+          {share}%
+        </p>
       </div>
     </div>
   );

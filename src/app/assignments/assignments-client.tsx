@@ -18,7 +18,13 @@ import type { UpdateAssignmentInput } from "@/lib/validators";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { UserCombobox } from "@/components/user-combobox";
-import { formatCurrency, formatDate, cn, formatDateOnly, NO_WORKSPACE_SENTINEL } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDate,
+  cn,
+  formatDateOnly,
+  NO_WORKSPACE_SENTINEL,
+} from "@/lib/utils";
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -289,7 +295,7 @@ function EditAssignmentDialog({
                           variant="outline"
                           className={cn(
                             "w-full justify-start text-left font-normal",
-                            !field.value && "text-muted-foreground"
+                            !field.value && "text-muted-foreground",
                           )}
                         >
                           <CalendarIcon className="mr-2 size-4" />
@@ -303,7 +309,9 @@ function EditAssignmentDialog({
                       <Calendar
                         mode="single"
                         captionLayout="dropdown"
-                        selected={field.value ? parseISO(field.value) : undefined}
+                        selected={
+                          field.value ? parseISO(field.value) : undefined
+                        }
                         onSelect={(date) => {
                           if (date) {
                             field.onChange(formatDateOnly(date));
@@ -452,68 +460,76 @@ function AssignmentRowActions({
         </TooltipTrigger>
         <TooltipContent>View</TooltipContent>
       </Tooltip>
-      {isAdmin && assignment.status === "active" && assignment.source === "copilot-sync" && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="outline" className="ml-1 cursor-default text-xs text-muted-foreground">
-              Managed by sync
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>
-            This assignment is managed by Copilot sync and cannot be edited or revoked manually.
-          </TooltipContent>
-        </Tooltip>
-      )}
-      {isAdmin && assignment.status === "active" && assignment.source !== "copilot-sync" && (
-        <>
-          <EditAssignmentDialog assignment={assignment} onSaved={onSaved} />
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`More actions for ${assignment.user.name}'s assignment`}
-                  >
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>More actions</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setShowRevokeDialog(true)}
+      {isAdmin &&
+        assignment.status === "active" &&
+        assignment.source === "copilot-sync" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className="ml-1 cursor-default text-xs text-muted-foreground"
               >
-                <Ban className="size-4" />
-                Revoke
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <AlertDialog
-            open={showRevokeDialog}
-            onOpenChange={setShowRevokeDialog}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will revoke {assignment.user.name}&apos;s license for{" "}
-                  {assignment.tool.name}.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onRevoke(assignment.id)}>
+                Managed by sync
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              This assignment is managed by Copilot sync and cannot be edited or
+              revoked manually.
+            </TooltipContent>
+          </Tooltip>
+        )}
+      {isAdmin &&
+        assignment.status === "active" &&
+        assignment.source !== "copilot-sync" && (
+          <>
+            <EditAssignmentDialog assignment={assignment} onSaved={onSaved} />
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`More actions for ${assignment.user.name}'s assignment`}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>More actions</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setShowRevokeDialog(true)}
+                >
+                  <Ban className="size-4" />
                   Revoke
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
-      )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialog
+              open={showRevokeDialog}
+              onOpenChange={setShowRevokeDialog}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Revoke this assignment?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will revoke {assignment.user.name}&apos;s license for{" "}
+                    {assignment.tool.name}.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onRevoke(assignment.id)}>
+                    Revoke
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
     </div>
   );
 }
@@ -523,7 +539,7 @@ function AssignmentRowActions({
 function getColumns(
   isAdmin: boolean,
   onRevoke: (id: number) => void,
-  onSaved: () => void
+  onSaved: () => void,
 ): ColumnDef<AssignmentRow>[] {
   return [
     {
@@ -565,9 +581,7 @@ function getColumns(
       cell: ({ row }) => (
         <div className="flex items-center gap-1.5">
           <Badge
-            variant={
-              row.original.status === "active" ? "default" : "secondary"
-            }
+            variant={row.original.status === "active" ? "default" : "secondary"}
           >
             {row.original.status}
           </Badge>
@@ -591,7 +605,11 @@ function getColumns(
       ),
       filterFn: arrayIncludesFilterFn,
       cell: ({ row }) => (
-        <Badge variant={row.original.source === "copilot-sync" ? "outline" : "secondary"}>
+        <Badge
+          variant={
+            row.original.source === "copilot-sync" ? "outline" : "secondary"
+          }
+        >
           {row.original.source === "copilot-sync" ? "Copilot Sync" : "Manual"}
         </Badge>
       ),
@@ -673,24 +691,29 @@ export function AssignmentsClient({
   const [assigning, setAssigning] = useState(false);
 
   const handleRefresh = useCallback(() => router.refresh(), [router]);
-  const handleRevoke = useCallback(async (id: number) => {
-    const result = await revokeLicense({ id });
-    if (result.success) {
-      status.ok("Revoked");
-      router.refresh();
-    } else {
-      status.error(result.error);
-    }
-  }, [router, status]);
+  const handleRevoke = useCallback(
+    async (id: number) => {
+      const result = await revokeLicense({ id });
+      if (result.success) {
+        status.ok("Revoked");
+        router.refresh();
+      } else {
+        status.error(result.error);
+      }
+    },
+    [router, status],
+  );
   const columns = useMemo(
     () => getColumns(isAdmin, handleRevoke, handleRefresh),
-    [isAdmin, handleRevoke, handleRefresh]
+    [isAdmin, handleRevoke, handleRefresh],
   );
 
   const facetedFilters = useMemo(() => {
     const toolNames = [...new Set(assignments.map((a) => a.tool.name))].sort();
     const tierNames = [...new Set(assignments.map((a) => a.tier.name))].sort();
-    const workspaces = [...new Set(assignments.map((a) => a.workspace ?? NO_WORKSPACE_SENTINEL))].sort();
+    const workspaces = [
+      ...new Set(assignments.map((a) => a.workspace ?? NO_WORKSPACE_SENTINEL)),
+    ].sort();
 
     return [
       {
@@ -709,7 +732,7 @@ export function AssignmentsClient({
         options: workspaces.map((w) =>
           w === NO_WORKSPACE_SENTINEL
             ? { label: "No Workspace", value: NO_WORKSPACE_SENTINEL }
-            : { label: w, value: w }
+            : { label: w, value: w },
         ),
       },
       ...STATIC_ASSIGNMENT_FILTERS,
@@ -721,9 +744,7 @@ export function AssignmentsClient({
     setSelectedTierId("");
     if (toolId) {
       const tool = await getToolWithTiers(Number(toolId));
-      setAvailableTiers(
-        tool?.accessTiers.filter((t) => t.isActive) ?? []
-      );
+      setAvailableTiers(tool?.accessTiers.filter((t) => t.isActive) ?? []);
     } else {
       setAvailableTiers([]);
     }
@@ -752,15 +773,17 @@ export function AssignmentsClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-medium tracking-tight text-ink">License Assignments</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">
+            License Assignments
+          </h1>
           <p className="text-muted-foreground">
             Track user-to-tool license assignments
           </p>
         </div>
         {isAdmin && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusText status={status.status} />
             <Button asChild variant="outline">
               <Link href="/assignments/import">Bulk Import</Link>
@@ -772,71 +795,71 @@ export function AssignmentsClient({
                   Assign License
                 </Button>
               </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Assign License</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">User</label>
-                  <UserCombobox
-                    users={users}
-                    value={selectedUserId}
-                    onSelect={setSelectedUserId}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Tool</label>
-                  <Select
-                    value={selectedToolId}
-                    onValueChange={handleToolChange}
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign License</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">User</label>
+                    <UserCombobox
+                      users={users}
+                      value={selectedUserId}
+                      onSelect={setSelectedUserId}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Tool</label>
+                    <Select
+                      value={selectedToolId}
+                      onValueChange={handleToolChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select tool" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tools.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Tier</label>
+                    <Select
+                      value={selectedTierId}
+                      onValueChange={setSelectedTierId}
+                      disabled={availableTiers.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select tier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTiers.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>
+                            {t.name} — {formatCurrency(t.monthlyCostCents)}/mo
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleAssign}
+                    disabled={
+                      !selectedUserId ||
+                      !selectedToolId ||
+                      !selectedTierId ||
+                      assigning
+                    }
+                    className="w-full"
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select tool" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tools.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {assigning ? "Assigning..." : "Assign License"}
+                  </Button>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Tier</label>
-                  <Select
-                    value={selectedTierId}
-                    onValueChange={setSelectedTierId}
-                    disabled={availableTiers.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select tier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTiers.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
-                          {t.name} — {formatCurrency(t.monthlyCostCents)}/mo
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  onClick={handleAssign}
-                  disabled={
-                    !selectedUserId ||
-                    !selectedToolId ||
-                    !selectedTierId ||
-                    assigning
-                  }
-                  className="w-full"
-                >
-                  {assigning ? "Assigning..." : "Assign License"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </div>

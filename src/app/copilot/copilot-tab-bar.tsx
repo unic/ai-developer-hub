@@ -15,7 +15,11 @@ export function CopilotTabBar() {
   const pathname = usePathname();
 
   return (
-    <div className="flex gap-1 border-b" role="tablist" aria-label="Copilot sections">
+    <div
+      className="flex gap-1 border-b overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      role="tablist"
+      aria-label="Copilot sections"
+    >
       {tabs.map((tab) => {
         const isActive =
           tab.href === "/copilot"
@@ -28,10 +32,10 @@ export function CopilotTabBar() {
             role="tab"
             aria-selected={isActive}
             className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              "shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               isActive
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             {tab.label}
