@@ -111,12 +111,12 @@ function SyncChip({
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-[11px] ${
-        isStale ? "text-yellow-500 dark:text-yellow-400" : "text-muted-foreground"
+        isStale ? "text-warning" : "text-muted-foreground"
       }`}
     >
       <span
         className={`size-2 rounded-full ${
-          isStale ? "bg-yellow-500" : "bg-green-500 dark:bg-green-400"
+          isStale ? "bg-warning" : "bg-success"
         }`}
       />
       {isStale ? "Sync data is stale" : "All sources synced"} ·{" "}

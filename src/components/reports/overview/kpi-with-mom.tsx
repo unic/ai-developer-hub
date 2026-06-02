@@ -40,16 +40,10 @@ export function KpiWithMom({
           <div className="min-w-0">
             <p className="text-sm text-muted-foreground">{label}</p>
             <div className="mt-1 flex items-baseline gap-2">
-              <p className="text-2xl font-bold tabular-nums">{value}</p>
+              <p className="font-mono text-2xl tabular-nums text-ink">{value}</p>
               {delta && (
                 <Badge
-                  variant={
-                    delta.variant === "up"
-                      ? "destructive"
-                      : delta.variant === "down"
-                        ? "default"
-                        : "secondary"
-                  }
+                  variant={delta.variant === "up" ? "active" : "secondary"}
                   className="font-mono text-[11px]"
                 >
                   {delta.label}

@@ -3,12 +3,12 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
 import { updateUser } from "@/actions/users";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import type { User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,7 @@ export function EditUserDialog({
   onOpenChange,
   onSaved,
 }: EditUserDialogProps) {
+  const status = useInlineStatus();
   const form = useForm<EditUserInput>({
     resolver: zodResolver(editUserSchema),
     defaultValues: {
@@ -82,11 +83,10 @@ export function EditUserDialog({
   async function onSubmit(data: EditUserInput) {
     const result = await updateUser({ id: user.id, ...data });
     if (result.success) {
-      toast.success("User updated");
       onOpenChange(false);
       onSaved();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -239,6 +239,7 @@ export function EditUserDialog({
             />
 
             <DialogFooter>
+              <StatusText status={status.status} />
               <Button
                 type="button"
                 variant="outline"

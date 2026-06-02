@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — License Assignments · Nothing</title>
+  <link rel="stylesheet" href="./styles/nothing.css" />
+  <script src="./styles/theme.js"></script>
+  <style>
+    /* Scoped helpers — tokens only, no new colors/shadows. */
+
+    /* hero band: one big Doto number sat beside the page subtitle */
+    .hero-band { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2xl); flex-wrap: wrap; }
+    .hero-metric { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .hero-metric .metric-value { font-size: var(--display-xl); }
+
+    /* faceted filter toolbar */
+    .filter-bar { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+    .facet {
+      display: inline-flex; align-items: center; gap: var(--space-sm);
+      padding: 8px 14px;
+      border: 1px solid var(--border-visible); border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--text-secondary);
+      transition: border-color var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease);
+    }
+    .facet:hover { border-color: var(--text-primary); color: var(--text-primary); }
+    .facet svg { width: 14px; height: 14px; stroke-width: 1.5; opacity: 0.7; }
+    .facet.is-on { border-color: var(--text-display); color: var(--text-display); }
+    .facet .count {
+      display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+      border-radius: var(--radius-pill); background: var(--surface-raised);
+      font-size: 10px; color: var(--text-primary);
+    }
+
+    /* table-frame card with a thin meta header strip */
+    .table-frame { padding: 0; overflow: hidden; }
+    .table-head-strip { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border-visible); }
+    .table-scroll { overflow-x: auto; }
+    .table-frame .table { min-width: 940px; }
+    .table-frame .table thead th { padding-top: var(--space-md); }
+    .table-frame .table thead th:first-child,
+    .table-frame .table tbody td:first-child { padding-left: var(--space-lg); }
+    .table-frame .table thead th:last-child,
+    .table-frame .table tbody td:last-child { padding-right: var(--space-lg); }
+
+    /* sortable header affordance */
+    .th-sort { display: inline-flex; align-items: center; gap: 6px; cursor: default; }
+    .th-sort svg { width: 12px; height: 12px; opacity: 0.55; }
+    .th-sort.is-active { color: var(--text-display); }
+    .th-sort.is-active svg { opacity: 1; }
+
+    /* primary cell = user identity */
+    .id-cell { display: flex; align-items: center; gap: var(--space-sm); }
+    .id-cell .avatar { width: 28px; height: 28px; font-size: 10px; }
+    .id-cell .stack { gap: 2px; }
+    .id-mail { font-family: var(--font-mono); font-size: 11px; color: var(--text-disabled); letter-spacing: 0.02em; }
+
+    /* source / sync inline markers (text only — no colored backgrounds) */
+    .src { font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em; color: var(--text-secondary); }
+    .em-dash { color: var(--text-disabled); }
+
+    /* row action cluster */
+    .row-actions { display: inline-flex; align-items: center; gap: var(--space-xs); justify-content: flex-end; }
+    .icon-btn { width: 32px; height: 32px; border-radius: var(--radius-tech); display: grid; place-items: center; color: var(--text-secondary); transition: color var(--dur-micro) var(--ease), background var(--dur-micro) var(--ease); }
+    .icon-btn:hover { color: var(--text-primary); background: var(--surface-raised); }
+    .icon-btn svg { width: 16px; height: 16px; stroke-width: 1.5; }
+    .managed-note { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-disabled); white-space: nowrap; }
+
+    /* pagination footer */
+    .table-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--border-visible); flex-wrap: wrap; }
+    .page-size { display: inline-flex; align-items: center; gap: var(--space-sm); }
+    .pager { display: inline-flex; align-items: center; gap: var(--space-sm); }
+    .pager .nav-arrow { width: 32px; height: 32px; border: 1px solid var(--border-visible); border-radius: var(--radius-tech); display: grid; place-items: center; color: var(--text-secondary); transition: border-color var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease); }
+    .pager .nav-arrow:hover { border-color: var(--text-primary); color: var(--text-primary); }
+    .pager .nav-arrow[aria-disabled="true"] { opacity: 0.4; }
+    .pager .nav-arrow svg { width: 16px; height: 16px; }
+
+    /* layout columns: table is the hero, dialogs sit beside as static design specs */
+    .work-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-2xl); }
+    @media (min-width: 1180px) { .work-grid { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; } }
+
+    /* static dialog mockups (mounted inline, not modal overlays) */
+    .dialog-mock { border: 1px solid var(--border-visible); border-radius: var(--radius-card); background: var(--surface-raised); padding: var(--space-lg); }
+    .dialog-mock + .dialog-mock { margin-top: var(--space-lg); }
+    .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-lg); }
+    .dialog-body { display: flex; flex-direction: column; gap: var(--space-lg); }
+    .combo { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); border: 1px solid var(--border-visible); border-radius: var(--radius-compact); padding: 11px 14px; }
+    .combo .val { font-family: var(--font-mono); font-size: var(--body-sm); color: var(--text-display); }
+    .combo .ph { font-family: var(--font-mono); font-size: var(--body-sm); color: var(--text-disabled); }
+    .combo svg { width: 16px; height: 16px; stroke-width: 1.5; color: var(--text-secondary); }
+    .combo.is-disabled { opacity: 0.5; }
+    .tier-line { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); }
+
+    /* the ONE red moment: the Revoke confirmation AlertDialog */
+    .alert-dialog { border: 1px solid var(--accent); border-radius: var(--radius-card); background: var(--accent-subtle); padding: var(--space-lg); }
+    .alert-dialog .ad-head { display: flex; align-items: flex-start; gap: var(--space-sm); margin-bottom: var(--space-md); }
+    .alert-dialog .ad-head svg { width: 20px; height: 20px; stroke-width: 1.5; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+    .alert-dialog .ad-title { font-family: var(--font-ui); font-size: var(--subheading); font-weight: 500; color: var(--accent); }
+    .alert-dialog .ad-body { font-size: var(--body-sm); color: var(--text-primary); line-height: 1.5; }
+    .alert-dialog .ad-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-lg); }
+
+    .warn-note { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; }
+    .warn-note svg { width: 13px; height: 13px; stroke-width: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span><span class="wordmark">AI&middot;HUB</span></div>
+      <nav class="nav">
+        <a class="nav-item" href="./dashboard.html">Dashboard</a>
+        <a class="nav-item" href="./tools.html">Tools</a>
+        <a class="nav-item" href="./users.html">Users</a>
+        <a class="nav-item active" href="./assignments.html">Assignments</a>
+        <a class="nav-item" href="./requests.html">Requests</a>
+        <a class="nav-item" href="./budget.html">Budget</a>
+        <a class="nav-item" href="./reports.html">Reports</a>
+        <a class="nav-item" href="./copilot.html">Copilot</a>
+        <a class="nav-item" href="./claude.html">Claude Console</a>
+        <a class="nav-item" href="./invoices.html">Invoices</a>
+        <a class="nav-item" href="./settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <span class="avatar">TS</span>
+          <span class="stack">
+            <span class="t-primary" style="font-size:13px">Tobias Studer</span>
+            <span class="label">Admin</span>
+          </span>
+        </div>
+        <a class="nav-item" href="./login.html">Sign Out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="label eyebrow">LICENSES</div>
+          <h1 class="display-md">License Assignments</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="btn btn--secondary btn--sm" href="#">
+            <!-- upload -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Bulk Import
+          </a>
+          <button class="btn btn--primary btn--sm" type="button">
+            <!-- plus -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Assign License
+          </button>
+          <div class="theme-toggle">
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="light">Light</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== SCREEN CONTENT ===== -->
+
+      <!-- HERO BAND — the one big number; table is the hero, this frames it -->
+      <section class="hero-band">
+        <div class="hero-metric">
+          <span class="label">ACTIVE LICENSE ASSIGNMENTS</span>
+          <span class="metric-value is-doto">142<span class="metric-unit">assignments</span></span>
+          <span class="subheading t-secondary">Track user-to-tool license assignments</span>
+        </div>
+        <div class="stat-list" style="min-width:240px">
+          <div class="stat-row"><span class="label">MONTHLY SNAPSHOT</span><span class="value value--display">$2,684.00</span></div>
+          <div class="stat-row"><span class="label">MANAGED BY SYNC</span><span class="value">38</span></div>
+          <div class="stat-row"><span class="label">REVOKED · 30D</span><span class="value">6</span></div>
+        </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <!-- FILTER / TOOLBAR ROW — wrapping flex of search + faceted multi-selects -->
+      <div class="filter-bar" style="margin-bottom:var(--space-lg)">
+        <span class="search" style="max-width:24rem">
+          <!-- search -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" placeholder="Search assignments…" value="" />
+        </span>
+
+        <button class="facet is-on" type="button">
+          Tool<span class="count">3</span>
+          <!-- chevron-down -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="facet" type="button">
+          Tier
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="facet" type="button">
+          Workspace
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="facet is-on" type="button">
+          Status<span class="count">1</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="facet" type="button">
+          Source
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+
+        <button class="btn--ghost mono" type="button" style="font-size:var(--caption);letter-spacing:0.06em;text-transform:uppercase">
+          Reset
+          <!-- close -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:13px;height:13px;display:inline;vertical-align:middle;margin-left:4px"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="work-grid">
+
+        <!-- ===== ASSIGNMENTS DATA TABLE — the hero section ===== -->
+        <section class="card table-frame">
+          <div class="table-head-strip">
+            <span class="label">SHOWING 1&ndash;5 OF 142 · SORTED BY ASSIGNED &darr;</span>
+            <span class="row" style="gap:var(--space-md)">
+              <span class="tag tag--success"><span class="led"></span>136 Active</span>
+              <span class="tag">6 Revoked</span>
+            </span>
+          </div>
+
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th><span class="th-sort">User</span></th>
+                  <th><span class="th-sort">Tool</span></th>
+                  <th><span class="th-sort">Tier</span></th>
+                  <th class="num"><span class="th-sort">Monthly Cost</span></th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Workspace</th>
+                  <th class="num">
+                    <span class="th-sort is-active">Assigned
+                      <!-- arrow-down -->
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                    </span>
+                  </th>
+                  <th class="num"><span class="t-disabled label" style="letter-spacing:0.1em">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+
+                <!-- Tobias Studer — most recent (top of desc sort) -->
+                <tr>
+                  <td>
+                    <span class="id-cell">
+                      <span class="avatar">TS</span>
+                      <span class="stack">
+                        <span class="cell-strong">Tobias Studer</span>
+                        <span class="id-mail">tobias.studer@unic.com</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>Anthropic API</td>
+                  <td>Boost · usage-billed</td>
+                  <td class="num">$0.00</td>
+                  <td><span class="tag"><span class="led"></span>Active</span></td>
+                  <td><span class="src">Manual</span></td>
+                  <td>default-workspace</td>
+                  <td class="num">May 19, 2026</td>
+                  <td class="num">
+                    <span class="row-actions">
+                      <a class="icon-btn" href="#" title="View">
+                        <!-- eye -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </a>
+                      <button class="icon-btn" type="button" title="Edit">
+                        <!-- pencil -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                      </button>
+                      <button class="icon-btn" type="button" title="More actions">
+                        <!-- more-horizontal -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Admin User · Cursor -->
+                <tr>
+                  <td>
+                    <span class="id-cell">
+                      <span class="avatar">AU</span>
+                      <span class="stack">
+                        <span class="cell-strong">Admin User</span>
+                        <span class="id-mail">admin@unic.com</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>Cursor</td>
+                  <td>Team</td>
+                  <td class="num">$40.00</td>
+                  <td><span class="tag"><span class="led"></span>Active</span></td>
+                  <td><span class="src">Manual</span></td>
+                  <td>team-alpha</td>
+                  <td class="num">Mar 01, 2026</td>
+                  <td class="num">
+                    <span class="row-actions">
+                      <a class="icon-btn" href="#" title="View">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </a>
+                      <button class="icon-btn" type="button" title="Edit">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                      </button>
+                      <button class="icon-btn" type="button" title="More actions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Marco Rossi · Claude · no workspace -->
+                <tr>
+                  <td>
+                    <span class="id-cell">
+                      <span class="avatar">MR</span>
+                      <span class="stack">
+                        <span class="cell-strong">Marco Rossi</span>
+                        <span class="id-mail">marco.rossi@unic.com</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>Claude</td>
+                  <td>Pro</td>
+                  <td class="num">$20.00</td>
+                  <td><span class="tag"><span class="led"></span>Active</span></td>
+                  <td><span class="src">Manual</span></td>
+                  <td><span class="em-dash mono">&mdash;</span></td>
+                  <td class="num">Feb 02, 2026</td>
+                  <td class="num">
+                    <span class="row-actions">
+                      <a class="icon-btn" href="#" title="View">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </a>
+                      <button class="icon-btn" type="button" title="Edit">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                      </button>
+                      <button class="icon-btn" type="button" title="More actions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Sarah Chen · GitHub Copilot · sync-managed (read-only) -->
+                <tr>
+                  <td>
+                    <span class="id-cell">
+                      <span class="avatar">SC</span>
+                      <span class="stack">
+                        <span class="cell-strong">Sarah Chen</span>
+                        <span class="id-mail">sarah.chen@unic.com</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>GitHub Copilot</td>
+                  <td>Business</td>
+                  <td class="num">$19.00</td>
+                  <td>
+                    <span class="row" style="gap:6px">
+                      <span class="tag"><span class="led"></span>Active</span>
+                      <span class="tag tag--tech">Sync</span>
+                    </span>
+                  </td>
+                  <td><span class="src">Copilot Sync</span></td>
+                  <td>unic-engineering</td>
+                  <td class="num">Jan 14, 2026</td>
+                  <td class="num">
+                    <span class="row-actions">
+                      <a class="icon-btn" href="#" title="View">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </a>
+                      <span class="managed-note" title="This assignment is managed by Copilot sync and cannot be edited or revoked manually.">Managed by sync</span>
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Lena Fischer · revoked · sync-managed -->
+                <tr>
+                  <td>
+                    <span class="id-cell">
+                      <span class="avatar">LF</span>
+                      <span class="stack">
+                        <span class="cell-strong">Lena Fischer</span>
+                        <span class="id-mail">lena.fischer@unic.com</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>GitHub Copilot</td>
+                  <td>Business</td>
+                  <td class="num">$19.00</td>
+                  <td>
+                    <span class="row" style="gap:6px">
+                      <span class="tag">Revoked</span>
+                      <span class="tag tag--tech">Sync</span>
+                    </span>
+                  </td>
+                  <td><span class="src">Copilot Sync</span></td>
+                  <td>unic-engineering</td>
+                  <td class="num">Nov 08, 2025</td>
+                  <td class="num">
+                    <span class="row-actions">
+                      <a class="icon-btn" href="#" title="View">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </a>
+                      <span class="managed-note" title="This assignment is managed by Copilot sync and cannot be edited or revoked manually.">Managed by sync</span>
+                    </span>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
+          <!-- pagination footer: page-size selector + prev/next -->
+          <div class="table-foot">
+            <span class="page-size">
+              <span class="label">ROWS PER PAGE</span>
+              <span class="segmented">
+                <button class="active" type="button">10</button>
+                <button type="button">25</button>
+                <button type="button">50</button>
+                <button type="button">100</button>
+              </span>
+            </span>
+            <span class="pager">
+              <span class="caption">PAGE 1 OF 15</span>
+              <span class="nav-arrow" aria-disabled="true" title="Previous">
+                <!-- chevron-left -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </span>
+              <span class="nav-arrow" title="Next">
+                <!-- chevron-right -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </span>
+            </span>
+          </div>
+        </section>
+
+        <!-- ===== SIDE COLUMN — admin dialogs as static design specs ===== -->
+        <aside class="stack stack--lg">
+
+          <!-- Assign License dialog -->
+          <div class="dialog-mock">
+            <div class="dialog-head">
+              <span class="heading" style="font-size:var(--subheading)">Assign License</span>
+              <span class="icon-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </span>
+            </div>
+            <div class="dialog-body">
+              <div class="field">
+                <label class="label">User</label>
+                <div class="combo">
+                  <span class="val">Sarah Chen</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label">Tool</label>
+                <div class="combo">
+                  <span class="val">GitHub Copilot</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label">Tier</label>
+                <div class="combo">
+                  <span class="tier-line" style="flex:1">
+                    <span class="val">Business</span>
+                    <span class="src">$19.00 / mo</span>
+                  </span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+              <button class="btn btn--primary" type="button" style="width:100%">Assign License</button>
+            </div>
+          </div>
+
+          <!-- Edit Assignment dialog -->
+          <div class="dialog-mock">
+            <div class="dialog-head">
+              <span class="heading" style="font-size:var(--subheading)">Edit Assignment</span>
+              <span class="icon-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </span>
+            </div>
+            <div class="dialog-body">
+              <div class="field">
+                <label class="label">Tier</label>
+                <div class="combo">
+                  <span class="tier-line" style="flex:1">
+                    <span class="val">Business</span>
+                    <span class="src">$19.00 / mo</span>
+                  </span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label">Assigned Date</label>
+                <div class="combo">
+                  <span class="val">Jan 14, 2026</span>
+                  <!-- calendar -->
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+                </div>
+                <span class="warn-note t-warning">
+                  <!-- alert-triangle -->
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                  This date is more than 12 months in the past.
+                </span>
+              </div>
+              <div class="field">
+                <label class="label">Workspace</label>
+                <input class="control" type="text" value="team-alpha" />
+              </div>
+              <div class="field">
+                <label class="label">API Key</label>
+                <div class="combo">
+                  <span class="ph mono">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span>
+                  <span class="row" style="gap:var(--space-sm)">
+                    <!-- eye -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <!-- copy -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                  </span>
+                </div>
+                <span class="caption t-disabled">An existing key is stored. Leave blank to keep it.</span>
+              </div>
+              <button class="btn btn--primary" type="button" style="width:100%">Save Changes</button>
+            </div>
+          </div>
+
+          <!-- ===== THE SINGLE RED MOMENT — Revoke AlertDialog ===== -->
+          <div class="alert-dialog" role="alertdialog" aria-labelledby="revoke-title">
+            <div class="ad-head">
+              <!-- alert-triangle -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              <span class="ad-title" id="revoke-title">Revoke this assignment?</span>
+            </div>
+            <p class="ad-body">
+              Marco Rossi will lose access to <strong>Claude · Pro</strong>. This frees the seat but keeps the
+              historical cost snapshot. You can re-assign later.
+            </p>
+            <div class="ad-actions">
+              <button class="btn btn--secondary btn--sm" type="button">Cancel</button>
+              <button class="btn btn--destructive btn--sm" type="button">Revoke</button>
+            </div>
+          </div>
+
+        </aside>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

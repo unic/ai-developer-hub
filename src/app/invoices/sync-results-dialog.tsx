@@ -35,24 +35,23 @@ const outcomeBadgeConfig: Record<
 > = {
   verified: {
     label: "Verified",
-    className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    className: "border-success text-success",
   },
   newly_linked: {
     label: "Newly Linked",
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    className: "border-border text-foreground",
   },
   corrected: {
     label: "Corrected",
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+    className: "border-warning text-warning",
   },
   unresolvable: {
     label: "Unresolvable",
-    className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+    className: "border-warning text-warning",
   },
   error: {
     label: "Error",
-    className:
-      "bg-destructive text-white dark:bg-destructive/60",
+    className: "border-destructive text-destructive",
   },
 };
 

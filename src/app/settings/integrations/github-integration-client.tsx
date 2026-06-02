@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Github, Unplug, KeyRound } from "lucide-react";
-import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -57,6 +57,7 @@ interface Props {
 export function GitHubIntegrationClient({ initialConnection }: Props) {
   const [connection, setConnection] = useState(initialConnection);
   const [isPending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   // Token validation state
   const [token, setToken] = useState("");
@@ -79,9 +80,9 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
         if (result.data.organizations.length === 1) {
           setSelectedOrg(result.data.organizations[0].login);
         }
-        toast.success(`Token valid. Found ${result.data.organizations.length} organization(s).`);
+        status.ok(`Token valid · ${result.data.organizations.length} org(s)`);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
         setIsValidated(false);
         setOrgs([]);
       }
@@ -110,9 +111,9 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
         setToken("");
         setIsValidated(false);
         setOrgs([]);
-        toast.success(`Connected to ${org.login}`);
+        status.ok(`Connected to ${org.login}`);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -122,9 +123,9 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
       const result = await disconnectGitHubOrg();
       if (result.success) {
         setConnection(null);
-        toast.success("Disconnected. Enriched user data has been retained.");
+        status.ok("Disconnected");
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -135,9 +136,9 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
       if (result.success) {
         setShowUpdateToken(false);
         setUpdateTokenValue("");
-        toast.success("Token updated successfully");
+        status.ok("Token updated");
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -179,13 +180,16 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
             </p>
           </div>
 
-          <Button
-            onClick={handleValidateToken}
-            disabled={!token || isPending}
-            variant="outline"
-          >
-            {isPending ? "Validating..." : "Validate Token"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleValidateToken}
+              disabled={!token || isPending}
+              variant="outline"
+            >
+              {isPending ? "Validating..." : "Validate Token"}
+            </Button>
+            <StatusText status={status.status} />
+          </div>
 
           {isValidated && orgs.length > 0 && (
             <div className="space-y-3 pt-2 border-t">
@@ -281,6 +285,7 @@ export function GitHubIntegrationClient({ initialConnection }: Props) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <StatusText status={status.status} />
         </div>
 
         {/* Update Token Form */}

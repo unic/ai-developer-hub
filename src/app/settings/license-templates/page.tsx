@@ -15,7 +15,7 @@ export default async function LicenseTemplatesPage() {
     <AuthGuard requiredRole="admin">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">License Templates</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">License Templates</h1>
           <p className="text-muted-foreground">
             Approval and completion messages, customizable per tool and per tier.
             Tool defaults are inherited unless a tier override exists.

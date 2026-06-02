@@ -13,12 +13,13 @@ import {
   getWorkspaceDetail,
   setWorkspaceLimit,
 } from "@/actions/anthropic-global";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { WorkspaceDetail } from "@/types";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { getDaysInMonth, parseISO } from "date-fns";
 import { totalTileCaption } from "@/components/claude/today-estimate";
+import { InlineSpinner } from "@/components/ui/loading-state";
 
 type Props = {
   workspaceIdParam: string;
@@ -34,6 +35,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
     detail.limitCents != null ? String(detail.limitCents / 100) : ""
   );
   const [savingLimit, savingTransition] = useTransition();
+  const status = useInlineStatus();
 
   function handleMonthChange(next: string) {
     setMonth(next);
@@ -52,12 +54,12 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
           : Math.round(dollars * 100);
       const r = await setWorkspaceLimit(detail.workspace.id, cents);
       if (r.success) {
-        toast.success("Limit updated.");
+        status.ok("Limit updated");
         setEditing(false);
         const refreshed = await getWorkspaceDetail(workspaceIdParam, month);
         if (refreshed) setDetail(refreshed);
       } else {
-        toast.error(`Failed: ${r.error}`);
+        status.error(r.error);
       }
     });
   }
@@ -75,11 +77,11 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
       detail.momDeltaPct === null ? (
         <span className="text-muted-foreground">— no spend last month</span>
       ) : detail.momDeltaPct >= 0 ? (
-        <span className="inline-flex items-center gap-1 text-emerald-500">
+        <span className="inline-flex items-center gap-1 text-foreground">
           <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior month
         </span>
       ) : (
-        <span className="inline-flex items-center gap-1 text-destructive">
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
           <TrendingDown className="size-3" /> {detail.momDeltaPct}% vs prior month
         </span>
       );
@@ -165,11 +167,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
             onChange={handleMonthChange}
             months={detail.availableMonths.length > 0 ? detail.availableMonths : [month]}
           />
-          {isPending && (
-            <span className="text-sm text-muted-foreground animate-pulse">
-              Loading…
-            </span>
-          )}
+          {isPending && <InlineSpinner />}
         </div>
         {editing ? (
           <div className="flex flex-col items-end gap-1">
@@ -190,6 +188,7 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={savingLimit}>
                 Cancel
               </Button>
+              <StatusText status={status.status} />
             </div>
             {detail.workspace.isDefault && (
               <p className="text-xs text-muted-foreground">
@@ -213,7 +212,6 @@ export function WorkspaceDetailClient({ workspaceIdParam, initial }: Props) {
         <CardContent>
           <WorkspaceDailyChart
             dailyTotals={detail.dailyTotals}
-            color={detail.workspace.displayColor}
             limitCents={detail.limitCents}
             daysInMonth={getDaysInMonth(parseISO(`${month}-01`))}
             estimatedTodayCents={detail.todayEstimate?.cents ?? null}

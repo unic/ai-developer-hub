@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setOrgBillingBudget } from "@/actions/anthropic-global";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
+import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { formatCurrency } from "@/lib/utils";
 import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
 import { EstChip } from "@/components/claude/today-estimate";
@@ -37,6 +38,7 @@ export function OrgBillingBudgetCard({
       : ""
   );
   const [isPending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   function handleSave() {
     startTransition(async () => {
@@ -47,10 +49,10 @@ export function OrgBillingBudgetCard({
           : Math.round(dollars * 100);
       const result = await setOrgBillingBudget(limitCents);
       if (result.success) {
-        toast.success("Billing budget updated.");
+        status.ok("Saved");
         setEditing(false);
       } else {
-        toast.error(`Failed to update: ${result.error}`);
+        status.error(result.error);
       }
     });
   }
@@ -112,7 +114,7 @@ export function OrgBillingBudgetCard({
                 projectedPct != null && projectedPct >= 100
                   ? "text-destructive"
                   : projectedPct != null && projectedPct >= 80
-                  ? "text-amber-500"
+                  ? "text-warning"
                   : ""
               }`}
             >
@@ -163,6 +165,7 @@ export function OrgBillingBudgetCard({
                   >
                     Cancel
                   </Button>
+                  <StatusText status={status.status} />
                 </div>
               </>
             ) : (
@@ -179,19 +182,18 @@ export function OrgBillingBudgetCard({
         </div>
 
         {limitCents != null && (
-          <div className="mt-4 space-y-1">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  (utilizationPct ?? 0) >= 100
-                    ? "bg-destructive"
-                    : (utilizationPct ?? 0) >= 80
-                    ? "bg-amber-500"
-                    : "bg-primary"
-                }`}
-                style={{ width: `${Math.min(utilizationPct ?? 0, 100)}%` }}
-              />
-            </div>
+          <div className="mt-4">
+            <SegmentedBar
+              value={Math.min(utilizationPct ?? 0, 100) / 100}
+              tone={
+                (utilizationPct ?? 0) >= 100
+                  ? "over"
+                  : (utilizationPct ?? 0) >= 80
+                    ? "warn"
+                    : "filled"
+              }
+              ariaLabel={`${utilizationPct ?? 0}% of monthly budget used`}
+            />
           </div>
         )}
       </CardContent>

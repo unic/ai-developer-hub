@@ -12,6 +12,7 @@ import { getUserDetail } from "@/actions/anthropic-users";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { InlineSpinner } from "@/components/ui/loading-state";
 import type { UserDetail } from "@/types";
 
 type Props = {
@@ -45,11 +46,11 @@ export function UserDetailClient({ userId, initial }: Props) {
       detail.momDeltaPct === null ? (
         <span className="text-muted-foreground">— no spend last month</span>
       ) : detail.momDeltaPct >= 0 ? (
-        <span className="inline-flex items-center gap-1 text-emerald-500">
+        <span className="inline-flex items-center gap-1 text-foreground">
           <TrendingUp className="size-3" /> +{detail.momDeltaPct}% vs prior month
         </span>
       ) : (
-        <span className="inline-flex items-center gap-1 text-destructive">
+        <span className="inline-flex items-center gap-1 text-foreground">
           <TrendingDown className="size-3" /> {detail.momDeltaPct}% vs prior
           month
         </span>
@@ -73,12 +74,7 @@ export function UserDetailClient({ userId, initial }: Props) {
             ? `+${formatCurrency(detail.momDeltaCents)}`
             : `-${formatCurrency(Math.abs(detail.momDeltaCents))}`,
         caption: momCaption,
-        tone:
-          detail.momDeltaPct === null
-            ? "default"
-            : detail.momDeltaPct >= 0
-            ? "success"
-            : "danger",
+        tone: "default",
       },
       {
         label: "Projected Month-End",
@@ -110,17 +106,10 @@ export function UserDetailClient({ userId, initial }: Props) {
               detail.availableMonths.length > 0 ? detail.availableMonths : [month]
             }
           />
-          {isPending && (
-            <span className="text-sm text-muted-foreground animate-pulse">
-              Loading…
-            </span>
-          )}
+          {isPending && <InlineSpinner />}
         </div>
         {detail.hasUnresolvedPricing && (
-          <Badge
-            variant="outline"
-            className="border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-400"
-          >
+          <Badge variant="warning">
             <AlertTriangle className="mr-1 size-3" />
             Some pricing unresolved
           </Badge>
@@ -136,11 +125,7 @@ export function UserDetailClient({ userId, initial }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <WorkspaceDailyChart
-            dailyTotals={detail.dailyTotals}
-            color={detail.workspace.displayColor}
-            limitCents={null}
-          />
+          <WorkspaceDailyChart dailyTotals={detail.dailyTotals} limitCents={null} />
         </CardContent>
       </Card>
 

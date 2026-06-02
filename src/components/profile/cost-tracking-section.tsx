@@ -8,7 +8,7 @@ import { formatCurrency, getCurrentMonth } from "@/lib/utils";
 import { getUserCostData } from "@/actions/anthropic-usage";
 import { CostChart } from "@/components/cost-chart";
 import { DollarSign, Info, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { CostData } from "@/types";
 
 type CostTrackingSectionProps = {
@@ -31,6 +31,7 @@ export function CostTrackingSection({
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [costData, setCostData] = useState<CostData>(initialData);
   const [isPending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   const topModelName = useMemo(() => {
     if (costData.dailyBreakdown.length === 0) return "—";
@@ -62,7 +63,7 @@ export function CostTrackingSection({
         const data = await getUserCostData(userId, month);
         setCostData(data);
       } catch {
-        toast.error("Failed to load cost data. Please try again.");
+        status.error("Load failed");
       }
     });
   }
@@ -74,7 +75,7 @@ export function CostTrackingSection({
         const data = await getUserCostData(userId, selectedMonth);
         setCostData(data);
       } catch {
-        toast.error("Failed to refresh cost data.");
+        status.error("Refresh failed");
       }
     });
   }
@@ -111,6 +112,7 @@ export function CostTrackingSection({
             Claude API Costs
           </CardTitle>
           <div className="flex items-center gap-2">
+            <StatusText status={status.status} />
             <MonthPicker
               value={selectedMonth}
               onChange={handleMonthChange}
@@ -135,7 +137,7 @@ export function CostTrackingSection({
         {/* Monthly total */}
         <div className="rounded-lg border p-4">
           <p className="text-sm text-muted-foreground">Monthly Total</p>
-          <p className={`text-3xl font-bold ${isPending ? "opacity-50" : ""}`}>
+          <p className={`text-3xl font-mono ${isPending ? "opacity-50" : ""}`}>
             {formatCurrency(costData.monthlyTotalCents)}
           </p>
           {costData.latestDataDate && (

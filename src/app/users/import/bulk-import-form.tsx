@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { bulkImportUsers, checkExistingUsers } from "@/actions/users";
 import type { ExistingUserFields } from "@/types";
 import { getChangedUserFields } from "@/lib/utils";
@@ -24,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Download } from "lucide-react";
 import { toCsv } from "@/lib/csv";
 import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
@@ -119,6 +119,7 @@ function enrichRows(
 
 export function BulkImportForm() {
   const router = useRouter();
+  const status = useInlineStatus();
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -143,9 +144,9 @@ export function BulkImportForm() {
             setParsedUsers(enrichRows(rows, result.data));
             return;
           }
-          toast.error("Failed to check existing users");
+          status.error("Check failed");
         } catch {
-          toast.error("Failed to check existing users");
+          status.error("Check failed");
         } finally {
           setLoading(false);
         }
@@ -171,7 +172,7 @@ export function BulkImportForm() {
       }));
 
     if (validUsers.length === 0) {
-      toast.error("No valid users to import");
+      status.error("No valid users");
       return;
     }
 
@@ -186,14 +187,16 @@ export function BulkImportForm() {
       if (updated > 0) parts.push(`${updated} updated`);
       if (skipped > 0) parts.push(`${skipped} skipped`);
       if (failed > 0) parts.push(`${failed} failed`);
-      toast.success(parts.join(", ") || "No changes");
       if (result.data.inviteLinks && result.data.inviteLinks.length > 0) {
+        status.ok("Imported");
         setInviteLinks(result.data.inviteLinks);
       } else if (created > 0 || updated > 0) {
         router.push("/users");
+      } else {
+        status.ok(parts.join(", ") || "No changes");
       }
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -204,7 +207,7 @@ export function BulkImportForm() {
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Bulk Import Users</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">Bulk Import Users</h1>
           <p className="text-muted-foreground">
             Upload a CSV file with columns: name, email (required); circle (or
             department), discipline, role, github_username, profile (optional).
@@ -303,11 +306,11 @@ export function BulkImportForm() {
                 <TableBody>
                   {parsedUsers.map((user, i) => {
                     const changed = user.changes ?? [];
-                    const hl = "font-semibold text-primary";
+                    const hl = "font-semibold text-ink";
                     return (
                       <TableRow
                         key={i}
-                        className={!user.valid ? "bg-destructive/10" : ""}
+                        className=""
                       >
                         <TableCell>
                           {user.action === "update" ? (
@@ -359,6 +362,7 @@ export function BulkImportForm() {
               >
                 Cancel
               </Button>
+              <StatusText status={status.status} />
             </div>
           </CardContent>
         </Card>

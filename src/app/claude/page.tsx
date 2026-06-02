@@ -21,6 +21,7 @@ import { HistoricalTrendCard } from "@/components/claude/historical-trend-card";
 import { SyncButton } from "@/components/claude/sync-button";
 import { ClaudeTabs } from "@/components/claude/claude-tabs";
 import { getCurrentMonth, getUtcDaysInMonth } from "@/lib/utils";
+import { LoadingState } from "@/components/ui/loading-state";
 import { Bot } from "lucide-react";
 
 export const metadata: Metadata = { title: "Claude API Spending" };
@@ -69,7 +70,7 @@ export default async function ClaudePage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Claude API Spending</h1>
+          <h1 className="text-2xl font-medium tracking-tight text-ink">Claude API Spending</h1>
           <p className="text-muted-foreground">
             Org-wide usage, budgets, and Anthropic sync status.
           </p>
@@ -79,7 +80,7 @@ export default async function ClaudePage() {
 
       <ClaudeTabs />
 
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted" />}>
+      <Suspense fallback={<LoadingState label="LOADING" />}>
         <GlobalMetricsClient
           initialKpis={kpis}
           initialDaily={daily}

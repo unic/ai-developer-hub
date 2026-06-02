@@ -98,7 +98,7 @@ function SpotlightTile({
       <p className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${toneClass}`}>
+      <p className={`mt-1 text-2xl font-mono tabular-nums ${toneClass}`}>
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}

@@ -67,7 +67,7 @@ export default async function ClaudeUserDetailPage({ params }: PageProps) {
       </nav>
 
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-2xl font-medium tracking-tight text-ink">
           {detail.user.name || detail.user.email}
         </h1>
         {detail.user.name && (

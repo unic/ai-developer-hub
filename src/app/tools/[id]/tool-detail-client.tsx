@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
 import { updateTool, archiveTool, createTier, updateTier } from "@/actions/tools";
 import { toolSchema, updateTierSchema, type ToolInput } from "@/lib/validators";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -50,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Pencil, Plus } from "lucide-react";
 
 interface Props {
@@ -70,6 +70,7 @@ function EditTierDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const status = useInlineStatus();
 
   const tierForm = useForm({
     resolver: zodResolver(
@@ -115,11 +116,10 @@ function EditTierDialog({
       isActive: data.isActive,
     });
     if (result.success) {
-      toast.success("Tier updated");
       setOpen(false);
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -216,7 +216,8 @@ function EditTierDialog({
                 </FormItem>
               )}
             />
-            <DialogFooter>
+            <DialogFooter className="items-center">
+              <StatusText status={status.status} />
               <Button
                 type="button"
                 variant="outline"
@@ -248,6 +249,8 @@ export function ToolDetailClient({
 }: Props) {
   const router = useRouter();
   const [addTierOpen, setAddTierOpen] = useState(false);
+  const status = useInlineStatus();
+  const addTierStatus = useInlineStatus();
 
   const form = useForm<ToolInput>({
     resolver: zodResolver(toolSchema),
@@ -262,20 +265,19 @@ export function ToolDetailClient({
   async function onSubmit(data: ToolInput) {
     const result = await updateTool({ id: tool.id, ...data });
     if (result.success) {
-      toast.success("Tool updated");
+      status.ok("Saved");
       router.refresh();
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
   async function handleArchive() {
     const result = await archiveTool({ id: tool.id });
     if (result.success) {
-      toast.success("Tool archived");
       router.push("/tools");
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
@@ -289,11 +291,10 @@ export function ToolDetailClient({
       ),
     });
     if (result.success) {
-      toast.success("Tier added");
       setAddTierOpen(false);
       router.refresh();
     } else {
-      toast.error(result.error);
+      addTierStatus.error(result.error);
     }
   }
 
@@ -301,7 +302,7 @@ export function ToolDetailClient({
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{tool.name}</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">{tool.name}</h1>
           <p className="text-muted-foreground">{tool.vendor}</p>
         </div>
         <Badge variant={tool.status === "active" ? "default" : "secondary"}>
@@ -377,10 +378,11 @@ export function ToolDetailClient({
                     </FormItem>
                   )}
                 />
-                <div className="flex gap-3">
+                <div className="flex items-center gap-3">
                   <Button type="submit" disabled={form.formState.isSubmitting}>
                     Save Changes
                   </Button>
+                  <StatusText status={status.status} />
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive">Archive Tool</Button>
@@ -453,7 +455,10 @@ export function ToolDetailClient({
                     <label className="text-sm font-medium">Description</label>
                     <Input name="tierDescription" />
                   </div>
-                  <Button type="submit">Add Tier</Button>
+                  <div className="flex items-center gap-3">
+                    <Button type="submit">Add Tier</Button>
+                    <StatusText status={addTierStatus.status} />
+                  </div>
                 </form>
               </DialogContent>
             </Dialog>
@@ -485,7 +490,7 @@ export function ToolDetailClient({
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="font-medium">
+                      <p className="font-mono">
                         {formatCurrency(tier.monthlyCostCents)}/mo
                       </p>
                       <p className="text-sm text-muted-foreground">

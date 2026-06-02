@@ -29,7 +29,7 @@ export default async function BudgetHistoryPage() {
           </Button>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold">Budget history</h1>
+              <h1 className="text-3xl font-medium tracking-tight text-ink">Budget history</h1>
               <p className="text-muted-foreground">
                 Every fiscal year — active and archived.
               </p>

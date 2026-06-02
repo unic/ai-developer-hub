@@ -1,14 +1,6 @@
 "use client";
 
-import { PieChart, Pie, Cell } from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import type { ChartConfig } from "@/components/ui/chart";
+import { SegmentedBar } from "@/components/ui/segmented-bar";
 import {
   Card,
   CardContent,
@@ -16,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { shareOfTotalFormatter } from "@/lib/chart-format";
 
 interface ActivityDistributionProps {
   data: {
@@ -27,31 +18,12 @@ interface ActivityDistributionProps {
   };
 }
 
-const chartConfig = {
-  powerUsers: {
-    label: "Power Users (20+ days)",
-    color: "var(--chart-1)",
-  },
-  regularUsers: {
-    label: "Regular (5-19 days)",
-    color: "var(--chart-2)",
-  },
-  occasionalUsers: {
-    label: "Occasional (1-4 days)",
-    color: "var(--chart-3)",
-  },
-  inactiveUsers: {
-    label: "Inactive",
-    color: "var(--chart-4)",
-  },
-} satisfies ChartConfig;
-
-const COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-];
+const SEGMENT_LABELS: Record<string, string> = {
+  powerUsers: "Power Users (20+ days)",
+  regularUsers: "Regular (5-19 days)",
+  occasionalUsers: "Occasional (1-4 days)",
+  inactiveUsers: "Inactive",
+};
 
 export function ActivityDistribution({ data }: ActivityDistributionProps) {
   const total =
@@ -80,40 +52,31 @@ export function ActivityDistribution({ data }: ActivityDistributionProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer
-          config={chartConfig}
-          className="mx-auto aspect-square max-h-[300px]"
-        >
-          <PieChart accessibilityLayer>
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  nameKey="name"
-                  numberFormat="integer"
-                  secondaryFormatter={shareOfTotalFormatter("of seats")}
+        <div className="flex flex-col gap-5">
+          {pieData.map((entry) => {
+            const fraction = entry.value / total;
+            const pct = Math.round(fraction * 100);
+            const label = SEGMENT_LABELS[entry.name] ?? entry.name;
+            return (
+              <div key={entry.name} className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                    {label}
+                  </span>
+                  <span className="font-mono text-sm tabular-nums">
+                    {entry.value.toLocaleString()}
+                    <span className="ml-2 text-muted-foreground">{pct}%</span>
+                  </span>
+                </div>
+                <SegmentedBar
+                  size="compact"
+                  value={fraction}
+                  ariaLabel={`${label}: ${entry.value} of ${total} seats (${pct}%)`}
                 />
-              }
-            />
-            <ChartLegend
-              content={<ChartLegendContent nameKey="name" />}
-            />
-            <Pie
-              data={pieData}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={60}
-              outerRadius={100}
-              paddingAngle={2}
-            >
-              {pieData.map((entry, index) => (
-                <Cell
-                  key={entry.name}
-                  fill={COLORS[index % COLORS.length]}
-                />
-              ))}
-            </Pie>
-          </PieChart>
-        </ChartContainer>
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

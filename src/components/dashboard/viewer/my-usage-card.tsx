@@ -21,6 +21,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { formatCurrency } from "@/lib/utils";
 import type { CostData } from "@/types";
 import type { ViewerModelTotal } from "@/actions/dashboard";
@@ -182,14 +183,8 @@ export function MyUsageCard({
                       {formatCurrency(m.costCents)}
                     </span>
                   </div>
-                  <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${m.pct}%`,
-                        background: `var(--chart-${(i % 4) + 1})`,
-                      }}
-                    />
+                  <div className="mt-1">
+                    <SegmentedBar value={m.pct / 100} size="compact" />
                   </div>
                   <p className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">
                     {m.pct}%
@@ -208,7 +203,7 @@ export function MyUsageCard({
                   <>
                     {" "}
                     · saved{" "}
-                    <span className="text-green-700 dark:text-green-400 tabular-nums">
+                    <span className="text-success tabular-nums">
                       ~{formatCurrency(cacheSavingsCents)}
                     </span>
                   </>

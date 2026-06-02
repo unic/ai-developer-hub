@@ -9,7 +9,7 @@ export default async function RequestsPage() {
     <AuthGuard requiredRole="admin">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">License requests</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">License requests</h1>
           <p className="text-muted-foreground">
             Review and action license requests routed from Microsoft Forms via Power Automate.
             Any admin can claim any request — first to act wins.

@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { History } from "lucide-react";
 import { triggerBackfill } from "@/actions/sync";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { SyncSourceType } from "@/lib/sync/framework";
 
 interface BackfillDialogProps {
@@ -29,6 +29,7 @@ export function BackfillDialog({ sourceType, disabled }: BackfillDialogProps) {
   const [startDate, setStartDate] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const status = useInlineStatus();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,14 +39,13 @@ export function BackfillDialog({ sourceType, disabled }: BackfillDialogProps) {
     try {
       const result = await triggerBackfill(sourceType, startDate);
       if (result.success) {
-        toast.success("Backfill started");
         setOpen(false);
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to trigger backfill");
+      status.error("Failed to trigger backfill");
     } finally {
       setLoading(false);
     }
@@ -80,6 +80,7 @@ export function BackfillDialog({ sourceType, disabled }: BackfillDialogProps) {
             />
           </div>
           <DialogFooter>
+            <StatusText status={status.status} />
             <Button
               type="button"
               variant="outline"

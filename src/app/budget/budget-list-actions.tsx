@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +38,7 @@ interface BudgetListActionsProps {
 export function BudgetListActions({ id, fiscalYear, status }: BudgetListActionsProps) {
   const router = useRouter();
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const archiveStatus = useInlineStatus();
 
   return (
     <div className="flex items-center justify-end gap-1">
@@ -80,19 +81,19 @@ export function BudgetListActions({ id, fiscalYear, status }: BudgetListActionsP
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
+                <StatusText status={archiveStatus.status} />
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={async () => {
                     try {
                       const result = await archiveBudget({ id });
                       if (result.success) {
-                        toast.success("Budget archived");
                         router.refresh();
                       } else {
-                        toast.error(result.error);
+                        archiveStatus.error(result.error);
                       }
                     } catch {
-                      toast.error("An unexpected error occurred");
+                      archiveStatus.error("Unexpected error");
                     }
                   }}
                 >

@@ -9,13 +9,15 @@ import {
 import type { ModelBreakdownRow } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
+// Monochrome ramp by rank (rows arrive cost-desc) — one luminance step per
+// model, so the proportion bar + legend dots read as a greyscale gradient
+// instead of a rainbow. Mirrors the other Claude charts.
 const PALETTE = [
-  "#c084fc",
-  "#67e8f9",
-  "#86efac",
-  "#fcd34d",
-  "#f9a8d4",
-  "#93c5fd",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ];
 
 /**
@@ -55,6 +57,11 @@ export function WorkspaceModelBreakdown({
               style={{
                 width: `${widthPct}%`,
                 backgroundColor: PALETTE[i % PALETTE.length],
+                // 1.5px surface separator so adjacent greys stay distinct.
+                boxShadow:
+                  i < rows.length - 1
+                    ? "inset -1.5px 0 0 var(--card)"
+                    : undefined,
               }}
               title={`${r.modelName} · ${formatCurrency(r.costCents)} · ${r.pct}%`}
             />

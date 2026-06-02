@@ -45,7 +45,7 @@ function KpiTileCard({ tile }: { tile: KpiTile }) {
           {tile.icon}
         </div>
         <p
-          className="mt-2 text-2xl font-bold tabular-nums tracking-tight"
+          className="mt-2 text-2xl font-mono tabular-nums tracking-tight"
           aria-describedby={captionId}
         >
           {tile.value}
@@ -58,9 +58,9 @@ function KpiTileCard({ tile }: { tile: KpiTile }) {
               tile.tone === "danger"
                 ? "text-destructive"
                 : tile.tone === "warn"
-                ? "text-amber-500"
+                ? "text-warning"
                 : tile.tone === "success"
-                ? "text-emerald-500"
+                ? "text-success"
                 : "text-muted-foreground"
             )}
           >
@@ -114,7 +114,7 @@ export function buildOrgKpiTiles(args: {
     momDeltaPct === null ? (
       <span className="text-muted-foreground">— no spend last month</span>
     ) : momDeltaPct >= 0 ? (
-      <span className="inline-flex items-center gap-1 text-emerald-500">
+      <span className="inline-flex items-center gap-1 text-success">
         <TrendingUp className="size-3" /> +{momDeltaPct}% vs prior month
       </span>
     ) : (

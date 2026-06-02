@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "sonner";
 import { createBudget } from "@/actions/budget";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,6 +41,7 @@ type NewBudgetInput = z.infer<typeof newBudgetSchema>;
 
 export function NewBudgetForm() {
   const router = useRouter();
+  const status = useInlineStatus();
   const currentYear = new Date().getFullYear();
 
   const form = useForm<NewBudgetInput>({
@@ -60,17 +61,16 @@ export function NewBudgetForm() {
     });
 
     if (result.success) {
-      toast.success("Budget created");
       router.push(`/budget/${result.data.id}`);
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Create Annual Budget</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Create Annual Budget</h1>
         <p className="text-muted-foreground">
           Set up a new fiscal year budget for AI tools
         </p>
@@ -162,6 +162,7 @@ export function NewBudgetForm() {
                 >
                   Cancel
                 </Button>
+                <StatusText status={status.status} />
               </div>
             </form>
           </Form>

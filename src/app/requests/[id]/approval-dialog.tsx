@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ export function ApprovalDialog({
 
   const [bodyMd, setBodyMd] = useState(initialBody);
   const [pending, startTransition] = useTransition();
+  const status = useInlineStatus();
   const previewHtml = markdownToTeamsHtml(bodyMd);
 
   // Reset to the freshly-rendered template every time the dialog opens —
@@ -60,11 +61,10 @@ export function ApprovalDialog({
         bodyMd,
       });
       if (result.success) {
-        toast.success("Approval sent");
         onOpenChange(false);
         onSuccess();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -113,6 +113,7 @@ export function ApprovalDialog({
           <p className="mr-auto text-xs text-muted-foreground">
             Posts to channel thread + group chat.
           </p>
+          <StatusText status={status.status} />
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             Cancel
           </Button>

@@ -15,7 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-react";
 import { setWorkspaceLimit } from "@/actions/anthropic-global";
 import { Sparkline } from "@/components/ui/sparkline";
-import { toast } from "sonner";
+import { SegmentedBar } from "@/components/ui/segmented-bar";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import type { WorkspaceListItem, WorkspaceSparkline } from "@/types";
 import {
   cn,
@@ -89,7 +90,7 @@ function SparklineDeltaLabel({
     <span
       className={cn(
         "text-[10px]",
-        big ? "text-amber-500 font-medium" : "text-muted-foreground"
+        big ? "text-warning font-medium" : "text-muted-foreground"
       )}
     >
       {big ? "▲ " : ""}
@@ -110,6 +111,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
     workspace.limitCents != null ? String(workspace.limitCents / 100) : ""
   );
   const [isPending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   function handleSave() {
     startTransition(async () => {
@@ -121,13 +123,13 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
       try {
         const result = await setWorkspaceLimit(workspace.workspaceId, limitCents);
         if (result.success) {
-          toast.success("Budget limit updated.");
+          status.ok("Saved");
           setEditing(false);
         } else {
-          toast.error(`Failed to update limit: ${result.error}`);
+          status.error(result.error);
         }
       } catch {
-        toast.error("Failed to update limit: network error.");
+        status.error("Network error");
       }
     });
   }
@@ -135,11 +137,6 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
   const pct = workspace.utilizationPct;
   const isOver = pct != null && pct >= 100;
   const isWarn = pct != null && pct >= 80 && pct < 100;
-  const barClass = isOver
-    ? "bg-destructive"
-    : isWarn
-    ? "bg-amber-500"
-    : "bg-primary";
 
   return (
     <div className="group flex items-center justify-between gap-4 py-3">
@@ -169,7 +166,7 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
           {isWarn && (
             <Badge
               variant="outline"
-              className="shrink-0 border-amber-500 text-amber-500 text-xs"
+              className="shrink-0 border-warning text-warning text-xs"
             >
               {pct}%
             </Badge>
@@ -196,12 +193,12 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
         </div>
         {workspace.limitCents != null && (
           <div className="mt-1.5 space-y-1">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn("h-full rounded-full transition-all", barClass)}
-                style={{ width: `${Math.min(workspace.utilizationPct ?? 0, 100)}%` }}
-              />
-            </div>
+            <SegmentedBar
+              value={Math.min(workspace.utilizationPct ?? 0, 100) / 100}
+              tone={isOver ? "over" : isWarn ? "warn" : "filled"}
+              size="compact"
+              ariaLabel={`${workspace.utilizationPct ?? 0}% of limit used`}
+            />
             <PaceLabel workspace={workspace} />
           </div>
         )}
@@ -245,11 +242,15 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
             >
               Cancel
             </Button>
+            <StatusText status={status.status} />
           </>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            {workspace.limitCents != null ? "Edit limit" : "Set limit"}
-          </Button>
+          <>
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              {workspace.limitCents != null ? "Edit limit" : "Set limit"}
+            </Button>
+            <StatusText status={status.status} />
+          </>
         )}
       </div>
     </div>

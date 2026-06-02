@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO } from "date-fns";
@@ -32,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Form,
   FormControl,
@@ -96,6 +96,8 @@ export function AssignmentDetailClient({
   isAdmin,
 }: Props) {
   const router = useRouter();
+  const detailStatus = useInlineStatus();
+  const commentStatus = useInlineStatus();
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
   const [commentBody, setCommentBody] = useState("");
@@ -126,11 +128,14 @@ export function AssignmentDetailClient({
       const tool = await getToolWithTiers(assignment.tool.id);
       setTiers(tool?.accessTiers.filter((t) => t.isActive) ?? []);
     } catch {
-      toast.error("Failed to load tiers");
+      detailStatus.error("Failed to load tiers");
     } finally {
       setLoadingTiers(false);
     }
-  }, [assignment.tool.id]);
+    // detailStatus is now a memoized object (stable unless its status changes),
+    // so this callback no longer churns every render and the mount effect runs
+    // once instead of looping.
+  }, [assignment.tool.id, detailStatus]);
 
   useEffect(() => {
     if (isAdmin && assignment.status === "active") {
@@ -153,14 +158,14 @@ export function AssignmentDetailClient({
     const result = await updateAssignment(payload);
     if (result.success) {
       if (result.warning) {
-        toast.warning(result.warning);
+        detailStatus.info(result.warning);
       } else {
-        toast.success("Assignment updated");
+        detailStatus.ok("Saved");
       }
       form.reset({ ...payload, apiKey: "" });
       router.refresh();
     } else {
-      toast.error(result.error);
+      detailStatus.error(result.error);
     }
   }
 
@@ -176,10 +181,10 @@ export function AssignmentDetailClient({
       if (result.success) {
         setRevealedKey(result.data.plaintext);
       } else {
-        toast.error(result.error);
+        detailStatus.error(result.error);
       }
     } catch {
-      toast.error("Failed to reveal API key");
+      detailStatus.error("Failed to reveal API key");
     } finally {
       setRevealing(false);
     }
@@ -188,14 +193,14 @@ export function AssignmentDetailClient({
   async function handleCopyApiKey() {
     const key = revealedKey;
     if (!key) {
-      toast.error("Reveal the API key first to copy it");
+      detailStatus.error("Reveal the key first");
       return;
     }
     try {
       await navigator.clipboard.writeText(key);
-      toast.success("API key copied to clipboard");
+      detailStatus.ok("Copied");
     } catch {
-      toast.error("Failed to copy to clipboard");
+      detailStatus.error("Copy failed");
     }
   }
 
@@ -209,14 +214,14 @@ export function AssignmentDetailClient({
         body: commentBody.trim(),
       });
       if (result.success) {
-        toast.success("Comment added");
+        commentStatus.ok("Added");
         setCommentBody("");
         router.refresh();
       } else {
-        toast.error(result.error);
+        commentStatus.error(result.error);
       }
     } catch {
-      toast.error("Failed to add comment");
+      commentStatus.error("Failed to add comment");
     } finally {
       setSubmittingComment(false);
     }
@@ -234,7 +239,7 @@ export function AssignmentDetailClient({
             Back to Assignments
           </Link>
         </Button>
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-3xl font-medium tracking-tight text-ink">
           <Link
             href={`/users/${assignment.user.id}`}
             className="hover:underline"
@@ -506,14 +511,17 @@ export function AssignmentDetailClient({
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  disabled={form.formState.isSubmitting}
-                >
-                  {form.formState.isSubmitting
-                    ? "Saving..."
-                    : "Save Changes"}
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="submit"
+                    disabled={form.formState.isSubmitting}
+                  >
+                    {form.formState.isSubmitting
+                      ? "Saving..."
+                      : "Save Changes"}
+                  </Button>
+                  <StatusText status={detailStatus.status} />
+                </div>
               </form>
             </Form>
           ) : (
@@ -635,6 +643,7 @@ export function AssignmentDetailClient({
                         </>
                       )}
                     </div>
+                    {isAdmin && <StatusText status={detailStatus.status} />}
                   </div>
                 </>
               )}
@@ -697,14 +706,17 @@ export function AssignmentDetailClient({
                   <p className="text-xs text-muted-foreground">
                     {commentBody.length}/2000 characters
                   </p>
-                  <Button
-                    onClick={handleAddComment}
-                    disabled={
-                      !commentBody.trim() || submittingComment
-                    }
-                  >
-                    {submittingComment ? "Adding..." : "Add Comment"}
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <StatusText status={commentStatus.status} />
+                    <Button
+                      onClick={handleAddComment}
+                      disabled={
+                        !commentBody.trim() || submittingComment
+                      }
+                    >
+                      {submittingComment ? "Adding..." : "Add Comment"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>

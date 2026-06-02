@@ -30,16 +30,16 @@ export function SyncStatusPill({ status, className }: SyncStatusPillProps) {
 
   const toneClass =
     tone === "green"
-      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
+      ? "bg-transparent text-success border-success"
       : tone === "amber"
-      ? "bg-amber-950/40 text-amber-400 border-amber-800"
-      : "bg-muted text-muted-foreground border-muted-foreground/20";
+      ? "bg-transparent text-warning border-warning"
+      : "bg-transparent text-muted-foreground border-muted-foreground/20";
 
   const dotClass =
     tone === "green"
-      ? "bg-emerald-500"
+      ? "bg-success"
       : tone === "amber"
-      ? "bg-amber-500"
+      ? "bg-warning"
       : "bg-muted-foreground";
 
   return (

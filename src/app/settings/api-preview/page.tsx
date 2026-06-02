@@ -12,7 +12,7 @@ export default async function ApiPreviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">API Preview</h2>
+        <h2 className="text-3xl font-medium tracking-tight text-ink">API Preview</h2>
         <p className="text-muted-foreground">
           Test the profile API endpoint and inspect responses.
         </p>

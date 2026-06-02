@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Filter } from "lucide-react";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -101,6 +110,11 @@ export function IngestionFiltersSection({
   const [form, setForm] = useState<FormState>(defaultForm);
   const [isPending, startTransition] = useTransition();
   const [patternError, setPatternError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const status = useInlineStatus();
 
   function openCreate() {
     setEditingId(null);
@@ -154,11 +168,10 @@ export function IngestionFiltersSection({
           });
 
       if (result.success) {
-        toast.success(editingId ? "Filter updated" : "Filter created");
         setDialogOpen(false);
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -169,22 +182,21 @@ export function IngestionFiltersSection({
       if (result.success) {
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
 
-  function handleDelete(id: number, name: string) {
-    if (!confirm(`Delete filter "${name}"? Previously filtered invoices will remain unchanged.`)) {
-      return;
-    }
+  function confirmDelete() {
+    if (!deleteTarget) return;
     startTransition(async () => {
-      const result = await deleteIngestionFilter(id);
+      const result = await deleteIngestionFilter(deleteTarget.id);
       if (result.success) {
-        toast.success("Filter deleted");
+        status.ok("Deleted");
+        setDeleteTarget(null);
         router.refresh();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -198,10 +210,13 @@ export function IngestionFiltersSection({
             Rules that control which invoices are linked to budget periods.
           </p>
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="mr-2 size-4" />
-          New Filter
-        </Button>
+        <div className="flex items-center gap-3">
+          <StatusText status={status.status} />
+          <Button onClick={openCreate} size="sm">
+            <Plus className="mr-2 size-4" />
+            New Filter
+          </Button>
+        </div>
       </div>
 
       {filters.length === 0 ? (
@@ -274,7 +289,7 @@ export function IngestionFiltersSection({
                         variant="ghost"
                         size="icon"
                         className="size-8 text-destructive"
-                        onClick={() => handleDelete(f.id, f.name)}
+                        onClick={() => setDeleteTarget({ id: f.id, name: f.name })}
                         disabled={isPending}
                       >
                         <Trash2 className="size-4" />
@@ -411,7 +426,8 @@ export function IngestionFiltersSection({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="items-center">
+            <StatusText status={status.status} className="mr-auto" />
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
@@ -428,6 +444,35 @@ export function IngestionFiltersSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete filter &quot;{deleteTarget?.name}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Previously filtered invoices will remain unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="items-center">
+            <StatusText status={status.status} className="mr-auto" />
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isPending}
+            >
+              {isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

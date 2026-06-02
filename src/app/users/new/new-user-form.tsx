@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
 import { createUser } from "@/actions/users";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { userSchema, type UserInput } from "@/lib/validators";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ import { DISCIPLINES, DISCIPLINE_LABEL } from "@/lib/disciplines";
 
 export function NewUserForm() {
   const router = useRouter();
+  const status = useInlineStatus();
   const [inviteDialog, setInviteDialog] = useState<{
     open: boolean;
     inviteUrl: string;
@@ -59,21 +60,21 @@ export function NewUserForm() {
   async function onSubmit(data: UserInput) {
     const result = await createUser(data);
     if (result.success) {
-      toast.success("User created successfully");
+      // Success opens the invite dialog — that is the feedback.
       setInviteDialog({
         open: true,
         inviteUrl: result.data.inviteUrl,
         userId: result.data.id,
       });
     } else {
-      toast.error(result.error);
+      status.error(result.error);
     }
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Add New User</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Add New User</h1>
         <p className="text-muted-foreground">
           Create a new company user account
         </p>
@@ -220,7 +221,7 @@ export function NewUserForm() {
                   </FormItem>
                 )}
               />
-              <div className="flex gap-3">
+              <div className="flex items-center gap-3">
                 <Button type="submit" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? "Creating..." : "Create User"}
                 </Button>
@@ -231,6 +232,7 @@ export function NewUserForm() {
                 >
                   Cancel
                 </Button>
+                <StatusText status={status.status} />
               </div>
             </form>
           </Form>

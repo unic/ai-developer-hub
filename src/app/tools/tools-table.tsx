@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ function ToolRowActions({
   onArchived: () => void;
 }) {
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const status = useInlineStatus();
 
   // Viewers have no tool-detail access (page is admin-guarded) and no actions
   // to take here, so the entire actions column is hidden for them.
@@ -107,6 +108,7 @@ function ToolRowActions({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
+                <StatusText status={status.status} />
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={row.activeLicenses > 0}
@@ -114,13 +116,13 @@ function ToolRowActions({
                     try {
                       const result = await archiveTool({ id: row.id });
                       if (result.success) {
-                        toast.success("Tool archived");
+                        status.ok("Archived");
                         onArchived();
                       } else {
-                        toast.error(result.error);
+                        status.error(result.error);
                       }
                     } catch {
-                      toast.error("An unexpected error occurred");
+                      status.error("Unexpected error");
                     }
                   }}
                 >

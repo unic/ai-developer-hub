@@ -8,7 +8,7 @@ export default async function BulkUploadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">Bulk Upload</h1>
+      <h1 className="text-3xl font-medium tracking-tight text-ink">Bulk Upload</h1>
       <p className="text-muted-foreground">
         Upload a ZIP file containing PDF invoices. Each PDF will be extracted
         and parsed automatically so you can review the results before saving.

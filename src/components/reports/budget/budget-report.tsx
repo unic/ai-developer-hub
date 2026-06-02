@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingState, InlineSpinner } from "@/components/ui/loading-state";
 import { Button } from "@/components/ui/button";
 import { AtAGlance } from "./at-a-glance";
 import { PastMonthSpotlight } from "./past-month-spotlight";
@@ -18,14 +18,14 @@ import type { BudgetReportData } from "@/types";
 
 const PlanVsActualChart = dynamic(
   () => import("./plan-vs-actual-chart").then((m) => m.PlanVsActualChart),
-  { ssr: false, loading: () => <Skeleton className="h-[340px] w-full" /> }
+  { ssr: false, loading: () => <LoadingState label="LOADING" /> }
 );
 const ForecastCumulativeChart = dynamic(
   () =>
     import("./forecast-cumulative-chart").then(
       (m) => m.ForecastCumulativeChart
     ),
-  { ssr: false, loading: () => <Skeleton className="h-[300px] w-full" /> }
+  { ssr: false, loading: () => <LoadingState label="LOADING" /> }
 );
 
 interface BudgetReportProps {

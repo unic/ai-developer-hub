@@ -19,7 +19,7 @@ export default async function UsersPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">Users</h1>
+              <h1 className="text-3xl font-medium tracking-tight text-ink">Users</h1>
               {pendingCount > 0 && (
                 <Badge variant="secondary">
                   {pendingCount} user{pendingCount !== 1 ? "s" : ""} pending setup

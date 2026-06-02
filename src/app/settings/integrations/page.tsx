@@ -25,7 +25,7 @@ export default async function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Integrations</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-ink">Integrations</h1>
         <p className="text-muted-foreground">
           Connect external services to enrich user data.
         </p>

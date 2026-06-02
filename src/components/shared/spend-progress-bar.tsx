@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/utils";
+import { SegmentedBar, type SegState } from "@/components/ui/segmented-bar";
 
 interface SpendProgressBarProps {
   actualYtd: number;
@@ -8,11 +9,14 @@ interface SpendProgressBarProps {
   hideAxisLabels?: boolean;
 }
 
+const SEGMENTS = 24;
+
 /**
- * Stacked progress bar used by the Budget report's At-a-Glance card and by the
- * admin dashboard's Budget Health hero. When projected exceeds the ceiling,
- * the bar scales to the projected total so the overage stays inside the card
- * and the ceiling becomes a tick mark inside the bar.
+ * Budget spend as a Nothing segmented bar (replaces the continuous fill).
+ * Segments up to actual YTD are filled (ink); when projected exceeds the
+ * ceiling, segments from the ceiling up to the projected total turn red
+ * (over). The ceiling is marked with a tick. Same API as before, so the Budget
+ * report At-a-Glance card and the admin Budget Health hero keep working.
  */
 export function SpendProgressBar({
   actualYtd,
@@ -22,52 +26,44 @@ export function SpendProgressBar({
 }: SpendProgressBarProps) {
   if (ceiling === 0) return null;
   const scale = Math.max(ceiling, projectedAnnualTotal);
-  const actualPct = (actualYtd / scale) * 100;
-  const projectedPct = (projectedAnnualTotal / scale) * 100;
-  const ceilingPct = (ceiling / scale) * 100;
   const over = projectedAnnualTotal > ceiling;
+  const ceilingPct = (ceiling / scale) * 100;
+
+  const states: SegState[] = Array.from({ length: SEGMENTS }, (_, i) => {
+    const segMid = ((i + 0.5) / SEGMENTS) * scale;
+    if (segMid <= actualYtd) return "filled";
+    if (over && segMid > ceiling && segMid <= projectedAnnualTotal) return "over";
+    return "empty";
+  });
 
   return (
     <div>
       {!hideAxisLabels && (
-        <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+        <div className="flex items-baseline justify-between font-mono text-xs text-muted-foreground">
           <span>$0</span>
           <span>
-            <span className="font-medium text-foreground">
-              {formatCurrency(scale)}
-            </span>{" "}
+            <span className="text-ink">{formatCurrency(scale)}</span>{" "}
             {over ? "projected" : "ceiling"}
           </span>
         </div>
       )}
-      <div className="relative mt-2 pt-4">
-        <div className="relative h-3 overflow-hidden rounded-full bg-muted">
-          {over && (
-            <div
-              className="absolute inset-y-0 left-0 bg-destructive/40"
-              style={{ width: `${projectedPct}%` }}
-              aria-hidden
-            />
-          )}
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-primary"
-            style={{ width: `${actualPct}%` }}
-            aria-label={`Actual ${((actualYtd / ceiling) * 100).toFixed(1)}% of ceiling`}
-          />
+      <div className="relative mt-3">
+        <SegmentedBar
+          states={states}
+          size="hero"
+          ariaLabel={`Actual ${((actualYtd / ceiling) * 100).toFixed(1)}% of ceiling`}
+        />
+        <div
+          className="pointer-events-none absolute -top-3 bottom-0 flex flex-col items-center"
+          style={{ left: `${ceilingPct}%`, transform: "translateX(-50%)" }}
+          aria-hidden
+          title={`Ceiling ${formatCurrency(ceiling)}`}
+        >
+          <span className="mb-0.5 whitespace-nowrap rounded-[4px] bg-ink px-1.5 py-px font-mono text-[10px] leading-none text-background">
+            ceiling {formatCurrency(ceiling)}
+          </span>
+          <div className="w-px flex-1 bg-ink" />
         </div>
-        {over && (
-          <div
-            className="pointer-events-none absolute -top-1 bottom-0 flex flex-col items-center"
-            style={{ left: `${ceilingPct}%`, transform: "translateX(-50%)" }}
-            aria-hidden
-            title={`Ceiling ${formatCurrency(ceiling)}`}
-          >
-            <span className="mb-0.5 whitespace-nowrap rounded bg-foreground px-1.5 py-px text-[10px] font-medium leading-none text-background">
-              ceiling {formatCurrency(ceiling)}
-            </span>
-            <div className="w-0.5 flex-1 bg-foreground" />
-          </div>
-        )}
       </div>
     </div>
   );

@@ -392,7 +392,7 @@ function MultiMarkerBar({
         {lastClosedLabel && (
           <div
             aria-hidden
-            className="absolute inset-y-0 w-px bg-blue-500"
+            className="absolute inset-y-0 w-px bg-muted-foreground"
             style={{ left: `${closedExpectedPct}%` }}
             title={`Expected through ${lastClosedLabel}`}
           />
@@ -404,7 +404,7 @@ function MultiMarkerBar({
         <LegendTick className="bg-foreground/70" label="Planned YTD" />
         {lastClosedLabel && (
           <LegendTick
-            className="bg-blue-500"
+            className="bg-muted-foreground"
             label={`Expected through ${lastClosedLabel}`}
           />
         )}

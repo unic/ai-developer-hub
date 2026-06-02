@@ -42,7 +42,7 @@ export default async function CopilotBillingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Billing Overview</h2>
+        <h2 className="text-lg font-medium">Billing Overview</h2>
       </div>
 
       {/* KPI Cards */}
@@ -51,25 +51,25 @@ export default async function CopilotBillingPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Current Month Cost</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{formatCurrency(currentMonth.totalCostCents)}</div></CardContent>
+          <CardContent><div className="text-2xl font-mono">{formatCurrency(currentMonth.totalCostCents)}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cumulative Cost</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{formatCurrency(data.cumulativeCostCents)}</div></CardContent>
+          <CardContent><div className="text-2xl font-mono">{formatCurrency(data.cumulativeCostCents)}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cost / Active User</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{formatCurrency(currentMonth.costPerActiveUserCents)}</div></CardContent>
+          <CardContent><div className="text-2xl font-mono">{formatCurrency(currentMonth.costPerActiveUserCents)}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Plan</CardTitle>
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold capitalize">{currentMonth.planType}</div><p className="text-xs text-muted-foreground">{currentMonth.totalSeats} total / {currentMonth.activeSeats} active seats</p></CardContent>
+          <CardContent><div className="text-2xl font-mono capitalize">{currentMonth.planType}</div><p className="text-xs text-muted-foreground">{currentMonth.totalSeats} total / {currentMonth.activeSeats} active seats</p></CardContent>
         </Card>
       </div>
 

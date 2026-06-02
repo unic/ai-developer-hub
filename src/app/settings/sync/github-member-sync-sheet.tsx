@@ -34,7 +34,7 @@ import {
   UserPlus,
   SkipForward,
 } from "lucide-react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   fetchGitHubSyncPreview,
   confirmGitHubSync,
@@ -65,6 +65,7 @@ export function GitHubMemberSyncSheet({
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const status = useInlineStatus();
 
   // Resolution state: keyed by githubLogin
   const [resolutions, setResolutions] = useState<
@@ -217,21 +218,13 @@ export function GitHubMemberSyncSheet({
         newUsers,
       });
       if (result.success) {
-        const d = result.data;
-        const parts: string[] = [];
-        if (d.enrichedCount > 0) parts.push(`${d.enrichedCount} enriched`);
-        if (d.importedCount > 0) parts.push(`${d.importedCount} imported`);
-        if (d.manuallyMatchedCount > 0)
-          parts.push(`${d.manuallyMatchedCount} matched`);
-        if (d.createdCount > 0) parts.push(`${d.createdCount} created`);
-        if (d.skippedCount > 0) parts.push(`${d.skippedCount} skipped`);
-        toast.success(`Sync complete: ${parts.join(", ")}`);
+        // Success closes the sheet — the navigation is the feedback.
         onOpenChange(false);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to confirm sync");
+      status.error("Sync failed");
     } finally {
       setConfirming(false);
     }
@@ -354,7 +347,8 @@ export function GitHubMemberSyncSheet({
               )}
 
               {/* Confirm / Cancel */}
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                <StatusText status={status.status} />
                 <Button
                   variant="outline"
                   onClick={() => onOpenChange(false)}
@@ -397,11 +391,11 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-md border p-3 text-center">
-      <p className="text-2xl font-bold tabular-nums">{count}</p>
+      <p className="text-2xl font-mono tabular-nums">{count}</p>
       <p
         className={`text-xs ${
           variant === "warning" && count > 0
-            ? "text-amber-600 dark:text-amber-400 font-medium"
+            ? "text-warning font-medium"
             : "text-muted-foreground"
         }`}
       >
@@ -430,35 +424,35 @@ function ResolutionSummaryPanel({
       <p className="text-sm font-medium">Resolution Summary</p>
       <div className="grid grid-cols-5 gap-2 text-center">
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.imported}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.imported}</p>
           <p className="text-[10px] text-muted-foreground">
             <Download className="size-3 inline mr-0.5" />
             Import
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.matched}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.matched}</p>
           <p className="text-[10px] text-muted-foreground">
             <UserCheck className="size-3 inline mr-0.5" />
             Matched
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.created}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.created}</p>
           <p className="text-[10px] text-muted-foreground">
             <UserPlus className="size-3 inline mr-0.5" />
             New User
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">{summary.skipped}</p>
+          <p className="text-lg font-mono tabular-nums">{summary.skipped}</p>
           <p className="text-[10px] text-muted-foreground">
             <SkipForward className="size-3 inline mr-0.5" />
             Skipped
           </p>
         </div>
         <div>
-          <p className="text-lg font-bold tabular-nums">
+          <p className="text-lg font-mono tabular-nums">
             {summary.unresolved}
           </p>
           <p className="text-[10px] text-muted-foreground">Unresolved</p>

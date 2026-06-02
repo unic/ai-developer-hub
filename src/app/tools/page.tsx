@@ -26,7 +26,7 @@ export default async function ToolsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">AI Tools</h1>
+            <h1 className="text-3xl font-medium tracking-tight text-ink">AI Tools</h1>
             <p className="text-muted-foreground">
               {isAdmin
                 ? "Manage your AI tool registry"

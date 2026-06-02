@@ -17,13 +17,11 @@ const config: ChartConfig = {
 
 export function WorkspaceDailyChart({
   dailyTotals,
-  color,
   limitCents,
   daysInMonth,
   estimatedTodayCents,
 }: {
   dailyTotals: { date: string; costCents: number }[];
-  color?: string | null;
   /** Monthly limit in cents — drives the per-day prorated cap reference line. */
   limitCents?: number | null;
   /** Days in the selected month, used to prorate the monthly limit. */
@@ -71,7 +69,7 @@ export function WorkspaceDailyChart({
   return (
     <ChartContainer config={config} className="h-[260px] w-full">
       <BarChart data={data} accessibilityLayer>
-        <CartesianGrid strokeDasharray="3 3" />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
           tickLine={false}
@@ -122,8 +120,8 @@ export function WorkspaceDailyChart({
         />
         <Bar
           dataKey="cost"
-          fill={color ?? "var(--chart-1)"}
-          radius={[4, 4, 0, 0]}
+          fill="var(--chart-1)"
+          radius={[0, 0, 0, 0]}
           maxBarSize={56}
         />
         {data.some((d) => d.estimated != null) && (
@@ -135,7 +133,7 @@ export function WorkspaceDailyChart({
             stroke="var(--chart-1)"
             strokeOpacity={0.6}
             strokeDasharray="3 3"
-            radius={[4, 4, 0, 0]}
+            radius={[0, 0, 0, 0]}
             maxBarSize={56}
           />
         )}

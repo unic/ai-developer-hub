@@ -54,7 +54,7 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
           }}
           aria-hidden
         />
-        <h1 className="text-2xl font-bold tracking-tight">{detail.workspace.name}</h1>
+        <h1 className="text-2xl font-medium tracking-tight text-ink">{detail.workspace.name}</h1>
         {detail.workspace.isDefault && (
           <Badge variant="secondary">Default</Badge>
         )}

@@ -13,9 +13,9 @@ import { cn, formatCurrency } from "@/lib/utils";
 const config: ChartConfig = {
   current: { label: "Current month", color: "var(--chart-1)" },
   currentProjected: { label: "Projected", color: "var(--chart-1)" },
-  m1: { label: "1 month ago", color: "#a1a1aa" },
-  m2: { label: "2 months ago", color: "#71717a" },
-  m3: { label: "3 months ago", color: "#52525b" },
+  m1: { label: "1 month ago", color: "var(--chart-3)" },
+  m2: { label: "2 months ago", color: "var(--chart-4)" },
+  m3: { label: "3 months ago", color: "var(--chart-5)" },
 };
 
 function monthLabelOffset(offset: number): string {
@@ -218,7 +218,7 @@ export function CumulativePacingChart({
           <Line
             dataKey="m3"
             type="monotone"
-            stroke="#52525b"
+            stroke="var(--chart-5)"
             strokeWidth={1.5}
             dot={false}
             connectNulls
@@ -226,7 +226,7 @@ export function CumulativePacingChart({
           <Line
             dataKey="m2"
             type="monotone"
-            stroke="#71717a"
+            stroke="var(--chart-4)"
             strokeWidth={1.5}
             dot={false}
             connectNulls
@@ -234,7 +234,7 @@ export function CumulativePacingChart({
           <Line
             dataKey="m1"
             type="monotone"
-            stroke="#a1a1aa"
+            stroke="var(--chart-3)"
             strokeWidth={1.5}
             dot={false}
             connectNulls
@@ -267,14 +267,14 @@ export function CumulativePacingChart({
             label={hasEstimate ? "projection · incl. est. today" : "projection"}
             dashed
           />
-          <LineSwatch color="#a1a1aa" label={`${monthLabelOffset(1)} (prior)`} />
-          <LineSwatch color="#71717a" label={monthLabelOffset(2)} />
-          <LineSwatch color="#52525b" label={monthLabelOffset(3)} />
+          <LineSwatch color="var(--chart-3)" label={`${monthLabelOffset(1)} (prior)`} />
+          <LineSwatch color="var(--chart-4)" label={monthLabelOffset(2)} />
+          <LineSwatch color="var(--chart-5)" label={monthLabelOffset(3)} />
         </ul>
         <span
           className={cn(
             "font-medium",
-            trackingTone === "warn" ? "text-amber-400" : "text-muted-foreground"
+            trackingTone === "warn" ? "text-warning" : "text-muted-foreground"
           )}
         >
           {trackingLabel}

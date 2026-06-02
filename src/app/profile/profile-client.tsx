@@ -14,7 +14,7 @@ export function ProfileClient({ data, availableMonths }: ProfileClientProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Profile</h1>
+        <h1 className="text-2xl font-medium tracking-tight text-ink">My Profile</h1>
         <p className="text-muted-foreground">
           Your personal information, assigned tools, and API costs.
         </p>

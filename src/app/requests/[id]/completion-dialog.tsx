@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +57,7 @@ export function CompletionDialog({
   const [assignedAt, setAssignedAt] = useState(today);
   const [bodyMd, setBodyMd] = useState("");
   const [pending, startTransition] = useTransition();
+  const status = useInlineStatus();
 
   // Reset when dialog opens
   useEffect(() => {
@@ -73,7 +74,7 @@ export function CompletionDialog({
 
   function handleAdvance() {
     if (!selectedTier) {
-      toast.error("Select a tier");
+      status.error("Select a tier");
       return;
     }
     // Render the template with the just-entered values bound.
@@ -94,11 +95,10 @@ export function CompletionDialog({
         bodyMd,
       });
       if (result.success) {
-        toast.success("Completion sent — assignment created");
         onOpenChange(false);
         onSuccess();
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     });
   }
@@ -202,6 +202,7 @@ export function CompletionDialog({
               ? "An assignment row will be created on send."
               : "Posts to channel + group chat. Completion is terminal."}
           </p>
+          <StatusText status={status.status} />
           {step === 1 ? (
             <>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { bulkImportAssignments } from "@/actions/assignments";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -84,6 +84,7 @@ function parseCSV(text: string): ParsedAssignment[] {
 
 export function BulkAssignmentImportForm() {
   const router = useRouter();
+  const status = useInlineStatus();
   const [rows, setRows] = useState<ParsedAssignment[]>([]);
   const [importing, setImporting] = useState(false);
   const [serverErrors, setServerErrors] = useState<ServerRowError[]>([]);
@@ -123,19 +124,17 @@ export function BulkAssignmentImportForm() {
       if (result.success) {
         const imported = result.data?.imported ?? 0;
         const failed = result.data?.failed ?? 0;
-        toast.success(
-          `Import complete: ${imported} imported, ${failed} failed`
-        );
         if (failed > 0 && result.data?.errors) {
           setServerErrors(result.data.errors);
+          status.error(`${imported} imported, ${failed} failed`);
         } else {
           router.push("/assignments");
         }
       } else {
-        toast.error(result.error ?? "Import failed");
+        status.error(result.error ?? "Import failed");
       }
     } catch {
-      toast.error("An unexpected error occurred");
+      status.error("Unexpected error");
     } finally {
       setImporting(false);
     }
@@ -145,7 +144,7 @@ export function BulkAssignmentImportForm() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Bulk Import Assignments</h1>
+          <h1 className="text-3xl font-medium tracking-tight text-ink">Bulk Import Assignments</h1>
           <p className="text-muted-foreground">
             Upload a CSV file to import license assignments in bulk.
           </p>
@@ -255,6 +254,7 @@ export function BulkAssignmentImportForm() {
                     >
                       Cancel
                     </Button>
+                    <StatusText status={status.status} />
                   </>
                 )}
               </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Send, Copy, Check, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ export function ApiPreviewClient({ isConfigured }: { isConfigured: boolean }) {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiPreviewResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const status = useInlineStatus();
 
   function validateEmail(value: string) {
     if (!value) {
@@ -61,10 +62,10 @@ export function ApiPreviewClient({ isConfigured }: { isConfigured: boolean }) {
       if (result.success) {
         setResponse(result.data);
       } else {
-        toast.error(result.error);
+        status.error(result.error);
       }
     } catch {
-      toast.error("Failed to send request");
+      status.error("Request failed");
     } finally {
       setLoading(false);
     }
@@ -77,10 +78,10 @@ export function ApiPreviewClient({ isConfigured }: { isConfigured: boolean }) {
         JSON.stringify(response.body, null, 2)
       );
       setCopied(true);
-      toast.success("JSON copied to clipboard");
+      status.ok("Copied");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Failed to copy to clipboard");
+      status.error("Copy failed");
     }
   }
 
@@ -152,14 +153,17 @@ export function ApiPreviewClient({ isConfigured }: { isConfigured: boolean }) {
               )}
             </div>
           </div>
-          <Button type="submit" disabled={!isConfigured || loading}>
-            {loading ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Send className="mr-2 size-4" />
-            )}
-            {loading ? "Sending..." : "Send Request"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={!isConfigured || loading}>
+              {loading ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 size-4" />
+              )}
+              {loading ? "Sending..." : "Send Request"}
+            </Button>
+            <StatusText status={status.status} />
+          </div>
         </form>
 
         {response && (

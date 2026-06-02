@@ -18,12 +18,7 @@ export function UserKpiStrip({ kpis }: { kpis: UsersDashboardKpis }) {
       label: "Active Users",
       value: <span className="tabular-nums">{kpis.activeUsersCurrent}</span>,
       caption: <ActiveUsersDeltaCaption kpis={kpis} />,
-      tone:
-        kpis.activeUsersDeltaPct === null
-          ? "default"
-          : kpis.activeUsersDeltaPct >= 0
-          ? "success"
-          : "danger",
+      tone: "default",
       icon: <Users className="size-3 text-muted-foreground" aria-hidden />,
     },
     {
@@ -114,13 +109,13 @@ function ActiveUsersDeltaCaption({ kpis }: { kpis: UsersDashboardKpis }) {
   }
   if (pct > 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-emerald-500">
+      <span className="inline-flex items-center gap-1 text-foreground">
         <TrendingUp className="size-3" /> +{pct}% vs prior month
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-destructive">
+    <span className="inline-flex items-center gap-1 text-foreground">
       <TrendingDown className="size-3" /> {pct}% vs prior month
     </span>
   );

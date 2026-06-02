@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   createBilledCost,
   deleteBilledCost,
@@ -45,6 +45,9 @@ export function BudgetDetailClient({
   showBreadcrumb = true,
 }: Props) {
   const router = useRouter();
+  const allocStatus = useInlineStatus();
+  const billedStatus = useInlineStatus();
+  const deleteStatus = useInlineStatus();
   const periods = budget.periods;
   const isArchived = budget.status === "archived";
 
@@ -83,10 +86,10 @@ export function BudgetDetailClient({
     setSaving(false);
 
     if (result.success) {
-      toast.success("Allocations saved");
+      allocStatus.ok("Saved");
       router.refresh();
     } else {
-      toast.error(result.error);
+      allocStatus.error(result.error);
     }
   }
 
@@ -101,7 +104,7 @@ export function BudgetDetailClient({
     setAddSaving(true);
     const amountCents = Math.round(parseFloat(addForm.amountDollars) * 100);
     if (isNaN(amountCents) || amountCents <= 0) {
-      toast.error("Please enter a valid amount");
+      billedStatus.error("Invalid amount");
       setAddSaving(false);
       return;
     }
@@ -114,11 +117,10 @@ export function BudgetDetailClient({
     });
     setAddSaving(false);
     if (result.success) {
-      toast.success("Billed cost added");
       setAddDialogOpen(false);
       router.refresh();
     } else {
-      toast.error(result.error);
+      billedStatus.error(result.error);
     }
   }
 
@@ -138,7 +140,7 @@ export function BudgetDetailClient({
     setEditSaving(true);
     const amountCents = Math.round(parseFloat(editForm.amountDollars) * 100);
     if (isNaN(amountCents) || amountCents <= 0) {
-      toast.error("Please enter a valid amount");
+      billedStatus.error("Invalid amount");
       setEditSaving(false);
       return;
     }
@@ -151,11 +153,10 @@ export function BudgetDetailClient({
     });
     setEditSaving(false);
     if (result.success) {
-      toast.success("Billed cost updated");
       setEditDialogOpen(false);
       router.refresh();
     } else {
-      toast.error(result.error);
+      billedStatus.error(result.error);
     }
   }
 
@@ -170,11 +171,10 @@ export function BudgetDetailClient({
     const result = await deleteBilledCost({ id: deleteEntry.id });
     setDeleteSaving(false);
     if (result.success) {
-      toast.success("Billed cost deleted");
       setDeleteDialogOpen(false);
       router.refresh();
     } else {
-      toast.error(result.error);
+      deleteStatus.error(result.error);
     }
   }
 
@@ -202,7 +202,10 @@ export function BudgetDetailClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>Period allocations &amp; billed costs</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Period allocations &amp; billed costs</CardTitle>
+            <StatusText status={allocStatus.status} />
+          </div>
         </CardHeader>
         <CardContent>
           <PeriodAllocationsTable
@@ -220,6 +223,11 @@ export function BudgetDetailClient({
           />
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-end gap-4">
+        <StatusText status={billedStatus.status} />
+        <StatusText status={deleteStatus.status} />
+      </div>
 
       <BilledCostDialog
         mode="add"

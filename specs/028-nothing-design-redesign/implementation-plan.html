@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Developer Hub — Nothing Redesign · Implementation Plan</title>
+  <link rel="stylesheet" href="./mockups/styles/nothing.css" />
+  <script src="./mockups/styles/theme.js"></script>
+  <style>
+    /* =========================================================================
+       SCOPED DOCUMENT STYLES — tokens only. No hardcoded hex/rgb, no shadows,
+       no gradients in chrome. This document eats our own dog food: it IS a
+       Nothing-styled artifact.
+
+       This document eats its own dog food: it IS a Nothing-styled artifact that
+       links nothing.css verbatim, so --accent is the stock Nothing red #d71921 —
+       the accent this plan KEEPS. The only additions below are local aliases the
+       doc's own rules reference; per the confirmed decision they all resolve to
+       that same #d71921 red (errors share the accent — the Nothing default — so
+       there is no lime and no darkened light-mode variant).
+       ========================================================================= */
+    :root {
+      /* Accent stays the stock Nothing red inherited from nothing.css. These
+         aliases resolve to the same red so the doc's own rules keep resolving. */
+      --accent-strong: var(--accent);
+      --danger: var(--accent);
+      --danger-subtle: var(--accent-subtle);
+    }
+    /* Selection is the red accent fill with black text — passes in both modes. */
+    ::selection { background: var(--accent); color: var(--black); }
+
+    /* ----- document layout: sticky TOC nav + centered content column ----- */
+    .doc {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      min-height: 100vh;
+      align-items: start;
+    }
+    @media (max-width: 980px) {
+      .doc { grid-template-columns: 1fr; }
+      .doc-nav { display: none; }
+    }
+
+    .doc-nav {
+      position: sticky; top: 0; align-self: start;
+      height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--border);
+      padding: var(--space-xl) var(--space-lg);
+      background: var(--black);
+    }
+    .doc-nav .nav { gap: 0; }
+    .doc-nav .nav-item { padding: 8px var(--space-sm); }
+    .doc-nav .nav-num { color: var(--text-disabled); margin-right: 8px; }
+
+    .doc-main {
+      min-width: 0;
+      padding: var(--space-2xl) var(--space-2xl) var(--space-4xl);
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* theme toggle pinned top-right, above the content column */
+    .doc-topbar {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: var(--space-lg); margin-bottom: var(--space-2xl);
+    }
+
+    /* ----- prose rhythm ----- */
+    .doc-main h2 { scroll-margin-top: var(--space-lg); }
+    .doc-main h3 { scroll-margin-top: var(--space-lg); }
+    section { margin-top: var(--space-3xl); }
+    section:first-of-type { margin-top: var(--space-xl); }
+    .prose p { font-family: var(--font-ui); font-size: var(--body); color: var(--text-primary); line-height: 1.6; margin: var(--space-md) 0; max-width: 72ch; }
+    .prose ul.bullets { margin: var(--space-md) 0; padding-left: var(--space-lg); list-style: disc; max-width: 72ch; }
+    .prose ul.bullets li { font-family: var(--font-ui); font-size: var(--body-sm); color: var(--text-primary); line-height: 1.6; margin: 6px 0; }
+    .prose ul.bullets li::marker { color: var(--text-disabled); }
+    .lead { font-family: var(--font-ui); font-size: var(--subheading); color: var(--text-secondary); line-height: 1.5; max-width: 72ch; }
+
+    .section-head { display: flex; align-items: baseline; gap: var(--space-md); margin-bottom: var(--space-md); }
+    .section-head .heading { margin: 0; }
+
+    /* ----- code/token chips ----- */
+    code, .code {
+      font-family: var(--font-mono); font-size: var(--caption);
+      background: var(--surface-raised); border: 1px solid var(--border);
+      border-radius: var(--radius-tech); padding: 2px 6px; color: var(--text-display);
+    }
+
+    /* ----- swatches for color decisions ----- */
+    .swatch-row { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: var(--space-md) 0; }
+    .swatch-card { display: flex; align-items: center; gap: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius-compact); padding: var(--space-sm) var(--space-md); }
+    .swatch { width: 28px; height: 28px; border-radius: var(--radius-tech); border: 1px solid var(--border-visible); flex-shrink: 0; }
+    .sw-accent { background: var(--accent); }
+    .sw-accent-strong { background: var(--accent-strong); }
+    .sw-danger { background: var(--danger); }
+    .sw-success { background: var(--success); }
+    .sw-warning { background: var(--warning); }
+    .sw-black { background: var(--black); }
+    .sw-surface { background: var(--surface); }
+    .sw-surface-raised { background: var(--surface-raised); }
+    .sw-text-display { background: var(--text-display); }
+    .swatch-meta { display: flex; flex-direction: column; gap: 2px; }
+    .swatch-meta .nm { font-family: var(--font-mono); font-size: var(--caption); color: var(--text-display); letter-spacing: 0.04em; }
+    .swatch-meta .hx { font-family: var(--font-mono); font-size: var(--label); color: var(--text-secondary); }
+
+    /* ----- tables (build on .table, add wrapping for dense docs) ----- */
+    .table-wrap { border: 1px solid var(--border); border-radius: var(--radius-card); overflow-x: auto; margin: var(--space-md) 0; }
+    .table-wrap .table { min-width: 760px; }
+    .table-wrap .table thead th { padding: var(--space-md) 16px; background: var(--surface); position: sticky; top: 0; }
+    .table-wrap .table tbody td { font-family: var(--font-ui); font-size: var(--body-sm); line-height: 1.5; color: var(--text-primary); vertical-align: top; }
+    .table-wrap .table tbody td.mono { font-family: var(--font-mono); font-size: var(--caption); color: var(--text-secondary); }
+    .table-wrap .table tbody td.mono.path { color: var(--text-primary); }
+    .table-wrap .table tbody td a { color: var(--accent-strong); border-bottom: 1px solid var(--border-visible); }
+    [data-theme="light"] .table-wrap .table tbody td a { color: var(--accent-strong); }
+    html:not([data-theme="light"]) .table-wrap .table tbody td a { color: var(--accent); }
+    .table-wrap .table tbody td a:hover { border-bottom-color: currentColor; }
+
+    /* effort pills reuse .tag styling */
+    .eff { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--border-visible); border-radius: var(--radius-tech); white-space: nowrap; color: var(--text-secondary); }
+    .eff-s { border-color: var(--success); color: var(--success); }
+    .eff-m { border-color: var(--border-visible); color: var(--text-primary); }
+    .eff-l { border-color: var(--warning); color: var(--warning); }
+    .eff-xl { border-color: var(--accent); color: var(--accent); }
+    html[data-theme="light"] .eff-xl { color: var(--accent-strong); border-color: var(--accent-strong); }
+
+    .sev { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.08em; text-transform: uppercase; }
+    .sev-high { color: var(--danger); }
+    .sev-medium { color: var(--warning); }
+    .sev-low { color: var(--text-secondary); }
+
+    /* callouts */
+    .callout { border: 1px solid var(--border-visible); border-left: 2px solid var(--accent); border-radius: var(--radius-compact); padding: var(--space-md) var(--space-lg); margin: var(--space-lg) 0; }
+    .callout--danger { border-left-color: var(--danger); }
+    .callout--warn { border-left-color: var(--warning); }
+    .callout .callout-title { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: var(--space-sm); }
+    .callout p { margin: var(--space-sm) 0; font-size: var(--body-sm); }
+
+    /* decision badge */
+    .decide { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: var(--radius-pill); padding: 3px 10px; }
+    html[data-theme="light"] .decide { color: var(--accent-strong); border-color: var(--accent-strong); }
+
+    /* phase cards */
+    .phase { border: 1px solid var(--border); border-radius: var(--radius-card); padding: var(--space-lg); margin: var(--space-md) 0; }
+    .phase-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-md); flex-wrap: wrap; }
+    .phase-id { font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.1em; color: var(--accent); }
+    html[data-theme="light"] .phase-id { color: var(--accent-strong); }
+    .phase dl { display: grid; grid-template-columns: 120px 1fr; gap: var(--space-sm) var(--space-md); margin-top: var(--space-md); }
+    .phase dt { font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+    .phase dd { font-family: var(--font-ui); font-size: var(--body-sm); color: var(--text-primary); line-height: 1.55; }
+    .phase dd code { font-size: var(--label); }
+
+    /* mockup link inline pill */
+    .mock-link { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--label); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--border-visible); border-radius: var(--radius-pill); padding: 3px 10px; color: var(--text-secondary); }
+    .mock-link:hover { color: var(--accent); border-color: var(--accent); }
+    html[data-theme="light"] .mock-link:hover { color: var(--accent-strong); border-color: var(--accent-strong); }
+    .mock-link::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+    .mock-strip { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin: var(--space-md) 0; }
+
+    .meta-line { font-family: var(--font-mono); font-size: var(--caption); color: var(--text-disabled); letter-spacing: 0.04em; }
+
+    .num { font-family: var(--font-mono); }
+
+    /* contrast math mini table */
+    .contrast-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-md); margin: var(--space-md) 0; }
+    @media (min-width: 760px) { .contrast-grid { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="doc">
+    <!-- ============================ TOC NAV ============================ -->
+    <nav class="doc-nav" aria-label="Table of contents">
+      <div class="brand">
+        <span class="dot"></span>
+        <span class="wordmark">AI·HUB · PLAN</span>
+      </div>
+      <div class="nav">
+        <a class="nav-item" href="#overview"><span class="nav-num">00</span> Overview &amp; goals</a>
+        <a class="nav-item" href="#foundation"><span class="nav-num">01</span> Design foundation</a>
+        <a class="nav-item" href="#components"><span class="nav-num">02</span> Component matrix</a>
+        <a class="nav-item" href="#antipatterns"><span class="nav-num">03</span> Anti-patterns</a>
+        <a class="nav-item" href="#shell"><span class="nav-num">04</span> App shell &amp; nav</a>
+        <a class="nav-item" href="#charts"><span class="nav-num">05</span> Charts &amp; data viz</a>
+        <a class="nav-item" href="#overlays"><span class="nav-num">06</span> Dialogs &amp; overlays</a>
+        <a class="nav-item" href="#pages"><span class="nav-num">07</span> Page-by-page</a>
+        <a class="nav-item" href="#phasing"><span class="nav-num">08</span> Phasing &amp; sequence</a>
+        <a class="nav-item" href="#risks"><span class="nav-num">09</span> Risks</a>
+        <a class="nav-item" href="#testing"><span class="nav-num">10</span> Testing</a>
+        <a class="nav-item" href="#rollout"><span class="nav-num">11</span> Rollout &amp; effort</a>
+      </div>
+      <div class="sidebar-footer">
+        <span class="caption">SPEC 028 · NOTHING REDESIGN</span>
+        <span class="caption t-disabled">12 MOCKUPS · 14 SUBSYSTEMS</span>
+      </div>
+    </nav>
+
+    <!-- ============================ CONTENT ============================ -->
+    <main class="doc-main">
+      <div class="doc-topbar">
+        <div>
+          <span class="label eyebrow">SPEC 028 · IMPLEMENTATION PLAN</span>
+          <h1 class="display-md" style="margin-top: var(--space-sm);">Nothing Design Redesign</h1>
+        </div>
+        <div class="theme-toggle" role="group" aria-label="Theme">
+          <button data-theme="dark" class="active">Dark</button>
+          <button data-theme="light">Light</button>
+        </div>
+      </div>
+
+      <p class="lead">Migrate the AI Developer Hub from a stock shadcn/ui oklch system to one coherent
+        Nothing design system &mdash; monochrome canvas, a single red interrupt, Space Grotesk /
+        Space Mono / Doto, flat surfaces, inline status text. This document is itself styled with
+        <code>nothing.css</code>: we eat our own dog food.</p>
+
+      <!-- =================================================================
+           1. OVERVIEW & GOALS
+           ================================================================= -->
+      <section id="overview">
+        <div class="section-head">
+          <span class="label">00</span>
+          <h2 class="heading">Overview &amp; goals</h2>
+        </div>
+
+        <p class="prose">The redesign is a presentation-layer migration of ~40 routes and 14 subsystems
+          to the Nothing design language. No server actions, data shapes, or business logic change. The
+          dominant cost drivers are the toast removal (~183 <code>toast.*</code> call sites), the
+          ~20 Recharts components, and the page-by-page Card&rarr;<code>.card</code> /
+          status&rarr;<code>.tag</code> / form&rarr;<code>.field</code> conversion across every route.</p>
+
+        <h3 class="subheading" style="margin-top: var(--space-xl);">Why migrate</h3>
+        <ul class="bullets prose">
+          <li>One coherent, intentional system in both dark and light, instead of stock shadcn defaults that drift per screen.</li>
+          <li>Instrument-panel hierarchy: greyscale carries the structure; color is reserved as an interrupt, not decoration.</li>
+          <li>Remove accessibility/UX anti-patterns already proven present in the codebase: toast-only feedback, skeleton shimmer, red alert banners, calendar popovers, multi-hue charts.</li>
+          <li>Retire the drifting green: the app's lime <code>--primary</code> <code>oklch(0.78 0.19 120)</code> becomes greyscale fills, and the single Nothing interrupt reuses the red the app <em>already</em> ships as <code>--destructive</code> &mdash; so the accent isn't a new color, just a re-scoping of existing tokens.</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-xl);">Current state</h3>
+        <ul class="bullets prose">
+          <li><strong>Tokens:</strong> oklch shadcn "new-york" semantic vars in <code>src/app/globals.css</code>; light is the <code>:root</code> default, dark is the <code>.dark</code> override via next-themes <code>attribute="class"</code>, <code>defaultTheme="system"</code>.</li>
+          <li><strong>Accent:</strong> <code>--primary</code> = green/chartreuse, reused as <code>--ring</code>, <code>--chart-1</code>, <code>--sidebar-primary</code>. <code>--destructive</code> is a separate red.</li>
+          <li><strong>Font:</strong> Inter via <code>next/font/google</code> applied globally to <code>&lt;body&gt;</code>; no monospace data font, no display font.</li>
+          <li><strong>Feedback:</strong> Sonner <code>&lt;Toaster/&gt;</code> mounted in layout; toasts everywhere. Skeleton loaders in 15 <code>loading.tsx</code> route files. A destructive shadcn alert banner in the global layout. shadcn Sidebar shell with Lucide row icons + filled active background.</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-xl);">Target state</h3>
+        <ul class="bullets prose">
+          <li>One Nothing token layer in <code>globals.css</code>, re-keyed onto the existing <code>:root</code>(light)/<code>.dark</code>(dark) selectors so next-themes keeps working unchanged. shadcn semantic var names stay <em>aliased</em> to Nothing tokens so no primitive loses color.</li>
+          <li>Three-family type stack (Doto / Space Grotesk / Space Mono) via <code>next/font</code>; ALL-CAPS Space Mono labels, Space Mono numbers, Doto for 36px+ hero numbers only.</li>
+          <li>CSS-grid <code>.app</code> shell, text-nav sidebar with a 2px red active bar, topbar eyebrow + title + actions, inline <code>[SAVED]</code>/<code>[ERROR]</code> status, <code>[LOADING…]</code>, segmented bars and direct-labeled charts.</li>
+        </ul>
+
+        <div class="callout">
+          <div class="callout-title">How to read this doc &amp; the mockups</div>
+          <p>The 12 mockups demonstrate <strong>layout and hierarchy</strong> and render the final accent:
+            the stock Nothing <strong>red</strong> <code>#d71921</code>, linked from <code>nothing.css</code>
+            verbatim. The brand accent was evaluated &mdash; Unic lime <code>#A4C400</code> was considered
+            and <strong>rejected</strong> (see &sect;01) &mdash; and the decision is to keep Nothing red, so
+            the mockups already show the target. Each section links the mockup(s) that map to the screens
+            it covers.</p>
+        </div>
+
+        <div class="mock-strip">
+          <a class="mock-link" href="./mockups/dashboard.html">dashboard.html</a>
+          <a class="mock-link" href="./mockups/tools.html">tools.html</a>
+          <a class="mock-link" href="./mockups/users.html">users.html</a>
+          <a class="mock-link" href="./mockups/assignments.html">assignments.html</a>
+          <a class="mock-link" href="./mockups/requests.html">requests.html</a>
+          <a class="mock-link" href="./mockups/budget.html">budget.html</a>
+          <a class="mock-link" href="./mockups/reports.html">reports.html</a>
+          <a class="mock-link" href="./mockups/copilot.html">copilot.html</a>
+          <a class="mock-link" href="./mockups/claude.html">claude.html</a>
+          <a class="mock-link" href="./mockups/invoices.html">invoices.html</a>
+          <a class="mock-link" href="./mockups/settings.html">settings.html</a>
+          <a class="mock-link" href="./mockups/login.html">login.html</a>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           2. DESIGN FOUNDATION & COLOR DECISIONS
+           ================================================================= -->
+      <section id="foundation">
+        <div class="section-head">
+          <span class="label">01</span>
+          <h2 class="heading">Design foundation &amp; color decisions</h2>
+        </div>
+
+        <p class="prose">The token layer is the foundational dependency for every other subsystem. The
+          migration re-keys the Nothing value sets onto the app's existing <code>:root</code>(light) /
+          <code>.dark</code>(dark) selectors &mdash; do <strong>not</strong> copy nothing.css's
+          <code>:root[data-theme="light"]</code> selectors verbatim. Keep the next-themes class strategy.</p>
+
+        <h3 class="subheading" style="margin-top: var(--space-xl);">Token migration map</h3>
+        <p class="prose">Every current oklch shadcn token re-points to a Nothing token (kept aliased so
+          <code>bg-background</code>, <code>text-muted-foreground</code>, etc. keep resolving).</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Current shadcn token (oklch)</th>
+                <th>Nothing token</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="mono path">--background</td><td><code>var(--black)</code></td><td>Canvas. Dark <code>#000</code> / light <code>#F5F5F5</code>.</td></tr>
+              <tr><td class="mono path">--foreground</td><td><code>var(--text-primary)</code></td><td>Body text. <code>#e8e8e8</code> dark / <code>#1a1a1a</code> light.</td></tr>
+              <tr><td class="mono path">--card / --popover</td><td><code>var(--surface)</code> / <code>var(--surface-raised)</code></td><td>Cards &rarr; surface; dropdowns/popovers &rarr; surface-raised. No translucency (<code>bg-card/60</code> dropped).</td></tr>
+              <tr><td class="mono path">--card-foreground / --popover-foreground</td><td><code>var(--text-primary)</code></td><td>Plus add <code>--text-display</code> for titles/strong cells (shadcn lacks this).</td></tr>
+              <tr><td class="mono path">--primary</td><td><code>var(--text-display)</code> (fills) <span class="meta-line">+ <code>--accent</code> for the one interrupt</span></td><td>Primary <em>fills</em> become greyscale white/black per Nothing; red is reserved for the single per-screen interrupt. <code>--primary-foreground</code> &rarr; <code>--black</code>.</td></tr>
+              <tr><td class="mono path">--secondary</td><td><code>var(--surface-raised)</code> / transparent + 1px border</td><td>Collapse shadcn secondary(fill)+outline onto one bordered <code>.btn--secondary</code>.</td></tr>
+              <tr><td class="mono path">--muted / --muted-foreground</td><td><code>var(--surface)</code> / <code>var(--text-secondary)</code></td><td>Muted backgrounds become neutral surfaces; muted text &rarr; secondary.</td></tr>
+              <tr><td class="mono path">--accent (shadcn hover tint)</td><td><code>var(--surface-raised)</code> (neutral)</td><td><strong>Naming collision:</strong> shadcn <code>--accent</code> is a subtle hover bg, NOT the Nothing loud interrupt. Keep <code>bg-accent</code> neutral; reserve the Nothing red interrupt under a deliberately-scoped token. Audit all <code>bg-accent</code>/<code>data-[state]:bg-accent</code> usages.</td></tr>
+              <tr><td class="mono path">--destructive</td><td><code>var(--accent)</code> = <code>#D71921</code></td><td><strong>Unified</strong> with <code>--accent</code> &mdash; errors ARE the red accent (Nothing default). A <code>--danger</code> alias = <code>--accent</code> is kept only for readable code naming.</td></tr>
+              <tr><td class="mono path">--border / --input</td><td><code>var(--border)</code> / <code>var(--border-visible)</code></td><td><code>--border</code> for dividers; <code>--border-visible</code> for interactive edges/inputs.</td></tr>
+              <tr><td class="mono path">--ring</td><td><code>var(--accent)</code> (both modes)</td><td>Focus moves from 3px ring to border-color brighten; red passes in both modes, so no per-mode variant.</td></tr>
+              <tr><td class="mono path">--chart-1</td><td><code>var(--text-display)</code></td><td>chart-1 == primary today; re-derive as monochrome top series. Red reserved for over/active.</td></tr>
+              <tr><td class="mono path">--chart-2..5</td><td>greys via opacity ramp (<code>--text-secondary</code>, <code>--border-visible</code>)</td><td>Drop the multi-hue palette + duplicated 8-color spectral FALLBACK_PALETTE. <code>var(--destructive)</code> chart usages &rarr; the <code>--accent</code> red.</td></tr>
+              <tr><td class="mono path">--radius (0.625rem)</td><td><code>--radius-tech 4</code> / <code>--radius-compact 8</code> / <code>--radius-card 14</code> / <code>--radius-pill</code></td><td>Cap card radius at 14px (&le;16px rule); pills for buttons/tags.</td></tr>
+              <tr><td class="mono path">--sidebar-* (primary/accent/...)</td><td>Nothing nav tokens</td><td><code>--sidebar-primary</code> == primary today &rarr; active nav becomes <code>--text-display</code> text + 2px <code>--accent</code> left bar.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="subheading" style="margin-top: var(--space-2xl);">Brand accent decision <span class="decide">confirmed: Nothing red</span></h3>
+        <p class="prose">The single interrupt stays the stock Nothing red <code>#D71921</code> &mdash; the
+          mockups already render it. Error and destructive states share this same red, per the Nothing
+          default "errors ARE the accent moment": no separate danger color, no per-mode variant.</p>
+
+        <div class="swatch-row">
+          <div class="swatch-card"><span class="swatch sw-accent"></span><span class="swatch-meta"><span class="nm">--accent</span><span class="hx">#D71921 · the one interrupt (also errors)</span></span></div>
+          <div class="swatch-card"><span class="swatch sw-success"></span><span class="swatch-meta"><span class="nm">--success</span><span class="hx">#4A9E5C · in-range data</span></span></div>
+          <div class="swatch-card"><span class="swatch sw-warning"></span><span class="swatch-meta"><span class="nm">--warning</span><span class="hx">#D4A843 · attention data</span></span></div>
+        </div>
+
+        <ul class="bullets prose">
+          <li><strong><code>--accent</code> = #D71921 is the single interrupt:</strong> active nav indicator (2px left bar), the one emphasis/active-state moment per screen, segmented-bar "over/active", table active-row rail, selected dropdown/command item left bar, brand dot, error/destructive surfaces, <code>::selection</code> (with <code>--black</code> text). Hold the rule: at most ONE red moment per screen.</li>
+          <li><strong>Errors share the accent:</strong> <code>btn--destructive</code>, <code>.tag--accent</code>, <code>.field.is-error</code>, <code>.error-msg</code>, <code>.status-text--err</code> and the active-tab underline all resolve to the same <code>--accent</code> red &mdash; nothing.css verbatim, nothing to decouple. (A <code>--danger</code> alias = <code>--accent</code> may be kept purely for readable code naming.)</li>
+          <li><strong>Rejected alternative &mdash; Unic lime #A4C400:</strong> brand-aligned and matches the app's current green <code>--primary</code>, but it would force a light-mode a11y workaround (lime fails ~2:1 on <code>#F5F5F5</code>, needing a darkened <code>~#4F6800</code> for any accent-as-text/border) <em>and</em> a danger-red decoupling so delete/error states don't read as lime. Rejected in favor of one color and one contrast story.</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-2xl);">Contrast &mdash; red passes both modes</h3>
+        <p class="prose"><code>#D71921</code> needs no per-mode variant: it clears WCAG as text and as a graphical
+          element on both canvases, and as a fill it carries contrast through white/black text. There is
+          exactly ONE accent color to verify.</p>
+
+        <div class="contrast-grid">
+          <div class="card card--raised">
+            <span class="label card-label">As text / thin border — pass</span>
+            <div class="stat-list">
+              <div class="stat-row"><span class="label">#D71921 on #F5F5F5 (light)</span><span class="value value--success">~4.76:1 · PASS</span></div>
+              <div class="stat-row"><span class="label">#D71921 on #000 (dark)</span><span class="value value--success">~4.05:1 · PASS</span></div>
+              <div class="stat-row"><span class="label">#D71921 on #111 surface</span><span class="value value--success">&ge;3:1 · graphical OK</span></div>
+            </div>
+          </div>
+          <div class="card card--raised">
+            <span class="label card-label">As fill — text carries it</span>
+            <div class="stat-list">
+              <div class="stat-row"><span class="label">#FFF text on #D71921 fill</span><span class="value value--success">~5.2:1 · PASS</span></div>
+              <div class="stat-row"><span class="label">fill vs canvas (graphical)</span><span class="value value--success">&ge;3:1 · OK</span></div>
+              <div class="stat-row"><span class="label">identical dark + light</span><span class="value value--success">no variant</span></div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="bullets prose">
+          <li>Use <code>#D71921</code> <strong>verbatim in both modes</strong> for text, thin borders (2px nav bar, tab underline, table rail, <code>.tag--active</code>), fills, and strokes &mdash; no darkened light-mode variant needed.</li>
+          <li><code>--accent-subtle</code> stays an rgba of <code>#D71921</code> (already correct in nothing.css for both modes); no recompute.</li>
+          <li>Because errors share the accent, P5 verifies <strong>one</strong> accent color in light mode &mdash; no separate lime/danger contrast matrix.</li>
+          <li>Status colors (<code>--success</code> / <code>--warning</code>) stay on <strong>value text only</strong>, never on labels or backgrounds.</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-2xl);">Fonts</h3>
+        <p class="prose">Replace Inter with the three-family Nothing stack via <code>next/font/google</code>
+          (self-hosted, auto fallback-metrics) &mdash; <strong>not</strong> the mockup's render-blocking
+          Google <code>@import</code>.</p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Family</th><th>Role</th><th>Loader config</th><th>Token</th></tr></thead>
+            <tbody>
+              <tr><td class="cell-strong">Space Grotesk</td><td>UI / body (new default)</td><td class="mono">weight ['300','400','500','700'], variable:'--font-sans', display:'swap', preload:true</td><td><code>--font-sans</code> (alias <code>--font-ui</code>)</td></tr>
+              <tr><td class="cell-strong">Space Mono</td><td>ALL labels + ALL numbers/data</td><td class="mono">weight ['400','700'], variable:'--font-mono', display:'swap'</td><td><code>--font-mono</code></td></tr>
+              <tr><td class="cell-strong">Doto</td><td>Hero display 36px+ ONLY</td><td class="mono">weight ['400','500','700'] (pin if variable axis unreliable), variable:'--font-display', display:'swap', preload:false</td><td><code>--font-display</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="bullets prose">
+          <li>Register <code>--font-sans</code>/<code>--font-mono</code>/<code>--font-display</code> in <code>@theme inline</code> (Tailwind v4, no <code>tailwind.config</code>) so <code>font-sans</code>/<code>font-mono</code> utilities AND the Nothing <code>.ui</code>/<code>.mono</code>/<code>.doto</code> classes both resolve.</li>
+          <li><strong>Naming reconciliation:</strong> mockups use <code>--font-ui</code>; Tailwind expects <code>--font-sans</code>. Define both, with <code>--font-ui: var(--font-sans)</code>. Chain tokens to the next/font-injected var name (not a raw string) to preserve fallback metrics.</li>
+          <li>The 28 existing <code>font-mono</code> call sites (18 files) re-point automatically to Space Mono once the token is wired &mdash; no call-site changes, just an audit for width regressions (count badges, KPI cards, table columns).</li>
+          <li>Transactional email (<code>src/emails/invite-email.tsx</code>) cannot use next/font &mdash; document the gap; recommend it stays system-font.</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-2xl);">Dark/light strategy</h3>
+        <p class="prose">Keep next-themes <code>attribute="class"</code> with the <code>.dark</code> class and the
+          three states <code>light/dark/system</code>. Re-key Nothing's dark values onto <code>.dark</code>
+          and light values onto plain <code>:root</code>. The segmented theme toggle is wired to
+          <code>setTheme</code> (next-themes), <strong>not</strong> the mockup's <code>data-theme</code>/
+          <code>theme.js</code>. Decision: keep <code>system</code> as a third segment or as the default.
+          <code>suppressHydrationWarning</code> already present guards FOUC; decide whether to remove
+          <code>disableTransitionOnChange</code> for a subtle cross-fade.</p>
+      </section>
+
+      <!-- =================================================================
+           3. COMPONENT MIGRATION MATRIX
+           ================================================================= -->
+      <section id="components">
+        <div class="section-head">
+          <span class="label">02</span>
+          <h2 class="heading">Component migration matrix</h2>
+        </div>
+        <p class="prose">Re-skin the 16 shadcn primitives <strong>in place</strong> (rewrite CVA/className
+          strings; keep imports) so the ~30 consuming components keep working. Mockup references:
+          <a class="mock-link" href="./mockups/tools.html">tools.html</a>
+          <a class="mock-link" href="./mockups/settings.html">settings.html</a>
+          <a class="mock-link" href="./mockups/users.html">users.html</a>.</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>shadcn primitive</th><th>Nothing treatment / class</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">button.tsx — default (bg-primary green)</td><td><code>.btn .btn--primary</code> — <code>--text-display</code> fill, <code>--black</code> text, pill, Space Mono 13px CAPS, min-height 44px</td><td class="num"><span class="eff eff-m">M</span></td><td>Primary fill is greyscale white, NOT the accent. Add <code>btn--sm</code> (36px). Keep asChild/Slot.</td></tr>
+              <tr><td class="mono path">button.tsx — secondary / outline</td><td><code>.btn--secondary</code> — transparent, 1px <code>--border-visible</code>, hover border&rarr;text-primary</td><td class="num"><span class="eff eff-m">M</span></td><td>Collapse shadcn secondary(fill)+outline onto one bordered variant.</td></tr>
+              <tr><td class="mono path">button.tsx — ghost</td><td><code>.btn--ghost</code> + <code>.btn--icon</code> (44&times;44) for icon-only row actions</td><td class="num"><span class="eff eff-s">S</span></td><td>Table row View/Edit/More pattern.</td></tr>
+              <tr><td class="mono path">button.tsx — destructive (bg-destructive)</td><td><code>.btn--destructive</code> — transparent, 1px <code>--danger</code>, danger text, hover <code>--danger-subtle</code></td><td class="num"><span class="eff eff-m">M</span></td><td>Outline (1px), not solid fill; resolves to the shared <code>--accent</code> red (the <code>--danger</code> alias).</td></tr>
+              <tr><td class="mono path">button.tsx — link</td><td>Inline text link in <code>--interactive</code>, underline-offset hover</td><td class="num"><span class="eff eff-s">S</span></td><td>Not a <code>.btn</code>; <code>--interactive</code> is for tappable text.</td></tr>
+              <tr><td class="mono path">button.tsx — size scale (xs/sm/lg/icon-*)</td><td>Reduce to default(44) + <code>--sm</code>(36) + <code>--icon</code>; map xs&rarr;sm, lg&rarr;default</td><td class="num"><span class="eff eff-m">M</span></td><td>Audit dense table callers; sanction a 32px <code>.icon-btn</code> exception (users.html) vs 44px.</td></tr>
+              <tr><td class="mono path">card.tsx (rounded-xl, shadow-sm)</td><td><code>.card</code> / <code>.card--raised</code> / <code>.card--bare</code> / <code>.card--pad-lg</code> — 14px radius, no shadow</td><td class="num"><span class="eff eff-s">S</span></td><td>CardTitle&rarr;<code>.heading</code>; CardDescription&rarr;<code>.caption t-secondary</code>.</td></tr>
+              <tr><td class="mono path">input.tsx (full border box)</td><td><code>.field &gt; label.label + .control</code> (underline) or <code>.field--boxed</code></td><td class="num"><span class="eff eff-m">M</span></td><td>Default is underline; label ALL-CAPS above; input text Space Mono. Error: <code>.is-error</code> + <code>.error-msg</code>.</td></tr>
+              <tr><td class="mono path">textarea.tsx</td><td><code>.control</code> on a textarea; keep field-sizing-content</td><td class="num"><span class="eff eff-s">S</span></td><td>No dedicated class; boxed may read better for multi-line.</td></tr>
+              <tr><td class="mono path">label.tsx (text-sm font-medium)</td><td><code>.label</code> (Space Mono 11px CAPS 0.1em) for field captions; sentence-case for inline checkbox/switch labels</td><td class="num"><span class="eff eff-s">S</span></td><td>Two registers: instrument label vs body label.</td></tr>
+              <tr><td class="mono path">checkbox.tsx (bg-primary checked)</td><td>Square, 4px radius, 1px <code>--border-visible</code>; checked &rarr; <code>--text-display</code> fill + <code>--black</code> check</td><td class="num"><span class="eff eff-m">M</span></td><td>NEW pattern (no nothing.css class). Greyscale, NOT the accent. Keep Lucide CheckIcon.</td></tr>
+              <tr><td class="mono path">switch.tsx (bg-primary checked)</td><td><code>.switch</code> / <code>.switch.on</code> — track <code>--text-display</code> on, thumb <code>--black</code></td><td class="num"><span class="eff eff-s">S</span></td><td>Greyscale, NOT the accent. Ensure &ge;44px hit area.</td></tr>
+              <tr><td class="mono path">select.tsx (trigger + content shadow-md)</td><td>Trigger = <code>.btn--secondary --sm</code> or <code>.field .control</code>; content = surface-raised, 8px, 44px items, left 2px accent bar, NO shadow</td><td class="num"><span class="eff eff-l">L</span></td><td>Biggest restyle: drop zoom/slide; selected indicator becomes a left accent bar, not a right CheckIcon.</td></tr>
+              <tr><td class="mono path">badge.tsx (filled pill chips)</td><td><code>.tag</code> (+ <code>--success</code>/<code>--warning</code>/<code>--accent</code>/<code>--active</code>/<code>--tech</code>) — border-only, optional <code>.led</code> dot</td><td class="num"><span class="eff eff-m">M</span></td><td>Core inversion: fill&rarr;border. default&rarr;<code>--active</code>, destructive&rarr;<code>--accent</code>(danger). Add success/warning variants.</td></tr>
+              <tr><td class="mono path">separator.tsx</td><td><code>.divider</code> (1px <code>--border</code>); vertical keeps w-px</td><td class="num"><span class="eff eff-s">S</span></td><td>Near 1:1.</td></tr>
+              <tr><td class="mono path">tooltip.tsx (dark bubble + zoom/slide)</td><td>Restyle: surface-raised, 1px border-visible, Space Mono caption, opacity-fade only (drop zoom/slide/scale)</td><td class="num"><span class="eff eff-m">M</span></td><td>Nothing prefers inline labels. Decide whether to retain hover tooltips at all; audit <code>title=</code> icon buttons.</td></tr>
+              <tr><td class="mono path">tabs.tsx (segmented pill + line variant)</td><td><code>.tabs &gt; .tab(.active)</code> text tabs; in-content tabs use NEUTRAL underline; segmented filters &rarr; <code>.segmented</code></td><td class="num"><span class="eff eff-m">M</span></td><td>settings.html overrides active underline to <code>--border-visible</code> so accent stays the single interrupt; only nav is accent.</td></tr>
+              <tr><td class="mono path">table.tsx (hover bg-muted)</td><td><code>.table</code> — label headers + border-visible; <code>--border</code> dividers; <code>.num</code> mono right; <code>.cell-strong</code> first col; <code>.is-active</code> = surface-raised + 2px left accent</td><td class="num"><span class="eff eff-l">L</span></td><td>No zebra. Touches TanStack column defs in consumers — coordinate with tables work.</td></tr>
+              <tr><td class="mono path">form.tsx (text-destructive messages)</td><td>FormLabel&rarr;<code>.label</code>; FormDescription&rarr;<code>.caption t-secondary</code>; FormMessage&rarr;<code>.error-msg</code> / <code>.field.is-error</code></td><td class="num"><span class="eff eff-m">M</span></td><td>Error text points at <code>--danger</code> (= the <code>--accent</code> red). Logic unchanged.</td></tr>
+              <tr><td class="mono path">calendar.tsx (react-day-picker popover)</td><td>For period selection &rarr; <code>.period-nav</code> linear stepper. Restyle DayPicker to tokens only for true arbitrary-date pickers</td><td class="num"><span class="eff eff-l">L</span></td><td>Largest semantic shift; calendar effectively deprecated for month/period navigation.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="prose">Foundational fonts/radii also flow through here: Inter&rarr;Space Grotesk/Mono/Doto;
+          <code>--radius</code> 0.625rem &rarr; Nothing 4/8/14/pill; sonner Toaster removal &rarr; inline
+          <code>.status-text</code>. All covered as cross-cutting items in &sect;03.</p>
+      </section>
+
+      <!-- =================================================================
+           4. ANTI-PATTERNS TO RESOLVE
+           ================================================================= -->
+      <section id="antipatterns">
+        <div class="section-head">
+          <span class="label">03</span>
+          <h2 class="heading">Anti-patterns to resolve</h2>
+        </div>
+        <p class="prose">Four Nothing violations, all confirmed in real code, touch nearly every interactive
+          screen. Three of the four already have proven classes in nothing.css; the only true gap is a
+          hardware-style segmented spinner (must be authored, respecting <code>prefers-reduced-motion</code>).</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Anti-pattern</th><th>Where it lives</th><th>Resolution</th><th class="num">Scale</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="cell-strong">Toast popups (Sonner)</td>
+                <td class="mono">Single <code>&lt;Toaster/&gt;</code> in <code>layout.tsx:65</code> feeds 183 <code>toast.*</code> call sites / 39 files (invoice-upload 14, scheduled-jobs 12, assignment-detail 12, assignments 11, user-detail 10, budget-detail 10, github-integration 8, tool-detail 8, …)</td>
+                <td>Inline <code>[SAVED]</code>/<code>[ERROR: …]</code> via <code>.status-text</code>/<code>--ok</code>/<code>--err</code> near each trigger; build one shared <code>&lt;StatusText&gt;</code>/<code>useInlineStatus</code> with <code>aria-live="polite"</code>; remove the global Toaster only after the primitive exists. Bulk/multi-event outcomes get an inline summary box.</td>
+                <td class="num"><span class="eff eff-l">L</span></td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Skeleton loaders</td>
+                <td class="mono"><code>ui/skeleton.tsx</code> used 108&times; / 16 files; 15 are route <code>loading.tsx</code> (app, assignments, reports, users[/[id]], tools[/[id]], invoices, copilot[/seats,/billing,/analytics], budget[/[id]]) + sidebar SidebarMenuSkeleton + budget-report</td>
+                <td><code>[LOADING…]</code> via <code>.loading-text</code> + a NEW hardware-style segmented/dot-matrix spinner. Collapse the 15 near-identical grids to a shared <code>&lt;LoadingState label/&gt;</code>. Drop Card scaffolds.</td>
+                <td class="num"><span class="eff eff-m">M</span></td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Alert banner (red)</td>
+                <td class="mono"><code>alert-banner.tsx</code> (shadcn Alert variant=destructive, AlertTriangle) at <code>layout.tsx:58</code>; + ~8 other <code>&lt;Alert&gt;</code> consumers (api-preview, cost-tracking, sync/ingestion tables, setup/login forms)</td>
+                <td>Flat inline status box: 1px border (<code>--danger</code> critical / <code>--warning</code> approaching) on BORDER + value text only, never a background fill; <code>[ X ]</code> ghost dismiss; <code>.stat-row</code> utilization rows. Keep localStorage fingerprint + aria-live.</td>
+                <td class="num"><span class="eff eff-m">M</span></td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Calendar date popovers</td>
+                <td class="mono">Exactly 2 sites: <code>assignments-client.tsx:281</code> &amp; <code>assignment-detail-client.tsx:359</code> (single "Assigned Date", future-date guard, dropdown caption)</td>
+                <td>Per components.md &sect;9 prefer linear <code>.period-nav</code> stepping; but these are single-date fields &mdash; recommend a Space Mono underline date input. Reserve <code>.period-nav</code> for genuine period browsing (dashboard/reports/claude month nav). Documented exception.</td>
+                <td class="num"><span class="eff eff-m">M</span></td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Status-as-floating-popover</td>
+                <td class="mono"><code>error-popover.tsx</code> (ingestion/sync tables)</td>
+                <td>Inline expandable <code>.status-text--err</code> (click-to-expand), no Popover.</td>
+                <td class="num"><span class="eff eff-s">S</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="callout-title">Error-heavy subsystem — one red, watch the count</div>
+          <p>Error/destructive is the dominant accent use here (<code>toast.error</code>, Alert destructive,
+            failed outcome badges). Under the confirmed unified-red model these all resolve to the same
+            <code>--accent</code> #D71921 &mdash; nothing to decouple. The watch-item is <em>quantity</em>:
+            a dialog or row showing an active/selected state <em>and</em> an error can surface two reds.
+            Hold "one red region per screen" &mdash; let the error be the red moment and de-emphasize the
+            active indicator when both are present.</p>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           5. APP SHELL & NAVIGATION
+           ================================================================= -->
+      <section id="shell">
+        <div class="section-head">
+          <span class="label">04</span>
+          <h2 class="heading">App shell &amp; navigation</h2>
+        </div>
+        <p class="prose">Replace the shadcn <code>SidebarProvider</code>/<code>Sidebar</code>/<code>SidebarInset</code>
+          composition with the Nothing CSS-grid <code>.app</code> shell + sticky text-nav <code>.sidebar</code>.
+          The shell owns the single red accent moment per screen (active nav bar). Every mockup shares this
+          shell &mdash; see
+          <a class="mock-link" href="./mockups/dashboard.html">dashboard.html</a>
+          for the canonical rendered chrome.</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Shell element</th><th>From (shadcn)</th><th>To (Nothing)</th><th class="num">Effort</th></tr></thead>
+            <tbody>
+              <tr><td class="cell-strong">Root grid</td><td class="mono">SidebarProvider + Sidebar + SidebarInset (flex)</td><td>CSS-grid <code>.app</code> + sticky <code>.sidebar</code> + <code>.main</code> (max-width 1280px). Keep SidebarProvider context ONLY for mobile open state &mdash; re-skin, don't delete.</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+              <tr><td class="cell-strong">Wordmark</td><td class="mono">&lt;h2&gt;AI Developer Hub&lt;/h2&gt;</td><td><code>.brand</code> &gt; <code>.dot</code> (red) + <code>.wordmark</code> "AI·HUB" (Space Mono CAPS 0.14em)</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="cell-strong">Nav items</td><td class="mono">SidebarMenuButton + Lucide icons, "Navigation" group label</td><td><code>.nav &gt; a.nav-item</code> ALL-CAPS Space Mono; drop the group label; icons optional (decide monoline vs text-only). Role filtering + active-path logic carry over.</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="cell-strong">Active state</td><td class="mono">data-[active]:bg-sidebar-accent (filled)</td><td><code>.nav-item.active::before</code> 2px left bar in <code>--accent</code> + text&rarr;<code>--text-display</code>. THE single accent moment per screen (red, both modes).</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="cell-strong">User chip / footer</td><td class="mono">SidebarFooter DropdownMenu (My Profile / Sign Out)</td><td><code>.sidebar-footer &gt; .user-chip</code> (<code>.avatar</code> initials + name/role) + a <code>.nav-item</code> Sign Out. Decide where "My Profile" goes (chip&rarr;/profile, or keep a shadowless Nothing dropdown).</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="cell-strong">Topbar</td><td class="mono">&lt;header h-14 border-b&gt; with only SidebarTrigger</td><td><code>.topbar</code> &gt; {<code>.label.eyebrow</code> + <code>h1.display-md</code>} + <code>.topbar-actions</code>. Needs a shared <code>&lt;Topbar eyebrow title actions&gt;</code> contract pages consume in P4.</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+              <tr><td class="cell-strong">Mobile trigger</td><td class="mono">SidebarTrigger (PanelLeftIcon)</td><td>NET-NEW: re-skinned monoline trigger at mobile breakpoint; add a <code>@media</code> rule to off-canvas the sidebar. Mockups are desktop-only &mdash; design/approve this.</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="cell-strong">Theme toggle</td><td class="mono">Sun/Moon DropdownMenu (Light/Dark/System)</td><td>Segmented <code>.theme-toggle</code> (DARK | LIGHT [| SYSTEM]) wired to next-themes <code>setTheme</code>. Reconcile 2-state mockup vs 3-state app.</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="cell-strong">Breadcrumb</td><td class="mono">shadcn Breadcrumb (budget only, ChevronRight)</td><td>Fold into the topbar <code>.eyebrow</code> as a Space Mono "SECTION / CONTEXT" trail (only 1 real consumer). Preserve aria-current / nav[aria-label=breadcrumb] if kept standalone.</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="cell-strong">Alert banner</td><td class="mono">shadcn Alert variant=destructive (red bg)</td><td>Bordered inline status box (1px <code>--danger</code> critical / <code>--warning</code> approaching), value-only color, <code>[ X ]</code> ghost dismiss. Keep aria-live + localStorage dismiss + null guards.</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="callout-title">In-content tabs stay neutral</div>
+          <p>The shell owns the red accent (active nav bar). Therefore in-content tab underlines and
+            progress "within-range" fills are NEUTRAL (<code>--border-visible</code> / <code>--text-display</code>)
+            &mdash; proven by the scoped overrides in settings.html, reports.html, copilot.html and claude.html.
+            This keeps "one interrupt per screen" intact.</p>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           6. CHARTS & DATA VISUALIZATION
+           ================================================================= -->
+      <section id="charts">
+        <div class="section-head">
+          <span class="label">05</span>
+          <h2 class="heading">Charts &amp; data visualization</h2>
+        </div>
+        <p class="prose">~20 Recharts components + 2 Sparkline impls + 3 non-Recharts bar/gauge visuals,
+          all routed through one shared wrapper (<code>ui/chart.tsx</code>). Migrate the wrapper FIRST &mdash;
+          every chart inherits its grid/tooltip/legend/axis styling. References:
+          <a class="mock-link" href="./mockups/reports.html">reports.html</a>
+          <a class="mock-link" href="./mockups/claude.html">claude.html</a>
+          <a class="mock-link" href="./mockups/copilot.html">copilot.html</a>
+          <a class="mock-link" href="./mockups/budget.html">budget.html</a>.</p>
+
+        <h3 class="subheading" style="margin-top: var(--space-xl);">Recharts theming rules</h3>
+        <ul class="bullets prose">
+          <li><strong>Monochrome-first categories:</strong> differentiate by opacity &rarr; pattern &rarr; line-style &rarr; color (color last). Use 2&ndash;3 greys (<code>--text-display</code> / <code>--text-secondary</code> / <code>--border-visible</code>) + an opacity ramp. Delete the duplicated 8-color spectral FALLBACK_PALETTE; define one shared <code>getCategoryStyle(rank)</code>.</li>
+          <li><strong>Reserve red for one over/active series only.</strong> Demote it from its current default <code>--chart-1</code> data role; <code>var(--destructive)</code> chart usages &rarr; the <code>--accent</code> red.</li>
+          <li><strong>Bars:</strong> square ends (<code>radius=[0,0,0,0]</code>), fill <code>--text-display</code>, empty/remainder <code>--border</code>, over-limit <code>--accent</code> (red).</li>
+          <li><strong>Lines:</strong> 1.5&ndash;2px <code>--text-display</code> current; secondary by opacity; projection/average 1px dashed <code>--text-secondary</code> (<code>3 3</code>); no dots (or one end dot); horizontal-only grid <code>--border</code>; direct line labels, no legend boxes.</li>
+          <li><strong>No area fill, no gradients, no shadows.</strong> Remove the <code>viewerSpendArea</code> linearGradient; restyle the tooltip card to surface-raised + 1px border-visible + 8px radius (drop <code>shadow-xl</code>).</li>
+          <li><strong>Axis/labels:</strong> Space Mono at caption/label size, <code>--text-disabled</code>/<code>--text-secondary</code>; set <code>tick={{fontFamily:'var(--font-mono)'}}</code> centrally in the wrapper.</li>
+          <li><strong>Light-mode strokes:</strong> the red accent passes as a stroke/axis color in light mode (~4.76:1), so no darkened variant is needed; keep non-accent series differentiated by opacity, not hue.</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-xl);">Segmented-bar / gauge / sparkline approach</h3>
+        <ul class="bullets prose">
+          <li><strong>Segmented bar (signature):</strong> <code>.seg-bar</code> / <code>.seg-bar--hero</code> / <code>.seg-bar--compact</code> of ~20 discrete <code>.seg</code>; <code>.is-filled</code> (text-display) / <code>.is-good</code> / <code>.is-warn</code> / <code>.is-over</code> (accent). Build one reusable React component computing segment counts from percentages; replaces the rounded continuous <code>SpendProgressBar</code>, the multi-marker budget-health bar, and the per-model mini bars.</li>
+          <li><strong>Gauge / proportion:</strong> the forbidden donut (<code>copilot/activity-distribution</code>) becomes a 4-row segmented bar or horizontal stacked proportion bar with direct <code>.legend</code> labels and numeric readouts (sign-off needed). Pies are banned.</li>
+          <li><strong>Sparkline:</strong> standardize on <code>ui/sparkline.tsx</code> (already Nothing-correct: 1.5px <code>currentColor</code> polyline + end dot). Delete the duplicate Recharts <code>reports/sparkline.tsx</code> and re-point consumers.</li>
+          <li><strong>Re-theme vs rebuild (P3 gate):</strong> re-theme the wrapper once and keep Recharts for line/bar (preserves tooltips/responsiveness); rebuild only the donut and area chart where Nothing forbids the idiom. Mockups render some charts as pure CSS columns/seg-bars &mdash; decide per chart family.</li>
+        </ul>
+
+        <p class="prose meta-line">Ripple files: cumulative-pacing, twelve-month-bar, cost-distribution-histogram,
+          workspace-daily, plan-vs-actual, forecast-cumulative, daily-by-user, top-users, billing-trend,
+          cost-utilization, language, editor, usage-trend, global-metrics, spend-trend, my-usage. Verify each
+          in BOTH modes for legibility/contrast.</p>
+      </section>
+
+      <!-- =================================================================
+           7. DIALOGS & OVERLAYS  (user priority — exhaustive)
+           ================================================================= -->
+      <section id="overlays">
+        <div class="section-head">
+          <span class="label">06</span>
+          <h2 class="heading">Dialogs &amp; overlays</h2>
+        </div>
+        <p class="prose">User priority &mdash; exhaustive inventory. Nothing overlay spec (components.md &sect;14):
+          NO shadows; layering via background contrast + 1px <code>--border-visible</code>; modals = backdrop
+          <code>rgba(0,0,0,0.8)</code> + 16px radius + ghost <code>[ X ]</code>; dropdowns = surface-raised +
+          8px + 44px items + left 2px accent bar on selected; fade-only (no zoom/slide); toasts BANNED.</p>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Primitives (6)</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Primitive</th><th>From</th><th>Nothing pattern</th><th class="num">Effort</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">dialog.tsx — Overlay</td><td class="mono">bg-black/50 + fade</td><td>Backdrop <code>bg-black/80</code>; fade only</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">dialog.tsx — Content</td><td class="mono">rounded-lg bg-background shadow-lg zoom-in-95</td><td><code>--surface</code> + 1px <code>--border-visible</code> + 16px, NO shadow, fade only; cap ~480px but allow wide overrides</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">dialog.tsx — [X] close</td><td class="mono">opacity-70 icon, data-[state]:bg-accent</td><td>Bordered/ghost <code>[ X ]</code> top-right; remove accent tint</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">alert-dialog.tsx</td><td class="mono">shadow-lg, rounded-lg, bg-black/50</td><td>Same Nothing modal; AlertDialogAction destructive &rarr; <code>.btn--destructive</code> (<code>--danger</code> outline)</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">sheet.tsx</td><td class="mono">4 sides, w-3/4, shadow-lg, slide 300/500ms</td><td><code>--surface</code>, NO shadow; right edge 1px border-visible; bottom-sheet adds 16px top radius + handle; soften slide</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">popover.tsx</td><td class="mono">rounded-md bg-popover shadow-md zoom+slide</td><td><code>--surface-raised</code> + 1px border-visible + 8px, NO shadow, fade only</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">dropdown-menu.tsx</td><td class="mono">shadow-md, focus:bg-accent, items ~32px</td><td>surface-raised + 8px, no shadow, 44px items, selected = left 2px <code>--accent</code> bar; destructive item text <code>--danger</code></td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">command.tsx</td><td class="mono">CommandDialog p-0, data-[selected]:bg-accent</td><td>On Nothing modal; selected &rarr; left 2px accent bar + surface-raised row (not full-row tint); 44px rows; input underline border-b</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Feature dialogs, sheets &amp; comboboxes</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Component</th><th>Type</th><th>Nothing pattern</th><th class="num">Effort</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">edit-user-dialog.tsx</td><td>Dialog</td><td>Nothing modal + <code>.field</code> labels + boxed controls; footer secondary Cancel + primary Save; toast&rarr;inline status</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">invite-link-dialog.tsx</td><td>Dialog</td><td>Read-only boxed <code>.control</code>; Copy = <code>.btn--icon</code> secondary; Send = primary; copied feedback inline <code>[COPIED]</code> (not toast)</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">sync/backfill-dialog.tsx</td><td>Dialog</td><td>Trigger ghost btn&rarr;<code>.btn--ghost</code>; date boxed control; result <code>[SAVED]</code>/<code>[ERROR]</code></td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">requests/[id]/approval-dialog.tsx</td><td>Dialog (wide)</td><td>Keep max-w-3xl; preview/source panes 1px border-visible NO bg-muted; labels <code>.label</code>; toast&rarr;inline. dangerouslySetInnerHTML preview stays</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+              <tr><td class="mono path">requests/[id]/rejection-dialog.tsx</td><td>Dialog</td><td>Textarea&rarr;Space Mono control; Send = <code>.btn--destructive</code> (<code>--danger</code>); toast&rarr;inline</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">requests/[id]/completion-dialog.tsx</td><td>Dialog (wide, wizard)</td><td>Keep wide; 2-step nav; Select+Textarea+date Nothing-styled; toast&rarr;inline summary</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+              <tr><td class="mono path">invoices/sync-results-dialog.tsx</td><td>Dialog (wide)</td><td>OutcomeBadge&rarr;<code>.tag</code> border-only (success/warning/accent), NO bg-green/blue/amber/red-100; scrollable <code>.table</code>; secondary Close + primary Apply</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">budget/.../billed-cost-dialog.tsx</td><td>Dialog</td><td>Nothing modal; 4 boxed <code>.control</code>; ghost Cancel + primary Save; inline status</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">settings/license-templates/template-editor-dialog.tsx</td><td>Dialog (max-w-4xl)</td><td>Wide override; 3-col labels <code>.label</code>; preview pane 1px border-visible no fill; warning &rarr; 1px <code>--warning</code> summary (no amber bg); Delete = <code>.btn--destructive</code>; toast&rarr;inline</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+              <tr><td class="mono path">reset-password-dialog.tsx</td><td>AlertDialog</td><td>Nothing alert modal; Checkbox&rarr;Nothing checkbox; Reset = <code>.btn--destructive</code>; chains to InviteLinkDialog; toast&rarr;inline</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">budget/.../delete-billed-cost-dialog.tsx</td><td>AlertDialog</td><td>Remove literal <code>bg-destructive</code> override; destructive Action = <code>.btn--destructive</code> (<code>--danger</code> outline)</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">users/users-table.tsx (in-table)</td><td>AlertDialog &times;2</td><td>Deactivate {name}? + batch Send invites &rarr; inherit alert mapping; Deactivate = <code>--danger</code>; row menu items 44px + accent bar</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">settings/sync/github-member-sync-sheet.tsx</td><td>Sheet (right)</td><td>Nothing sheet; SummaryCards&rarr;<code>.card</code>/stat-rows; conflict box&rarr;1px <code>--danger</code> (no bg tint); Tabs&rarr;<code>.tabs</code>; Tables&rarr;<code>.table</code>; Loader2&rarr;<code>[LOADING…]</code>; toast&rarr;inline. Embeds combobox + inline form + member cards</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+              <tr><td class="mono path">error-popover.tsx</td><td>Popover</td><td>Inline expandable <code>[ERROR: …]</code> status text; or restyle popover surface; no floating reveal</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">user-combobox.tsx</td><td>Popover + Command</td><td>Trigger&rarr;<code>.btn--secondary</code>; selected = left accent bar (not Check tick); single thin chevron; shouldFilter=false preserved</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">user-search-combobox.tsx</td><td>Command</td><td>surface-raised 8px; status Badge&rarr;<code>.tag</code> (no fill); empty&rarr;<code>[TYPE TO SEARCH]</code>; Cancel&rarr;ghost; debounce kept</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">data-table-faceted-filter.tsx</td><td>Popover + Command</td><td>Nothing popover; selected options&rarr;left accent bar; count&rarr;<code>.tag</code>; CheckIcon stroke 1.5</td><td class="num"><span class="eff eff-s">S</span></td></tr>
+              <tr><td class="mono path">DropdownMenu row actions (&times;10)</td><td>DropdownMenu</td><td>users/tools/budget/assignments[/[id]]/claude-users/integrations/ingestion/tool-detail/user-detail &mdash; one primitive fix covers chrome; per-file work is destructive-item + label tweaks</td><td class="num"><span class="eff eff-m">M</span></td></tr>
+              <tr><td class="mono path">ui/sonner.tsx + ~25 call sites</td><td>Global toast</td><td>Remove Toaster; per-surface inline <code>[SAVED]</code>/<code>[ERROR]</code> status with auto-clear + aria-live. Defining change of this subsystem</td><td class="num"><span class="eff eff-l">L</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="callout-title">Wide-modal exception</div>
+          <p>Keep <code>max-w-3xl</code>/<code>max-w-4xl</code> for approval / completion / template-editor /
+            sync-results / member-sync &mdash; these are data-dense 2&ndash;3-column editors, not confirmations.
+            Document as an accepted deviation from the &sect;14 480px modal cap.</p>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           8. PAGE-BY-PAGE MIGRATION (40 routes)
+           ================================================================= -->
+      <section id="pages">
+        <div class="section-head">
+          <span class="label">07</span>
+          <h2 class="heading">Page-by-page migration</h2>
+        </div>
+        <p class="prose">All 40 routes + the AuthGuard access-denied gate, grouped by section, with mapped mockup, effort and notes. Subpages
+          (detail / new / import) included.</p>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Dashboard</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Route</th><th>Key components</th><th>Mockup</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">/ (admin)</td><td>admin-dashboard, budget-hero (SpendProgressBar), this-month-card, kpi-grid, spend-trend-card (Recharts), insights-grid, activity-timeline, jump-to-row</td><td><a href="./mockups/dashboard.html">dashboard.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>1:1 mockup map. Hero&rarr;seg-bar + Doto; at-risk = the one accent (red <code>--danger</code>). Shared SpendProgressBar/Timeline/KpiWithMom/WhatChanged migrate as a unit.</td></tr>
+              <tr><td class="mono path">/ ?as=viewer</td><td>viewer-dashboard, identity-card (SyncCallout), my-usage-card (AreaChart), personal-kpis, my-tools-table, personal-activity, catalog-link-card</td><td class="mono">none (derive)</td><td class="num"><span class="eff eff-l">L</span></td><td>No mockup &mdash; author/sign-off. SyncCallout tinted boxes&rarr;inline status; AreaChart&rarr;line; preview banner&rarr;border/text only.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Tools / Users / Assignments / Requests</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Route</th><th>Key components</th><th>Mockup</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">/tools</td><td>tools-table (DataTable), status/vendor faceted filters, Archive AlertDialog</td><td><a href="./mockups/tools.html">tools.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Inherits shared DataTable re-skin; status Badge&rarr;<code>.tag--success</code> + <code>.led</code>.</td></tr>
+              <tr><td class="mono path">/tools/new</td><td>new-tool-form (RHF, useFieldArray tiers)</td><td><a href="./mockups/tools.html">tools.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Cards&rarr;<code>.card</code>; repeatable tier rows; ALL-CAPS field labels.</td></tr>
+              <tr><td class="mono path">/tools/[id]</td><td>tool-detail-client, Edit form, Archive AlertDialog, Access Tiers + Add/Edit Tier Dialogs (Switch), Change History</td><td><a href="./mockups/tools.html">tools.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Dual edit/read-only; tier dialogs Nothing-styled; history&rarr;<code>.stat-list</code>.</td></tr>
+              <tr><td class="mono path">/users</td><td>users-table (8 cols, 6 faceted filters, discipline icons), batch-invite + deactivate AlertDialogs, ResetPasswordDialog</td><td><a href="./mockups/users.html">users.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Pending users = the single accent hero. <code>.filter-chip</code> promote to nothing.css.</td></tr>
+              <tr><td class="mono path">/users/new</td><td>new-user-form (Selects), InviteLinkDialog on success</td><td><a href="./mockups/users.html">users.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>User Details Card&rarr;<code>.card</code> + <code>.field</code>.</td></tr>
+              <tr><td class="mono path">/users/[id]</td><td>user-detail-client, GitHub Profile Card, Edit form, Reset/Deactivate, Assigned Tools (revoke/reactivate), Assign License Dialog, AdminCostSection (Recharts), Change History</td><td><a href="./mockups/users.html">users.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Large multi-section; API-key reveal/copy preserved; AdminCostSection deferred to charts.</td></tr>
+              <tr><td class="mono path">/users/import</td><td>bulk-import-form (CSV, preview table, Valid/Invalid/Update/New badges, invite links)</td><td><a href="./mockups/users.html">users.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>No red row tint &mdash; error to Status column only; changed cells&rarr;<code>.cell-strong</code>.</td></tr>
+              <tr><td class="mono path">/assignments</td><td>assignments-client (DataTable), Assign License Dialog (UserCombobox + date Popover+Calendar), EditAssignmentDialog (API key reveal), sync-managed Badge+Tooltip, revoke AlertDialog</td><td><a href="./mockups/assignments.html">assignments.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Date popover &rarr; Space Mono date input (documented exception).</td></tr>
+              <tr><td class="mono path">/assignments/[id]</td><td>assignment-detail-client (dual edit/read, tier Select, date Popover+Calendar, API key), Comments (Textarea + counter)</td><td><a href="./mockups/assignments.html">assignments.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Back link&rarr;<code>.back-btn</code>; comments&rarr;<code>.stat-list</code>.</td></tr>
+              <tr><td class="mono path">/assignments/import</td><td>bulk-assignment-import-form (CSV preview, masked API key, server-error notice)</td><td><a href="./mockups/assignments.html">assignments.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>border-destructive bg tint&rarr;inline <code>[ERROR]</code> in Status column.</td></tr>
+              <tr><td class="mono path">/requests</td><td>requests-table, status faceted filter, statusBadge() (rejected=destructive), REQ-### mono links</td><td><a href="./mockups/requests.html">requests.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Rejected stays red <code>--danger</code>; active-row left accent rail.</td></tr>
+              <tr><td class="mono path">/requests/[id]</td><td>request-detail-client, Requester Card, payload (FormPayloadList), Sent messages (border-l-primary + prose), action bar (Approve/Reject/Complete/Cancel), native confirm()</td><td><a href="./mockups/requests.html">requests.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Replace native confirm() with Nothing modal; message left border&rarr;<code>--border-visible</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Budget / Invoices / Reports</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Route</th><th>Key components</th><th>Mockup</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">/budget</td><td>active-budget landing + EmptyBudgetState</td><td><a href="./mockups/budget.html">budget.html</a></td><td class="num"><span class="eff eff-s">S</span></td><td>Empty&rarr;<code>.empty</code>.</td></tr>
+              <tr><td class="mono path">/budget/history</td><td>budget-table (DataTable), back-link</td><td><a href="./mockups/budget.html">budget.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Inherits shared DataTable.</td></tr>
+              <tr><td class="mono path">/budget/new</td><td>new-budget-form (RHF, fiscalYear/totalAmount/periodType Selects)</td><td><a href="./mockups/budget.html">budget.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>periodType&rarr;<code>.segmented</code> (Monthly/Quarterly).</td></tr>
+              <tr><td class="mono path">/budget/[id]</td><td>budget-detail-client, budget-health-hero (MultiMarkerBar), past-month-spotlight, period-allocations-table (inline inputs, sub-rows), 3 dialogs</td><td><a href="./mockups/budget.html">budget.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Multi-marker bar&rarr;seg-bar + legend (hardest piece). Colored row tints&rarr;value/tag only.</td></tr>
+              <tr><td class="mono path">/invoices</td><td>invoices-table (DataTable), Download Tooltip; ADD archived-invoices hero count</td><td><a href="./mockups/invoices.html">invoices.html</a></td><td class="num"><span class="eff eff-s">S</span></td><td>Server must surface total count for the new Doto hero.</td></tr>
+              <tr><td class="mono path">/invoices/new</td><td>invoice-upload-form (file picker, ConfidenceInput low-confidence amber, Duplicate AlertDialog), aria-live</td><td><a href="./mockups/invoices.html">invoices.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Low-confidence underline&rarr;<code>--warning</code>; Loader2&rarr;<code>[LOADING…]</code>; toast&rarr;inline.</td></tr>
+              <tr><td class="mono path">/invoices/bulk</td><td>bulk-upload-form (idle/uploading/reviewing/saving/done/error machine), editable rows, outcome badges, results table</td><td><a href="./mockups/invoices.html">invoices.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>6 states&rarr;<code>[STATUS]</code>; duplicate&rarr;<code>tag--warning</code> (confirm vs accent); skipped rows opacity 0.4.</td></tr>
+              <tr><td class="mono path">/reports (overview)</td><td>reports-nav (tabs), OverviewPanel: KpiWithMom &times;4, BudgetHealthHero, WhatChanged, tool-adoption + spend-by-circle Tables, Sparkline</td><td><a href="./mockups/reports.html">reports.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Tabs NEUTRAL underline. MoM "up" delta flips from red&rarr;<code>tag--active</code>/neutral.</td></tr>
+              <tr><td class="mono path">/reports/budget</td><td>budget-report, at-a-glance (SpendProgressBar), plan-vs-actual-chart + forecast-cumulative-chart (Recharts), per-tool-breakdown, past-month-spotlight</td><td><a href="./mockups/reports.html">reports.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Two Recharts charts re-themed; sub-row bg tints&rarr;surface-raised + indentation.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Copilot / Claude consoles</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Route</th><th>Key components</th><th>Mockup</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">/copilot (Overview)</td><td>copilot-tab-bar, overview-cards (5-up KPI), usage-trend-chart</td><td><a href="./mockups/copilot.html">copilot.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Tabs NEUTRAL underline; Acceptance Rate = Doto hero.</td></tr>
+              <tr><td class="mono path">/copilot/seats</td><td>seats-table (DataTable, avatar+login, plan/status badges)</td><td><a href="./mockups/copilot.html">copilot.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Seat-user cells; badges&rarr;<code>.tag</code>.</td></tr>
+              <tr><td class="mono path">/copilot/seats/[userId]</td><td>seat detail: back btn, avatar, status/plan badges, field grid, Sync History timeline</td><td><a href="./mockups/copilot.html">copilot.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Unmatched amber&rarr;<code>--warning</code> on value; timeline badges&rarr;<code>.tag</code>.</td></tr>
+              <tr><td class="mono path">/copilot/billing</td><td>4 KPI cards, billing-trend-chart, cost-utilization-chart, Monthly Billing Details table</td><td><a href="./mockups/copilot.html">copilot.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Bars&rarr;<code>.hist-bars</code>; dual-axis line re-themed.</td></tr>
+              <tr><td class="mono path">/copilot/analytics</td><td>metrics-freshness-card (amber), language-chart, editor-chart, activity-distribution (DONUT)</td><td><a href="./mockups/copilot.html">copilot.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Donut&rarr;seg-bars/stat-list; freshness amber bg&rarr;border-only <code>.alert</code>.</td></tr>
+              <tr><td class="mono path">/claude (Workspaces)</td><td>claude-tabs, sync-button, global-metrics-client (stacked BarChart + est ghost), historical-trend-card (segmented), org-credits-panel, workspace-budget-list, sync-status-pill</td><td><a href="./mockups/claude.html">claude.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Stacked chart&rarr;CSS columns; 8-color palette&rarr;grey tiers; progress bars&rarr;seg-bars; toasts&rarr;inline.</td></tr>
+              <tr><td class="mono path">/claude/users</td><td>users-month-picker, sync-status-pill, user-kpi-strip, daily-by-user-chart, top-users bar, cost-distribution-histogram, top-movers-chips, bespoke users-table (cmdk filters, Sparkline, Switch)</td><td><a href="./mockups/claude.html">claude.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Month picker&rarr;<code>.mini-select</code>/period-nav; histogram bucket destructive&rarr;<code>--danger</code>.</td></tr>
+              <tr><td class="mono path">/claude/users/[userId]</td><td>user-detail-client (breadcrumb, badges, MonthPicker, pricing-unresolved amber, KpiStrip, daily + model breakdown + top dates, 12-month bars)</td><td><a href="./mockups/claude.html">claude.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>12-month&rarr;<code>.hist-bars</code> with <code>.is-proj</code>.</td></tr>
+              <tr><td class="mono path">/claude/workspaces/[workspaceId]</td><td>workspace-detail-client (breadcrumb, color dot, Default/Over-budget badges, inline limit edit, KpiStrip, daily chart, top users, model breakdown)</td><td><a href="./mockups/claude.html">claude.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Over-budget badge stays warning-toned; projected KPI = the one red interrupt; displayColor kept as dot only.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Settings / Profile</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Route</th><th>Key components</th><th>Mockup</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">/settings/appearance</td><td>3-up theme grid (useThemePreference)</td><td><a href="./mockups/settings.html">settings.html</a></td><td class="num"><span class="eff eff-s">S</span></td><td><code>.theme-grid</code>/<code>.theme-opt</code>; isSaving&rarr;<code>[SAVED]</code>.</td></tr>
+              <tr><td class="mono path">/settings/integrations</td><td>github-integration-client (PAT input, Validate, org Select, Connect/Disconnect AlertDialog), claude-code-status-card</td><td><a href="./mockups/settings.html">settings.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Disconnect = <code>--danger</code>; scopes in <code>.code</code> chips; toast&rarr;inline.</td></tr>
+              <tr><td class="mono path">/settings/sync</td><td>sync-dashboard (polling 30s/5s), scheduled-jobs-table, manual-jobs-table, github-member-sync-sheet, OutcomeBadge, ErrorPopover</td><td><a href="./mockups/settings.html">settings.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Sync hero Doto fraction + seg-bar; Suspense skeleton&rarr;<code>[LOADING…]</code>; live <code>.poll</code> LED.</td></tr>
+              <tr><td class="mono path">/settings/ingestion</td><td>ingestion-filters-section (rules table, Switch, create/edit Dialog, native confirm), ingestion-history-table (DataTable, faceted filters)</td><td><a href="./mockups/settings.html">settings.html</a></td><td class="num"><span class="eff eff-l">L</span></td><td>Blacklist Badge&rarr;neutral <code>tag--tech</code> (not red); confirm()&rarr;Nothing modal.</td></tr>
+              <tr><td class="mono path">/settings/license-templates</td><td>templates-client (per-tool cards, TemplateRow), template-editor-dialog (3-col)</td><td><a href="./mockups/settings.html">settings.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>kind Badges&rarr;neutral tags; wide editor exception.</td></tr>
+              <tr><td class="mono path">/settings/api-preview</td><td>api-preview-client (email/month form, Send, response Badge, Copy JSON, JsonViewer), not-configured Alert</td><td><a href="./mockups/settings.html">settings.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>JSON viewer multi-color&rarr;monochrome; Loader2/toast&rarr;inline.</td></tr>
+              <tr><td class="mono path">/profile</td><td>profile-client, profile-header (avatar, badges), profile-assignments, cost-tracking-section (MonthPicker, CostChart, destructive Alert)</td><td class="mono">none (settings vocab)</td><td class="num"><span class="eff eff-m">M</span></td><td>Avatar&rarr;bordered <code>.avatar</code>; CostChart Nothing-themed; unresolved-pricing&rarr;<code>--warning</code> value.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="label" style="margin-top: var(--space-lg);">Auth</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Route</th><th>Key components</th><th>Mockup</th><th class="num">Effort</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td class="mono path">/login</td><td>(auth)/layout (2-col), login page Card, login-form (RHF, signIn, Alert destructive, Loader2)</td><td><a href="./mockups/login.html">login.html</a></td><td class="num"><span class="eff eff-m">M</span></td><td>Fully mocked; copy scoped <code>.auth-split</code>/<code>.auth-pane</code>; per-route theme toggle; brand panel neutral (not an accent fill). Submit stays white-on-black, NOT the accent.</td></tr>
+              <tr><td class="mono path">/setup-password/[token]</td><td>setup-password page (3 error branches: expired/consumed/invalid), setup-password-form (New/Confirm, success toast)</td><td class="mono">none (login vocab)</td><td class="num"><span class="eff eff-m">M</span></td><td>Toast&rarr;inline <code>[PASSWORD SET]</code>; expired/invalid = <code>--danger</code>, consumed = neutral; tinted chips&rarr;monoline glyphs.</td></tr>
+              <tr><td class="mono path">AuthGuard (Access Denied)</td><td>server gate + admin "Access Denied" Card</td><td class="mono">shell empty</td><td class="num"><span class="eff eff-s">S</span></td><td>&rarr;<code>.empty</code> (informational, no red).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           9. PHASING & SEQUENCING
+           ================================================================= -->
+      <section id="phasing">
+        <div class="section-head">
+          <span class="label">08</span>
+          <h2 class="heading">Phasing &amp; sequencing</h2>
+        </div>
+        <p class="prose">Hard-sequence foundation &rarr; primitives &rarr; shell &rarr; shared-data &rarr;
+          pages &rarr; QA so shared surfaces stabilize before per-page work. shadcn semantic var names stay
+          aliased throughout so primitives never lose color mid-migration.</p>
+
+        <div class="phase">
+          <div class="phase-head"><span class="phase-id">P0</span><span class="heading" style="font-size:var(--subheading);">Foundation: Decisions, Tokens &amp; Fonts</span><span class="eff eff-l">L</span></div>
+          <p class="prose" style="margin:0;">Ratify the brand-accent decision, port the Nothing token layer into <code>globals.css</code> (re-keyed onto next-themes <code>.dark</code>, NOT <code>data-theme</code>), load the three-family font stack via next/font.</p>
+          <dl>
+            <dt>Includes</dt><dd>Design tokens, theming &amp; dark/light · Typography &amp; font loading (Inter &rarr; Doto/Space Grotesk/Space Mono)</dd>
+            <dt>Depends on</dt><dd>&mdash;</dd>
+            <dt>Exit</dt><dd>Full Nothing token set on <code>:root</code>(light)/<code>.dark</code>(dark); <code>--accent</code>=#D71921 single interrupt (errors share it, no decoupling; red verified &ge;4.5:1 text / &ge;3:1 graphical both modes); radii 4/8/14/pill; <code>--ease</code>. shadcn names aliased (no primitive loses color). <code>@theme inline</code> registers font tokens; next/font loads all three (Space Grotesk preloaded, Doto preload:false), Inter removed. Utility classes available. typecheck + build pass; one route smoke-tested both modes, no FOUC.</dd>
+          </dl>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head"><span class="phase-id">P1</span><span class="heading" style="font-size:var(--subheading);">Primitives &amp; Overlays Re-skin</span><span class="eff eff-xl">XL</span></div>
+          <p class="prose" style="margin:0;">Re-skin the 16 control primitives + 6 overlay primitives in place; build shared cross-cutting helpers (inline status-text, <code>[LOADING]</code>, segmented spinner, Nothing dropdown/modal/sheet chrome).</p>
+          <dl>
+            <dt>Includes</dt><dd>shadcn primitives · Overlays · Anti-pattern resolution (toasts/skeletons/banner/date-popovers)</dd>
+            <dt>Depends on</dt><dd>P0</dd>
+            <dt>Exit</dt><dd>All primitives Nothing-styled (pill/underline/flat/no-shadow, Space Mono caps, square greyscale checkbox/switch, border-only tags). Overlays use surface/surface-raised, 1px border-visible, 16/8px, 0.8 backdrop, NO shadow, fade-only, <code>[X]</code> ghost close, left 2px accent on selected. Destructive primitives point at <code>--danger</code> (outline). Shared <code>&lt;StatusText&gt;</code>/<code>useInlineStatus</code> + <code>[LOADING]</code>/spinner documented. Variant collapse reviewed vs call sites. Verified vs tools.html/settings.html both modes; typecheck/lint/build green.</dd>
+          </dl>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head"><span class="phase-id">P2</span><span class="heading" style="font-size:var(--subheading);">App Shell, Sidebar, Topbar &amp; Global Layout</span><span class="eff eff-xl">XL</span></div>
+          <p class="prose" style="margin:0;">Migrate the shell so global chrome is correct and owns the one accent moment. Establish the Topbar contract. Remove global Toaster + AlertBanner from layout.tsx.</p>
+          <dl>
+            <dt>Includes</dt><dd>App shell, sidebar, topbar, breadcrumbs &amp; alert banner</dd>
+            <dt>Depends on</dt><dd>P0, P1</dd>
+            <dt>Exit</dt><dd>CSS-grid <code>.app</code> with re-skinned shadcn sidebar machinery preserved (Cmd+B, cookie, mobile Sheet/useIsMobile); ALL-CAPS nav with 2px red active bar; AI·HUB wordmark + dot; user chip + Sign Out; segmented toggle wired to next-themes (System retained). Topbar exposes eyebrow+title+actions + mobile SidebarTrigger (net-new, approved). Global Toaster removed; AlertBanner&rarr;flat bordered status box (red critical / amber approaching) keeping aria-live + dismiss. Breadcrumb folded into eyebrow. Verified vs every shared shell both modes + mobile; build green.</dd>
+          </dl>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head"><span class="phase-id">P3</span><span class="heading" style="font-size:var(--subheading);">Shared Data Layer: Tables &amp; Charts</span><span class="eff eff-xl">XL</span></div>
+          <p class="prose" style="margin:0;">Re-skin the shared DataTable + ui/table + column header + faceted filters ONCE (cascades to ~9 tables); migrate the shared Recharts wrapper + shared viz (SpendProgressBar&rarr;seg-bar, Sparkline consolidation, Timeline, KpiWithMom, WhatChanged, budget-health-hero). Resolve re-theme-vs-rebuild.</p>
+          <dl>
+            <dt>Includes</dt><dd>Data tables (TanStack) &amp; filters · Charts (Recharts) &amp; data viz</dd>
+            <dt>Depends on</dt><dd>P0, P1, P2</dd>
+            <dt>Exit</dt><dd>Tables: label headers, <code>--border</code> dividers (no zebra), <code>.num</code> mono right, <code>.cell-strong</code>, hover=surface, active row=surface-raised + 2px left accent; search=<code>.search</code>; pager=segmented+period-nav. OutcomeBadge/status&rarr;<code>.tag</code>/<code>.led</code> (failed=red). Chart wrapper: horizontal-only grid, mono axes, shadowless tooltip, no legend boxes, monochrome ramp (opacity&gt;pattern&gt;color), red for one over/active series. SpendProgressBar&rarr;seg-bar; one canonical Sparkline; donut + area replacements signed off. Re-theme-vs-rebuild decided per family. Verified both modes (red strokes pass in light).</dd>
+          </dl>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head"><span class="phase-id">P4</span><span class="heading" style="font-size:var(--subheading);">Page Migration by Section</span><span class="eff eff-xl">XL</span></div>
+          <p class="prose" style="margin:0;">Migrate route content for all feature areas. Sequence by risk: Auth first (most-referenced, mocked), then Dashboards, then CRUD list/detail, then the chart-heavy financial + console screens.</p>
+          <dl>
+            <dt>Includes</dt><dd>Auth · Dashboards (admin+viewer) · Tools/Users/Assignments/Requests · Budget/Invoices/Reports · Copilot/Claude · Settings/Profile</dd>
+            <dt>Depends on</dt><dd>P0, P1, P2, P3</dd>
+            <dt>Exit</dt><dd>All ~40 routes Nothing-correct in both modes vs mockups; viewer + setup-password composed/signed off. Every former toast is inline <code>[SAVED]</code>/<code>[ERROR]</code> with aria-live; every skeleton/loading.tsx is <code>[LOADING]</code>; no red row/tinted-bg statuses (value text only); exactly one accent interrupt per screen audited; native confirm() replaced; JSON viewer monochrome. Per-section typecheck/lint/build green.</dd>
+          </dl>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head"><span class="phase-id">P5</span><span class="heading" style="font-size:var(--subheading);">Anti-pattern Sweep, A11y &amp; Visual QA Gate</span><span class="eff eff-l">L</span></div>
+          <p class="prose" style="margin:0;">Final cross-cutting verification: zero orphaned toasts/skeletons/shadows/zebra/calendar-popovers; automated contrast/a11y (the single red accent in both modes); mockup-fidelity visual regression across all routes in both themes + mobile; no stale oklch leaks in edge states. Gate before merge.</p>
+          <dl>
+            <dt>Includes</dt><dd>Anti-pattern resolution · All subsystems (verification pass)</dd>
+            <dt>Depends on</dt><dd>P4</dd>
+            <dt>Exit</dt><dd>Lint/grep gate: zero <code>toast.*</code>/sonner imports, zero <code>&lt;Skeleton&gt;</code>/animate-pulse, zero <code>shadow-*</code> on chrome, zero calendar popovers except sanctioned exceptions. axe + Lighthouse pass; WCAG check confirms the red accent and amber/green status pass &ge;4.5:1 text / &ge;3:1 graphical in both modes, and no screen shows more than one red region. Visual regression matches mockups across 40 routes in dark+light+mobile. "One accent interrupt per screen" audited. Full typecheck/lint/build/test green; ready to merge as one coordinated replacement.</dd>
+          </dl>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           10. RISKS & MITIGATIONS
+           ================================================================= -->
+      <section id="risks">
+        <div class="section-head">
+          <span class="label">09</span>
+          <h2 class="heading">Risks &amp; mitigations</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Risk</th><th class="num">Severity</th><th>Mitigation</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="cell-strong">One-red-per-screen at scale — accent and error/destructive share #D71921, so a screen with BOTH an active/selected state AND an error or destructive surface can show two reds, breaking the "single interrupt" rule. Most acute in the error-heavy console/sync/dialog flows.</td>
+                <td class="num"><span class="sev sev-medium">Medium</span></td>
+                <td>Make it a hard checklist item in P4/P5: exactly one red region per screen. When an error is present, IT is the red moment &mdash; render the active-nav / active-row / tab indicator in neutral <code>--text-display</code> on that view. The consistency sweep that cleared the mockups (neutral in-content tabs) is the template; the P5 manual audit asserts the per-route count in both modes.</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Recharts theming effort — ~20 Recharts components + 2 sparklines must go monochrome (square bars, no area fill, no legend boxes, direct labels, mono axes, shadowless tooltips). Mockups render many as pure CSS/inline-SVG (no 1:1 map); pies/donut + area are bans needing redesign.</td>
+                <td class="num"><span class="sev sev-high">High</span></td>
+                <td>P3 gate per chart family: re-theme the shared wrapper once; keep Recharts for line/bar; rebuild only donut (&rarr;segmented/stacked-proportion) and area (&rarr;line). Shared <code>getCategoryStyle(rank)</code> (opacity&gt;pattern&gt;color); delete duplicated 8-color palettes. Verify both modes; the red accent strokes pass in light (no darkened variant).</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Removing Sonner is app-wide behavioral — ~183 <code>toast.*</code> sites / 39 files are the ONLY success/error feedback (incl. multi-event "sent 12 of 15", bulk created/updated/skipped/failed). Naive removal = silent failures + lost screen-reader announcements.</td>
+                <td class="num"><span class="sev sev-high">High</span></td>
+                <td>Build ONE shared inline-status primitive (StatusText/useInlineStatus, aria-live=polite) in P1 BEFORE touching call sites; remove the global Toaster only in P2 once it exists. Per-form placement convention + inline summary-box for bulk outcomes. P5 lint/grep gate asserts zero remaining sonner imports/toast.* calls.</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Font FOUT/CLS &amp; loading — three families via the mockup's render-blocking @import would reintroduce FOUT/CLS + payload; Inter&rarr;Space Grotesk/Mono glyph-width changes can overflow tight UI; Doto variable axis may be unreliable in next/font.</td>
+                <td class="num"><span class="sev sev-medium">Medium</span></td>
+                <td>Use next/font/google per family (self-hosted, auto fallback metrics), NOT @import; display:'swap', preload Space Grotesk only, preload:false on Doto/Space Mono. Pin Doto weights ['400','500','700'] if the axis misbehaves; validate hero rendering. Define both <code>--font-sans</code> and <code>--font-ui</code> (aliased). Screenshot-diff key routes for width overflow.</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Reconciling theme strategy — app authors LIGHT as <code>:root</code> default + <code>.dark</code> via class; nothing.css authors DARK as <code>:root</code> + <code>data-theme=light</code>. Mis-mapping inverts colors. Also <code>--primary</code>==<code>--ring</code>==<code>--chart-1</code>==<code>--sidebar-primary</code>, so the accent change recolors buttons/rings/sidebar-active/primary-chart at once. Toggle is 2-state in mockup vs 3-state in app.</td>
+                <td class="num"><span class="sev sev-medium">Medium</span></td>
+                <td>Re-key nothing.css value sets onto the existing <code>:root</code>(light)/<code>.dark</code>(dark) selectors (don't copy data-theme). Keep attribute=class + System. Change primary/ring/chart-1/sidebar-primary in one coordinated edit and verify all four surfaces together. Wire the segmented toggle to next-themes (not theme.js); <code>suppressHydrationWarning</code> guards FOUC.</td>
+              </tr>
+              <tr>
+                <td class="cell-strong">Scope/regression across ~40 routes — shared blast radius: tokens (every screen), 16 primitives (every screen), shared DataTable (~9 tables), shared viz (SpendProgressBar/Timeline/KpiWithMom/WhatChanged used by dashboard AND reports AND claude). One bad shared rule regresses the whole app; cannot ship incrementally per page.</td>
+                <td class="num"><span class="sev sev-high">High</span></td>
+                <td>Hard-sequence P0&rarr;P4 so shared surfaces stabilize before page work. Keep shadcn var names aliased so primitives never lose color mid-migration. Migrate shared viz as a single unit and regression-test ALL consumers. Mockup-based visual regression from P1 onward + final P5 cross-route gate in both themes + mobile before the single-shot merge.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           11. TESTING & VERIFICATION
+           ================================================================= -->
+      <section id="testing">
+        <div class="section-head">
+          <span class="label">10</span>
+          <h2 class="heading">Testing &amp; verification</h2>
+        </div>
+        <ul class="bullets prose">
+          <li><strong>Per-phase build gates:</strong> run <code>pnpm typecheck</code>, <code>pnpm lint</code> (zero warnings) and <code>pnpm build</code> at the end of every phase and before merging any P4 page-section batch. A red gate is blocking; no phase advances until its predecessor is green.</li>
+          <li><strong>Mockup-fidelity visual regression:</strong> use the <code>chrome-devtools</code> / <code>playwright-skill</code> to render each migrated route at desktop + mobile widths in BOTH themes and diff against the matching <code>mockups/*.html</code>. Build the harness in P1 (primitives vs tools.html/settings.html); run cumulatively through P4/P5.</li>
+          <li><strong>Auth-gated coverage:</strong> use the <code>agent-browser-session</code> skill to mint a NextAuth session cookie for the seeded agent user so the browser reaches every non-public route without the /login flow. Respect the agent deny-list (no DELETE /api/users, invite, reset-password, etc.). Test login.html / setup-password directly via the public routes.</li>
+          <li><strong>Automated a11y + contrast:</strong> run Lighthouse (<code>lighthouse_audit</code>) and axe (<code>chrome-devtools a11y-debugging</code> skill) on representative routes in BOTH themes, with a SPECIFIC assertion that the red accent <code>#D71921</code> and the amber/green status colors meet &ge;4.5:1 text / &ge;3:1 graphical in both modes, and that no screen shows more than one red region. Verify focus rings/borders, tap targets (44px vs sanctioned 32px compact icon-btn), keyboard nav.</li>
+          <li><strong>Anti-pattern grep/lint gate (P5):</strong> assert zero remaining <code>from "sonner"</code> / <code>toast.</code> sites, zero <code>&lt;Skeleton&gt;</code>/animate-pulse, zero <code>shadow-*</code> on chrome, zero zebra striping, zero calendar popovers except documented exceptions, zero stale oklch leaks in edge states (rails/disabled/focus/skeleton). Confirm exactly one accent interrupt per screen via a manual checklist.</li>
+          <li><strong>Shared-component regression sweeps:</strong> after P1 and P3, re-test EVERY consumer route of each shared component (not just one) — e.g. verify the DataTable re-skin against tools/users/assignments/copilot-seats/ingestion/invoices simultaneously, and seg-bar/timeline/KPI against dashboard+reports+claude.</li>
+          <li><strong>Functional behavior preservation:</strong> confirm API-key reveal/copy stays masked-by-default, RHF/Zod still fires (<code>.field.is-error</code>/<code>.error-msg</code>), TanStack sort/filter/pagination works, sync polling (30s/5s) updates rows with the new live LED, theme toggle persists to DB without FOUC, and bulk import/invite multi-event outcomes surface via the inline summary-box pattern.</li>
+        </ul>
+      </section>
+
+      <!-- =================================================================
+           12. ROLLOUT & EFFORT
+           ================================================================= -->
+      <section id="rollout">
+        <div class="section-head">
+          <span class="label">11</span>
+          <h2 class="heading">Rollout &amp; effort</h2>
+        </div>
+
+        <h3 class="subheading" style="margin-top: var(--space-md);">Rollout strategy</h3>
+        <p class="prose">Execute the entire migration on a single long-lived feature branch (off main) as a
+          coordinated full replacement &mdash; the goal is a complete swap, and the shared-surface blast radius
+          (tokens, 16 primitives, shared DataTable, shared viz) makes true page-by-page production rollout
+          impossible without leaving the app half-styled. Within the branch, sequence strictly P0&rarr;P5 so
+          foundation stabilizes before consumers.</p>
+        <ul class="bullets prose">
+          <li><strong>No broken middle:</strong> because next-themes is class-based and shadcn var names are aliased to Nothing tokens, author the Nothing token VALUES so the app compiles and renders at every commit. Keep the old oklch values reachable behind a build flag / scoped wrapper class until P5 to A/B against mockups and bail per-surface if a shared edit regresses.</li>
+          <li><strong>No permanent dual theme:</strong> do NOT ship a user-facing "classic vs nothing" toggle (doubles maintenance, contradicts full-replacement). The parallel theme is a dev-time scaffold only, removed before merge.</li>
+          <li><strong>Preview review:</strong> land the branch behind a Vercel preview so reviewers click through all ~40 routes (agent-browser-session cookie) in both themes before merge.</li>
+          <li><strong>Single merge:</strong> merge to main as one squashed/coordinated PR only after the P5 gate (visual regression + a11y/contrast + grep gate + green build) passes; no interim commits to main. Per project memory, if any gh-aw workflow files are touched, recompile <code>lock.yml</code> in the same commit (not expected here).</li>
+        </ul>
+
+        <h3 class="subheading" style="margin-top: var(--space-2xl);">Sequencing notes</h3>
+        <p class="prose">P0 (tokens+fonts) is foundational for EVERYTHING and lands first; the accent decision is
+          settled (Nothing red #D71921, errors share it), so token values can be written without further sign-off.
+          P1 (primitives+overlays) precedes shell/pages because ~30 components import the primitives; the
+          shared inline-status + <code>[LOADING]</code> helpers are built here. P2 (shell) precedes pages
+          because it removes the global Toaster/AlertBanner, defines the Topbar contract, and owns the single
+          red active-nav accent so in-content tabs stay NEUTRAL. P3 (shared tables + chart wrapper + shared
+          viz) precedes pages because ~9 tables and 6 dashboard/reports/console screens inherit from them. P4
+          (pages) is ordered Auth &rarr; Dashboards &rarr; CRUD &rarr; financial/console (which stress P3
+          hardest). P5 is the cross-cutting cleanup + QA gate.</p>
+        <p class="prose"><strong>Cross-cutting decisions to lock at P0/P1</strong> so they don't churn: accent =
+          Nothing red #D71921 as the single per-screen interrupt, shared by destructive/error (no separate danger
+          color, no darkened variant &mdash; red passes both modes); keep next-themes class strategy +
+          System; full toast removal via inline status; full skeleton removal via <code>[LOADING]</code>;
+          period-nav vs Space-Mono date input for single-date pickers; wide-modal exception
+          (<code>max-w-3xl</code>/<code>4xl</code>) for data-dense editors; sanctioned 32px compact icon-btn in
+          dense tables. <strong>The pleasant surprise:</strong> the app ALREADY ships red as <code>--destructive</code>,
+          so the Nothing red accent reuses an existing token while the green <code>--primary</code> collapses to greyscale.</p>
+
+        <h3 class="subheading" style="margin-top: var(--space-2xl);">Total effort</h3>
+        <div class="card card--raised" style="margin-top: var(--space-md);">
+          <div class="stat-list">
+            <div class="stat-row"><span class="label">P0 · Foundation</span><span class="value"><span class="eff eff-l">L</span></span></div>
+            <div class="stat-row"><span class="label">P1 · Primitives + Overlays</span><span class="value"><span class="eff eff-xl">XL</span></span></div>
+            <div class="stat-row"><span class="label">P2 · Shell</span><span class="value"><span class="eff eff-xl">XL</span></span></div>
+            <div class="stat-row"><span class="label">P3 · Shared Tables + Charts</span><span class="value"><span class="eff eff-xl">XL</span></span></div>
+            <div class="stat-row"><span class="label">P4 · Page Migration (largest by volume)</span><span class="value"><span class="eff eff-xl">XL</span></span></div>
+            <div class="stat-row"><span class="label">P5 · QA gate</span><span class="value"><span class="eff eff-l">L</span></span></div>
+            <div class="stat-row"><span class="label t-display">TOTAL</span><span class="value value--accent">XL · multi-week, focused team</span></div>
+          </div>
+        </div>
+        <p class="prose" style="margin-top: var(--space-lg);">A full-app redesign across ~40 routes and 14
+          subsystems. Dominant cost drivers: ~183 toast call sites (app-wide behavioral refactor), ~20 Recharts
+          components (re-theme/rebuild), and the page-by-page Card&rarr;<code>.card</code> /
+          status&rarr;<code>.tag</code> / form&rarr;<code>.field</code> conversion across every route.
+          De-risked substantially by (a) complete on-contract mockups for 12 screens + nothing.css shipping
+          nearly every needed class, and (b) the app already shipping red as <code>--destructive</code>, so the accent reuses an existing
+          token while the green <code>--primary</code> collapses to greyscale.
+          ~60% of the leverage lands from a handful of shared-surface edits (P0&ndash;P3).</p>
+      </section>
+
+      <div class="divider"></div>
+      <p class="caption t-disabled">AI Developer Hub · Spec 028 — Nothing Design Redesign · Implementation Plan ·
+        Styled with the Nothing design system (tokens only). Dark default; flip the toggle top-right.</p>
+    </main>
+  </div>
+</body>
+</html>
