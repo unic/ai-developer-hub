@@ -180,6 +180,46 @@
     }
 }
 
+/* ---------------------------------------------------------------------------
+   Namespaced Nothing helpers (nd-*) — collision-safe globals for idioms that
+   are awkward as pure Tailwind utilities. Component classes live as React
+   components; only these few mechanical bits are global.
+   --------------------------------------------------------------------------- */
+@layer components {
+  /* Dot-matrix motif — subtle background texture for empty/auth/hero surfaces. */
+  .nd-dot-grid {
+    background-image: radial-gradient(
+      circle,
+      var(--input) 1px,
+      transparent 1px
+    );
+    background-size: 16px 16px;
+  }
+
+  /* Hardware-style segmented spinner — replaces skeleton shimmer / animate-pulse. */
+  .nd-seg-spinner {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+  .nd-seg-spinner > i {
+    width: 4px;
+    height: 12px;
+    background: var(--ink);
+    opacity: 0.2;
+    animation: nd-seg-pulse 1.1s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+  }
+  .nd-seg-spinner > i:nth-child(2) { animation-delay: 0.12s; }
+  .nd-seg-spinner > i:nth-child(3) { animation-delay: 0.24s; }
+  .nd-seg-spinner > i:nth-child(4) { animation-delay: 0.36s; }
+  .nd-seg-spinner > i:nth-child(5) { animation-delay: 0.48s; }
+}
+
+@keyframes nd-seg-pulse {
+  0%, 100% { opacity: 0.18; }
+  45% { opacity: 1; }
+}
+
 /* ── Reduced Motion Kill-Switch ── */
 
 @media (prefers-reduced-motion: reduce) {

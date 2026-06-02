@@ -3,11 +3,6 @@ import { Space_Grotesk, Space_Mono, Doto } from "next/font/google";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { isPublicPath } from "@/lib/routes";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
@@ -71,19 +66,18 @@ export default async function RootLayout({
         >
           <SessionProvider session={session}>
             {showSidebar ? (
-              <SidebarProvider>
+              <div className="min-h-screen md:grid md:grid-cols-[248px_1fr]">
                 <AppSidebar
                   userName={session?.user?.name ?? null}
                   userRole={session?.user?.role ?? null}
                 />
-                <SidebarInset>
-                  <header className="flex h-14 items-center gap-2 border-b px-4">
-                    <SidebarTrigger />
-                  </header>
+                <div className="flex min-w-0 flex-col">
                   <AlertBanner alerts={alerts} />
-                  <main className="flex-1 p-4 sm:p-6">{children}</main>
-                </SidebarInset>
-              </SidebarProvider>
+                  <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 py-6 sm:px-8 sm:py-10">
+                    {children}
+                  </main>
+                </div>
+              </div>
             ) : (
               children
             )}
