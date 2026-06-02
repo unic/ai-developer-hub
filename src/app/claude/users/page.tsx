@@ -16,7 +16,7 @@ import { SyncButton } from "@/components/claude/sync-button";
 import { SyncStatusPill } from "@/components/claude/sync-status-pill";
 import { UsersMonthPicker } from "@/components/claude/users-month-picker";
 import { UserKpiStrip } from "@/components/claude/user-kpi-strip";
-import { TopUsersBarChart } from "@/components/claude/top-users-bar-chart";
+import { TopUsersCard } from "@/components/claude/top-users-card";
 import { CostDistributionHistogram } from "@/components/claude/cost-distribution-histogram";
 import { DailyByUserChart } from "@/components/claude/daily-by-user-chart";
 import { UsersTable } from "@/components/claude/users-table";
@@ -118,14 +118,7 @@ export default async function ClaudeUsersPage({
           Top 10 moves below it. */}
       <DailyByUserChart data={daily} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Top 10 Users by Cost</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TopUsersBarChart users={list.users} />
-        </CardContent>
-      </Card>
+      <TopUsersCard users={list.users} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CostDistributionHistogram buckets={distribution} />

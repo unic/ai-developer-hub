@@ -33,12 +33,19 @@ const config: ChartConfig = {
 /**
  * Horizontal Top-10 users by cost bar chart.
  *
- * - Bar colour: user's resolved workspace `display_color` when available,
- *   otherwise a spectral palette colour indexed by rank, otherwise muted grey
- *   for users without a workspace at all.
+ * - Bar colour: monochrome ink by default (Nothing — rank is already encoded by
+ *   length + order). When `useDbColors` is on (the card's "Use workspace colors"
+ *   toggle), bars use the user's resolved workspace `display_color`, falling back
+ *   to a greyscale rank ramp / muted grey.
  * - Click navigates to the per-user drill page at `/claude/users/N`.
  */
-export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
+export function TopUsersBarChart({
+  users,
+  useDbColors = false,
+}: {
+  users: UserListRow[];
+  useDbColors?: boolean;
+}) {
   const router = useRouter();
   const top = users.filter((u) => u.costCents > 0).slice(0, 10);
 
@@ -54,7 +61,7 @@ export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
     userId: u.userId,
     label: u.name || u.email,
     cost: u.costCents / 100,
-    fill: resolveBarColor(u, idx),
+    fill: resolveBarColor(u, idx, useDbColors),
   }));
 
   // Match the chart height to the bar count for readable horizontal layout.
@@ -110,7 +117,13 @@ export function TopUsersBarChart({ users }: { users: UserListRow[] }) {
   );
 }
 
-function resolveBarColor(user: UserListRow, idx: number): string {
+function resolveBarColor(
+  user: UserListRow,
+  idx: number,
+  useDbColors: boolean
+): string {
+  // Monochrome default — uniform ink; rank is already shown by bar length/order.
+  if (!useDbColors) return "var(--chart-1)";
   if (user.workspaceColor && user.workspaceColor.trim()) {
     return user.workspaceColor;
   }
