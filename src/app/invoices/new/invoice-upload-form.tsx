@@ -285,7 +285,13 @@ export function InvoiceUploadForm() {
         return;
       }
 
-      // Success navigates to /invoices — navigation is the feedback.
+      // Surface the budget-link caveat on the page-level status (the dialog is
+      // closing in `finally`) rather than losing it on navigation.
+      if (result.linkWarning) {
+        status.set("info", result.linkWarning, { autoClearMs: 0 });
+        return;
+      }
+      // Clean overwrite navigates to /invoices — navigation is the feedback.
       router.push("/invoices");
     } catch {
       dupStatus.error("Overwrite failed");
@@ -313,7 +319,15 @@ export function InvoiceUploadForm() {
       status.error(result.error);
       return;
     }
-    // Success navigates to /invoices — navigation is the feedback.
+    // Surface budget-link / filter caveats inline (the toast that used to carry
+    // these was removed in the redesign) and stay on the page so the notice is
+    // read instead of lost on navigation. A clean save navigates — navigation
+    // is the feedback.
+    const notice = result.linkWarning ?? result.filterWarning;
+    if (notice) {
+      status.set("info", notice, { autoClearMs: 0 });
+      return;
+    }
     router.push("/invoices");
   };
 

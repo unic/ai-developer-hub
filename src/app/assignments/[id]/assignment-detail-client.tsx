@@ -132,6 +132,9 @@ export function AssignmentDetailClient({
     } finally {
       setLoadingTiers(false);
     }
+    // detailStatus is now a memoized object (stable unless its status changes),
+    // so this callback no longer churns every render and the mount effect runs
+    // once instead of looping.
   }, [assignment.tool.id, detailStatus]);
 
   useEffect(() => {

@@ -119,6 +119,7 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
     try {
       const result = await triggerSync("invoice_period_matching");
       if (result.success) {
+        status.ok("Sync started");
         setDryRunDialogOpen(false);
         setDryRunResult(null);
         router.refresh();

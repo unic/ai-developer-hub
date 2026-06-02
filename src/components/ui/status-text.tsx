@@ -124,5 +124,12 @@ export function useInlineStatus(autoClearMs = 4000): UseInlineStatusReturn {
 
   React.useEffect(() => clearTimer, [clearTimer]);
 
-  return { status, set, ok, error, info, pending, clear };
+  // Stable return identity (the methods are already useCallback'd, so this only
+  // changes when `status` changes). Without this, the fresh object literal each
+  // render makes consumers that list the hook result in a useCallback/useEffect
+  // dependency array churn every render — which can spin into an infinite loop.
+  return React.useMemo(
+    () => ({ status, set, ok, error, info, pending, clear }),
+    [status, set, ok, error, info, pending, clear]
+  );
 }
