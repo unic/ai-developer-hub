@@ -78,8 +78,10 @@ function NavLinks({
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative rounded-[4px] px-2 py-2.5 font-mono text-[11px] tracking-[0.1em] uppercase transition-colors",
-              active ? "text-ink" : "text-faint hover:text-foreground"
+              "relative rounded-[4px] px-2 py-2.5 font-mono text-xs tracking-[0.1em] uppercase transition-colors",
+              active
+                ? "text-ink"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {active ? (
@@ -122,7 +124,7 @@ function Footer({
       <button
         type="button"
         onClick={() => signOut({ callbackUrl: "/login" })}
-        className="rounded-[4px] px-2 py-2.5 text-left font-mono text-[11px] tracking-[0.1em] uppercase text-faint transition-colors hover:text-foreground"
+        className="rounded-[4px] px-2 py-2.5 text-left font-mono text-xs tracking-[0.1em] uppercase text-muted-foreground transition-colors hover:text-foreground"
       >
         Sign Out
       </button>
