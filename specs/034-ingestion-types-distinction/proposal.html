@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Distinguishing Ingestion Types — AI Developer Hub</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;
+      --accent-3: #f0abfc;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 34px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; overflow-x: auto; color: var(--fg-muted); margin: 12px 0; }
+    pre .kw { color: var(--accent-2); }
+    pre .str { color: var(--good); }
+    pre .com { color: var(--fg-dim); }
+    pre .em { color: var(--fg); }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 820px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .badge.warn { color: var(--warn); border-color: rgba(252,211,77,0.3); }
+    .badge.bad  { color: var(--bad);  border-color: rgba(252,165,165,0.3); }
+    .badge.accent { color: var(--accent); border-color: rgba(125,211,252,0.3); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .card.accent-3 { border-left: 3px solid var(--good); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row.between { justify-content: space-between; }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    tr:hover td { background: rgba(255,255,255,0.015); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.good { background: rgba(134,239,172,0.12); color: var(--good); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.bad  { background: rgba(252,165,165,0.12); color: var(--bad);  }
+    .pill.accent { background: rgba(125,211,252,0.12); color: var(--accent); }
+    .pill.accent-2 { background: rgba(167,139,250,0.12); color: var(--accent-2); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent); background: rgba(125,211,252,0.04); }
+    .callout.bad { border-left-color: var(--bad); background: rgba(252,165,165,0.04); }
+    .callout.good { border-left-color: var(--good); background: rgba(134,239,172,0.04); }
+    .step { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 8px 0; align-items: start; }
+    .step-num { font-family: var(--mono); font-size: 12px; color: var(--fg-dim); padding-top: 2px; }
+    .step-body { font-size: 14px; }
+    .step-body strong { color: var(--fg); font-weight: 600; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 16px; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+    .mono-sm { font-family: var(--mono); font-size: 12px; color: var(--fg-dim); }
+    .recommend { border: 1px solid rgba(134,239,172,0.35); background: rgba(134,239,172,0.04); border-radius: 12px; padding: 20px 24px; margin: 16px 0; }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+    .toc { font-size: 13.5px; columns: 2; column-gap: 32px; }
+    .toc a { color: var(--fg-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Proposal</span>
+    <span class="badge accent">spec/034-ingestion-types-distinction</span>
+    <span class="badge warn">Draft for review</span>
+  </div>
+  <h1>Telling ingestion types apart</h1>
+  <p class="lede">
+    The Hub already ingests two fundamentally different kinds of thing through one shared pipe, and a third class is
+    on the horizon. Right now they share a table, a history table, an activity feed and a settings tab — and the
+    columns assume <em>"invoice"</em>. This document analyses how the conflation came to be, the concrete problems it
+    causes today, and proposes a discriminated, future-proof model so each ingestion type carries its own meaning.
+  </p>
+  <p class="meta">Drafted 2026-06-03 · author: T. Studer · status: draft · branch: claude/injection-types-distinction-Xcf9K</p>
+</header>
+
+<div class="card" style="margin-top: 24px;">
+  <h4 style="margin-top:0;">Contents</h4>
+  <div class="toc">
+    <a href="#tldr">1. TL;DR</a><br/>
+    <a href="#types">2. The two ingestion types today</a><br/>
+    <a href="#shared">3. Where they're conflated</a><br/>
+    <a href="#overload">4. The schema overload (and its bugs)</a><br/>
+    <a href="#future">5. Future ingestions on the horizon</a><br/>
+    <a href="#goals">6. Goals &amp; non-goals</a><br/>
+    <a href="#options">7. Design options</a><br/>
+    <a href="#recommendation">8. Recommended model</a><br/>
+    <a href="#schema">9. Proposed schema</a><br/>
+    <a href="#ui">10. Proposed UI</a><br/>
+    <a href="#registry">11. The ingestion-type registry</a><br/>
+    <a href="#migration">12. Migration &amp; rollout phases</a><br/>
+    <a href="#open">13. Open questions</a>
+  </div>
+</div>
+
+<!-- ───────────────────────────── TL;DR ───────────────────────────── -->
+<h2 id="tldr">1. TL;DR</h2>
+
+<div class="recommend">
+  <p style="margin:0 0 8px;"><strong>The problem.</strong> <code>ingestion_log</code> was built for invoices, then license requests
+  (the "new request for a user" flow from Microsoft Forms) were squeezed into the same table by
+  <em>overloading</em> invoice columns. The Settings → Ingestion history table and the dashboard activity feed both render
+  invoice semantics (Document ID, Vendor, Amount, "Download document"), so a license request shows up as a half-empty,
+  partly-wrong invoice row.</p>
+  <p style="margin:0;"><strong>The proposal.</strong> Introduce a first-class <code>ingestion_kind</code> discriminator and an
+  <code>ingestion_source_type</code>, move type-specific fields into a JSONB <code>details</code> payload, and drive the UI from a
+  small <strong>ingestion-type registry</strong> so each kind brings its own columns, badges, label and drill-through link.
+  Adding a future ingestion type becomes a registry entry, not a schema migration plus four UI edits.</p>
+</div>
+
+<!-- ───────────────────────────── TYPES ───────────────────────────── -->
+<h2 id="types">2. The two ingestion types today</h2>
+
+<div class="grid-2">
+  <div class="card accent">
+    <div class="row"><span class="pill accent">Type A</span><h3 style="margin:0;">Invoice / document ingestion</h3></div>
+    <p class="mono-sm">specs 007 · 023 · 024 · 019</p>
+    <p>A PDF arrives, gets OCR-extracted (vendor, invoice number, date, amount), is stored in R2, run through
+    the ingestion <em>filters</em>, and — if it passes — linked to a budget period as a billed cost. <strong>This adds money to
+    the budget / expenses.</strong></p>
+    <h4>Channels</h4>
+    <div class="tag-list">
+      <span class="pill neutral">manual (UI form)</span>
+      <span class="pill neutral">bulk (multi-file UI)</span>
+      <span class="pill neutral">api (POST /api/invoices/ingest)</span>
+    </div>
+    <h4>Carries</h4>
+    <p class="mono-sm">filename · vendor · invoice_number · invoice_date · amount_cents · blob_pathname · linked_invoice_id</p>
+  </div>
+
+  <div class="card accent-2">
+    <div class="row"><span class="pill accent-2">Type B</span><h3 style="margin:0;">License-request ingestion</h3></div>
+    <p class="mono-sm">spec 032-automation-workflow</p>
+    <p>A Microsoft Form is submitted, Power Automate forwards the JSON to the Hub, which creates a
+    <code>license_requests</code> row, matches the requester &amp; tool, and posts a Teams adaptive card. <strong>This adds a
+    pending request for a person to get a tool</strong> — no money, no budget.</p>
+    <h4>Channels</h4>
+    <div class="tag-list">
+      <span class="pill neutral">api (POST /api/license-requests/ingest)</span>
+    </div>
+    <h4>Carries</h4>
+    <p class="mono-sm">form_response_id · requester_email · requester_name · requested_tool · requested_tier · teams ids</p>
+  </div>
+</div>
+
+<div class="callout info">
+  <strong>They share almost nothing.</strong> The only common shape is "an external event arrived, we tried to process it,
+  it succeeded or failed, and we want an audit trail." Everything else — the fields, the drill-through target, the meaning
+  of the outcomes — differs. Yet both write to one table and render through one component.
+</div>
+
+<!-- ───────────────────────────── SHARED ───────────────────────────── -->
+<h2 id="shared">3. Where they're conflated</h2>
+
+<table>
+  <thead>
+    <tr><th>Surface</th><th>File</th><th>What it assumes</th><th>Effect on license requests</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Audit table</strong></td>
+      <td><code>src/lib/db/schema.ts</code> → <code>ingestion_log</code></td>
+      <td>Invoice-shaped columns</td>
+      <td><span class="pill warn">overloaded</span> form id stuffed into <code>invoice_number</code></td>
+    </tr>
+    <tr>
+      <td><strong>History table</strong></td>
+      <td><code>settings/ingestion/ingestion-history-table.tsx</code></td>
+      <td>Columns: Document ID, Vendor, Amount, Download</td>
+      <td><span class="pill bad">mostly blank / wrong</span> vendor "Unknown", amount "-", download broken</td>
+    </tr>
+    <tr>
+      <td><strong>Activity feed</strong></td>
+      <td><code>components/dashboard/admin/activity-timeline.tsx</code></td>
+      <td>"Invoice ingestions and assignment changes"</td>
+      <td><span class="pill warn">mislabelled</span> a license request reads as an invoice event</td>
+    </tr>
+    <tr>
+      <td><strong>Settings nav</strong></td>
+      <td><code>settings/settings-nav.tsx</code></td>
+      <td>A single "Ingestion" tab</td>
+      <td><span class="pill warn">no separation</span> both kinds in one undifferentiated list</td>
+    </tr>
+    <tr>
+      <td><strong>Logger</strong></td>
+      <td><code>lib/ingestion-logger.ts</code></td>
+      <td><code>LogIngestionParams</code> is invoice-typed</td>
+      <td>callers must lie about field names to log a non-invoice event</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The history table empty-state copy even says the quiet part out loud — <em>"Documents ingested via manual upload, bulk
+upload, or the API ingest endpoint will appear here."</em> License requests are not documents, yet they land in the same list.</p>
+
+<!-- ───────────────────────────── OVERLOAD ───────────────────────────── -->
+<h2 id="overload">4. The schema overload (and its bugs)</h2>
+
+<p>The license-request route reuses invoice columns by name. This was a deliberate, documented shortcut — spec 032's
+implementation notes call it a <em>"pragmatic overload… if/when this becomes confusing, a rename or a dedicated table is a
+follow-up."</em> This proposal is that follow-up.</p>
+
+<table>
+  <thead><tr><th>Column</th><th>Built for (Type A)</th><th>Reused as (Type B)</th><th>Risk</th></tr></thead>
+  <tbody>
+    <tr><td><code>invoice_number</code></td><td>OCR'd invoice no.</td><td><code>form_response_id</code> (idempotency key)</td><td><span class="pill warn">semantic</span> "Document ID" column shows a Forms GUID</td></tr>
+    <tr><td><code>linked_invoice_id</code></td><td>FK → <code>invoices.id</code></td><td><code>license_request_id</code></td><td><span class="pill bad">referential</span> see callout below</td></tr>
+    <tr><td><code>outcome = "filtered"</code></td><td>passed filter, not budget-linked</td><td>"deduped (idempotent replay)"</td><td><span class="pill warn">semantic</span> same badge, two unrelated meanings</td></tr>
+    <tr><td><code>vendor / invoice_date / amount_cents</code></td><td>core invoice data</td><td>always <code>NULL</code></td><td><span class="pill neutral">cosmetic</span> empty cells</td></tr>
+  </tbody>
+</table>
+
+<div class="callout bad">
+  <strong>Latent referential bug.</strong> <code>ingestion_log.linked_invoice_id</code> is a real foreign key to
+  <code>invoices.id</code> (<code>onDelete: "set null"</code>). The license-request route writes the new
+  <code>license_requests.id</code> into it. Two failure modes follow:
+  <ul style="margin-top:8px;">
+    <li class="con">If no <code>invoices</code> row happens to share that id, the FK constraint <strong>rejects the insert</strong> —
+    the audit log silently loses the event (the write is fire-and-forget / try-catch'd in places).</li>
+    <li class="con">If an <code>invoices</code> row <em>does</em> share that id, the history table's <strong>"Download document"
+    button links to an unrelated invoice PDF</strong> (<code>/api/invoices/&lt;id&gt;/pdf</code>) — a data-leak-shaped bug.</li>
+  </ul>
+  Either way, the column is being used to mean something it cannot safely mean. A discriminator + typed details payload
+  removes the cross-type FK entirely.
+</div>
+
+<!-- ───────────────────────────── FUTURE ───────────────────────────── -->
+<h2 id="future">5. Future ingestions on the horizon</h2>
+
+<p>This is not a two-case problem to hard-code around — the Hub is steadily growing inbound pipes. Designing for
+<em>n</em> types now is much cheaper than a third overload later.</p>
+
+<div class="grid-3">
+  <div class="card"><h3>Already adjacent</h3>
+    <ul>
+      <li class="note">Sync framework (<code>sync_events</code>, spec 019) — GitHub Copilot billing, Anthropic usage, member sync. Today these live in a <em>separate</em> Sync Status tab.</li>
+    </ul>
+  </div>
+  <div class="card"><h3>Plausible next</h3>
+    <ul>
+      <li class="note">Bulk <strong>user import</strong> (CSV, spec 011) — today logged to <code>change_history</code>, not surfaced as ingestion.</li>
+      <li class="note">More Microsoft Forms types (offboarding, tier-change requests).</li>
+    </ul>
+  </div>
+  <div class="card"><h3>Speculative</h3>
+    <ul>
+      <li class="note">Email-to-ingest for invoices.</li>
+      <li class="note">Vendor API pulls (seat counts, usage exports).</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout info">
+  <strong>Design tension to resolve (open question Q1).</strong> Is "ingestion" = <em>document/event intake</em> (invoices,
+  forms) while "sync" = <em>scheduled pull from an API</em> (Copilot, Anthropic)? Or should the history view eventually
+  unify both under one "Data intake" umbrella with a type filter? The model below supports either — sync stays separate
+  for now, but the registry pattern would let us fold it in without another rewrite.
+</div>
+
+<!-- ───────────────────────────── GOALS ───────────────────────────── -->
+<h2 id="goals">6. Goals &amp; non-goals</h2>
+<div class="grid-2">
+  <div class="card accent-3">
+    <h4 style="margin-top:0;">Goals</h4>
+    <ul>
+      <li class="pro">Every ingestion record self-describes its <strong>type</strong>; no column overloading.</li>
+      <li class="pro">History UI shows <strong>type-appropriate columns, labels and drill-through</strong>.</li>
+      <li class="pro">Adding a new ingestion type is a <strong>registry entry</strong>, not a schema + 4-file UI change.</li>
+      <li class="pro">Remove the cross-type FK / download bug.</li>
+      <li class="pro">Backward-compatible migration — no lost audit history.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0;">Non-goals</h4>
+    <ul>
+      <li class="con">Re-architecting the <code>sync_events</code> framework (out of scope; only a future-fold path is noted).</li>
+      <li class="con">Changing invoice OCR / filter behaviour.</li>
+      <li class="con">Changing the license-request approval workflow itself (spec 032).</li>
+      <li class="con">Building email-to-ingest or vendor pulls now — only making them cheap to add later.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ───────────────────────────── OPTIONS ───────────────────────────── -->
+<h2 id="options">7. Design options</h2>
+
+<div class="card accent">
+  <h3>Option A — Discriminator column + JSONB details <span class="badge good">recommended</span></h3>
+  <p>Keep one <code>ingestion_log</code> table. Add <code>kind</code> (enum) + <code>source_type</code> (enum) + a typed
+  <code>details</code> JSONB for type-specific fields. Drop the cross-type FK; store drill-through as a polymorphic
+  <code>(entity_type, entity_id)</code> pair. UI driven by a registry keyed on <code>kind</code>.</p>
+  <div class="grid-2">
+    <div><ul>
+      <li class="pro">One audit pipe, one query for "everything that came in".</li>
+      <li class="pro">New type = enum value + registry entry; no new table.</li>
+      <li class="pro">Common columns (outcome, channel, timestamp, actor) stay first-class &amp; indexable.</li>
+    </ul></div>
+    <div><ul>
+      <li class="con">Type-specific fields are in JSONB — not individually constrained by the DB.</li>
+      <li class="con">Needs a small typed accessor layer so callers don't hand-write JSON.</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Option B — One table per ingestion type</h3>
+  <p>Split into <code>invoice_ingestion_log</code>, <code>license_request_ingestion_log</code>, … Each fully typed.</p>
+  <div class="grid-2">
+    <div><ul><li class="pro">Maximum type-safety; real FKs &amp; NOT NULLs per type.</li></ul></div>
+    <div><ul>
+      <li class="con">"Show me all ingestions" becomes a <code>UNION</code> across N tables — exactly the cross-type view the UI needs.</li>
+      <li class="con">Every new type = new table + migration + new query path. Highest long-run cost.</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Option C — Leave as-is, just relabel the UI</h3>
+  <p>Add an inferred "type" column derived from heuristics (e.g. <code>vendor IS NULL ⇒ license request</code>) and split the UI.</p>
+  <div class="grid-2">
+    <div><ul><li class="pro">No migration.</li></ul></div>
+    <div><ul>
+      <li class="con">Heuristic is fragile (a real invoice can lack a vendor).</li>
+      <li class="con">Leaves the FK / download bug in place.</li>
+      <li class="con">Third type has nothing to disambiguate on.</li>
+    </ul></div>
+  </div>
+</div>
+
+<!-- ───────────────────────────── RECOMMENDATION ───────────────────────────── -->
+<h2 id="recommendation">8. Recommended model</h2>
+
+<div class="recommend">
+  <p style="margin:0;"><strong>Option A.</strong> A discriminated single table balances "one audit trail / one cross-type
+  view" (which the history page fundamentally wants) against per-type clarity. JSONB holds the long tail of type-specific
+  fields, while the columns that <em>every</em> ingestion shares — outcome, channel, actor, timestamps, drill-through —
+  stay relational and indexed. A registry maps each <code>kind</code> to its UI. This is also the cheapest path to the
+  <em>n</em>-th ingestion type, which is the explicit ask.</p>
+</div>
+
+<!-- ───────────────────────────── SCHEMA ───────────────────────────── -->
+<h2 id="schema">9. Proposed schema</h2>
+
+<h4>New enums</h4>
+<pre><span class="com">// Coarse category — what kind of thing was ingested</span>
+<span class="kw">export const</span> ingestionKindEnum = pgEnum(<span class="str">"ingestion_kind"</span>, [
+  <span class="str">"invoice"</span>,            <span class="com">// adds to budget / expenses</span>
+  <span class="str">"license_request"</span>,    <span class="com">// a person requesting tool access</span>
+  <span class="str">"user_import"</span>,        <span class="com">// future: bulk CSV upsert</span>
+  <span class="str">"other"</span>,              <span class="com">// forward-compat escape hatch</span>
+]);
+
+<span class="com">// Fine-grained origin — survives adding sources without touching `kind`</span>
+<span class="kw">export const</span> ingestionSourceTypeEnum = pgEnum(<span class="str">"ingestion_source_type"</span>, [
+  <span class="str">"invoice_pdf"</span>,
+  <span class="str">"ms_forms_license_request"</span>,
+  <span class="str">"csv_user_import"</span>,
+]);</pre>
+
+<h4>Generalised <code>ingestion_log</code></h4>
+<pre><span class="kw">export const</span> ingestionLog = pgTable(<span class="str">"ingestion_log"</span>, {
+  id:           serial(<span class="str">"id"</span>).primaryKey(),
+
+  <span class="em">// ── NEW: the discriminator ──</span>
+  kind:         ingestionKindEnum(<span class="str">"kind"</span>).notNull().default(<span class="str">"invoice"</span>),
+  sourceType:   ingestionSourceTypeEnum(<span class="str">"source_type"</span>),
+
+  <span class="em">// ── shared across every kind ──</span>
+  outcome:      ingestionOutcomeEnum(<span class="str">"outcome"</span>).notNull(),
+  channel:      ingestionChannelEnum(<span class="str">"channel"</span>).notNull(),
+  label:        varchar(<span class="str">"label"</span>, { length: 500 }),  <span class="com">// human-readable headline per row</span>
+  errorMessage: text(<span class="str">"error_message"</span>),
+  uploadedBy:   integer(<span class="str">"uploaded_by"</span>).references(() => users.id, { onDelete: <span class="str">"set null"</span> }),
+  createdAt:    timestamp(<span class="str">"created_at"</span>).notNull().defaultNow(),
+
+  <span class="em">// ── polymorphic drill-through (replaces the unsafe cross-type FK) ──</span>
+  entityType:   varchar(<span class="str">"entity_type"</span>, { length: 40 }),   <span class="com">// "invoice" | "license_request" | …</span>
+  entityId:     integer(<span class="str">"entity_id"</span>),                     <span class="com">// no DB-level FK across types</span>
+
+  <span class="em">// ── type-specific payload ──</span>
+  details:      jsonb(<span class="str">"details"</span>).$type&lt;IngestionDetails&gt;(),
+
+  <span class="com">// ── DEPRECATED (kept through migration window, then dropped) ──</span>
+  <span class="com">// filename, vendor, invoiceNumber, invoiceDate, amountCents, blobPathname, linkedInvoiceId</span>
+}, (t) => [
+  index(<span class="str">"ingestion_log_kind_idx"</span>).on(t.kind),
+  index(<span class="str">"ingestion_log_created_idx"</span>).on(t.createdAt),
+]);</pre>
+
+<h4>Typed details (discriminated union in <code>src/types</code>)</h4>
+<pre><span class="kw">type</span> IngestionDetails =
+  | { kind: <span class="str">"invoice"</span>; vendor?: string; invoiceNumber?: string;
+      invoiceDate?: string; amountCents?: number; filename?: string;
+      blobPathname?: string; filterRuleName?: string }
+  | { kind: <span class="str">"license_request"</span>; formResponseId: string;
+      requesterEmail: string; requesterName: string;
+      toolName?: string; tierName?: string; deduped: boolean }
+  | { kind: <span class="str">"user_import"</span>; rowCount: number; created: number;
+      updated: number; skipped: number; failed: number };</pre>
+
+<div class="callout">
+  <strong>Note on <code>outcome</code>.</strong> The <code>"filtered"</code> value stays meaningful for invoices. For license
+  requests, the idempotent-replay case should stop borrowing <code>"filtered"</code> — instead record
+  <code>outcome: "success"</code> with <code>details.deduped = true</code>, so the badge means one thing again. (Optionally
+  add a dedicated <code>"duplicate"</code> outcome — see Q3.)
+</div>
+
+<!-- ───────────────────────────── UI ───────────────────────────── -->
+<h2 id="ui">10. Proposed UI</h2>
+
+<h3>Settings → Ingestion, with a type segmentation</h3>
+<p>Keep a single "Ingestion" tab but add a segmented control / sub-tabs at the top: <strong>All · Invoices · License
+requests</strong> (driven by the registry, so new kinds appear automatically). A persistent "Kind" column + faceted filter
+gives the same power inside "All".</p>
+
+<pre><span class="com">┌─ Settings ─────────────────────────────────────────────────────────┐</span>
+<span class="com">│  Integrations   Sync Status   <span class="em">Ingestion</span>   License Templates   API   │</span>
+<span class="com">├─────────────────────────────────────────────────────────────────────┤</span>
+<span class="com">│  [ All ]  [ Invoices ]  [ License requests ]          🔍 search…      │</span>
+<span class="com">│                                                                       │</span>
+<span class="com">│  KIND        STATUS   SUMMARY                 SOURCE   WHEN     ↧      │</span>
+<span class="com">│  <span class="em">●</span> invoice    success  Anthropic · CHF 1,240   bulk     2h ago   📄    │</span>
+<span class="com">│  <span class="em">●</span> license    success  J. Doe → Copilot Biz    api      3h ago   →     │</span>
+<span class="com">│  <span class="em">●</span> license    success  K. Li → Cursor (dup)    api      3h ago   →     │</span>
+<span class="com">│  <span class="em">●</span> invoice    filtered Internal credit note    manual   1d ago   📄    │</span>
+<span class="com">└─────────────────────────────────────────────────────────────────────┘</span></pre>
+
+<table>
+  <thead><tr><th>Column</th><th>invoice</th><th>license_request</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Kind</strong></td><td colspan="2">coloured pill from registry (icon + label)</td></tr>
+    <tr><td><strong>Status</strong></td><td colspan="2"><code>OutcomeBadge</code> — shared</td></tr>
+    <tr><td><strong>Summary</strong> (registry-rendered)</td><td>vendor · amount</td><td>requester → tool/tier</td></tr>
+    <tr><td><strong>Source / channel</strong></td><td colspan="2">shared</td></tr>
+    <tr><td><strong>Drill-through</strong></td><td>📄 Download PDF (<code>/api/invoices/:id/pdf</code>)</td><td>→ Open request (<code>/requests/:id</code>)</td></tr>
+  </tbody>
+</table>
+
+<h3>Activity timeline</h3>
+<p>Relabel from "Invoice ingestions…" to a kind-aware line: <em>"{Vendor} invoice ingested"</em> vs
+<em>"License request from {requester} for {tool}"</em>, each with the registry's icon/severity. One <code>switch (kind)</code>,
+fed by the same registry.</p>
+
+<!-- ───────────────────────────── REGISTRY ───────────────────────────── -->
+<h2 id="registry">11. The ingestion-type registry</h2>
+
+<p>The keystone of "consider future ingestions." One module declares everything type-specific; every surface reads from it.
+Adding a type touches this file (and an enum value) — nothing else structural.</p>
+
+<pre><span class="com">// src/lib/ingestion/registry.ts</span>
+<span class="kw">export const</span> INGESTION_TYPES: Record&lt;IngestionKind, IngestionTypeDef&gt; = {
+  invoice: {
+    label: <span class="str">"Invoice"</span>,
+    icon: FileText,
+    accent: <span class="str">"sky"</span>,
+    summary: (d) => `${d.vendor ?? <span class="str">"Unknown"</span>} · ${formatCurrency(d.amountCents)}`,
+    drillThrough: (r) => r.entityId ? `/api/invoices/${r.entityId}/pdf` : null,
+    drillLabel: <span class="str">"Download document"</span>,
+    columns: [<span class="str">"vendor"</span>, <span class="str">"amount"</span>, <span class="str">"invoiceDate"</span>],
+  },
+  license_request: {
+    label: <span class="str">"License request"</span>,
+    icon: UserPlus,
+    accent: <span class="str">"violet"</span>,
+    summary: (d) => `${d.requesterName} → ${d.toolName ?? <span class="str">"?"</span>}`,
+    drillThrough: (r) => r.entityId ? `/requests/${r.entityId}` : null,
+    drillLabel: <span class="str">"Open request"</span>,
+    columns: [<span class="str">"requester"</span>, <span class="str">"tool"</span>, <span class="str">"tier"</span>],
+  },
+  <span class="com">// user_import, other … added here later</span>
+};</pre>
+
+<div class="callout good">
+  <strong>Why this pays off.</strong> The history table, the activity feed, the faceted filters, and the segmented tabs all
+  iterate <code>INGESTION_TYPES</code>. A new Forms type or an email-to-ingest pipe becomes: add an enum value, add a
+  registry entry, write its ingest route. Zero changes to the table component, the feed, or the query.
+</div>
+
+<!-- ───────────────────────────── MIGRATION ───────────────────────────── -->
+<h2 id="migration">12. Migration &amp; rollout phases</h2>
+
+<div class="step"><div class="step-num">P0</div><div class="step-body">
+  <strong>Schema additive.</strong> Add <code>kind</code>, <code>source_type</code>, <code>label</code>, <code>entity_type</code>,
+  <code>entity_id</code>, <code>details</code> (all nullable / defaulted). Keep legacy columns. <code>pnpm db:generate</code> →
+  reviewed migration. <span class="badge">no behaviour change yet</span>
+</div></div>
+
+<div class="step"><div class="step-num">P1</div><div class="step-body">
+  <strong>Backfill.</strong> One-shot UPDATE: rows with a non-null <code>vendor/amount/filename</code> → <code>kind='invoice'</code>,
+  copy fields into <code>details</code>, set <code>entity_type='invoice'</code>, <code>entity_id = linked_invoice_id</code>.
+  Rows that look like license requests (came via the license route — distinguishable by <code>linked_invoice_id</code> pointing
+  at a <code>license_requests</code> id / null invoice) → <code>kind='license_request'</code>. Heuristic runs <em>once</em>, verified, not at read-time.
+</div></div>
+
+<div class="step"><div class="step-num">P2</div><div class="step-body">
+  <strong>Writers.</strong> Generalise <code>logIngestionAttempt</code> into a discriminated API
+  (<code>logIngestion({ kind, outcome, channel, details, entity })</code>). Update both ingest routes. License route stops
+  writing the cross-type FK and stops abusing <code>outcome:"filtered"</code> for dedup.
+</div></div>
+
+<div class="step"><div class="step-num">P3</div><div class="step-body">
+  <strong>Read paths &amp; UI.</strong> <code>getIngestionHistory</code> returns <code>kind</code> + <code>details</code>; build the
+  registry; rebuild the history table (segmented), faceted "Kind" filter, and the activity timeline.
+</div></div>
+
+<div class="step"><div class="step-num">P4</div><div class="step-body">
+  <strong>Drop legacy.</strong> After a soak window with everything reading from the new fields, drop
+  <code>vendor / invoice_number / invoice_date / amount_cents / filename / blob_pathname / linked_invoice_id</code> from the
+  table. Removes the unsafe FK for good. <span class="badge bad">destructive — separate, reviewed migration</span>
+</div></div>
+
+<div class="callout info">
+  Per repo convention, schema work goes through <code>pnpm db:generate</code> and the Drizzle migration reviewer; the
+  destructive P4 step in particular should be its own migration with the drizzle-migration-reviewer in the loop, and run
+  against a Neon branch first.
+</div>
+
+<!-- ───────────────────────────── OPEN ───────────────────────────── -->
+<h2 id="open">13. Open questions</h2>
+<table>
+  <thead><tr><th>#</th><th>Question</th><th>Default if undecided</th></tr></thead>
+  <tbody>
+    <tr><td>Q1</td><td>Should "sync" (Copilot/Anthropic pulls) eventually fold into this history under the registry, or stay a separate tab?</td><td>Keep separate now; registry leaves the door open.</td></tr>
+    <tr><td>Q2</td><td>Segmented sub-tabs vs. a single list with a "Kind" faceted filter?</td><td>Ship both: filter is free, sub-tabs are a thin wrapper over it.</td></tr>
+    <tr><td>Q3</td><td>Add a dedicated <code>"duplicate"</code> outcome, or model dedup as <code>success + details.deduped</code>?</td><td><code>success + details.deduped</code> (no enum churn).</td></tr>
+    <tr><td>Q4</td><td>Is bulk user import (spec 011) in scope as a first ingestion <em>kind</em>, or stays in <code>change_history</code>?</td><td>Out of scope now; <code>user_import</code> enum reserved for later.</td></tr>
+    <tr><td>Q5</td><td>JSONB <code>details</code> vs. promoting the 2–3 most-queried license fields to real columns?</td><td>JSONB; promote only if a query needs an index.</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  spec/034-ingestion-types-distinction · proposal.html · drafted 2026-06-03<br/>
+  Source surfaces analysed: ingestion_log schema · /api/invoices/ingest · /api/license-requests/ingest ·
+  settings/ingestion/* · components/dashboard/admin/activity-timeline · lib/ingestion-logger · actions/ingestion-log<br/>
+  Builds on the documented follow-up noted in spec/032-automation-workflow implementation-notes.html.
+</footer>
+
+</main>
+</body>
+</html>
