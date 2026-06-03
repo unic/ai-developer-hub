@@ -59,7 +59,15 @@ export interface UserImportIngestionDetails {
   failed: number;
 }
 
+// Forward-compat escape hatch for ingestions that don't fit a known kind.
+// Keeps the details union aligned with the `ingestion_kind` enum + registry.
+export interface OtherIngestionDetails {
+  kind: "other";
+  description?: string | null;
+}
+
 export type IngestionDetails =
   | InvoiceIngestionDetails
   | LicenseRequestIngestionDetails
-  | UserImportIngestionDetails;
+  | UserImportIngestionDetails
+  | OtherIngestionDetails;

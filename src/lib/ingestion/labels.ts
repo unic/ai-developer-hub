@@ -39,5 +39,7 @@ export function buildIngestionLabel(details: IngestionDetails): string {
     }
     case "user_import":
       return `${details.rowCount} rows · +${details.created} / ~${details.updated}`;
+    case "other":
+      return details.description ?? "Ingestion";
   }
 }

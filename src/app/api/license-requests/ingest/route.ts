@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
     payload = JSON.parse(text);
   } catch {
     await logIngestion({
-      kind: "license_request",
       sourceType: "ms_forms_license_request",
       outcome: "failed",
       channel: "api",
@@ -78,7 +77,6 @@ export async function POST(request: NextRequest) {
       ? `${issue.path.join(".")}: ${issue.message}`
       : "Invalid payload";
     await logIngestion({
-      kind: "license_request",
       sourceType: "ms_forms_license_request",
       outcome: "failed",
       channel: "api",
@@ -199,7 +197,6 @@ export async function POST(request: NextRequest) {
     if (!existing) {
       console.error("license-requests ingest insert error:", err);
       await logIngestion({
-        kind: "license_request",
         sourceType: "ms_forms_license_request",
         outcome: "failed",
         channel: "api",
@@ -247,7 +244,6 @@ export async function POST(request: NextRequest) {
   // 034: a dedup replay is a successful, idempotent outcome — recorded as
   // `success` with details.deduped, not the invoice-only "filtered" outcome.
   await logIngestion({
-    kind: "license_request",
     sourceType: "ms_forms_license_request",
     outcome: "success",
     channel: "api",
@@ -275,7 +271,6 @@ export async function POST(request: NextRequest) {
 function jsonError(error: string, status: number, formResponseId?: string) {
   // Fire-and-forget log — don't block the response on logger failures.
   void logIngestion({
-    kind: "license_request",
     sourceType: "ms_forms_license_request",
     outcome: "failed",
     channel: "api",

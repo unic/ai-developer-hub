@@ -151,10 +151,12 @@ export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
 
   const tabs = useMemo(() => presentKinds(data), [data]);
 
-  const rows = useMemo(
-    () => (tab === "all" ? data : data.filter((r) => r.kind === tab)),
-    [data, tab],
-  );
+  const rows = useMemo(() => {
+    const filtered = tab === "all" ? data : data.filter((r) => r.kind === tab);
+    // Normalise `label` so search (searchKey="label") still works on legacy
+    // rows logged before 034 populated it — mirrors the Summary cell fallback.
+    return filtered.map((r) => ({ ...r, label: r.label ?? r.vendor }));
+  }, [data, tab]);
 
   if (data.length === 0) {
     return (
@@ -162,8 +164,8 @@ export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
         <Inbox className="mb-4 size-12 text-muted-foreground" />
         <h3 className="text-lg font-medium">No ingestion history</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          Invoices and license requests ingested via the UI or the API endpoints
-          will appear here.
+          Invoices and license requests ingested via manual upload, bulk upload,
+          or the API endpoints will appear here.
         </p>
       </div>
     );

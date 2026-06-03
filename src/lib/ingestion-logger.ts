@@ -6,13 +6,11 @@ import { buildIngestionLabel } from "@/lib/ingestion/labels";
 import type {
   IngestionChannel,
   IngestionDetails,
-  IngestionKind,
   IngestionOutcome,
   IngestionSourceType,
 } from "@/types";
 
 export interface LogIngestionParams {
-  kind: IngestionKind;
   sourceType?: IngestionSourceType | null;
   outcome: IngestionOutcome;
   channel: IngestionChannel;
@@ -32,6 +30,9 @@ export interface LogIngestionParams {
  */
 export async function logIngestion(params: LogIngestionParams) {
   const { details } = params;
+  // `kind` is derived from the details payload so the stored discriminator can
+  // never disagree with the typed details (and the label built from it).
+  const kind = details.kind;
 
   // Legacy dual-write: only invoices ever populated these columns. License
   // requests deliberately leave them null (this is what removes the unsafe
@@ -51,7 +52,7 @@ export async function logIngestion(params: LogIngestionParams) {
       : {};
 
   await db.insert(ingestionLog).values({
-    kind: params.kind,
+    kind,
     sourceType: params.sourceType ?? null,
     outcome: params.outcome,
     channel: params.channel,
@@ -87,7 +88,6 @@ export interface LegacyLogIngestionParams {
 
 export async function logIngestionAttempt(params: LegacyLogIngestionParams) {
   await logIngestion({
-    kind: "invoice",
     sourceType: "invoice_pdf",
     outcome: params.outcome,
     channel: params.channel,
