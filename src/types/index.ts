@@ -21,6 +21,9 @@ import type {
   anthropicOrgConfig,
 } from "@/lib/db/schema";
 
+// Ingestion type system (034-ingestion-types-distinction)
+export * from "./ingestion";
+
 // Action result type
 export type ActionResult<T = void> =
   | { success: true; data: T; warning?: string }
@@ -351,7 +354,6 @@ export interface SyncPreview {
   rateLimitRemaining: number;
 }
 
-
 // GitHub member sync — manual matching types
 export type PendingResolution =
   | { type: "import"; githubLogin: string }
@@ -388,9 +390,15 @@ export interface ResolutionSummary {
 export type CopilotSyncType = "members" | "copilot";
 
 export type CopilotUsageMetric = InferSelectModel<typeof copilotUsageMetrics>;
-export type NewCopilotUsageMetric = InferInsertModel<typeof copilotUsageMetrics>;
-export type CopilotBillingSnapshot = InferSelectModel<typeof copilotBillingSnapshots>;
-export type NewCopilotBillingSnapshot = InferInsertModel<typeof copilotBillingSnapshots>;
+export type NewCopilotUsageMetric = InferInsertModel<
+  typeof copilotUsageMetrics
+>;
+export type CopilotBillingSnapshot = InferSelectModel<
+  typeof copilotBillingSnapshots
+>;
+export type NewCopilotBillingSnapshot = InferInsertModel<
+  typeof copilotBillingSnapshots
+>;
 
 export type CopilotSyncStatus = {
   enabled: boolean;
@@ -537,11 +545,21 @@ export type ProfileData = {
 
 // 018-claude-global-metrics types
 export type AnthropicWorkspace = InferSelectModel<typeof anthropicWorkspaces>;
-export type NewAnthropicWorkspace = InferInsertModel<typeof anthropicWorkspaces>;
-export type AnthropicWorkspaceCost = InferSelectModel<typeof anthropicWorkspaceCosts>;
-export type NewAnthropicWorkspaceCost = InferInsertModel<typeof anthropicWorkspaceCosts>;
-export type AnthropicWorkspaceLimit = InferSelectModel<typeof anthropicWorkspaceLimits>;
-export type NewAnthropicWorkspaceLimit = InferInsertModel<typeof anthropicWorkspaceLimits>;
+export type NewAnthropicWorkspace = InferInsertModel<
+  typeof anthropicWorkspaces
+>;
+export type AnthropicWorkspaceCost = InferSelectModel<
+  typeof anthropicWorkspaceCosts
+>;
+export type NewAnthropicWorkspaceCost = InferInsertModel<
+  typeof anthropicWorkspaceCosts
+>;
+export type AnthropicWorkspaceLimit = InferSelectModel<
+  typeof anthropicWorkspaceLimits
+>;
+export type NewAnthropicWorkspaceLimit = InferInsertModel<
+  typeof anthropicWorkspaceLimits
+>;
 export type AnthropicOrgConfig = InferSelectModel<typeof anthropicOrgConfig>;
 export type NewAnthropicOrgConfig = InferInsertModel<typeof anthropicOrgConfig>;
 

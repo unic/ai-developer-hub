@@ -4,21 +4,29 @@ import { db } from "@/lib/db";
 import { ingestionLog, users } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-helpers";
+import type {
+  IngestionChannel,
+  IngestionDetails,
+  IngestionKind,
+  IngestionOutcome,
+  IngestionSourceType,
+} from "@/types";
 
 export interface IngestionLogRow {
   id: number;
-  filename: string | null;
-  vendor: string | null;
-  invoiceNumber: string | null;
-  invoiceDate: string | null;
-  amountCents: number | null;
-  outcome: "success" | "failed" | "filtered";
+  kind: IngestionKind;
+  sourceType: IngestionSourceType | null;
+  outcome: IngestionOutcome;
+  channel: IngestionChannel;
+  label: string | null;
   errorMessage: string | null;
-  channel: "manual" | "api" | "bulk";
-  blobPathname: string | null;
-  linkedInvoiceId: number | null;
+  entityType: string | null;
+  entityId: number | null;
+  details: IngestionDetails | null;
   uploaderName: string | null;
   createdAt: string;
+  /** Retained for the vendor facet during the migration window (P3). */
+  vendor: string | null;
 }
 
 export async function getIngestionHistory(): Promise<
@@ -30,18 +38,18 @@ export async function getIngestionHistory(): Promise<
   const rows = await db
     .select({
       id: ingestionLog.id,
-      filename: ingestionLog.filename,
-      vendor: ingestionLog.vendor,
-      invoiceNumber: ingestionLog.invoiceNumber,
-      invoiceDate: ingestionLog.invoiceDate,
-      amountCents: ingestionLog.amountCents,
+      kind: ingestionLog.kind,
+      sourceType: ingestionLog.sourceType,
       outcome: ingestionLog.outcome,
-      errorMessage: ingestionLog.errorMessage,
       channel: ingestionLog.channel,
-      blobPathname: ingestionLog.blobPathname,
-      linkedInvoiceId: ingestionLog.linkedInvoiceId,
+      label: ingestionLog.label,
+      errorMessage: ingestionLog.errorMessage,
+      entityType: ingestionLog.entityType,
+      entityId: ingestionLog.entityId,
+      details: ingestionLog.details,
       uploaderName: users.name,
       createdAt: ingestionLog.createdAt,
+      vendor: ingestionLog.vendor,
     })
     .from(ingestionLog)
     .leftJoin(users, eq(ingestionLog.uploadedBy, users.id))
@@ -52,7 +60,6 @@ export async function getIngestionHistory(): Promise<
     success: true,
     data: rows.map((r) => ({
       ...r,
-      invoiceDate: r.invoiceDate ? String(r.invoiceDate) : null,
       createdAt: r.createdAt.toISOString(),
     })),
   };

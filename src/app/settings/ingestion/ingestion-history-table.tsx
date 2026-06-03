@@ -1,22 +1,44 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { ErrorPopover } from "@/components/error-popover";
 import { OutcomeBadge } from "@/components/outcome-badge";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { Download, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDateTime } from "@/lib/utils";
+import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { INGESTION_TYPES, presentKinds } from "@/lib/ingestion/registry";
 import type { IngestionLogRow } from "@/actions/ingestion-log";
+import type { IngestionKind } from "@/types";
 
 const columns: ColumnDef<IngestionLogRow>[] = [
+  {
+    accessorKey: "kind",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Kind" />
+    ),
+    cell: ({ row }) => {
+      const kind = row.getValue<IngestionKind>("kind");
+      const def = INGESTION_TYPES[kind];
+      const Icon = def.icon;
+      return (
+        <Badge variant="outline" className="gap-1.5">
+          <Icon className="size-3" />
+          {def.label}
+        </Badge>
+      );
+    },
+    filterFn: arrayIncludesFilterFn,
+  },
   {
     accessorKey: "outcome",
     header: ({ column }) => (
@@ -28,45 +50,17 @@ const columns: ColumnDef<IngestionLogRow>[] = [
     filterFn: arrayIncludesFilterFn,
   },
   {
-    accessorKey: "invoiceNumber",
+    accessorKey: "label",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Document ID" />
-    ),
-    cell: ({ row }) => (
-      <span className="font-medium">
-        {row.getValue("invoiceNumber") ?? (
-          <span className="text-muted-foreground">-</span>
-        )}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "vendor",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Vendor" />
-    ),
-    cell: ({ row }) => row.getValue("vendor") ?? "Unknown",
-    filterFn: arrayIncludesFilterFn,
-  },
-  {
-    accessorKey: "invoiceDate",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Date" />
+      <DataTableColumnHeader column={column} title="Summary" />
     ),
     cell: ({ row }) => {
-      const val = row.getValue("invoiceDate") as string | null;
-      return val ?? <span className="text-muted-foreground">-</span>;
-    },
-  },
-  {
-    accessorKey: "amountCents",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Amount" />
-    ),
-    cell: ({ row }) => {
-      const cents = row.getValue("amountCents") as number | null;
-      return cents != null ? (
-        formatCurrency(cents)
+      const label = row.getValue<string | null>("label");
+      // Fallback for legacy rows logged before 034 populated `label`.
+      const fallback = row.original.vendor;
+      const text = label ?? fallback;
+      return text ? (
+        <span className="font-medium">{text}</span>
       ) : (
         <span className="text-muted-foreground">-</span>
       );
@@ -81,11 +75,12 @@ const columns: ColumnDef<IngestionLogRow>[] = [
       const channel = row.getValue<string>("channel");
       return channel.charAt(0).toUpperCase() + channel.slice(1);
     },
+    filterFn: arrayIncludesFilterFn,
   },
   {
     accessorKey: "uploaderName",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Uploaded By" />
+      <DataTableColumnHeader column={column} title="Source" />
     ),
     cell: ({ row }) => row.getValue("uploaderName") ?? "API",
   },
@@ -105,19 +100,21 @@ const columns: ColumnDef<IngestionLogRow>[] = [
     enableSorting: false,
   },
   {
-    id: "download",
+    id: "drill",
     header: "",
     cell: ({ row }) => {
-      const linkedInvoiceId = row.original.linkedInvoiceId;
-      if (!linkedInvoiceId) {
+      const def = INGESTION_TYPES[row.original.kind];
+      const href = def.drillThrough(row.original);
+      const Icon = def.icon;
+      if (!href) {
         return (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" disabled className="size-8">
-                <Download className="size-4" />
+                <Icon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>No document available</TooltipContent>
+            <TooltipContent>Nothing to open</TooltipContent>
           </Tooltip>
         );
       }
@@ -126,15 +123,16 @@ const columns: ColumnDef<IngestionLogRow>[] = [
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8" asChild>
               <a
-                href={`/api/invoices/${linkedInvoiceId}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={href}
+                {...(def.drillNewTab
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
               >
-                <Download className="size-4" />
+                <Icon className="size-4" />
               </a>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Download document</TooltipContent>
+          <TooltipContent>{def.drillLabel}</TooltipContent>
         </Tooltip>
       );
     },
@@ -147,50 +145,64 @@ interface IngestionHistoryTableProps {
 }
 
 export function IngestionHistoryTable({ data }: IngestionHistoryTableProps) {
-  const vendorOptions = useMemo(
-    () =>
-      [...new Set(data.map((r) => r.vendor ?? "Unknown"))].map((v) => ({
-        label: v,
-        value: v,
-      })),
-    [data]
+  // Sub-tabs (Q2) are the primary control; they set the kind filter. "All"
+  // keeps every row. The tab set is derived from kinds actually present.
+  const [tab, setTab] = useState<IngestionKind | "all">("all");
+
+  const tabs = useMemo(() => presentKinds(data), [data]);
+
+  const rows = useMemo(
+    () => (tab === "all" ? data : data.filter((r) => r.kind === tab)),
+    [data, tab],
   );
 
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-12 text-center">
-        <FileText className="mb-4 size-12 text-muted-foreground" />
+        <Inbox className="mb-4 size-12 text-muted-foreground" />
         <h3 className="text-lg font-medium">No ingestion history</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          Documents ingested via manual upload, bulk upload, or the API ingest
-          endpoint will appear here.
+          Invoices and license requests ingested via the UI or the API endpoints
+          will appear here.
         </p>
       </div>
     );
   }
 
   return (
-    <DataTable
-      columns={columns}
-      data={data}
-      searchPlaceholder="Search by document ID..."
-      searchKey="invoiceNumber"
-      facetedFilters={[
-        {
-          columnId: "outcome",
-          title: "Status",
-          options: [
-            { label: "Success", value: "success" },
-            { label: "Failed", value: "failed" },
-            { label: "Filtered", value: "filtered" },
-          ],
-        },
-        {
-          columnId: "vendor",
-          title: "Vendor",
-          options: vendorOptions,
-        },
-      ]}
-    />
+    <div className="space-y-4">
+      {tabs.length > 1 && (
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as IngestionKind | "all")}
+        >
+          <TabsList>
+            <TabsTrigger value="all">All</TabsTrigger>
+            {tabs.map((k) => (
+              <TabsTrigger key={k} value={k}>
+                {INGESTION_TYPES[k].label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
+      <DataTable
+        columns={columns}
+        data={rows}
+        searchPlaceholder="Search summary..."
+        searchKey="label"
+        facetedFilters={[
+          {
+            columnId: "outcome",
+            title: "Status",
+            options: [
+              { label: "Success", value: "success" },
+              { label: "Failed", value: "failed" },
+              { label: "Filtered", value: "filtered" },
+            ],
+          },
+        ]}
+      />
+    </div>
   );
 }

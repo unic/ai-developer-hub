@@ -14,7 +14,7 @@ import {
   jsonb,
   check,
 } from "drizzle-orm/pg-core";
-import type { UserPreferences } from "@/types";
+import type { UserPreferences, IngestionDetails } from "@/types";
 import { relations, sql } from "drizzle-orm";
 
 // Enums
@@ -25,10 +25,7 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
   "active",
   "inactive",
 ]);
-export const budgetStatusEnum = pgEnum("budget_status", [
-  "active",
-  "archived",
-]);
+export const budgetStatusEnum = pgEnum("budget_status", ["active", "archived"]);
 export const periodTypeEnum = pgEnum("period_type", ["monthly", "quarterly"]);
 export const changeTypeEnum = pgEnum("change_type", [
   "created",
@@ -72,10 +69,7 @@ export const filterFieldEnum = pgEnum("filter_field", [
   "invoice_number",
 ]);
 
-export const filterModeEnum = pgEnum("filter_mode", [
-  "whitelist",
-  "blacklist",
-]);
+export const filterModeEnum = pgEnum("filter_mode", ["whitelist", "blacklist"]);
 
 // Ingestion log enums (023-ingestion-history)
 export const ingestionOutcomeEnum = pgEnum("ingestion_outcome", [
@@ -88,6 +82,20 @@ export const ingestionChannelEnum = pgEnum("ingestion_channel", [
   "manual",
   "api",
   "bulk",
+]);
+
+// Ingestion type discriminator (034-ingestion-types-distinction)
+export const ingestionKindEnum = pgEnum("ingestion_kind", [
+  "invoice",
+  "license_request",
+  "user_import",
+  "other",
+]);
+
+export const ingestionSourceTypeEnum = pgEnum("ingestion_source_type", [
+  "invoice_pdf",
+  "ms_forms_license_request",
+  "csv_user_import",
 ]);
 
 // Sync framework enums (019-invoice-automations)
@@ -152,7 +160,7 @@ export const users = pgTable(
     uniqueIndex("users_email_idx").on(table.email),
     index("users_circle_idx").on(table.circle),
     index("users_status_idx").on(table.status),
-  ]
+  ],
 );
 
 // Invite Tokens
@@ -178,7 +186,7 @@ export const inviteTokens = pgTable(
     uniqueIndex("invite_tokens_active_user_idx")
       .on(table.userId)
       .where(sql`${table.status} = 'active'`),
-  ]
+  ],
 );
 
 // AI Tools
@@ -197,7 +205,7 @@ export const aiTools = pgTable(
   (table) => [
     uniqueIndex("ai_tools_name_idx").on(table.name),
     index("ai_tools_vendor_idx").on(table.vendor),
-  ]
+  ],
 );
 
 // Access Tiers
@@ -218,7 +226,7 @@ export const accessTiers = pgTable(
   (table) => [
     index("access_tiers_tool_id_idx").on(table.toolId),
     uniqueIndex("access_tiers_tool_name_idx").on(table.toolId, table.name),
-  ]
+  ],
 );
 
 // License Assignments
@@ -253,9 +261,9 @@ export const licenseAssignments = pgTable(
     index("license_assignments_active_lookup_idx").on(
       table.userId,
       table.toolId,
-      table.status
+      table.status,
     ),
-  ]
+  ],
 );
 
 // Annual Budgets
@@ -273,7 +281,7 @@ export const annualBudgets = pgTable(
   (table) => [
     uniqueIndex("annual_budgets_fiscal_year_idx").on(table.fiscalYear),
     index("annual_budgets_status_idx").on(table.status),
-  ]
+  ],
 );
 
 // Budget Periods
@@ -296,9 +304,9 @@ export const budgetPeriods = pgTable(
     index("budget_periods_budget_id_idx").on(table.budgetId),
     uniqueIndex("budget_periods_budget_period_idx").on(
       table.budgetId,
-      table.periodIndex
+      table.periodIndex,
     ),
-  ]
+  ],
 );
 
 // Change History
@@ -321,7 +329,7 @@ export const changeHistory = pgTable(
     index("change_history_entity_idx").on(table.entityType, table.entityId),
     index("change_history_changed_by_idx").on(table.changedBy),
     index("change_history_created_at_idx").on(table.createdAt),
-  ]
+  ],
 );
 
 // Assignment Comments
@@ -343,7 +351,7 @@ export const assignmentComments = pgTable(
     index("assignment_comments_assignment_id_idx").on(table.assignmentId),
     index("assignment_comments_author_id_idx").on(table.authorId),
     index("assignment_comments_created_at_idx").on(table.createdAt),
-  ]
+  ],
 );
 
 // Billed Costs
@@ -366,7 +374,7 @@ export const billedCosts = pgTable(
   (table) => [
     index("billed_costs_period_id_idx").on(table.periodId),
     index("billed_costs_invoice_date_idx").on(table.invoiceDate),
-  ]
+  ],
 );
 
 // Invoices
@@ -380,7 +388,7 @@ export const invoices = pgTable(
     vendor: varchar("vendor", { length: 255 }),
     linkedBilledCostId: integer("linked_billed_cost_id").references(
       () => billedCosts.id,
-      { onDelete: "set null" }
+      { onDelete: "set null" },
     ),
     blobUrl: text("blob_url").notNull(),
     blobPathname: text("blob_pathname").notNull(),
@@ -395,7 +403,7 @@ export const invoices = pgTable(
     index("invoices_invoice_number_idx").on(t.invoiceNumber),
     index("invoices_created_at_idx").on(t.createdAt),
     index("invoices_linked_billed_cost_id_idx").on(t.linkedBilledCostId),
-  ]
+  ],
 );
 
 // GitHub Connections
@@ -415,12 +423,14 @@ export const githubConnections = pgTable(
     connectedAt: timestamp("connected_at").notNull().defaultNow(),
     disconnectedAt: timestamp("disconnected_at"),
     lastSyncAt: timestamp("last_sync_at"),
-    copilotSyncEnabled: boolean("copilot_sync_enabled").notNull().default(false),
+    copilotSyncEnabled: boolean("copilot_sync_enabled")
+      .notNull()
+      .default(false),
     copilotSyncSchedule: varchar("copilot_sync_schedule", { length: 50 })
       .notNull()
       .default("daily"),
   },
-  (table) => [index("github_connections_status_idx").on(table.status)]
+  (table) => [index("github_connections_status_idx").on(table.status)],
 );
 
 // GitHub Profiles
@@ -447,7 +457,7 @@ export const githubProfiles = pgTable(
     uniqueIndex("github_profiles_user_id_idx").on(table.userId),
     index("github_profiles_github_id_idx").on(table.githubId),
     index("github_profiles_github_login_idx").on(table.githubLogin),
-  ]
+  ],
 );
 
 // GitHub Sync Events
@@ -482,7 +492,7 @@ export const githubSyncEvents = pgTable(
   (table) => [
     index("github_sync_events_connection_id_idx").on(table.connectionId),
     index("github_sync_events_triggered_by_idx").on(table.triggeredBy),
-  ]
+  ],
 );
 
 // Copilot Usage Metrics
@@ -518,10 +528,10 @@ export const copilotUsageMetrics = pgTable(
   (table) => [
     uniqueIndex("copilot_usage_metrics_connection_date_idx").on(
       table.connectionId,
-      table.date
+      table.date,
     ),
     index("copilot_usage_metrics_date_idx").on(table.date),
-  ]
+  ],
 );
 
 // Copilot Billing Snapshots
@@ -544,9 +554,9 @@ export const copilotBillingSnapshots = pgTable(
   (table) => [
     uniqueIndex("copilot_billing_snapshots_connection_month_idx").on(
       table.connectionId,
-      table.billingMonth
+      table.billingMonth,
     ),
-  ]
+  ],
 );
 
 // Anthropic Usage Metrics (daily token usage per user per model)
@@ -582,12 +592,14 @@ export const anthropicUsageMetrics = pgTable(
     uniqueIndex("anthropic_usage_metrics_user_date_model_idx").on(
       table.userId,
       table.date,
-      table.model
+      table.model,
     ),
     index("anthropic_usage_metrics_user_date_idx").on(table.userId, table.date),
     index("anthropic_usage_metrics_date_idx").on(table.date),
-    index("anthropic_usage_metrics_pricing_resolved_idx").on(table.pricingResolved),
-  ]
+    index("anthropic_usage_metrics_pricing_resolved_idx").on(
+      table.pricingResolved,
+    ),
+  ],
 );
 
 // Anthropic Sync Status (per-user sync tracking + cached API key ID)
@@ -605,7 +617,9 @@ export const anthropicSyncStatus = pgTable(
     resolvedWorkspaceId: varchar("resolved_workspace_id", { length: 100 }),
     workspaceSyncCompletedAt: timestamp("workspace_sync_completed_at"),
   },
-  (table) => [uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId)]
+  (table) => [
+    uniqueIndex("anthropic_sync_status_user_id_idx").on(table.userId),
+  ],
 );
 
 // Sync Sources (019-invoice-automations)
@@ -619,7 +633,7 @@ export const syncSources = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("sync_sources_source_type_idx").on(table.sourceType)]
+  (table) => [uniqueIndex("sync_sources_source_type_idx").on(table.sourceType)],
 );
 
 // Sync Events (019-invoice-automations)
@@ -649,40 +663,64 @@ export const syncEvents = pgTable(
     index("sync_events_started_at_idx").on(table.startedAt),
     index("sync_events_source_started_idx").on(
       table.sourceType,
-      table.startedAt
+      table.startedAt,
     ),
-  ]
+  ],
 );
 
-// Ingestion Log (023-ingestion-history)
+// Ingestion Log (023-ingestion-history; discriminated in 034-ingestion-types-distinction)
 export const ingestionLog = pgTable(
   "ingestion_log",
   {
     id: serial("id").primaryKey(),
+
+    // ── Discriminator (034) ──
+    // `kind` classifies what was ingested; `sourceType` records the origin.
+    // Defaulted to "invoice" so the additive migration backfills cleanly.
+    kind: ingestionKindEnum("kind").notNull().default("invoice"),
+    sourceType: ingestionSourceTypeEnum("source_type"),
+
+    // ── Shared across every kind ──
+    outcome: ingestionOutcomeEnum("outcome").notNull(),
+    channel: ingestionChannelEnum("channel").notNull(),
+    label: varchar("label", { length: 500 }),
+    errorMessage: text("error_message"),
+    uploadedBy: integer("uploaded_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+
+    // ── Polymorphic drill-through (034) ──
+    // Replaces the unsafe cross-type FK that linked_invoice_id had become.
+    // Intentionally NOT a DB-level foreign key: entityId may reference
+    // invoices, license_requests, etc. depending on `kind`.
+    entityType: varchar("entity_type", { length: 40 }),
+    entityId: integer("entity_id"),
+
+    // ── Type-specific payload (034) ──
+    details: jsonb("details").$type<IngestionDetails>(),
+
+    // ── DEPRECATED (034) ──
+    // Retained through the expand/migrate phases; dropped in the contract
+    // migration (P4) once all readers consume `details` / entity ref.
     filename: varchar("filename", { length: 500 }),
     vendor: varchar("vendor", { length: 255 }),
     invoiceNumber: varchar("invoice_number", { length: 255 }),
     invoiceDate: date("invoice_date"),
     amountCents: integer("amount_cents"),
-    outcome: ingestionOutcomeEnum("outcome").notNull(),
-    errorMessage: text("error_message"),
-    channel: ingestionChannelEnum("channel").notNull(),
     blobPathname: text("blob_pathname"),
     linkedInvoiceId: integer("linked_invoice_id").references(
       () => invoices.id,
-      { onDelete: "set null" }
+      { onDelete: "set null" },
     ),
-    uploadedBy: integer("uploaded_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("ingestion_log_outcome_idx").on(table.outcome),
     index("ingestion_log_created_at_idx").on(table.createdAt),
     index("ingestion_log_vendor_idx").on(table.vendor),
     index("ingestion_log_channel_idx").on(table.channel),
-  ]
+    index("ingestion_log_kind_idx").on(table.kind),
+  ],
 );
 
 // Anthropic Workspaces (workspace metadata from Anthropic Admin API)
@@ -709,7 +747,7 @@ export const anthropicWorkspaces = pgTable(
       .on(table.isDefault)
       .where(sql`${table.isDefault} = true`),
     index("anthropic_workspaces_archived_idx").on(table.isArchived),
-  ]
+  ],
 );
 
 // Anthropic Workspace Costs (daily cost per workspace from cost_report API)
@@ -732,8 +770,11 @@ export const anthropicWorkspaceCosts = pgTable(
       .where(sql`${table.workspaceId} IS NULL`),
     index("anthropic_workspace_costs_date_idx").on(table.date),
     index("anthropic_workspace_costs_workspace_id_idx").on(table.workspaceId),
-    check("anthropic_workspace_costs_cost_cents_check", sql`${table.costCents} >= 0`),
-  ]
+    check(
+      "anthropic_workspace_costs_cost_cents_check",
+      sql`${table.costCents} >= 0`,
+    ),
+  ],
 );
 
 // Anthropic Workspace Limits (admin-configured monthly spending limits)
@@ -753,7 +794,7 @@ export const anthropicWorkspaceLimits = pgTable(
     uniqueIndex("anthropic_workspace_limits_default_idx")
       .on(sql`(1)`)
       .where(sql`${table.workspaceId} IS NULL`),
-  ]
+  ],
 );
 
 // Anthropic Org Config (singleton row, id always = 1)
@@ -765,9 +806,7 @@ export const anthropicOrgConfig = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     updatedBy: integer("updated_by").references(() => users.id),
   },
-  (table) => [
-    check("anthropic_org_config_id_check", sql`${table.id} = 1`),
-  ]
+  (table) => [check("anthropic_org_config_id_check", sql`${table.id} = 1`)],
 );
 
 // Anthropic Alert State — idempotency ledger for Teams alert posts.
@@ -800,9 +839,9 @@ export const anthropicAlertState = pgTable(
     index("anthropic_alert_state_month_idx").on(table.billingMonth),
     check(
       "anthropic_alert_state_billing_month_format",
-      sql`${table.billingMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`
+      sql`${table.billingMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
     ),
-  ]
+  ],
 );
 
 // License Requests (032-automation-workflow)
@@ -821,7 +860,7 @@ export const licenseRequests = pgTable(
       .references(() => aiTools.id, { onDelete: "restrict" }),
     requestedTierId: integer("requested_tier_id").references(
       () => accessTiers.id,
-      { onDelete: "set null" }
+      { onDelete: "set null" },
     ),
     formPayload: jsonb("form_payload")
       .$type<Record<string, unknown>>()
@@ -846,7 +885,7 @@ export const licenseRequests = pgTable(
     completedAt: timestamp("completed_at"),
     assignmentId: integer("assignment_id").references(
       () => licenseAssignments.id,
-      { onDelete: "set null" }
+      { onDelete: "set null" },
     ),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -858,7 +897,7 @@ export const licenseRequests = pgTable(
     index("license_requests_decided_by_idx").on(table.decidedBy),
     index("license_requests_assignment_id_idx").on(table.assignmentId),
     index("license_requests_created_at_idx").on(table.createdAt),
-  ]
+  ],
 );
 
 // Message Templates (032-automation-workflow)
@@ -890,7 +929,7 @@ export const messageTemplates = pgTable(
     uniqueIndex("message_templates_tool_tier_kind_idx")
       .on(table.toolId, table.tierId, table.kind)
       .where(sql`${table.tierId} IS NOT NULL`),
-  ]
+  ],
 );
 
 // Relations
@@ -947,20 +986,23 @@ export const licenseAssignmentsRelations = relations(
       references: [accessTiers.id],
     }),
     comments: many(assignmentComments),
-  })
+  }),
 );
 
 export const annualBudgetsRelations = relations(annualBudgets, ({ many }) => ({
   periods: many(budgetPeriods),
 }));
 
-export const budgetPeriodsRelations = relations(budgetPeriods, ({ one, many }) => ({
-  budget: one(annualBudgets, {
-    fields: [budgetPeriods.budgetId],
-    references: [annualBudgets.id],
+export const budgetPeriodsRelations = relations(
+  budgetPeriods,
+  ({ one, many }) => ({
+    budget: one(annualBudgets, {
+      fields: [budgetPeriods.budgetId],
+      references: [annualBudgets.id],
+    }),
+    billedCosts: many(billedCosts),
   }),
-  billedCosts: many(billedCosts),
-}));
+);
 
 export const assignmentCommentsRelations = relations(
   assignmentComments,
@@ -973,7 +1015,7 @@ export const assignmentCommentsRelations = relations(
       fields: [assignmentComments.authorId],
       references: [users.id],
     }),
-  })
+  }),
 );
 
 export const billedCostsRelations = relations(billedCosts, ({ one, many }) => ({
@@ -1012,7 +1054,7 @@ export const githubConnectionsRelations = relations(
     syncEvents: many(githubSyncEvents),
     copilotUsageMetrics: many(copilotUsageMetrics),
     copilotBillingSnapshots: many(copilotBillingSnapshots),
-  })
+  }),
 );
 
 export const githubProfilesRelations = relations(githubProfiles, ({ one }) => ({
@@ -1033,7 +1075,7 @@ export const githubSyncEventsRelations = relations(
       fields: [githubSyncEvents.triggeredBy],
       references: [users.id],
     }),
-  })
+  }),
 );
 
 export const copilotUsageMetricsRelations = relations(
@@ -1043,7 +1085,7 @@ export const copilotUsageMetricsRelations = relations(
       fields: [copilotUsageMetrics.connectionId],
       references: [githubConnections.id],
     }),
-  })
+  }),
 );
 
 export const copilotBillingSnapshotsRelations = relations(
@@ -1053,7 +1095,7 @@ export const copilotBillingSnapshotsRelations = relations(
       fields: [copilotBillingSnapshots.connectionId],
       references: [githubConnections.id],
     }),
-  })
+  }),
 );
 
 export const anthropicUsageMetricsRelations = relations(
@@ -1063,7 +1105,7 @@ export const anthropicUsageMetricsRelations = relations(
       fields: [anthropicUsageMetrics.userId],
       references: [users.id],
     }),
-  })
+  }),
 );
 
 export const anthropicSyncStatusRelations = relations(
@@ -1073,7 +1115,7 @@ export const anthropicSyncStatusRelations = relations(
       fields: [anthropicSyncStatus.userId],
       references: [users.id],
     }),
-  })
+  }),
 );
 
 export const syncEventsRelations = relations(syncEvents, ({ one }) => ({
@@ -1111,7 +1153,7 @@ export const ingestionFilters = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [index("ingestion_filters_enabled_idx").on(table.enabled)]
+  (table) => [index("ingestion_filters_enabled_idx").on(table.enabled)],
 );
 
 export const ingestionFiltersRelations = relations(
@@ -1121,47 +1163,53 @@ export const ingestionFiltersRelations = relations(
       fields: [ingestionFilters.createdBy],
       references: [users.id],
     }),
-  })
+  }),
 );
 
 // License Requests / Message Templates relations (032-automation-workflow)
-export const licenseRequestsRelations = relations(licenseRequests, ({ one }) => ({
-  requesterUser: one(users, {
-    fields: [licenseRequests.requesterUserId],
-    references: [users.id],
-    relationName: "license_request_requester",
+export const licenseRequestsRelations = relations(
+  licenseRequests,
+  ({ one }) => ({
+    requesterUser: one(users, {
+      fields: [licenseRequests.requesterUserId],
+      references: [users.id],
+      relationName: "license_request_requester",
+    }),
+    requestedTool: one(aiTools, {
+      fields: [licenseRequests.requestedToolId],
+      references: [aiTools.id],
+    }),
+    requestedTier: one(accessTiers, {
+      fields: [licenseRequests.requestedTierId],
+      references: [accessTiers.id],
+    }),
+    decidedByUser: one(users, {
+      fields: [licenseRequests.decidedBy],
+      references: [users.id],
+      relationName: "license_request_decided_by",
+    }),
+    completedByUser: one(users, {
+      fields: [licenseRequests.completedBy],
+      references: [users.id],
+      relationName: "license_request_completed_by",
+    }),
+    assignment: one(licenseAssignments, {
+      fields: [licenseRequests.assignmentId],
+      references: [licenseAssignments.id],
+    }),
   }),
-  requestedTool: one(aiTools, {
-    fields: [licenseRequests.requestedToolId],
-    references: [aiTools.id],
-  }),
-  requestedTier: one(accessTiers, {
-    fields: [licenseRequests.requestedTierId],
-    references: [accessTiers.id],
-  }),
-  decidedByUser: one(users, {
-    fields: [licenseRequests.decidedBy],
-    references: [users.id],
-    relationName: "license_request_decided_by",
-  }),
-  completedByUser: one(users, {
-    fields: [licenseRequests.completedBy],
-    references: [users.id],
-    relationName: "license_request_completed_by",
-  }),
-  assignment: one(licenseAssignments, {
-    fields: [licenseRequests.assignmentId],
-    references: [licenseAssignments.id],
-  }),
-}));
+);
 
-export const messageTemplatesRelations = relations(messageTemplates, ({ one }) => ({
-  tool: one(aiTools, {
-    fields: [messageTemplates.toolId],
-    references: [aiTools.id],
+export const messageTemplatesRelations = relations(
+  messageTemplates,
+  ({ one }) => ({
+    tool: one(aiTools, {
+      fields: [messageTemplates.toolId],
+      references: [aiTools.id],
+    }),
+    tier: one(accessTiers, {
+      fields: [messageTemplates.tierId],
+      references: [accessTiers.id],
+    }),
   }),
-  tier: one(accessTiers, {
-    fields: [messageTemplates.tierId],
-    references: [accessTiers.id],
-  }),
-}));
+);

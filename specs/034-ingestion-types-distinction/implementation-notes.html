@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Notes — Ingestion Types Distinction</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    h2 { font-size: 20px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 15px; margin: 16px 0 4px; }
+    p { margin: 0 0 10px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; line-height: 1.5; color: var(--fg-muted); }
+    .lede { color: var(--fg-muted); font-size: 15px; max-width: 760px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .entry { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 12px 0; }
+    .entry.decision { border-left: 3px solid var(--accent); }
+    .entry.deviation { border-left: 3px solid var(--warn); }
+    .entry.tradeoff { border-left: 3px solid var(--accent-2); }
+    .entry.open { border-left: 3px solid var(--bad); }
+    .entry.verify { border-left: 3px solid var(--good); }
+    .entry h3 { margin-top: 0; font-size: 15px; }
+    .entry .kind { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--bg-elev); text-transform: uppercase; letter-spacing: 0.06em; margin-right: 8px; }
+    .entry .kind.decision { color: var(--accent); }
+    .entry .kind.deviation { color: var(--warn); }
+    .entry .kind.tradeoff { color: var(--accent-2); }
+    .entry .kind.open { color: var(--bad); }
+    .entry .kind.verify { color: var(--good); }
+    .entry .where { color: var(--fg-dim); font-size: 12px; font-family: var(--mono); margin: 4px 0 8px; }
+    ul { padding-left: 20px; margin: 6px 0 10px; }
+    li { margin: 3px 0; }
+    .phase-divider { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.1em; margin: 32px 0 8px; padding: 8px 0; border-top: 1px dashed var(--border); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Implementation notes</h1>
+  <p class="lede">
+    Running log of decisions, deviations, trade-offs, and open questions encountered while implementing
+    <a href="./implementation-plan.html">implementation-plan.html</a>. Append-only — earlier entries are not retroactively edited.
+  </p>
+  <p class="meta">Started 2026-06-03 · branch: claude/injection-types-distinction-Xcf9K · all five open questions resolved with the plan defaults</p>
+</header>
+
+<div class="phase-divider">Phase 0 — Schema (expand)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Discriminator + JSONB details, legacy columns retained</h3>
+  <p class="where"><code>src/lib/db/schema.ts</code> · <code>src/types/ingestion.ts</code> · migration <code>0023_perfect_runaways.sql</code></p>
+  <p>Added <code>ingestion_kind</code> + <code>ingestion_source_type</code> enums and six columns to <code>ingestion_log</code> — <code>kind</code> (NOT NULL DEFAULT <code>'invoice'</code>), <code>source_type</code>, <code>label</code>, <code>entity_type</code>, <code>entity_id</code>, <code>details</code> (jsonb) — plus <code>ingestion_log_kind_idx</code>. All deprecated invoice columns are kept for now; this is the "expand" step. The default on <code>kind</code> backfills existing rows for free.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span><code>IngestionDetails</code> modelled as plain string-literal unions, not derived from the pgEnums</h3>
+  <p class="where"><code>src/types/ingestion.ts</code></p>
+  <p>The schema module imports <code>IngestionDetails</code> (for <code>jsonb().$type&lt;…&gt;()</code>), so deriving the TS kinds <em>from</em> the Drizzle enums would create an import cycle. The union literals are kept in lockstep with the enums by convention (a comment flags it). Requester fields on the license-request variant are optional, because early-failure logging (invalid JSON / schema rejection) happens before the payload is known.</p>
+</div>
+
+<div class="entry verify">
+  <h3><span class="kind verify">Verify</span>Migration 0023 reviewed — PASS, purely additive</h3>
+  <p class="where">drizzle-migration-reviewer</p>
+  <p>Only <code>CREATE TYPE</code> / <code>ADD COLUMN</code> / <code>CREATE INDEX</code>. NOT-NULL <code>kind</code> with a constant default is metadata-only on PG 11+ (no table rewrite). Enums created before the columns that use them. <code>entity_id</code> is intentionally not a FK. One non-blocking note: the <code>kind</code> index is non-concurrent — fine at this table's volume, build with <code>CONCURRENTLY</code> post-deploy if the table is ever large.</p>
+</div>
+
+<div class="phase-divider">Phase 2 — Write path</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span><code>logIngestion()</code> canonical; <code>logIngestionAttempt()</code> kept as a dual-writing shim</h3>
+  <p class="where"><code>src/lib/ingestion-logger.ts</code></p>
+  <p>Rather than churn all ~22 invoice call sites, the old invoice-shaped <code>logIngestionAttempt</code> now maps onto the new discriminated <code>logIngestion</code> with <code>kind:"invoice"</code>. For <code>kind:"invoice"</code>, <code>logIngestion</code> <strong>dual-writes</strong> the deprecated columns (<code>vendor</code>, <code>amount_cents</code>, <code>linked_invoice_id</code>, …) so the legacy read path keeps working until P3 flips it. License-request writes deliberately leave those columns null — which is what removes the unsafe FK abuse. The shim + dual-write are deleted in P4.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>License route: stop the <code>linked_invoice_id</code> / <code>filtered</code> overloads (Q3)</h3>
+  <p class="where"><code>src/app/api/license-requests/ingest/route.ts</code></p>
+  <p>All five log call sites now use <code>logIngestion({ kind:"license_request", … })</code>. The successful path records <code>entity:{type:"license_request", id}</code> (no more writing a license-request id into the invoice FK) and an idempotent replay is <code>outcome:"success"</code> + <code>details.deduped=true</code> instead of borrowing the invoice-only <code>"filtered"</code> outcome. This closes the latent referential bug called out in the proposal.</p>
+</div>
+
+<div class="phase-divider">Phase 3 — Read path + UI (Nothing)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Split registry: server-safe <code>labels.ts</code> vs client <code>registry.tsx</code></h3>
+  <p class="where"><code>src/lib/ingestion/labels.ts</code> · <code>src/lib/ingestion/registry.tsx</code></p>
+  <p>The headline string (<code>buildIngestionLabel</code>) is computed at write time and stored in <code>ingestion_log.label</code>, so it must be importable from the server logger — kept in a pure, React-free module. The UI registry (icons via lucide, drill-through hrefs) lives in <code>registry.tsx</code>. The Summary column just renders the stored <code>label</code>; the registry supplies the Kind pill icon and the per-kind drill-through (invoice → PDF in a new tab; license request → <code>/requests/:id</code> same tab). Built with the in-repo Nothing primitives (<code>Badge</code> outline + icon, <code>Tabs</code>, <code>OutcomeBadge</code>, ghost icon <code>Button</code>).</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Sub-tabs as the primary kind control (Q2)</h3>
+  <p class="where"><code>src/app/settings/ingestion/ingestion-history-table.tsx</code></p>
+  <p>An <em>All / &lt;present kinds&gt;</em> <code>Tabs</code> strip (only shown when more than one kind is present, derived via <code>presentKinds()</code>) filters the rows client-side before they reach the <code>DataTable</code>. Status stays a faceted filter; search runs over the Summary (<code>label</code>) column.</p>
+</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Dropped the standalone Vendor faceted filter</h3>
+  <p class="where"><code>ingestion-history-table.tsx</code></p>
+  <p>The shared <code>DataTable</code> renders every column it's given and has no column-visibility state, so a facet on a hidden <code>vendor</code> column would render an empty column. Since the Summary label for invoices already contains the vendor and the table searches on <code>label</code>, vendor filtering is preserved via search instead. If a dedicated facet is wanted later, <code>DataTable</code> needs column-visibility support first.</p>
+</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Activity feed: only the static description generalised</h3>
+  <p class="where"><code>src/components/dashboard/admin/activity-timeline.tsx</code></p>
+  <p>The per-item titles for the dashboard activity feed are composed upstream in <code>src/actions/dashboard.ts</code>, not in the timeline component. For this pass I generalised the card description ("Invoice ingestions…" → "Ingestions…"). Making each activity <em>item</em> kind-aware (icon + copy via the registry) is a follow-up in the dashboard action — see open question below.</p>
+</div>
+
+<div class="phase-divider">Phase 1 — Backfill</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Classify license rows by <code>invoice_number ∈ license_requests.form_response_id</code></h3>
+  <p class="where"><code>scripts/backfill-ingestion-kind.ts</code></p>
+  <p>Form-response IDs are GUID-like and won't collide with real invoice numbers, so matching the overloaded <code>invoice_number</code> against existing <code>form_response_id</code>s is a robust signal. Matched rows are reclassified to <code>license_request</code>, enriched with requester/tool/tier from the joined <code>license_requests</code> row, and old <code>filtered</code> dedup rows are normalised to <code>success</code> + <code>deduped</code>. Everything else stays <code>invoice</code> with <code>details</code>/<code>entity</code> populated from the legacy columns. The script is idempotent and <strong>dry-run by default</strong> (<code>--apply</code> to write).</p>
+</div>
+
+<div class="phase-divider">Verification</div>
+
+<div class="entry verify">
+  <h3><span class="kind verify">Verify</span>Gates green</h3>
+  <p><code>pnpm typecheck</code> clean · <code>pnpm lint</code> 0 warnings · <code>pnpm test</code> 394 existing pass + 10 new unit tests for <code>buildIngestionLabel</code> / registry drill-through / <code>presentKinds</code>. Migration <code>0023</code> generated and reviewed.</p>
+</div>
+
+<div class="phase-divider">Open questions / follow-ups</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>P4 (contract) deferred</h3>
+  <p>Dropping the deprecated columns and the <code>logIngestionAttempt</code> shim is intentionally <em>not</em> in this change — it needs a soak window with the new readers live, then its own reviewed, destructive migration (Neon branch first).</p>
+</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>Backfill not yet run · no DB in this environment</h3>
+  <p>This container has no <code>DATABASE_URL</code>, so <code>db:push</code>/<code>db:migrate</code> and the backfill were not executed here. The migration SQL is generated and committed; applying <code>0023</code> and running <code>scripts/backfill-ingestion-kind.ts --apply</code> against a Neon branch is the next operational step.</p>
+</div>
+
+<div class="entry open">
+  <h3><span class="kind open">Open</span>Activity-feed items not yet kind-aware</h3>
+  <p>Make <code>src/actions/dashboard.ts</code> emit per-kind titles/icons/severity via <code>INGESTION_TYPES</code> so a license request reads as a request event, not an invoice one.</p>
+</div>
+
+<footer>
+  spec/034-ingestion-types-distinction · implementation-notes.html · started 2026-06-03 · append-only
+</footer>
+
+</main>
+</body>
+</html>
