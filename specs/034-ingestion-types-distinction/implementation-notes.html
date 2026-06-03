@@ -158,6 +158,24 @@
   <p>Make <code>src/actions/dashboard.ts</code> emit per-kind titles/icons/severity via <code>INGESTION_TYPES</code> so a license request reads as a request event, not an invoice one.</p>
 </div>
 
+<div class="phase-divider">Follow-up — Activity feed (resolves earlier open item)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Dashboard activity items are now kind-aware</h3>
+  <p class="where"><code>src/actions/dashboard.ts</code> (<code>getRecentDashboardActivity</code>)</p>
+  <p>The ingestion query now selects <code>kind</code> / <code>label</code> / <code>details</code> alongside the legacy columns, and the item composition branches on <code>kind</code>:</p>
+  <ul>
+    <li><strong>invoice</strong> → "Invoice from {vendor}" · "Added · {amount}" / "Filtered (duplicate)" / "Failed" (unchanged behaviour, now sourced from <code>details</code> with the legacy columns as fallback for not-yet-backfilled rows).</li>
+    <li><strong>license_request</strong> → "License request · {requester}" · "Requested {tool} · {tier}" / "Duplicate (idempotent)" / "Failed".</li>
+  </ul>
+  <p>A pre-034 dedup row that still carries <code>outcome="filtered"</code> is treated the same as the new <code>success + deduped</code> representation, so the feed reads correctly whether or not the backfill has run. The <code>DashboardActivityItem.kind</code> stays <code>"ingestion"</code> for both (the timeline dot keys off <code>severity</code>, which is unchanged), so no type or timeline-component change was needed. This closes the "activity-feed items not yet kind-aware" open question above.</p>
+</div>
+
+<div class="entry verify">
+  <h3><span class="kind verify">Verify</span>Gates green after activity-feed change</h3>
+  <p><code>pnpm typecheck</code> clean · <code>pnpm lint</code> 0 warnings · <code>pnpm test</code> 404 pass.</p>
+</div>
+
 <footer>
   spec/034-ingestion-types-distinction · implementation-notes.html · started 2026-06-03 · append-only
 </footer>
