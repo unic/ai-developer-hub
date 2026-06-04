@@ -8,7 +8,6 @@
  * hashes, or invite tokens.
  */
 
-import { format, subDays } from "date-fns";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 
 import { db } from "@/lib/db";
@@ -34,7 +33,7 @@ import {
   fetchActualByPeriod,
 } from "@/actions/budget";
 import { buildBudgetForecast } from "@/lib/forecast";
-import { getCurrentMonth } from "@/lib/utils";
+import { getCurrentMonth, formatUtcDateOnly } from "@/lib/utils";
 import type { SyncSourceType } from "@/lib/sync/framework";
 import { usd } from "@/lib/mcp/format";
 
@@ -258,20 +257,29 @@ export async function getCopilotUsageSummaryData(
   since?: string,
   until?: string,
 ) {
+  // Match getActiveConnection() in copilot-data.ts: a connection only counts as
+  // active for Copilot when syncing is enabled — otherwise its metrics are
+  // absent or stale and "connected: true" would be misleading.
   const connection = await db.query.githubConnections.findFirst({
-    where: eq(githubConnections.status, "active"),
+    where: and(
+      eq(githubConnections.status, "active"),
+      eq(githubConnections.copilotSyncEnabled, true),
+    ),
     columns: { id: true, orgLogin: true },
   });
   if (!connection) {
     return {
       connected: false as const,
-      message: "No active GitHub connection",
+      message: "No active GitHub connection with Copilot sync enabled",
     };
   }
 
+  // Default the range in UTC so the YYYY-MM-DD day boundary is timezone-stable
+  // (matches the rest of the codebase, which keys daily metrics on UTC dates).
   const today = new Date();
-  const untilDate = until ?? format(today, "yyyy-MM-dd");
-  const sinceDate = since ?? format(subDays(today, 27), "yyyy-MM-dd");
+  const untilDate = until ?? formatUtcDateOnly(today);
+  const sinceDate =
+    since ?? formatUtcDateOnly(new Date(today.getTime() - 27 * 86_400_000));
 
   const [rows, billing] = await Promise.all([
     db
