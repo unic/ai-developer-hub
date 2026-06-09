@@ -262,6 +262,20 @@
       (a <code>verdictLead</code> string); verified: <code>count 0</code> → "Right-sizing the 0 API users costs …",
       <code>count 1</code> → singular "user".</li>
   </ul>
+  <p><strong>Pass 3</strong> (re-review of pass 2) — two more, both fixed:</p>
+  <ul>
+    <li><strong>Seat $/mo precision mismatch</strong> — API rows carry cents-precise metered spend, but the "Seat $/mo"
+      cell used whole-dollar <code>formatUSD0</code> while "API basis" used <code>formatCurrency</code> — so the same
+      value could read <code>$24</code> vs <code>$23.82</code> beside a <code>—</code> delta. API rows now use
+      <code>formatCurrency</code> too; verified in-browser the two cells match exactly (e.g. $23.82 = $23.82, Δ —).
+      Whole-dollar seat prices keep <code>formatUSD0</code>.</li>
+    <li><strong>Misleading sort comment</strong> — <code>TIER_SORT_ORDER</code> was annotated "cheapest → priciest",
+      but it's a tier-escalation order (API → Standard → Premium), not a cost order. Reworded to say so and cross-ref
+      <code>mapSeat</code>.</li>
+  </ul>
+  <p class="c">After pass 3 the loop is converging on increasingly minor points (display precision, comment wording),
+    each typically about the previous fix. All six findings across three passes are fixed, replied, and resolved; CI is
+    green on every commit. Concluding the review loop here — the PR is open for human review.</p>
 </div>
 
 <footer id="result-footer">

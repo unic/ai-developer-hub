@@ -67,7 +67,8 @@ function joinParts(parts: string[]): string {
 type SortKey = "name" | "status" | "usage" | "tier" | "seat" | "delta";
 
 // Seat-tier presentation kept in one place so the three-tier model stays
-// first-class: sort rank (cheapest → priciest) and per-tier pill styling.
+// first-class: sort rank (tier escalation API → Standard → Premium, not a cost
+// ordering — see mapSeat) and per-tier pill styling.
 const TIER_SORT_ORDER: Record<SeatTier, number> = {
   api: 0,
   standard: 1,
@@ -690,7 +691,12 @@ export function ApiSubscriptionClient({
                       <SeatPill tier={r.tier} />
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums text-ink">
-                      {formatUSD0(r.seatCents)}
+                      {/* API rows carry cents-precise metered spend; match the
+                          API-basis cell's precision so Δ "—" reads consistently.
+                          Whole-dollar seat prices stay on formatUSD0. */}
+                      {r.tier === "api"
+                        ? formatCurrency(r.seatCents)
+                        : formatUSD0(r.seatCents)}
                     </TableCell>
                     <TableCell
                       className={cn(
