@@ -142,20 +142,18 @@
 </div>
 
 <!-- ========================================================= -->
-<h2>Open questions <span class="ts">(confirm / revise)</span></h2>
+<h2>Open questions <span class="ts">(resolved 2026-06-09)</span></h2>
 
-<div class="entry oq">
-  <h3>Editable ceiling framing <span class="tag oq">confirm</span></h3>
-  <p>Is "edit the ceiling to model an approved portfolio budget" the UX you want, given the live $42k can't contain the
-    full portfolio? Alternative: keep the ceiling read-only at $42k and accept a permanently-red verdict as the honest
-    finding. Current build: editable, defaulting to $42k.</p>
+<div class="entry to">
+  <h3>Editable ceiling framing <span class="tag to">confirmed</span></h3>
+  <p><b>Confirmed by the user:</b> keep the ceiling editable, defaulting to the live budget ceiling, so an owner can
+    model an approved portfolio budget and reach a green state via the levers. No change needed — shipped as built.</p>
 </div>
 
-<div class="entry oq">
-  <h3>burn0 basis for the metered API line <span class="tag oq">confirm</span></h3>
-  <p>The forecast's per-user API burn (<code>burn0</code>) is derived from recent complete-month metered spend ÷ active
-    API users. Open: average of complete months vs latest complete month as the anchor. Current build: documented once
-    the data layer lands.</p>
+<div class="entry to">
+  <h3>burn0 basis for the metered API line <span class="tag to">confirmed</span></h3>
+  <p><b>Confirmed by the user:</b> <code>burn0</code> = average across <i>complete</i> months ÷ active API users (the
+    sum-of-per-user-complete-month-averages basis the loader uses). No change needed — shipped as built.</p>
 </div>
 
 <!-- ========================================================= -->
