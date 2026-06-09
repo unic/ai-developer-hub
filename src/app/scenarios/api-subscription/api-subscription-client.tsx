@@ -28,6 +28,7 @@ import {
   type Population,
   type ScenarioInputs,
   type ScenarioRow,
+  type SeatTier,
   type UsageBasis,
 } from "@/lib/scenarios/api-subscription";
 import type { ApiSubscriptionDataset } from "@/lib/scenarios/types";
@@ -58,6 +59,26 @@ function basisLabel(key: string, ds: ApiSubscriptionDataset): string {
 
 type SortKey = "name" | "status" | "usage" | "tier" | "seat" | "delta";
 
+// Seat-tier presentation kept in one place so the three-tier model stays
+// first-class: sort rank (cheapest → priciest) and per-tier pill styling.
+const TIER_SORT_ORDER: Record<SeatTier, number> = {
+  api: 0,
+  standard: 1,
+  premium: 2,
+};
+
+const SEAT_PILL: Record<SeatTier, { className: string; label: string }> = {
+  api: {
+    className: "border border-dashed border-input text-faint",
+    label: "API",
+  },
+  standard: {
+    className: "border border-input text-muted-foreground",
+    label: "standard",
+  },
+  premium: { className: "border border-ink text-ink", label: "premium" },
+};
+
 export function ApiSubscriptionClient({
   dataset,
 }: {
@@ -72,6 +93,9 @@ export function ApiSubscriptionClient({
   const [thresholdDollars, setThresholdDollars] = useState(
     Math.round(dataset.defaultPremiumCents / 100),
   );
+  const [apiThresholdDollars, setApiThresholdDollars] = useState(
+    Math.round(dataset.defaultStandardCents / 100),
+  );
   const [basisKey, setBasisKey] = useState("avgComplete");
   const [population, setPopulation] = useState<Population>("all");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({
@@ -84,10 +108,18 @@ export function ApiSubscriptionClient({
       standardCents: Math.max(0, Math.round(standardDollars * 100)),
       premiumCents: Math.max(0, Math.round(premiumDollars * 100)),
       premiumThresholdCents: Math.max(0, Math.round(thresholdDollars * 100)),
+      apiThresholdCents: Math.max(0, Math.round(apiThresholdDollars * 100)),
       basis: toBasis(basisKey),
       population,
     }),
-    [standardDollars, premiumDollars, thresholdDollars, basisKey, population],
+    [
+      standardDollars,
+      premiumDollars,
+      thresholdDollars,
+      apiThresholdDollars,
+      basisKey,
+      population,
+    ],
   );
 
   const result = useMemo(
@@ -137,7 +169,7 @@ export function ApiSubscriptionClient({
         case "status":
           return r.user.status;
         case "tier":
-          return r.tier === "premium" ? 1 : 0;
+          return TIER_SORT_ORDER[r.tier];
         case "seat":
           return r.seatCents;
         case "delta":
@@ -163,10 +195,21 @@ export function ApiSubscriptionClient({
     );
   }
 
+  // The API floor can never sit above the Premium ceiling. Lowering Premium drags
+  // the floor down with it; raising the floor stops at the current Premium value.
+  function onApiThreshold(value: number) {
+    setApiThresholdDollars(Math.min(value, thresholdDollars));
+  }
+  function onPremiumThreshold(value: number) {
+    setThresholdDollars(value);
+    setApiThresholdDollars((prev) => Math.min(prev, value));
+  }
+
   function reset() {
     setStandardDollars(dataset.defaultStandardCents / 100);
     setPremiumDollars(dataset.defaultPremiumCents / 100);
     setThresholdDollars(Math.round(dataset.defaultPremiumCents / 100));
+    setApiThresholdDollars(Math.round(dataset.defaultStandardCents / 100));
     setBasisKey("avgComplete");
     setPopulation("all");
   }
@@ -244,9 +287,9 @@ export function ApiSubscriptionClient({
       tag: "Right-sized",
       title: "Threshold mix",
       barLabel: "Right-sized",
-      barSub: `${result.premiumCount}P · ${result.standardCount}S`,
+      barSub: `${result.apiCount}A · ${result.standardCount}S · ${result.premiumCount}P`,
       cents: result.rightSizedCents,
-      mix: `${result.premiumCount} Premium · ${result.standardCount} Standard`,
+      mix: `${result.premiumCount} Premium · ${result.standardCount} Standard · ${result.apiCount} metered API`,
       isBaseline: false,
     },
   ];
@@ -307,31 +350,30 @@ export function ApiSubscriptionClient({
               onChange={setPremiumDollars}
             />
 
-            <div>
-              <div className="flex items-baseline justify-between">
-                <ControlLabel htmlFor="threshold">
-                  Premium threshold ≥
-                </ControlLabel>
-                <span className="font-mono text-sm tabular-nums text-ink">
-                  {formatUSD0(inputs.premiumThresholdCents)}
-                </span>
-              </div>
-              <input
-                id="threshold"
-                type="range"
-                min={0}
-                max={300}
-                step={5}
-                value={thresholdDollars}
-                onChange={(e) => setThresholdDollars(Number(e.target.value))}
-                className="mt-3 w-full cursor-pointer"
-                style={{ accentColor: "var(--ink)" }}
-                aria-label="Premium threshold, dollars per month"
+            <div className="space-y-4">
+              <ThresholdSlider
+                id="api-threshold"
+                label="Keep on API <"
+                cents={inputs.apiThresholdCents}
+                value={apiThresholdDollars}
+                max={100}
+                onChange={onApiThreshold}
+                ariaLabel="API threshold — keep keys spending below this on metered API"
               />
-              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <span className="text-ink">{result.premiumCount}</span> Premium
-                · <span className="text-ink">{result.standardCount}</span>{" "}
-                Standard
+              <ThresholdSlider
+                id="threshold"
+                label="Premium threshold ≥"
+                cents={inputs.premiumThresholdCents}
+                value={thresholdDollars}
+                max={300}
+                onChange={onPremiumThreshold}
+                ariaLabel="Premium threshold, dollars per month"
+              />
+              <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+                <span className="text-faint">{result.apiCount}</span> API ·{" "}
+                <span className="text-ink">{result.standardCount}</span> Standard
+                · <span className="text-ink">{result.premiumCount}</span>{" "}
+                Premium
               </p>
             </div>
 
@@ -405,7 +447,7 @@ export function ApiSubscriptionClient({
         <Kpi
           label={`Heavy users ≥ ${formatUSD0(inputs.premiumThresholdCents)}`}
           value={result.premiumCount}
-          sub={`${result.standardCount} fit a Standard seat`}
+          sub={`${result.standardCount} on Standard · ${result.apiCount} kept on API`}
         />
       </div>
 
@@ -427,8 +469,14 @@ export function ApiSubscriptionClient({
           </span>
         </p>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Moving all {result.count} API users to {result.premiumCount} Premium +{" "}
-          {result.standardCount} Standard seats costs{" "}
+          Moving {result.count} API users to {result.premiumCount} Premium +{" "}
+          {result.standardCount} Standard seats
+          {result.apiCount > 0
+            ? ` and keeping ${result.apiCount} light ${
+                result.apiCount === 1 ? "key" : "keys"
+              } on metered API`
+            : ""}{" "}
+          costs{" "}
           <span className="text-ink">
             {formatUSD0(result.rightSizedCents)}/mo
           </span>{" "}
@@ -664,7 +712,8 @@ export function ApiSubscriptionClient({
                     {formatUSD0(result.baselineCents)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                    {result.premiumCount}P / {result.standardCount}S
+                    {result.premiumCount}P / {result.standardCount}S /{" "}
+                    {result.apiCount}A
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">
                     {formatUSD0(result.rightSizedCents)}
@@ -712,6 +761,47 @@ function ControlLabel({
     >
       {children}
     </label>
+  );
+}
+
+function ThresholdSlider({
+  id,
+  label,
+  cents,
+  value,
+  max,
+  onChange,
+  ariaLabel,
+}: {
+  id: string;
+  label: string;
+  cents: number;
+  value: number;
+  max: number;
+  onChange: (v: number) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <ControlLabel htmlFor={id}>{label}</ControlLabel>
+        <span className="font-mono text-sm tabular-nums text-ink">
+          {formatUSD0(cents)}
+        </span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={max}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-3 w-full cursor-pointer"
+        style={{ accentColor: "var(--ink)" }}
+        aria-label={ariaLabel}
+      />
+    </div>
   );
 }
 
@@ -804,17 +894,16 @@ function Kpi({
   );
 }
 
-function SeatPill({ tier }: { tier: "standard" | "premium" }) {
+function SeatPill({ tier }: { tier: SeatTier }) {
+  const { className, label } = SEAT_PILL[tier];
   return (
     <span
       className={cn(
         "inline-block rounded-[4px] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em]",
-        tier === "premium"
-          ? "border border-ink text-ink"
-          : "border border-input text-muted-foreground",
+        className,
       )}
     >
-      {tier}
+      {label}
     </span>
   );
 }

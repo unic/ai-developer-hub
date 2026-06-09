@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Notes — API threshold (035 increment)</title>
+  <style>
+    :root {
+      --bg: #0b0d12; --bg-elev: #11141b; --bg-card: #161a24; --border: #232938; --border-strong: #2f3850;
+      --fg: #e7ebf3; --fg-muted: #9aa3b5; --fg-dim: #6b7488; --accent: #f0a072; --accent-2: #7dd3fc;
+      --good: #86efac; --warn: #fcd34d; --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 30px; margin: 0 0 8px; font-weight: 600; letter-spacing: -0.01em; }
+    h2 { font-size: 20px; margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-weight: 600; }
+    h3 { font-size: 15px; margin: 18px 0 4px; font-weight: 600; }
+    p { margin: 0 0 12px; }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 800px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.accent { color: var(--accent); border-color: rgba(240,160,114,0.35); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin: 14px 0; }
+    .note { border-left: 3px solid var(--accent-2); padding: 4px 0 4px 16px; margin: 14px 0; }
+    .note.dec { border-color: var(--accent-2); }
+    .note.dev { border-color: var(--warn); }
+    .note.trade { border-color: var(--good); }
+    .note.q { border-color: var(--bad); }
+    .tag { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--fg-dim); }
+    ul { padding-left: 20px; margin: 6px 0 12px; }
+    li { margin: 4px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+    th, td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-elev); }
+    .k { color: var(--accent-2); } .s { color: var(--good); } .c { color: var(--fg-dim); font-style: italic; }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); font-family: var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+<header>
+  <div style="margin-bottom:14px;">
+    <span class="badge accent">Implementation notes</span>
+    <span class="badge">035 · API threshold</span>
+    <span class="badge good" id="status-badge">Status: implemented · gates green · review pass</span>
+  </div>
+  <h1>Implementation notes — API threshold</h1>
+  <p class="lede">
+    What diverged from, or was interpreted beyond, <a href="./api-threshold-implementation-plan.html">the plan</a>
+    while building it. A running log; updated as the work proceeds.
+  </p>
+  <p class="meta">Started 2026-06-09 · feature 035 increment · branch 036-budget-forecast-simulation (worktree api-subscription-calc)</p>
+</header>
+
+<h2>1 · Design decisions (spec was ambiguous / left to judgement)</h2>
+
+<div class="note dec">
+  <p class="tag">Decision · control layout</p>
+  <h3>Both thresholds share one "Seat thresholds" cell</h3>
+  <p>The plan offered the API floor as "a second slider, paired with the Premium one" but left the exact panel layout
+    open. I kept the 4-column instrument panel by stacking the API-floor slider above the Premium-ceiling slider in the
+    cell that previously held the Premium slider alone, with a single three-way <code>API · Standard · Premium</code>
+    readout below the pair. No new grid column; the cell just grows taller.</p>
+</div>
+
+<div class="note dec">
+  <p class="tag">Decision · label wording</p>
+  <h3>Slider labelled <code>Keep on API &lt;</code> (not "API threshold")</h3>
+  <p>Reads symmetrically against the existing <code>Premium threshold ≥</code> and states the behaviour directly
+    (keys below stay on API). The plan flagged the wording as unconfirmed — see open questions.</p>
+</div>
+
+<div class="note dec">
+  <p class="tag">Decision · "api" seat cost</p>
+  <h3>A metered key's <code>seatCents</code> = its own usage</h3>
+  <p>So its per-user <code>deltaCents</code> is exactly 0 (the table shows "—", i.e. no change), and the
+    <code>seatCents</code> column still foots to <code>rightSizedCents</code>. This is the plan's stated trick; I kept it
+    rather than special-casing API rows out of the footer total.</p>
+</div>
+
+<div class="note dec">
+  <p class="tag">Decision · slider range</p>
+  <h3>API slider is <code>$0–$100, step $5</code></h3>
+  <p>The Premium slider spans <code>$0–$300</code>; the API floor only needs the low end (its sole job is to catch keys
+    cheaper than a seat). $25 default is reachable at step 5. The UI clamps the floor to ≤ the Premium ceiling.</p>
+</div>
+
+<div class="note dec">
+  <p class="tag">Decision · default sourcing</p>
+  <h3>Default = live Standard seat price, then independent</h3>
+  <p>Initialised from <code>dataset.defaultStandardCents</code> ($25 on live data) and restored by "Reset to live", but
+    thereafter a free, independent control — mirroring how the Premium threshold relates to the Premium price.</p>
+</div>
+
+<h2>2 · Deviations (intentional departures)</h2>
+
+<div class="note dev">
+  <p class="tag">Deviation · test anchors</p>
+  <h3>Default-input regression anchors were rewritten, not preserved</h3>
+  <p>Because the API threshold defaults to <code>$25</code> (not 0), the shipped tests asserting
+    <code>rightSizedCents === 207500</code> (all) / <code>177500</code> (active) no longer describe the default. I
+    <em>rewrote</em> those two tests to the new three-band anchors (<span class="s">177591</span> = 16·22·9;
+    <span class="s">147591</span> = 16·20·7) and added a separate <code>apiThresholdCents: 0</code> "superset" test that
+    pins the old <code>207500 / 177500</code> figures. Net: the legacy numbers are still asserted, just under the input
+    that produces them. This is the intended behaviour change called out in plan §6.</p>
+</div>
+
+<div class="note dev">
+  <p class="tag">Deviation · scope guard</p>
+  <h3>The API floor applies only to the right-sized scenario</h3>
+  <p><em>All → Standard</em> and <em>All → Premium</em> stay deliberately naïve (everyone on one seat) as contrast
+    baselines. The floor is the whole point of the right-sized column, so applying it elsewhere would erase the
+    comparison the page exists to make.</p>
+</div>
+
+<h2>3 · Tradeoffs (alternatives considered)</h2>
+
+<div class="note trade">
+  <p class="tag">Tradeoff · control widget</p>
+  <h3>Two native range sliders vs a dual-thumb Radix slider</h3>
+  <p>A single dual-thumb range would express the API–Premium band most directly, but <code>@radix-ui/react-slider</code>
+    isn't installed and the original 035 decision was explicitly "native range, no new dependency, reads as a mechanical
+    instrument." Two stacked native sliders honour that and avoid a dependency; the cost is two thumbs instead of one
+    band. Revisit only if a true band control is wanted.</p>
+</div>
+
+<div class="note trade">
+  <p class="tag">Tradeoff · "Seat $/mo" cell for API rows</p>
+  <h3>Show the metered dollar amount vs a "metered" text label</h3>
+  <p>For an API-retained key the Seat $/mo cell shows its metered figure — which duplicates the "API basis" column. The
+    alternative (a "metered" word) reads cleaner but breaks the column's footer sum. I kept the number so the column
+    keeps footing to <code>rightSizedCents</code>; the "—" in the Δ column already signals "no change". Easy to flip if
+    you prefer the label.</p>
+</div>
+
+<div class="note trade">
+  <p class="tag">Tradeoff · mapSeat ordering</p>
+  <h3>Premium-first branch order</h3>
+  <p>Checking <code>premium</code> before the API floor makes the function robust to an inverted threshold pair (floor
+    above ceiling) — it can never emit a negative or impossible count even though the UI also clamps to prevent that
+    state. Costs nothing; buys defensiveness.</p>
+</div>
+
+<h2>4 · Open questions (please confirm / revise)</h2>
+
+<div class="note q">
+  <p class="tag">Question · wording</p>
+  <h3>Is <code>Keep on API &lt;</code> the label you want?</h3>
+  <p>Alternatives: "API threshold", "Metered floor", "Min spend for a seat". Happy to change — it's a one-line edit.</p>
+</div>
+
+<div class="note q">
+  <p class="tag">Question · spec folder vs new number</p>
+  <h3>Both the plan and these notes live under <code>specs/035-scenario-calculators/</code></h3>
+  <p>Filed as a 035 increment beside the original plan/prototype. If you'd rather track this as its own numbered spec,
+    say so and I'll move them.</p>
+</div>
+
+<div class="note q">
+  <p class="tag">Question · prototype refresh</p>
+  <h3>The standalone <code>prototype.html</code> still shows the old two-band numbers</h3>
+  <p>Left untouched (it's the editorial reference, not shipped). Want it refreshed to the three-band split, or is the
+    app + this notes file enough?</p>
+</div>
+
+<h2>5 · Verification &amp; <code>/simplify</code> outcome</h2>
+
+<div class="card">
+  <h3>Gates (run twice — after implementation, and again after cleanup)</h3>
+  <table>
+    <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>pnpm test</code> (scenario suite)</td><td class="s">22 passed</td></tr>
+      <tr><td><code>pnpm typecheck</code></td><td class="s">clean</td></tr>
+      <tr><td><code>pnpm lint</code></td><td class="s">No ESLint warnings or errors (—max-warnings 0)</td></tr>
+    </tbody>
+  </table>
+  <p class="c">Regression anchors observed exactly: all-47 right-sized = <strong>177591</strong> (16 API · 22 Standard ·
+    9 Premium); active-43 = <strong>147591</strong> (16 · 20 · 7); <code>apiThreshold:0</code> superset = <strong>207500</strong>.
+    A 4-way adversarial review (engine math, test coverage, UI completeness, quality/a11y/tokens) returned pass on all
+    four dimensions; the one minor nit (a baseInputs comment) was applied.</p>
+
+  <h3>Environment note (not a code issue)</h3>
+  <p><code>pnpm lint</code> prints two benign Next.js CLI notices: a <code>next lint</code> deprecation message, and a
+    "multiple lockfiles / inferred workspace root" warning — the worktree has its own <code>pnpm-lock.yaml</code>
+    alongside the repo-root one. ESLint itself is clean. Flagged only so the extra console text isn't a surprise.</p>
+
+  <h3>Browser verification (Playwright + agent session, worktree on :3001)</h3>
+  <p>Drove the live page against the preview DB — whose data matches the test fixture, so the on-screen figures equal
+    the unit anchors:</p>
+  <table>
+    <thead><tr><th>State</th><th>Readout</th><th>Right-sized verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Default ($25 floor / $125)</td><td>16 API · 22 Standard · 9 Premium</td>
+        <td class="s">$1,776/mo · 42% cut · 16 API pills in table</td></tr>
+      <tr><td>API floor → $0</td><td>0 API · 38 Standard · 9 Premium</td>
+        <td>$2,075/mo · 32% cut · verdict correctly omits the "keeping N keys" clause</td></tr>
+      <tr><td>API floor → $100</td><td>36 API · 2 Standard · 9 Premium</td><td>$2,408/mo · 36 API pills</td></tr>
+      <tr><td>Premium → $20 (clamp test)</td><td>15 API · 0 Standard · 32 Premium</td>
+        <td class="s">API floor auto-followed 100 → 20 ✓ · cost state turns red (+34%)</td></tr>
+    </tbody>
+  </table>
+  <p class="c">One console message: a React hydration warning about <code>caret-color: transparent</code> on the
+    <em>unchanged</em> <code>PriceField</code> number inputs (<code>std-price</code> / <code>prem-price</code>) — these
+    are outside this diff, so the warning is pre-existing/environmental (browser-injected inline style), not introduced
+    by the API-threshold change. Not fixed here (out of scope).</p>
+
+  <h3><code>/simplify</code> — applied</h3>
+  <ul>
+    <li><strong>Extracted <code>&lt;ThresholdSlider&gt;</code></strong> — the API and Premium slider blocks were ~45 lines
+      of near-identical JSX; now one local component, called twice. (Flagged independently by the reuse + simplification
+      passes.)</li>
+    <li><strong><code>SEAT_PILL</code> lookup record</strong> — <code>SeatPill</code> no longer special-cases
+      <code>tier === "api"</code>; all three tiers render from one <code>Record&lt;SeatTier, {className,label}&gt;</code>,
+      making the tier set first-class. (Altitude + simplification.)</li>
+    <li><strong><code>TIER_SORT_ORDER</code> constant</strong> — replaced the nested-ternary magic numbers in the table
+      sort with a named <code>Record&lt;SeatTier, number&gt;</code> (api 0 · standard 1 · premium 2). (Altitude +
+      simplification.)</li>
+  </ul>
+
+  <h3><code>/simplify</code> — skipped (with reason)</h3>
+  <ul>
+    <li><strong>Swap SeatPill for the shared <code>Badge</code></strong> — would change the deliberate "Nothing" mono/pill
+      visuals on pre-existing code; out of this increment's intent.</li>
+    <li><strong>Hoist <code>clamp()</code> into <code>lib/utils</code></strong> — touches files outside the diff; the inline
+      <code>Math.min</code> is already minimal.</li>
+    <li><strong>A <code>formatSeatMix()</code> helper</strong> — the three readouts use intentionally different orderings
+      and separators (bar <code>16A·22S·9P</code>, footer <code>9P/22S/16A</code>, prose); unifying adds parameters, not
+      clarity.</li>
+    <li><strong>Engine-side <code>validateScenarioInputs()</code></strong> — the floor≤ceiling invariant is a UI concern;
+      <code>mapSeat</code> is already Premium-first and robust to any ordering, so this would be gold-plating.</li>
+  </ul>
+</div>
+
+<footer id="result-footer">
+  AI Developer Hub · 035 API-threshold increment · notes drafted 2026-06-09 · implemented, gates green, reviewed, simplified.
+</footer>
+
+</main>
+</body>
+</html>

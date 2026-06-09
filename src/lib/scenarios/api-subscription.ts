@@ -23,11 +23,13 @@ export type ScenarioInputs = {
   premiumCents: number;
   /** usage >= threshold ⇒ Premium seat, otherwise Standard. */
   premiumThresholdCents: number;
+  /** usage < threshold ⇒ keep the key on metered API (no seat migration). */
+  apiThresholdCents: number;
   basis: UsageBasis;
   population: Population;
 };
 
-export type SeatTier = "standard" | "premium";
+export type SeatTier = "api" | "standard" | "premium";
 
 export type ScenarioRow = {
   user: ApiUser;
@@ -47,6 +49,7 @@ export type ScenarioResult = {
   rightSizedCents: number; // threshold-based mix
   premiumCount: number;
   standardCount: number;
+  apiCount: number; // keys kept on metered API (usage below the API threshold)
 };
 
 /** The user's representative monthly spend (cents) under the chosen basis. */
@@ -79,17 +82,24 @@ export function usageForUser(
   return Math.round(sum / months.length);
 }
 
-/** Map a monthly spend onto the seat tier it qualifies for. */
+/**
+ * Map a monthly spend onto the cheapest viable option among
+ * {metered API, Standard seat, Premium seat}. Premium-first so the bands stay
+ * sane even if the thresholds are dragged out of order; the "api" tier carries
+ * the user's own spend as its `seatCents`, so it contributes its real burn to
+ * the right-sized total and nets a zero delta against the metered baseline.
+ */
 export function mapSeat(
   usageCents: number,
   inputs: ScenarioInputs,
 ): { tier: SeatTier; seatCents: number } {
-  const tier: SeatTier =
-    usageCents >= inputs.premiumThresholdCents ? "premium" : "standard";
-  return {
-    tier,
-    seatCents: tier === "premium" ? inputs.premiumCents : inputs.standardCents,
-  };
+  if (usageCents >= inputs.premiumThresholdCents) {
+    return { tier: "premium", seatCents: inputs.premiumCents };
+  }
+  if (usageCents < inputs.apiThresholdCents) {
+    return { tier: "api", seatCents: usageCents };
+  }
+  return { tier: "standard", seatCents: inputs.standardCents };
 }
 
 /** Compute all four scenario totals plus the per-user mapping rows. */
@@ -105,6 +115,7 @@ export function computeScenarios(
   let baselineCents = 0;
   let rightSizedCents = 0;
   let premiumCount = 0;
+  let apiCount = 0;
 
   const rows: ScenarioRow[] = pool.map((user) => {
     const usageCents = usageForUser(user, dataset, inputs.basis);
@@ -112,6 +123,7 @@ export function computeScenarios(
     baselineCents += usageCents;
     rightSizedCents += seatCents;
     if (tier === "premium") premiumCount += 1;
+    else if (tier === "api") apiCount += 1;
     return {
       user,
       usageCents,
@@ -130,7 +142,8 @@ export function computeScenarios(
     allPremiumCents: count * inputs.premiumCents,
     rightSizedCents,
     premiumCount,
-    standardCount: count - premiumCount,
+    standardCount: count - premiumCount - apiCount,
+    apiCount,
   };
 }
 

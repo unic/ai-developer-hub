@@ -90,6 +90,7 @@ const baseInputs: ScenarioInputs = {
   standardCents: 2500,
   premiumCents: 12500,
   premiumThresholdCents: 12500,
+  apiThresholdCents: 2500, // $25 — keys burning below this (a Standard seat) stay on metered API
   basis: "avgComplete",
   population: "all",
 };
@@ -143,15 +144,34 @@ describe("usageForUser", () => {
 });
 
 describe("mapSeat", () => {
-  it("assigns Premium when usage is at or above the threshold (boundary inclusive)", () => {
+  it("assigns Premium when usage is at or above the Premium threshold (boundary inclusive)", () => {
     expect(mapSeat(12500, baseInputs)).toEqual({
       tier: "premium",
       seatCents: 12500,
     });
   });
 
-  it("assigns Standard just below the threshold", () => {
+  it("assigns Standard just below the Premium threshold", () => {
     expect(mapSeat(12499, baseInputs)).toEqual({
+      tier: "standard",
+      seatCents: 2500,
+    });
+  });
+
+  it("assigns Standard at the API threshold (boundary inclusive of the seat)", () => {
+    expect(mapSeat(2500, baseInputs)).toEqual({
+      tier: "standard",
+      seatCents: 2500,
+    });
+  });
+
+  it("keeps a key metered below the API threshold (seatCents = its own burn)", () => {
+    expect(mapSeat(2499, baseInputs)).toEqual({ tier: "api", seatCents: 2499 });
+    expect(mapSeat(0, baseInputs)).toEqual({ tier: "api", seatCents: 0 });
+  });
+
+  it("with apiThreshold 0 no key is ever kept metered (legacy two-band behaviour)", () => {
+    expect(mapSeat(0, { ...baseInputs, apiThresholdCents: 0 })).toEqual({
       tier: "standard",
       seatCents: 2500,
     });
@@ -161,23 +181,36 @@ describe("mapSeat", () => {
 describe("computeScenarios — regression anchors on live data", () => {
   const ds = realDataset();
 
-  it("matches the prototype figures for all 47 keys at a $125 threshold", () => {
+  it("three-band right-sizing on all 47 keys ($25 API floor, $125 Premium)", () => {
     const r = computeScenarios(ds, baseInputs);
     expect(r.count).toBe(47);
-    expect(r.baselineCents).toBe(304140); // $3,041.40/mo run-rate
-    expect(r.allStandardCents).toBe(117500); // $1,175
-    expect(r.allPremiumCents).toBe(587500); // $5,875
+    expect(r.baselineCents).toBe(304140); // $3,041.40/mo run-rate (unchanged)
+    expect(r.allStandardCents).toBe(117500); // $1,175 (unchanged — naïve baseline)
+    expect(r.allPremiumCents).toBe(587500); // $5,875 (unchanged — naïve baseline)
+    // 9 Premium + 22 Standard + 16 metered API ($100.91 of real burn)
+    expect(r.rightSizedCents).toBe(177591); // $1,775.91
+    expect(r.premiumCount).toBe(9);
+    expect(r.standardCount).toBe(22);
+    expect(r.apiCount).toBe(16);
+  });
+
+  it("apiThreshold 0 reproduces the legacy two-band figures (superset property)", () => {
+    const r = computeScenarios(ds, { ...baseInputs, apiThresholdCents: 0 });
     expect(r.rightSizedCents).toBe(207500); // $2,075 (9 Premium + 38 Standard)
     expect(r.premiumCount).toBe(9);
     expect(r.standardCount).toBe(38);
+    expect(r.apiCount).toBe(0);
   });
 
-  it("filters to the active population (43 keys)", () => {
+  it("filters to the active population (43 keys), three-band", () => {
     const r = computeScenarios(ds, { ...baseInputs, population: "active" });
     expect(r.count).toBe(43);
-    expect(r.baselineCents).toBe(241620); // $2,416.20
+    expect(r.baselineCents).toBe(241620); // $2,416.20 (unchanged)
     expect(r.premiumCount).toBe(7);
-    expect(r.rightSizedCents).toBe(177500); // 7×$125 + 36×$25 = $1,775
+    expect(r.standardCount).toBe(20);
+    expect(r.apiCount).toBe(16);
+    // 7×$125 + 20×$25 + $100.91 metered = $1,475.91
+    expect(r.rightSizedCents).toBe(147591);
   });
 
   it("all-Standard / all-Premium scale linearly with editable prices", () => {
@@ -207,6 +240,19 @@ describe("computeScenarios — regression anchors on live data", () => {
     for (const row of r.rows) {
       expect(row.deltaCents).toBe(row.seatCents - row.usageCents);
     }
+  });
+
+  it("metered-API rows carry their own burn as seat cost and net a zero delta", () => {
+    const r = computeScenarios(ds, baseInputs);
+    const apiRows = r.rows.filter((row) => row.tier === "api");
+    expect(apiRows.length).toBe(16);
+    for (const row of apiRows) {
+      expect(row.seatCents).toBe(row.usageCents);
+      expect(row.deltaCents).toBe(0);
+    }
+    // the seat column still foots to the right-sized total
+    const seatSum = r.rows.reduce((s, row) => s + row.seatCents, 0);
+    expect(seatSum).toBe(r.rightSizedCents);
   });
 });
 
