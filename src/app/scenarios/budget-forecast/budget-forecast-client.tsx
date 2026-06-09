@@ -941,7 +941,8 @@ export function BudgetForecastClient({
         · history ({elapsedCount} elapsed{" "}
         {elapsedCount === 1 ? "period" : "periods"}) is the budget&apos;s real
         combined actual; the forecast is modelled per tool from the controls
-        above · assembled {new Date(dataset.generatedAt).toLocaleString()}
+        above · assembled {dataset.generatedAt.slice(0, 16).replace("T", " ")}{" "}
+        UTC
       </p>
     </div>
   );
