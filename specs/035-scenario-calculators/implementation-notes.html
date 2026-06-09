@@ -238,6 +238,22 @@
   </ul>
 </div>
 
+<h2>6 · AI review round (Copilot) — addressed</h2>
+<div class="card">
+  <p>GitHub Copilot's review raised two (both fair, both fixed):</p>
+  <ul>
+    <li><strong><code>mapSeat</code> JSDoc said "cheapest viable option"</strong> — but the function is purely
+      threshold-based; away from the default thresholds a tier can be assigned even when another would cost less.
+      Reworded the doc to state the three threshold rules explicitly and to note that the cost-minimising reading only
+      holds at the break-even defaults.</li>
+    <li><strong>Verdict sentence was internally inconsistent for <code>apiCount &gt; 0</code></strong> — "Moving 47 users
+      to 9 Premium + 22 Standard seats and keeping 16 metered" reads as 47 → 31 seats. Reworded to a true partition via
+      a small <code>joinParts()</code> helper, omitting empty groups. Verified in-browser across all three mixes:
+      default → "9 Premium, 22 Standard, and 16 kept on metered API"; API floor $0 → "9 Premium and 38 Standard";
+      Standard-empty clamp → "32 Premium and 15 kept on metered API" (each sums to 47).</li>
+  </ul>
+</div>
+
 <footer id="result-footer">
   AI Developer Hub · 035 API-threshold increment · notes drafted 2026-06-09 · implemented, gates green, reviewed, simplified.
 </footer>

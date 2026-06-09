@@ -57,6 +57,13 @@ function basisLabel(key: string, ds: ApiSubscriptionDataset): string {
   return `avg of ${ds.completeMonths.length} complete months`;
 }
 
+/** Oxford-comma join: ["a"]→"a"; ["a","b"]→"a and b"; ["a","b","c"]→"a, b, and c". */
+function joinParts(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
 type SortKey = "name" | "status" | "usage" | "tier" | "seat" | "delta";
 
 // Seat-tier presentation kept in one place so the three-tier model stays
@@ -253,6 +260,16 @@ export function ApiSubscriptionClient({
       : savingState === "costs"
         ? "text-destructive"
         : "text-faint";
+
+  // The right-sized population as a partition, omitting empty groups, so the
+  // verdict reads correctly for any mix (including when Standard or API is empty).
+  const seatBreakdown = joinParts(
+    [
+      result.premiumCount > 0 ? `${result.premiumCount} Premium` : null,
+      result.standardCount > 0 ? `${result.standardCount} Standard` : null,
+      result.apiCount > 0 ? `${result.apiCount} kept on metered API` : null,
+    ].filter((part): part is string => part !== null),
+  );
 
   // Single source for the four scenarios — drives both the cards and the bars.
   const scenarios = [
@@ -469,18 +486,12 @@ export function ApiSubscriptionClient({
           </span>
         </p>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Moving {result.count} API users to {result.premiumCount} Premium +{" "}
-          {result.standardCount} Standard seats
-          {result.apiCount > 0
-            ? ` and keeping ${result.apiCount} light ${
-                result.apiCount === 1 ? "key" : "keys"
-              } on metered API`
-            : ""}{" "}
-          costs{" "}
+          Right-sizing the {result.count} API{" "}
+          {result.count === 1 ? "user" : "users"} — {seatBreakdown} — costs{" "}
           <span className="text-ink">
             {formatUSD0(result.rightSizedCents)}/mo
-          </span>{" "}
-          — {verdictPhrase} the {formatUSD0(result.baselineCents)}/mo API
+          </span>
+          , {verdictPhrase} the {formatUSD0(result.baselineCents)}/mo API
           run-rate.
         </p>
       </div>

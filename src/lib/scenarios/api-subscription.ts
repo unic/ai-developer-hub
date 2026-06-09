@@ -83,11 +83,20 @@ export function usageForUser(
 }
 
 /**
- * Map a monthly spend onto the cheapest viable option among
- * {metered API, Standard seat, Premium seat}. Premium-first so the bands stay
- * sane even if the thresholds are dragged out of order; the "api" tier carries
- * the user's own spend as its `seatCents`, so it contributes its real burn to
- * the right-sized total and nets a zero delta against the metered baseline.
+ * Assign a monthly spend to a tier by threshold:
+ *   - `usage >= premiumThresholdCents` → Premium
+ *   - `usage <  apiThresholdCents`     → stay on metered API (no seat)
+ *   - otherwise                        → Standard
+ *
+ * Premium is tested first so the bands stay well-defined even if the two
+ * thresholds are dragged out of order. The "api" tier carries the user's own
+ * spend as its `seatCents`, so it contributes its real burn to the right-sized
+ * total and nets a zero delta against the metered baseline.
+ *
+ * These are policy thresholds, not a price comparison: at the default thresholds
+ * (API floor = Standard price, Premium threshold = Premium price) the rules
+ * coincide with the cheapest option per key, but dragged away from the defaults
+ * a tier can be assigned even when another would cost less.
  */
 export function mapSeat(
   usageCents: number,
