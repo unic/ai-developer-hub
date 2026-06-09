@@ -21,12 +21,16 @@ export const BUILT_IN_DENY_PATHS: readonly string[] = [
   "POST /api/users/reset-password",
   "/api/invoices/ingest",
   "/api/sync",
+  "/api/mcp",
   "/setup-password",
   "POST /api/anthropic-config",
   "POST /api/github-config",
 ];
 
-function parseDenyEntry(entry: string): { method: string | null; path: string } {
+function parseDenyEntry(entry: string): {
+  method: string | null;
+  path: string;
+} {
   const trimmed = entry.trim();
   if (!trimmed) return { method: null, path: "" };
   const space = trimmed.indexOf(" ");
@@ -51,7 +55,10 @@ export function isAgentDenied(pathname: string, method: string): boolean {
     const { method: entryMethod, path } = parseDenyEntry(raw);
     if (!path) continue;
     if (entryMethod && entryMethod !== upper) continue;
-    if (pathname === path || pathname.startsWith(path.endsWith("/") ? path : path + "/")) {
+    if (
+      pathname === path ||
+      pathname.startsWith(path.endsWith("/") ? path : path + "/")
+    ) {
       return true;
     }
   }
@@ -89,7 +96,7 @@ export interface AgentJwtPayload {
  */
 export async function mintAgentJwt(
   payload: AgentJwtPayload,
-  options: { maxAgeSeconds?: number } = {}
+  options: { maxAgeSeconds?: number } = {},
 ): Promise<{ cookieName: string; token: string; maxAgeSeconds: number }> {
   const secret = env.AUTH_SECRET;
   if (!secret) {
