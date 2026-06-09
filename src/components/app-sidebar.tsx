@@ -24,10 +24,15 @@ const navItems: NavItem[] = [
   { title: "Requests", href: "/requests", roles: ["admin"] },
   { title: "Budget", href: "/budget", roles: ["admin"] },
   { title: "Reports", href: "/reports", roles: ["admin"] },
+  { title: "Scenarios", href: "/scenarios", roles: ["admin"] },
   { title: "Copilot", href: "/copilot", roles: ["admin"] },
   { title: "Claude Console", href: "/claude", roles: ["admin"] },
   { title: "Invoices", href: "/invoices", roles: ["admin"] },
-  { title: "Settings", href: "/settings/appearance", roles: ["admin", "viewer"] },
+  {
+    title: "Settings",
+    href: "/settings/appearance",
+    roles: ["admin", "viewer"],
+  },
 ];
 
 function initialsOf(name: string | null): string {
@@ -50,7 +55,10 @@ function isItemActive(pathname: string, href: string): boolean {
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <span className="size-2.5 rounded-full bg-destructive" aria-hidden="true" />
+      <span
+        className="size-2.5 rounded-full bg-destructive"
+        aria-hidden="true"
+      />
       <span className="font-mono text-sm tracking-[0.14em] uppercase text-ink">
         AI·HUB
       </span>
@@ -81,7 +89,7 @@ function NavLinks({
               "relative rounded-[4px] px-2 py-2.5 font-mono text-xs tracking-[0.1em] uppercase transition-colors",
               active
                 ? "text-ink"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {active ? (
@@ -115,7 +123,9 @@ function Footer({
           {initialsOf(userName)}
         </span>
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-[13px] text-foreground">{userName}</span>
+          <span className="truncate text-[13px] text-foreground">
+            {userName}
+          </span>
           <span className="font-mono text-[11px] tracking-[0.1em] uppercase text-muted-foreground capitalize">
             {userRole}
           </span>
@@ -184,7 +194,11 @@ export function AppSidebar({
 
       {/* Mobile drawer */}
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          role="dialog"
+          aria-modal="true"
+        >
           <button
             type="button"
             aria-label="Close navigation"
