@@ -112,6 +112,9 @@ export function ApiSubscriptionClient({
     () => new Set(displayMonths.map((m) => m.slice(0, 4))).size > 1,
     [displayMonths],
   );
+  // The most recent month is the current (month-to-date) one; an earlier partial
+  // month is partial because data collection started mid-month, not because it's MTD.
+  const latestMonth = displayMonths[displayMonths.length - 1];
 
   // Per-month column totals for the table footer, in a single pass over the
   // population (avoids re-scanning all rows once per column on every render).
@@ -169,15 +172,44 @@ export function ApiSubscriptionClient({
   }
 
   const saving = result.baselineCents - result.rightSizedCents; // + = saving
-  const savesMoney = saving > 0;
+  const savingState: "saves" | "costs" | "flat" =
+    saving > 0 ? "saves" : saving < 0 ? "costs" : "flat";
+  // Percentage is undefined when there's no baseline spend to compare against.
   const savingPct =
     result.baselineCents > 0
       ? Math.round((Math.abs(saving) / result.baselineCents) * 100)
-      : 0;
-  const savingSign = savesMoney ? "−" : "+";
-  const verdictPhrase = savesMoney
-    ? `a ${savingPct}% cut from`
-    : `${savingPct}% above`;
+      : null;
+  const savingSign =
+    savingState === "saves" ? "−" : savingState === "costs" ? "+" : "";
+  const verdictPhrase =
+    savingState === "flat"
+      ? "the same as"
+      : savingState === "saves"
+        ? savingPct !== null
+          ? `a ${savingPct}% cut from`
+          : "less than"
+        : savingPct !== null
+          ? `${savingPct}% above`
+          : "more than";
+  // Tone classes per state — flat (equal cost) reads neutral, not negative.
+  const verdictBorder =
+    savingState === "saves"
+      ? "border-ink"
+      : savingState === "costs"
+        ? "border-destructive"
+        : "border-border";
+  const verdictText =
+    savingState === "saves"
+      ? "text-ink"
+      : savingState === "costs"
+        ? "text-destructive"
+        : "text-muted-foreground";
+  const deltaText =
+    savingState === "saves"
+      ? "text-success"
+      : savingState === "costs"
+        ? "text-destructive"
+        : "text-faint";
 
   // Single source for the four scenarios — drives both the cards and the bars.
   const scenarios = [
@@ -381,18 +413,13 @@ export function ApiSubscriptionClient({
       <div
         className={cn(
           "flex flex-col gap-1 border-l-2 bg-card px-5 py-4",
-          savesMoney ? "border-ink" : "border-destructive",
+          verdictBorder,
         )}
       >
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
           Right-sized verdict
         </p>
-        <p
-          className={cn(
-            "font-display text-3xl tabular-nums",
-            savesMoney ? "text-ink" : "text-destructive",
-          )}
-        >
+        <p className={cn("font-display text-3xl tabular-nums", verdictText)}>
           {savingSign}
           {formatUSD0(Math.abs(saving) * 12)}
           <span className="ml-2 font-mono text-sm text-muted-foreground">
@@ -514,7 +541,11 @@ export function ApiSubscriptionClient({
                       key={m}
                       className="text-right"
                       title={
-                        partialSet.has(m) ? "partial month (month-to-date)" : m
+                        !partialSet.has(m)
+                          ? m
+                          : m === latestMonth
+                            ? "Current month — month-to-date, excluded from the run-rate"
+                            : "Partial month — data collection started mid-month, excluded from the run-rate"
                       }
                     >
                       <span
@@ -641,7 +672,7 @@ export function ApiSubscriptionClient({
                   <TableCell
                     className={cn(
                       "text-right font-mono text-sm tabular-nums",
-                      savesMoney ? "text-success" : "text-destructive",
+                      deltaText,
                     )}
                   >
                     {savingSign}
