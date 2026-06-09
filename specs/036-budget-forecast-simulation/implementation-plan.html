@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — Budget / Cost Forecast Simulation (036)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #f0a072;        /* clay — matches the prototype accent */
+      --accent-2: #7dd3fc;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 32px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 52px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+    pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 820px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .badge.warn { color: var(--warn); border-color: rgba(252,211,77,0.3); }
+    .badge.accent { color: var(--accent); border-color: rgba(240,160,114,0.35); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row.between { justify-content: space-between; }
+    .flow { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; white-space: pre; overflow-x: auto; color: var(--fg-muted); }
+    .flow .em { color: var(--fg); }
+    .flow .ok { color: var(--good); }
+    .flow .accent { color: var(--accent); }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    li.check::marker { content: "\2610  "; color: var(--fg-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    td code { white-space: nowrap; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.good { background: rgba(134,239,172,0.12); color: var(--good); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.new { background: rgba(240,160,114,0.14); color: var(--accent); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent-2); background: rgba(125,211,252,0.04); }
+    .callout.accent { border-left-color: var(--accent); background: rgba(240,160,114,0.05); }
+    .phase { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; }
+    .phase-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .phase-head h3 { font-size: 20px; margin: 0; }
+    .phase-meta { color: var(--fg-dim); font-family: var(--mono); font-size: 12px; }
+    .toc { columns: 2; column-gap: 32px; font-size: 14px; }
+    @media (max-width: 760px) { .toc { columns: 1; } }
+    .toc a { display: block; padding: 3px 0; color: var(--fg-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+    .k { color: var(--accent-2); }
+    .s { color: var(--good); }
+    .c { color: var(--fg-dim); font-style: italic; }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Implementation plan</span>
+    <span class="badge">spec/036-budget-forecast-simulation</span>
+    <span class="badge accent">Draft — pending approval</span>
+  </div>
+  <h1>Budget / Cost Forecast Simulation</h1>
+  <p class="lede">
+    Build <strong>calculator #2</strong> in the Scenarios section — the one stubbed as
+    <code>status:"soon"</code> back in spec 035. It anchors on the fiscal year's <strong>actual spend to
+    date</strong>, then projects the remaining periods forward under explicit, per-tool, per-tier
+    <strong>growth assumptions</strong> — so a budget owner can compare three (or N) futures against the
+    <code>$42,000</code> ceiling, see exactly when each one breaches, and find the lever that pulls it back under.
+  </p>
+  <p class="lede">
+    The validated interactive reference — same engine, same controls, same chart — lives in
+    <a href="./prototype.html">prototype.html</a>. That doc is the <em>what</em>; this is the <em>how</em>,
+    wired into the app's real architecture (Server Components → server actions → Drizzle, Recharts, shadcn
+    primitives, Nothing design tokens) and reusing the seams 035 already laid down.
+  </p>
+  <p class="meta">Drafted 2026-06-09 · author: T. Studer · branch: <code>036-budget-forecast-simulation</code> · estimate: ~4–5 dev days</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>Reference prototype.</strong> <a href="./prototype.html">prototype.html</a> is the single-file version,
+  seeded from live Neon data (project <code>broad-shadow-82397229</code>, FY2026, actuals Jan–May). Its projection
+  engine — <code>seatsAt</code> / <code>toolCostAt</code> / <code>project</code> — is the exact shape the app's pure
+  module must reproduce. The numbers it lands (below) are the regression anchors for the unit tests.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc card">
+  <a href="#goal">1 · Goal &amp; scope</a>
+  <a href="#what">2 · What the calculator does</a>
+  <a href="#anchors">3 · Regression anchors (current data)</a>
+  <a href="#data">4 · Data sources &amp; reuse</a>
+  <a href="#actuals">5 · Reconciling "actuals to date"</a>
+  <a href="#arch">6 · Architecture &amp; routing</a>
+  <a href="#engine">7 · The pure projection engine</a>
+  <a href="#chart">8 · The burn-up chart (Recharts)</a>
+  <a href="#phases">9 · Phasing (file-level)</a>
+  <a href="#manifest">10 · File manifest</a>
+  <a href="#design">11 · Design &amp; component mapping</a>
+  <a href="#risks">12 · Risks &amp; decisions</a>
+  <a href="#questions">13 · Decisions (resolved)</a>
+  <a href="#accept">14 · Acceptance checklist</a>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="goal">1 · Goal &amp; scope</h2>
+
+<div class="card accent">
+  <h4>In scope</h4>
+  <ul>
+    <li class="note">Flip the registry entry <code>budget-forecast</code> from <code>"soon"</code> → <code>"live"</code> and ship the route <code>/scenarios/budget-forecast</code> (admin-only), reusing 035's section scaffolding.</li>
+    <li class="note">A <strong>portfolio forecast</strong> anchored on the active budget's actual spend to date, projecting the remaining periods of the fiscal year forward.</li>
+    <li class="note">Per-tool, per-tier <strong>growth levers</strong>: a row per AI tool (metered API, Claude seats, Copilot, Cursor, MS Copilot), each with a growth model (Flat / +N seats/period / +%/period), tier-mix, and — for the metered line — a per-user burn-growth % and a burn cap.</li>
+    <li class="note"><strong>All five tools in scope by default</strong> (per review); each stays individually toggleable.</li>
+    <li class="note">Three pre-built scenarios (Conservative / Expected / Aggressive) plus a live-editable <strong>Custom</strong> plan, all drawn together for comparison.</li>
+    <li class="note">An <strong>editable modeled ceiling</strong> that defaults to the live budget ceiling — so the full portfolio can be tested against an adjusted target (the live $42k was sized for the API line alone).</li>
+    <li class="note">An <strong>OLS trend band</strong> — <code>forecast.ts</code>'s regression on historical actuals, drawn behind the assumption lines so the deliberate plan reads against what the trend alone implies.</li>
+    <li class="note">Outputs: KPI strip, a <strong>cumulative burn-up chart</strong> (scenarios + trend band + ceiling + planned staircase + breach marker), per-tool stacked monthly bars, a scenario-comparison table, and a per-tool month-by-month detail table.</li>
+    <li class="note">A <strong>pure, tested projection module</strong> shared by server (first paint) and client (live recompute) — same discipline as <code>api-subscription.ts</code>.</li>
+  </ul>
+  <h4>Out of scope (this spec)</h4>
+  <ul>
+    <li class="con"><strong>No DB schema change for v1</strong> — read-only over existing budget, cost, and assignment tables.</li>
+    <li class="con"><strong>Persisting / sharing saved scenarios</strong> (needs a table) — designed-for, deferred. See <a href="#questions">open questions</a>.</li>
+    <li class="con"><strong>Writing a scenario back to <code>budget_periods.planned_amount_cents</code></strong> — a follow-up (it's a write path + audit concern).</li>
+    <li class="con">Sensitivity / tornado analysis, per-discipline rollout — noted in the prototype's "ideas", built later.</li>
+    <li class="con">Currency conversion (USD→CHF) — figures stay USD via <code>formatCurrency()</code>, matching 035.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="what">2 · What the calculator does</h2>
+
+<p>The active fiscal year is split into <em>elapsed</em> periods (which have real spend) and <em>remaining</em> periods
+  (which we project). The forecast <strong>never re-models the past</strong> — the cumulative line always starts from
+  where the budget actually stands today. This mirrors <code>buildBudgetForecast()</code> in
+  <code>src/lib/forecast.ts</code>, but swaps its single OLS regression for explicit, per-tool growth levers the user controls.</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>Two cost models, one engine</h4>
+    <ul>
+      <li class="note"><strong>Seat tools</strong> (Claude seats, Copilot, Cursor, MS Copilot): <code>cost(p) = seats(p) × tierPrice</code>.</li>
+      <li class="note"><strong>Metered tool</strong> (Anthropic API / Claude Console): <code>cost(p) = users(p) × burnPerUser(p)</code> — because its cost is consumption, not a flat seat.</li>
+      <li class="note">Growth per tool: <strong>Flat</strong>, <strong>+N seats/period</strong> (linear), or <strong>+r%/period</strong> (compounding).</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Tiers &amp; usage are levers too</h4>
+    <ul>
+      <li class="note"><strong>Premium share</strong> slider for Claude seats — shifts people between $25 Standard and $125 Premium without changing headcount.</li>
+      <li class="note"><strong>Burn cap $/user</strong> on the metered line — drop it to simulate moving heavy API users onto flat seats (the play the <em>API → Subscription</em> calculator sizes).</li>
+      <li class="note"><strong>Include</strong> toggle per tool — choose the forecast scope (which tools count against this budget).</li>
+    </ul>
+  </div>
+</div>
+
+<p>Selecting a pre-built scenario loads its full parameter set into the controls; nudging anything makes it a
+  <strong>Custom</strong> plan. The three presets stay drawn on the chart as faint reference lines, so the user always
+  compares against them. The verdict line and KPI tiles flip <span class="s">green</span> (under ceiling) or
+  <span style="color:var(--bad)">clay</span> (over, with a breach period) live.</p>
+
+<!-- ============================================================ -->
+<h2 id="anchors">3 · Regression anchors (current data)</h2>
+
+<div class="callout accent">
+  <strong>Numbers the engine must hit</strong> on the prototype's seed fixture (FY2026, $42,000 ceiling, actuals
+  Jan–May, scope isolated to API · Copilot · Cursor — the frozen unit-test fixture):
+  <table style="margin-top:10px">
+    <thead><tr><th>Scenario</th><th>Year-end</th><th>Δ vs ceiling</th><th>Breaches</th><th>Top driver</th></tr></thead>
+    <tbody>
+      <tr><td>Actuals to date (Jan–May)</td><td><code>$18,251</code></td><td><span class="s">43% of budget</span></td><td>—</td><td>—</td></tr>
+      <tr><td>Conservative — <em>hold the line</em></td><td><code>$49,544</code></td><td style="color:var(--bad)">+$7,544</td><td><span class="pill warn">Nov</span></td><td>Claude Console (API)</td></tr>
+      <tr><td>Expected — <em>steady adoption</em></td><td><code>$59,324</code></td><td style="color:var(--bad)">+$17,324</td><td><span class="pill warn">Oct</span></td><td>Claude Console (API)</td></tr>
+      <tr><td>Aggressive — <em>org-wide rollout</em></td><td><code>$113,571</code></td><td style="color:var(--bad)">+$71,571</td><td><span class="pill warn">Aug</span></td><td>Claude Console (API)</td></tr>
+      <tr><td>Mitigated custom (burn cap $55/user + sunset Copilot)</td><td><code>$41,144</code></td><td><span class="s">−$856</span></td><td><span class="pill good">never</span></td><td>Claude Console (API)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p class="c">As in 035: the <em>app</em> derives actuals from live data (which moves), so the unit tests assert against a
+  <strong>frozen fixture</strong> — the prototype's seed — not the live DB. The honest headline the data tells is that
+  <em>every</em> plausible growth path overshoots a ceiling that was sized for the API line alone; the calculator's job
+  is to quantify the overage, name the driver, date the breach, and let the user test mitigations back to green.</p>
+
+<p class="c">Per review, the live app now defaults to <strong>all five tools in scope</strong> (the fixture above isolates
+  three so the unit assertions stay stable as live data moves), and the <strong>modeled ceiling is editable</strong>,
+  defaulting to the live $42k. With all five on, the all-in portfolio runs well above $42k — the editable ceiling lets an
+  owner model an approved portfolio budget, and the per-tool levers still pull a Custom plan back under it.</p>
+
+<!-- ============================================================ -->
+<h2 id="data">4 · Data sources &amp; reuse</h2>
+
+<table>
+  <thead><tr><th>Table / module</th><th>Role in the forecast</th></tr></thead>
+  <tbody>
+    <tr><td><code>annual_budgets</code> (active)</td><td>The <strong>ceiling</strong> (<code>total_amount_cents</code>), <code>fiscal_year</code>, and <code>period_type</code> (monthly / quarterly — the projection granularity).</td></tr>
+    <tr><td><code>budget_periods</code></td><td>The <strong>period grid</strong>: labels, <code>start_date</code>/<code>end_date</code> (→ elapsed vs remaining), and <code>planned_amount_cents</code> (the faint planned staircase on the chart).</td></tr>
+    <tr><td><code>billed_costs</code></td><td>Invoiced <strong>actuals</strong> per closed period (Anthropic, GitHub, Cursor, Anysphere…). Spine of "spent to date".</td></tr>
+    <tr><td><code>anthropic_workspace_costs</code></td><td>Metered <strong>running</strong> cost per day → the current/incomplete period's actual + the API run-rate baseline. (Reuse <code>getRunningCostsForPeriod()</code> in <code>lib/budget-utils.ts</code>.)</td></tr>
+    <tr><td><code>license_assignments</code> + <code>access_tiers</code> + <code>ai_tools</code></td><td>Current <strong>seat counts per tool/tier</strong> and tier <strong>prices</strong> — the starting state and growth base for every seat line. Resolve tools by vendor+name (don't hardcode ids), same rule as 035.</td></tr>
+    <tr><td><code>anthropic_usage_metrics</code></td><td>Per-user API <strong>burn</strong> → derive <code>burn/user</code> and the heavy-user distribution that powers the burn-cap / migrate-to-seats lever.</td></tr>
+    <tr><td><code>copilot_billing_snapshots</code></td><td>Copilot <strong>seat trend</strong> (95 → 71 and falling) + <code>seat_cost_cents</code> — seeds the Copilot line and its default decline.</td></tr>
+  </tbody>
+</table>
+
+<div class="grid-2">
+  <div class="card accent-2">
+    <h4>Reuse, don't rebuild</h4>
+    <ul>
+      <li class="note"><code>getBudgetReportData()</code> / <code>buildBudgetForecast()</code> already assemble budget + <code>periodsWithActual</code> (billed + running per period). The forecast loader can lean on the same orchestration for the actuals spine.</li>
+      <li class="note"><code>getApiSubscriptionDataset()</code> (035) already returns per-user API spend — reuse it verbatim for the metered line's current state and the migration mitigation.</li>
+      <li class="note"><code>forecast.ts</code>'s <code>olsRegression</code> drives the trend band (v1) — fit on historical actuals, projected over the remaining periods.</li>
+    </ul>
+  </div>
+  <div class="card accent-2">
+    <h4>Schema</h4>
+    <p>v1 is <strong>read-only</strong> — no migration. The two "ideas" that need writes (save named scenarios; push a
+      scenario into <code>planned_amount_cents</code>) are deferred; if approved for v1 they'd add a single
+      <code>forecast_scenarios</code> table (JSON params + label + budget_id) reviewable on its own.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="actuals">5 · Reconciling "actuals to date"</h2>
+
+<div class="callout">
+  <strong>The one subtlety worth getting right.</strong> Anthropic spend appears <em>twice</em>: as finalized
+  <code>billed_costs</code> invoices <em>and</em> as metered <code>anthropic_workspace_costs</code>. Summing both
+  double-counts. The Budget Report's rule is <code>Actual = billed + running</code>, where <em>running</em> is meant for
+  the open period. The forecast must adopt one consistent definition of period actuals and reuse it, so the cumulative
+  line agrees with the Budget Report to the cent.
+</div>
+
+<p>Decision: <strong>reuse the report's <code>periodsWithActual</code></strong> as the single source of period actuals.
+  Elapsed periods (end date &lt; today) contribute their computed Actual to "spent to date"; the current partial period
+  is shown but its forward portion is projected, not doubled. Projection then begins at the first period whose
+  start date is on/after today — identical to <code>buildBudgetForecast()</code>'s split.</p>
+
+<!-- ============================================================ -->
+<h2 id="arch">6 · Architecture &amp; routing</h2>
+
+<div class="card">
+  <div class="flow"><span class="accent">/scenarios</span>                          <span class="em">index — registry cards (budget-forecast now "live")</span>
+   │
+   └── <span class="accent">/scenarios/budget-forecast</span>       <span class="em">page.tsx (server) → requireAdmin + load dataset</span>
+                  │
+                  └── budget-forecast-client.tsx    <span class="c">"use client" — controls + live recompute + Recharts</span>
+                                 │ imports
+                                 ▼
+        <span class="k">lib/scenarios/budget-forecast.ts</span>          <span class="c">pure projection engine (no React, no db)</span>
+        <span class="k">lib/scenarios/budget-forecast-queries.ts</span>  <span class="c">Drizzle reads + reuse report/035 loaders</span>
+        <span class="k">lib/scenarios/registry.ts</span>                 <span class="c">flip budget-forecast → "live"</span>
+  </div>
+</div>
+
+<p>Identical shape to <code>api-subscription</code>: a server <code>page.tsx</code> does <code>requireAdmin()</code>,
+  awaits the dataset via a <code>"use server"</code> action (cached, tagged
+  <code>scenarios:budget-forecast</code>, revalidated by the same sync hooks that touch budget/usage data), computes the
+  default (<em>Expected</em>) scenario server-side for first paint, and hands plain serializable data to the client. The
+  <strong>pure engine in <code>lib/</code></strong> runs on both sides so chart totals can't drift from the tested ones.</p>
+
+<!-- ============================================================ -->
+<h2 id="engine">7 · The pure projection engine</h2>
+
+<p>File: <code>src/lib/scenarios/budget-forecast.ts</code>. No imports from <code>db</code>, <code>react</code>, or
+  <code>next</code>. This is the prototype's <code>project()</code> formalised — generalised to the budget's real period
+  grid (monthly <em>or</em> quarterly) instead of a hardcoded 12 months.</p>
+
+<pre><code><span class="c">// ---- one tool's current state + history, from queries.ts ----</span>
+export type ForecastTool = {
+  key: string; label: string; vendor: string;
+  kind: "metered" | "seat" | "claudeSeats";
+  actualByPeriod: number[];        <span class="c">// cents, elapsed periods (index-aligned to budget_periods)</span>
+  seats0: number;                  <span class="c">// current seat / key count</span>
+  burn0?: number;                  <span class="c">// metered: cents per user / period</span>
+  price?: number;                  <span class="c">// seat tools: cents per seat</span>
+  stdPrice?: number; premPrice?: number;  <span class="c">// claudeSeats: the two tiers</span>
+};
+
+<span class="c">// ---- per-tool levers the UI binds to ----</span>
+export type ToolParams = {
+  include: boolean;
+  model: "flat" | "linear" | "compound";
+  val: number;                     <span class="c">// seats/period (linear) or %/period (compound)</span>
+  burnPct?: number;                <span class="c">// metered: burn growth %/period</span>
+  burnCap?: number;                <span class="c">// metered: max cents/user/period</span>
+  premShare?: number;              <span class="c">// claudeSeats: 0..1 Premium fraction</span>
+};
+
+export type ForecastInputs = Record&lt;string, ToolParams&gt;;   <span class="c">// keyed by tool.key</span>
+
+export type ForecastDataset = {
+  ceilingCents: number;
+  periods: { label: string; planned: number; elapsed: boolean }[];
+  lastElapsedIndex: number;        <span class="c">// projection starts after this</span>
+  tools: ForecastTool[];
+  generatedAt: string;
+};
+
+<span class="c">// ---- pure functions (the testable core; mirrors prototype) ----</span>
+export function seatsAt(s0: number, m: ToolParams["model"], val: number, k: number): number;
+export function toolCostAt(t: ForecastTool, p: ToolParams, k: number): number;  <span class="c">// k = periods after now</span>
+
+export type ScenarioResult = {
+  perTool: Record&lt;string, number[]&gt;;   <span class="c">// cents per period</span>
+  total: number[]; cumulative: number[];
+  yearEndCents: number;
+  breachIndex: number;                 <span class="c">// -1 if never</span>
+  peakRunRateCents: number;
+  topDriver: string;
+};
+export function projectForecast(ds: ForecastDataset, inputs: ForecastInputs): ScenarioResult;
+
+<span class="c">// ---- the three named scenarios, as parameter sets ----</span>
+export const FORECAST_PRESETS: Record&lt;"conservative"|"expected"|"aggressive",
+  { label: string; tag: string; inputs: ForecastInputs }&gt;;</code></pre>
+
+<p>The client holds only <code>ForecastInputs</code> + the active scenario name in state; KPIs, chart series, bars,
+  tables, and the verdict are all derived by calling <code>projectForecast()</code> — no arithmetic duplicated in JSX.
+  The three preset lines are computed once from <code>FORECAST_PRESETS</code> and memoised.</p>
+
+<!-- ============================================================ -->
+<h2 id="chart">8 · The burn-up chart (Recharts)</h2>
+
+<p>The prototype hand-rolls SVG; the app uses <strong>Recharts</strong> (already a dependency, already wrapped by the
+  Budget Report's <code>ForecastCumulativeChart</code> and shadcn's <code>ChartContainer</code>). One
+  <code>ComposedChart</code> over the period axis:</p>
+<ul>
+  <li class="note"><code>Line</code> × 4 — actuals (solid, elapsed periods only), then Conservative / Expected / Aggressive ghost lines + the bold <strong>Your plan</strong> line over the remaining periods. Colour the active line by over/under.</li>
+  <li class="note"><code>ReferenceLine</code> at <code>ceilingCents</code> (red dashed, labelled) + a faint planned staircase via a stepped <code>Line</code>.</li>
+  <li class="note"><code>ReferenceArea</code> shading the forecast region; <code>ReferenceDot</code> on the breach period with an "✕ breach" label.</li>
+  <li class="note"><strong>OLS trend band (v1)</strong> — an <code>Area</code> between the regression upper/lower bounds (from <code>forecast.ts</code>'s <code>olsRegression</code> on historical actuals), low-opacity, drawn behind the assumption lines.</li>
+  <li class="note">Stacked monthly bars → a second small <code>BarChart</code> (stacked by tool), or shadcn stacked bars; reuse the chart colour ramp from design tokens (<code>chart-1..5</code>), not the prototype's editorial palette.</li>
+</ul>
+<p class="c">Tooltip and legend come from shadcn <code>ChartTooltip</code>/<code>ChartLegend</code> for token-consistent styling and a11y.</p>
+
+<!-- ============================================================ -->
+<h2 id="phases">9 · Phasing (file-level)</h2>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 0 — Registry flip &amp; route stub</h3><span class="phase-meta">~0.25 day</span></div>
+  <ul>
+    <li class="check">In <code>src/lib/scenarios/registry.ts</code>, change <code>budget-forecast</code> <code>status: "soon"</code> → <code>"live"</code>.</li>
+    <li class="check">Create <code>src/app/scenarios/budget-forecast/page.tsx</code> (server, <code>requireAdmin()</code>) + an empty client shell so the index card becomes clickable.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 1 — Data layer</h3><span class="phase-meta">~1.25 days</span></div>
+  <ul>
+    <li class="check"><code>src/lib/scenarios/budget-forecast-queries.ts</code> — <code>getBudgetForecastDataset()</code>: load active budget + periods; build the actuals spine from the report's <code>periodsWithActual</code> (<a href="#actuals">§5</a>); resolve each tool's current seats/price/burn via <code>license_assignments</code>/<code>access_tiers</code>/<code>copilot_billing_snapshots</code>/<code>anthropic_usage_metrics</code> (reusing 035's loader for the API line); classify elapsed vs remaining periods.</li>
+    <li class="check"><code>src/actions/scenarios.ts</code> — add <code>loadBudgetForecastDataset()</code> (<code>"use server"</code>, <code>requireAdmin()</code>, <code>unstable_cache</code> tag <code>scenarios:budget-forecast</code>).</li>
+    <li class="check">Handle empty/edge cases: no active budget, quarterly period type, fewer than the standard tool set, zero-price (bundled) tools.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 2 — Projection engine + tests</h3><span class="phase-meta">~1 day</span></div>
+  <ul>
+    <li class="check"><code>src/lib/scenarios/budget-forecast.ts</code> — port the prototype's pure functions; generalise the period loop to <code>budget_periods</code> length &amp; granularity. Write tests first against the <a href="#anchors">§3 anchors</a>.</li>
+    <li class="check">Encode <code>FORECAST_PRESETS</code> (Conservative / Expected / Aggressive) exactly as the prototype.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 3 — Client UI</h3><span class="phase-meta">~1.5 days</span></div>
+  <ul>
+    <li class="check"><code>src/app/scenarios/budget-forecast/budget-forecast-client.tsx</code> — scenario tabs (presets + Custom); per-tool control rows (<code>Select</code> model, number <code>Input</code>, native <code>range</code> for burn-cap / premium-share, <code>Checkbox</code> include); KPI strip; the Recharts burn-up chart (<a href="#chart">§8</a>); stacked bars; scenario-comparison + per-tool detail <code>Table</code>s; verdict callout.</li>
+    <li class="check">First-paint scenario computed server-side; reset-to-Expected affordance (mirrors 035's "reset to live").</li>
+    <li class="check"><code>Suspense</code> + <code>LoadingState</code>; empty state when no active budget exists.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 4 — Polish, a11y &amp; tests</h3><span class="phase-meta">~0.75 day</span></div>
+  <ul>
+    <li class="check">Design-token pass — Nothing tokens only (<code>text-ink</code>, <code>muted-foreground</code>, <code>faint</code>, <code>destructive</code>, <code>success</code>, <code>chart-1..5</code>); mono ALL-CAPS labels; <em>not</em> the prototype's editorial palette.</li>
+    <li class="check">Keyboard + SR labels on every control; chart has an accessible summary; breach state announced.</li>
+    <li class="check"><code>tests/unit/scenarios/budget-forecast.test.ts</code> — <code>seatsAt</code> (each model), <code>toolCostAt</code> (metered cap boundary; claudeSeats mix), <code>projectForecast</code> totals + breach index against §3 anchors. Quarterly-period unit case.</li>
+    <li class="check">Optional Playwright smoke: card live → chart renders → switching scenario + dragging burn-cap moves the year-end &amp; flips the verdict colour.</li>
+    <li class="check"><code>pnpm lint</code> (zero warnings), <code>pnpm typecheck</code>, <code>pnpm format</code>; CLAUDE.md "Recent Changes" line.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="manifest">10 · File manifest</h2>
+
+<table>
+  <thead><tr><th>File</th><th></th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/app/scenarios/budget-forecast/page.tsx</code></td><td><span class="pill new">new</span></td><td>Server page — auth, dataset load, first-paint scenario.</td></tr>
+    <tr><td><code>src/app/scenarios/budget-forecast/budget-forecast-client.tsx</code></td><td><span class="pill new">new</span></td><td>Interactive client UI (tabs, controls, chart, bars, tables, verdict).</td></tr>
+    <tr><td><code>src/lib/scenarios/budget-forecast.ts</code></td><td><span class="pill new">new</span></td><td>Pure projection engine (<code>seatsAt</code>, <code>toolCostAt</code>, <code>projectForecast</code>, presets).</td></tr>
+    <tr><td><code>src/lib/scenarios/budget-forecast-queries.ts</code></td><td><span class="pill new">new</span></td><td><code>getBudgetForecastDataset()</code> — budget + actuals spine + per-tool current state.</td></tr>
+    <tr><td><code>src/actions/scenarios.ts</code></td><td><span class="pill warn">edit</span></td><td>Add cached <code>loadBudgetForecastDataset()</code> server action.</td></tr>
+    <tr><td><code>src/lib/scenarios/registry.ts</code></td><td><span class="pill warn">edit</span></td><td>Flip <code>budget-forecast</code> → <code>"live"</code>.</td></tr>
+    <tr><td><code>src/components/scenarios/scenario-tabs.tsx</code></td><td><span class="pill new">opt</span></td><td>Now renders the section tab strip (≥2 live calculators — the trigger 035 anticipated).</td></tr>
+    <tr><td><code>tests/unit/scenarios/budget-forecast.test.ts</code></td><td><span class="pill new">new</span></td><td>Engine unit tests with §3 regression anchors.</td></tr>
+    <tr><td><code>CLAUDE.md</code></td><td><span class="pill warn">edit</span></td><td>"Recent Changes" line for 036.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="design">11 · Design &amp; component mapping</h2>
+
+<table>
+  <thead><tr><th>Prototype element</th><th>App implementation</th></tr></thead>
+  <tbody>
+    <tr><td>KPI strip (ceiling / spent / projected / over-under)</td><td>shadcn <code>Card</code>s with mono labels; over/under coloured via <code>destructive</code> / <code>success</code> tokens.</td></tr>
+    <tr><td>Scenario tabs (3 presets + Custom)</td><td>Token-styled segmented buttons; selecting loads preset params into state. Mirrors the <code>population</code> toggle pattern in 035.</td></tr>
+    <tr><td>Per-tool control rows</td><td><code>Select</code> (model), number <code>Input</code>, styled native <code>range</code> (burn-cap, premium-share), <code>Checkbox</code> (include). No new deps.</td></tr>
+    <tr><td>SVG burn-up chart</td><td><strong>Recharts <code>ComposedChart</code></strong> — lines + <code>ReferenceLine</code> (ceiling) + <code>ReferenceArea</code> (forecast) + <code>ReferenceDot</code> (breach), via shadcn <code>ChartContainer</code>. (<a href="#chart">§8</a>)</td></tr>
+    <tr><td>Stacked monthly bars</td><td>Recharts stacked <code>BarChart</code> with <code>chart-1..5</code> token ramp.</td></tr>
+    <tr><td>Comparison + detail tables</td><td>shadcn <code>Table</code>; money via <code>formatCurrency()</code> / <code>formatUSD0()</code>.</td></tr>
+    <tr><td>Editorial theme (Fraunces / clay / ivory)</td><td><strong>Dropped</strong> — app uses the <strong>Nothing design system</strong> (spec 028 tokens): greyscale hierarchy, single red <code>destructive</code> interrupt, mono caps. Editorial look stays in the prototype only.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="risks">12 · Risks &amp; decisions</h2>
+
+<table>
+  <thead><tr><th>Topic</th><th>Decision / mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Actuals double-count (billed + running)</td><td>Reuse the Budget Report's <code>periodsWithActual</code> as the single source of period actuals; project only periods starting on/after today. (<a href="#actuals">§5</a>)</td></tr>
+    <tr><td>Ceiling vs portfolio scope</td><td>The $42k budget was effectively sized for the API line; the full portfolio overshoots it. Make <strong>scope explicit</strong> via per-tool Include toggles; default scope = currently-invoiced tools (API · Copilot · Cursor), Claude seats &amp; MS Copilot off. The UI handles both green and red verdicts.</td></tr>
+    <tr><td>Period granularity</td><td>Engine iterates the budget's real <code>budget_periods</code> (monthly <em>or</em> quarterly), not a hardcoded 12 — growth values are per-period. Covered by a unit test.</td></tr>
+    <tr><td>Unbounded growth</td><td>Linear/compound can run away; document it and add an optional headcount cap (S-curve) as a fast-follow. v1 trusts the operator + shows the absurd number honestly.</td></tr>
+    <tr><td>Metered burn realism</td><td>Burn/user is derived from complete months only (same complete-vs-partial rule as 035 / Anthropic complete-UTC-day reporting); the burn cap doubles as the migrate-to-seats lever.</td></tr>
+    <tr><td>Number parity</td><td>Shared pure engine + §3 anchors prevent client/server drift and lock the prototype's figures.</td></tr>
+    <tr><td>Tool resolution</td><td>By vendor+name, never hardcoded ids; fail soft to a partial tool set / empty state.</td></tr>
+    <tr><td>Role &amp; sensitivity</td><td>Admin-only (matches <code>/reports</code>, <code>/claude</code>, <code>/scenarios</code>). Aggregates only — no API-key material read.</td></tr>
+    <tr><td>Performance</td><td>One budget, ~12 periods, ~5 tools, ~50 API users — a couple of indexed aggregations, cached. Negligible.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="questions">13 · Decisions (resolved)</h2>
+<div class="card accent">
+  <ul>
+    <li class="pro"><strong>Default forecast scope = all five tools on</strong> — API · Claude seats · Copilot · Cursor · MS Copilot; each individually toggleable. The headline is the true all-in run-rate.</li>
+    <li class="pro"><strong>OLS trend band — in v1.</strong> Regression on historical actuals (<code>forecast.ts</code>), drawn behind the assumption lines.</li>
+    <li class="pro"><strong>Editable modeled ceiling</strong> — defaults to the live budget ceiling, editable so the all-in portfolio can be modelled against an adjusted target (the live $42k was sized for the API line alone). The live ceiling stays visible in the stamp/KPI.</li>
+    <li class="note"><strong>Save &amp; name scenarios — deferred</strong> to a follow-up (needs a <code>forecast_scenarios</code> table + write path).</li>
+    <li class="note"><strong>"Apply scenario to the budget plan"</strong> (write <code>planned_amount_cents</code>) — follow-up; it crosses from modelling into editing the budget of record.</li>
+    <li class="note"><strong>By precedent (035):</strong> Nothing design system; admin-only; USD via <code>formatCurrency()</code>; pure-engine + fixture anchors; registry-driven routing.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="accept">14 · Acceptance checklist</h2>
+<ul>
+  <li class="check"><code>/scenarios</code> shows <em>Budget / Cost Forecast Simulation</em> as a live, clickable card; a section tab strip appears now that two calculators are live.</li>
+  <li class="check"><code>/scenarios/budget-forecast</code> renders the active FY budget, actuals-to-date matching the Budget Report to the cent, and the three preset lines + Your plan.</li>
+  <li class="check">Default view reproduces the §3 anchor figures exactly on the frozen fixture.</li>
+  <li class="check">Scenario tabs load presets; per-tool controls (model / growth / burn-cap / premium-share / include) recompute KPIs, chart, bars, tables, and verdict live.</li>
+  <li class="check">Burn-up chart shows the ceiling, forecast shading, planned staircase, and a breach marker; the verdict + KPIs flip green/red correctly and a mitigated custom plan can return under budget.</li>
+  <li class="check">Engine handles a quarterly budget and a missing-budget empty state.</li>
+  <li class="check"><code>lint</code> / <code>typecheck</code> / <code>format</code> clean; unit tests green with regression anchors.</li>
+  <li class="check">No schema change; feature is read-only over existing tables.</li>
+</ul>
+
+<footer>
+  AI Developer Hub · spec/036-budget-forecast-simulation · implementation plan · drafted 2026-06-09 · companion: prototype.html
+</footer>
+
+</main>
+</body>
+</html>

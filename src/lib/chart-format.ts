@@ -36,6 +36,11 @@ export function formatUSD0(cents: number): string {
   return usd0.format(cents / 100);
 }
 
+/** Compact "$Nk" axis tick from integer cents — e.g. 4200000 → "$42k". */
+export function formatAxisUSDk(cents: number): string {
+  return `$${(cents / 100_000).toFixed(0)}k`;
+}
+
 /** Accepts a fraction 0..1 — e.g. 0.42 → "42%". */
 export function formatPercent(fraction: number, digits = 1): string {
   return `${(fraction * 100).toFixed(digits)}%`;

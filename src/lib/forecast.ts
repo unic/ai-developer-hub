@@ -14,9 +14,24 @@ export interface ForecastOptions {
   today: Date;
 }
 
-const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
-export function parseMonthLabel(label: string): { year: number; month: number } | null {
+export function parseMonthLabel(
+  label: string,
+): { year: number; month: number } | null {
   // "MMM YYYY" (e.g. "Jan 2026")
   const parts = label.split(" ");
   if (parts.length === 2) {
@@ -38,12 +53,18 @@ function formatMonthLabel(year: number, monthIdx: number): string {
   return `${MONTH_NAMES[monthIdx]} ${year}`;
 }
 
-function nextMonth(year: number, monthIdx: number): { year: number; month: number } {
+function nextMonth(
+  year: number,
+  monthIdx: number,
+): { year: number; month: number } {
   if (monthIdx === 11) return { year: year + 1, month: 0 };
   return { year, month: monthIdx + 1 };
 }
 
-function olsRegression(xs: number[], ys: number[]): { slope: number; intercept: number } {
+export function olsRegression(
+  xs: number[],
+  ys: number[],
+): { slope: number; intercept: number } {
   const n = xs.length;
   const sumX = xs.reduce((s, x) => s + x, 0);
   const sumY = ys.reduce((s, y) => s + y, 0);
@@ -57,8 +78,12 @@ function olsRegression(xs: number[], ys: number[]): { slope: number; intercept: 
 }
 
 export function forecastBudget(options: ForecastOptions): BudgetForecast {
-  const { history, actualSpendToDateCents, budgetCeilingCents, today } = options;
-  const monthsToProject = Math.min(Math.max(options.monthsToProject ?? 3, 3), 6);
+  const { history, actualSpendToDateCents, budgetCeilingCents, today } =
+    options;
+  const monthsToProject = Math.min(
+    Math.max(options.monthsToProject ?? 3, 3),
+    6,
+  );
 
   if (history.length < 3) {
     const projectedAnnualTotalCents = actualSpendToDateCents;
@@ -70,14 +95,18 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
       actualSpendToDateCents,
       projectedAnnualTotalCents,
       budgetCeilingCents,
-      status: projectedAnnualTotalCents <= budgetCeilingCents ? "on_track" : "at_risk",
+      status:
+        projectedAnnualTotalCents <= budgetCeilingCents
+          ? "on_track"
+          : "at_risk",
       insufficientData: `Need at least 3 months of history (currently ${history.length})`,
     };
   }
 
-  const annualProjectionCount = options.totalPeriodsRemaining !== undefined
-    ? Math.max(options.totalPeriodsRemaining, monthsToProject)
-    : monthsToProject;
+  const annualProjectionCount =
+    options.totalPeriodsRemaining !== undefined
+      ? Math.max(options.totalPeriodsRemaining, monthsToProject)
+      : monthsToProject;
 
   const xs = history.map((_, i) => i);
   const ys = history.map((h) => h.amountCents);
@@ -108,7 +137,8 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
     const rawAmount = slope * (baseX + i) + intercept;
     projectedRemainingCents += Math.max(0, Math.round(rawAmount));
   }
-  const projectedAnnualTotalCents = actualSpendToDateCents + projectedRemainingCents;
+  const projectedAnnualTotalCents =
+    actualSpendToDateCents + projectedRemainingCents;
 
   return {
     slopeCents: Math.round(slope),
@@ -118,7 +148,8 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
     actualSpendToDateCents,
     projectedAnnualTotalCents,
     budgetCeilingCents,
-    status: projectedAnnualTotalCents <= budgetCeilingCents ? "on_track" : "at_risk",
+    status:
+      projectedAnnualTotalCents <= budgetCeilingCents ? "on_track" : "at_risk",
   };
 }
 
@@ -130,10 +161,10 @@ export function forecastBudget(options: ForecastOptions): BudgetForecast {
 export function buildBudgetForecast(
   budget: BudgetWithCosts,
   actualByPeriod: Map<number, number>,
-  today: Date = new Date()
+  today: Date = new Date(),
 ): BudgetForecast {
   const completedPeriods = budget.periods.filter(
-    (p) => new Date(p.endDate) < today && (actualByPeriod.get(p.id) ?? 0) > 0
+    (p) => new Date(p.endDate) < today && (actualByPeriod.get(p.id) ?? 0) > 0,
   );
   const history: MonthlySpend[] = completedPeriods.map((p) => ({
     month: p.periodLabel,
@@ -141,10 +172,10 @@ export function buildBudgetForecast(
   }));
   const actualSpendToDateCents = completedPeriods.reduce(
     (s, p) => s + (actualByPeriod.get(p.id) ?? 0),
-    0
+    0,
   );
   const remainingPeriods = budget.periods.filter(
-    (p) => new Date(p.startDate) >= today
+    (p) => new Date(p.startDate) >= today,
   );
   return forecastBudget({
     history,

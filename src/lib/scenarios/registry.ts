@@ -31,7 +31,7 @@ export const SCENARIOS: ScenarioMeta[] = [
     blurb:
       "Project spend forward from historical run-rate and simulate budget outcomes across the fiscal year.",
     icon: LineChart,
-    status: "soon",
+    status: "live",
   },
 ];
 
