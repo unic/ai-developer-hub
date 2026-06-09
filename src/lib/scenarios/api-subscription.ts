@@ -21,7 +21,7 @@ export type Population = "all" | "active";
 export type ScenarioInputs = {
   standardCents: number;
   premiumCents: number;
-  /** usage >= threshold ⇒ Premium seat, otherwise Standard. */
+  /** usage >= threshold ⇒ Premium; below it the key is Standard or, under apiThresholdCents, the metered API tier (see mapSeat). */
   premiumThresholdCents: number;
   /** usage < threshold ⇒ keep the key on metered API (no seat migration). */
   apiThresholdCents: number;

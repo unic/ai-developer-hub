@@ -238,9 +238,9 @@
   </ul>
 </div>
 
-<h2>6 · AI review round (Copilot) — addressed</h2>
+<h2>6 · AI review (Copilot) — addressed across two passes</h2>
 <div class="card">
-  <p>GitHub Copilot's review raised two (both fair, both fixed):</p>
+  <p><strong>Pass 1</strong> raised two (both fair, both fixed):</p>
   <ul>
     <li><strong><code>mapSeat</code> JSDoc said "cheapest viable option"</strong> — but the function is purely
       threshold-based; away from the default thresholds a tier can be assigned even when another would cost less.
@@ -251,6 +251,16 @@
       a small <code>joinParts()</code> helper, omitting empty groups. Verified in-browser across all three mixes:
       default → "9 Premium, 22 Standard, and 16 kept on metered API"; API floor $0 → "9 Premium and 38 Standard";
       Standard-empty clamp → "32 Premium and 15 kept on metered API" (each sums to 47).</li>
+  </ul>
+  <p><strong>Pass 2</strong> (re-review of the pass-1 fix) caught two follow-ons, both fixed:</p>
+  <ul>
+    <li><strong>Stale field doc</strong> — the <code>premiumThresholdCents</code> JSDoc still said "otherwise
+      Standard", which the new API tier makes wrong. Reworded to "below it the key is Standard or, under
+      <code>apiThresholdCents</code>, the metered API tier (see mapSeat)".</li>
+    <li><strong>Empty-population copy</strong> — when <code>count === 0</code> (population = active with no active keys,
+      reachable via the toggle) the verdict rendered dangling "— —". The breakdown interjection is now conditional
+      (a <code>verdictLead</code> string); verified: <code>count 0</code> → "Right-sizing the 0 API users costs …",
+      <code>count 1</code> → singular "user".</li>
   </ul>
 </div>
 

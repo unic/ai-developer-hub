@@ -270,6 +270,13 @@ export function ApiSubscriptionClient({
       result.apiCount > 0 ? `${result.apiCount} kept on metered API` : null,
     ].filter((part): part is string => part !== null),
   );
+  // Drop the breakdown interjection when there's nothing to list (e.g.
+  // population=active with no active keys) so the copy never shows dangling
+  // dashes ("— —").
+  const verdictLead =
+    `Right-sizing the ${result.count} API ${
+      result.count === 1 ? "user" : "users"
+    }` + (seatBreakdown ? ` — ${seatBreakdown} —` : "");
 
   // Single source for the four scenarios — drives both the cards and the bars.
   const scenarios = [
@@ -486,8 +493,7 @@ export function ApiSubscriptionClient({
           </span>
         </p>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Right-sizing the {result.count} API{" "}
-          {result.count === 1 ? "user" : "users"} — {seatBreakdown} — costs{" "}
+          {verdictLead} costs{" "}
           <span className="text-ink">
             {formatUSD0(result.rightSizedCents)}/mo
           </span>
