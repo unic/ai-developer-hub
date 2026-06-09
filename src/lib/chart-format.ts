@@ -25,6 +25,17 @@ export function formatUSDCompact(cents: number): string {
   return `${sign}$${abs.toFixed(2)}`;
 }
 
+const usd0 = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+/** Whole-dollar USD from integer cents — "$3,041". For headline/aggregate figures. */
+export function formatUSD0(cents: number): string {
+  return usd0.format(cents / 100);
+}
+
 /** Accepts a fraction 0..1 — e.g. 0.42 → "42%". */
 export function formatPercent(fraction: number, digits = 1): string {
   return `${(fraction * 100).toFixed(digits)}%`;

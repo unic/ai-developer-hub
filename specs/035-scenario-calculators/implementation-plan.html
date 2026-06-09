@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — Scenarios section &amp; API→Subscription calculator (035)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #f0a072;        /* clay — matches the prototype accent */
+      --accent-2: #7dd3fc;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 32px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 52px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+    pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 820px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .badge.warn { color: var(--warn); border-color: rgba(252,211,77,0.3); }
+    .badge.accent { color: var(--accent); border-color: rgba(240,160,114,0.35); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row.between { justify-content: space-between; }
+    .flow { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; white-space: pre; overflow-x: auto; color: var(--fg-muted); }
+    .flow .em { color: var(--fg); }
+    .flow .ok { color: var(--good); }
+    .flow .accent { color: var(--accent); }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    li.check::marker { content: "\2610  "; color: var(--fg-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    td code { white-space: nowrap; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.good { background: rgba(134,239,172,0.12); color: var(--good); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.new { background: rgba(240,160,114,0.14); color: var(--accent); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent-2); background: rgba(125,211,252,0.04); }
+    .callout.accent { border-left-color: var(--accent); background: rgba(240,160,114,0.05); }
+    .phase { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; }
+    .phase-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .phase-head h3 { font-size: 20px; margin: 0; }
+    .phase-meta { color: var(--fg-dim); font-family: var(--mono); font-size: 12px; }
+    .toc { columns: 2; column-gap: 32px; font-size: 14px; }
+    @media (max-width: 760px) { .toc { columns: 1; } }
+    .toc a { display: block; padding: 3px 0; color: var(--fg-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+    .k { color: var(--accent-2); }
+    .s { color: var(--good); }
+    .c { color: var(--fg-dim); font-style: italic; }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Implementation plan</span>
+    <span class="badge">spec/035-scenario-calculators</span>
+    <span class="badge accent">Draft — pending approval</span>
+  </div>
+  <h1>Scenarios section &amp; the API&nbsp;→&nbsp;Subscription calculator</h1>
+  <p class="lede">
+    Turn the standalone cost prototype into a real, live-data feature of the AI Developer Hub: a new
+    <strong>Scenarios</strong> nav section whose first inhabitant is the <strong>API&nbsp;→&nbsp;Subscription
+    migration calculator</strong>. The section is built as an extensible registry so a second (and third)
+    calculator can be added later without touching the first.
+  </p>
+  <p class="lede">
+    The interactive reference — same math, same controls — lives in
+    <a href="./prototype.html">prototype.html</a>. That doc is the <em>what</em>; this is the
+    <em>how</em>, wired into the app's real architecture (Server Components → server actions → Drizzle,
+    shadcn primitives, design tokens).
+  </p>
+  <p class="meta">Drafted 2026-06-09 · author: T. Studer · branch: <code>035-scenario-calculators</code> · estimate: ~3–4 dev days</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>Reference prototype.</strong> <a href="./prototype.html">prototype.html</a> is the validated single-file
+  version generated from live Neon data (project <code>broad-shadow-82397229</code>, window 27&nbsp;Feb&nbsp;–&nbsp;9&nbsp;Jun&nbsp;2026).
+  Its numbers were cross-checked against <code>anthropic_usage_metrics</code> and a Node re-computation. The app version
+  must reproduce those figures exactly when fed the same data.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc card">
+  <a href="#goal">1 · Goal &amp; scope</a>
+  <a href="#what">2 · What the first calculator does</a>
+  <a href="#data">3 · Data sources (no schema change)</a>
+  <a href="#arch">4 · Architecture &amp; routing</a>
+  <a href="#engine">5 · The pure calculation engine</a>
+  <a href="#registry">6 · Extensibility contract (future calculators)</a>
+  <a href="#phases">7 · Phasing (file-level)</a>
+  <a href="#manifest">8 · File manifest</a>
+  <a href="#design">9 · Design &amp; component mapping</a>
+  <a href="#risks">10 · Risks &amp; decisions</a>
+  <a href="#questions">11 · Open questions</a>
+  <a href="#accept">12 · Acceptance checklist</a>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="goal">1 · Goal &amp; scope</h2>
+
+<div class="card accent">
+  <h4>In scope</h4>
+  <ul>
+    <li class="note">A new top-level <strong>Scenarios</strong> section (sidebar entry, admin-only) at <code>/scenarios</code>.</li>
+    <li class="note">An <strong>index page</strong> listing available calculators, driven by a registry — so adding calculator #2 is a one-line registry entry + its own route.</li>
+    <li class="note">The first calculator at <code>/scenarios/api-subscription</code>, fed by <strong>live</strong> data (Anthropic usage + license assignments + seat prices), reproducing the prototype's KPIs, scenario cards, comparison bars, and per-user mapping table.</li>
+    <li class="note">A <strong>pure, tested calculation module</strong> shared by server (initial render) and client (live re-compute on control changes).</li>
+  </ul>
+  <h4>Out of scope (this spec)</h4>
+  <ul>
+    <li class="con">Any DB schema change — the feature is read-only over existing tables.</li>
+    <li class="con">The second calculator itself (only the seams that let it slot in).</li>
+    <li class="con">Persisting/sharing saved scenario presets, CSV/PDF export — noted as follow-ups, not built now.</li>
+    <li class="con">Currency conversion (USD→CHF) — see <a href="#risks">risks</a>; deferred unless requested.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="what">2 · What the first calculator does</h2>
+
+<p>
+  Every user holding a <strong>Claude Console</strong> (Anthropic API) license key is a metered, pay-as-you-go
+  consumer. The calculator maps each one onto a flat Claude <strong>Standard</strong> or <strong>Premium</strong>
+  seat and compares the projected bill against today's API spend, under four scenarios:
+</p>
+<ul>
+  <li class="note"><strong>Metered API (baseline)</strong> — sum of each user's actual API spend on the chosen basis.</li>
+  <li class="note"><strong>All → Standard</strong> — every user on the cheapest seat.</li>
+  <li class="note"><strong>All → Premium</strong> — every user on the top seat.</li>
+  <li class="note"><strong>Right-sized</strong> — users whose API spend ≥ a threshold get Premium; the rest get Standard.</li>
+</ul>
+<p>Live, recomputing controls: <code>Standard $/mo</code>, <code>Premium $/mo</code>, <code>Premium threshold</code> (slider),
+  <code>usage basis</code> (avg of complete months / latest / peak / specific month), and
+  <code>population</code> (all keys vs. active only). Sortable per-user table with a
+  <code>Δ&nbsp;seat&nbsp;−&nbsp;API</code> column (green = seat cheaper than burn, clay = seat over-pays a light key).</p>
+
+<div class="callout accent">
+  <strong>Numbers it must hit on current data</strong> (all 47 keys, avg of complete months Mar/Apr/May 2026,
+  threshold = $125): baseline <code>$3,041/mo</code>, all-Standard <code>$1,175/mo</code>,
+  all-Premium <code>$5,875/mo</code>, right-sized <code>$2,075/mo</code> (9 Premium + 38 Standard) →
+  <span class="s">$966/mo (32%) saving</span> vs. API. These are the regression anchors for the unit tests.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="data">3 · Data sources (no schema change)</h2>
+
+<table>
+  <thead><tr><th>Table</th><th>Role in the calculator</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>license_assignments</code></td>
+      <td>The <strong>population</strong>. API users = rows where <code>tool_id =</code> the <em>Claude Console</em> tool
+        <em>and</em> <code>api_key_encrypted IS NOT NULL</code> (47 today; 43 active). One row per user (dedupe by
+        <code>row_number()</code>, preferring active + latest <code>assigned_at</code>). Carries <code>status</code>,
+        <code>workspace</code>, and the internal boost tier (context only).</td>
+    </tr>
+    <tr>
+      <td><code>anthropic_usage_metrics</code></td>
+      <td>The <strong>spend</strong>. <code>computed_cost_cents</code> per user/day/model, summed by
+        <code>to_char(date,'YYYY-MM')</code> into a per-user monthly map.</td>
+    </tr>
+    <tr>
+      <td><code>access_tiers</code> + <code>ai_tools</code></td>
+      <td>The <strong>seat prices</strong>. The <em>Claude</em> subscription tool's two active tiers supply the
+        defaults: <code>Standard Seat = 2500¢</code>, <code>Premium Seat = 12500¢</code>. Read live (lowest active
+        tier = Standard, highest = Premium) so config edits flow through automatically.</td>
+    </tr>
+    <tr>
+      <td><code>users</code></td>
+      <td>Display name, email, status, discipline (for the table + any future grouping).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4>Tool resolution — don't hardcode IDs</h4>
+<p>The prototype hardcoded tool ids (Claude Console = 2, Claude = 3). The app must resolve by
+  <strong>vendor + name</strong> to survive reseeded/other environments:</p>
+<pre><code><span class="c">// API tool: vendor 'Anthropic', name 'Claude Console'  (the one whose assignments carry api keys)</span>
+<span class="c">// Seat tool: vendor 'Anthropic', name 'Claude'          (its access_tiers = Standard/Premium)</span></code></pre>
+
+<h4>Complete vs. partial months</h4>
+<p>The prototype baked in "Mar/Apr/May are complete." The app computes it: a month is <em>complete</em> when its last
+  calendar day is strictly before today (UTC) <em>and</em> the dataset's earliest date is on/before that month's first
+  day (so a month the org joined mid-way isn't treated as full). The current month is always <em>partial</em>. This
+  matches the standing fact that Anthropic's <code>cost_report</code> only returns complete UTC days. The default basis
+  averages the complete months; partial months are shown in the table (muted, "MTD") but excluded from the run-rate.</p>
+
+<h4>Validated aggregation query (reference)</h4>
+<pre><code>WITH console AS (
+  SELECT la.user_id, la.status, la.workspace, at.name AS tier_name,
+         row_number() OVER (PARTITION BY la.user_id
+           ORDER BY (la.status='active') DESC, la.assigned_at DESC) rn
+  FROM license_assignments la
+  JOIN access_tiers at ON at.id = la.tier_id
+  WHERE la.tool_id = :claudeConsoleToolId
+    AND la.api_key_encrypted IS NOT NULL
+)
+SELECT u.id, u.name, u.email, u.discipline, c.status, c.workspace, c.tier_name,
+       to_char(m.date,'YYYY-MM') AS month, SUM(m.computed_cost_cents) AS cents
+FROM console c
+JOIN users u ON u.id = c.user_id
+LEFT JOIN anthropic_usage_metrics m ON m.user_id = c.user_id
+WHERE c.rn = 1
+GROUP BY u.id, u.name, u.email, u.discipline, c.status, c.workspace, c.tier_name, 2
+ORDER BY u.name;</code></pre>
+<p class="c">Implemented with the Drizzle query builder in <code>lib/scenarios/queries.ts</code>; raw SQL shown only for clarity.</p>
+
+<!-- ============================================================ -->
+<h2 id="arch">4 · Architecture &amp; routing</h2>
+
+<div class="card">
+  <div class="flow"><span class="accent">/scenarios</span>                         <span class="em">index — registry-driven cards (server component)</span>
+   │
+   └── <span class="accent">/scenarios/api-subscription</span>      <span class="em">page.tsx (server) → requireAdmin + load dataset</span>
+                  │
+                  └── api-subscription-client.tsx   <span class="c">"use client" — controls + live recompute</span>
+                                 │ imports
+                                 ▼
+        <span class="k">lib/scenarios/api-subscription.ts</span>   <span class="c">pure calc engine (no React, no db)</span>
+        <span class="k">lib/scenarios/queries.ts</span>          <span class="c">Drizzle reads (server only)</span>
+        <span class="k">lib/scenarios/registry.ts</span>         <span class="c">calculator catalogue (slug/title/status)</span>
+  </div>
+</div>
+
+<p>The split mirrors the existing <code>/claude</code> feature: a server <code>page.tsx</code> does
+  <code>requireAdmin()</code>, awaits the dataset via a <code>"use server"</code> action, and hands plain serializable
+  data to a <code>"use client"</code> component. The novelty is the <strong>pure engine in <code>lib/</code></strong>
+  (no <code>"use server"</code>, no React) so the <em>same</em> functions run on the server for first paint and in the
+  browser on every slider drag — guaranteeing the displayed totals can't drift from the tested ones.</p>
+
+<div class="grid-2">
+  <div class="card accent-2">
+    <h4>Why a registry, not just two routes</h4>
+    <p>The user wants more calculators later. A <code>registry.ts</code> list is the single source of truth for the
+      index cards, the optional section tab strip, and "coming soon" placeholders. Adding calculator #2 =
+      append one entry + create its route folder. No edits to calculator #1.</p>
+  </div>
+  <div class="card accent-2">
+    <h4>Caching</h4>
+    <p>The dataset query is wrapped in <code>unstable_cache</code> tagged <code>scenarios:api-subscription</code>,
+      revalidated by the Anthropic usage sync (same hook that already revalidates <code>/claude</code>) and on a short
+      TTL. The page is dynamic (admin-gated) so it's never statically cached at the route level.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="engine">5 · The pure calculation engine</h2>
+
+<p>File: <code>src/lib/scenarios/api-subscription.ts</code>. No imports from <code>db</code>, <code>react</code>, or
+  <code>next</code> — only types and plain math. Fully unit-tested.</p>
+
+<pre><code><span class="c">// ---- inputs the UI controls map onto ----</span>
+export type UsageBasis =
+  | "avgComplete"      <span class="c">// mean of complete months (default)</span>
+  | "latestComplete"   <span class="c">// most recent complete month</span>
+  | "peakComplete"     <span class="c">// max single complete month</span>
+  | { month: string }; <span class="c">// a specific 'YYYY-MM'</span>
+
+export type ScenarioInputs = {
+  standardCents: number;
+  premiumCents: number;
+  premiumThresholdCents: number;  <span class="c">// usage &gt;= threshold ⇒ Premium</span>
+  basis: UsageBasis;
+  population: "all" | "active";
+};
+
+<span class="c">// ---- per-user shape coming out of queries.ts ----</span>
+export type ApiUser = {
+  userId: number; name: string; email: string;
+  status: "active" | "inactive";
+  workspace: string | null; internalTier: string | null;
+  monthly: Record&lt;string, number&gt;;   <span class="c">// 'YYYY-MM' -&gt; cents</span>
+};
+
+export type ApiSubscriptionDataset = {
+  users: ApiUser[];
+  completeMonths: string[];           <span class="c">// sorted asc</span>
+  partialMonths: string[];
+  defaultStandardCents: number;       <span class="c">// from access_tiers</span>
+  defaultPremiumCents: number;
+  generatedAt: string;                <span class="c">// ISO; stamped by caller</span>
+};
+
+<span class="c">// ---- pure functions (the testable core) ----</span>
+export function usageForUser(u: ApiUser, ds: ApiSubscriptionDataset, basis: UsageBasis): number;
+export function mapSeat(usageCents: number, i: ScenarioInputs):
+  { tier: "standard" | "premium"; seatCents: number };
+export function computeScenarios(ds: ApiSubscriptionDataset, i: ScenarioInputs): {
+  rows: Array&lt;{ user: ApiUser; usageCents: number; tier: "standard" | "premium";
+                seatCents: number; deltaCents: number }&gt;;
+  baselineCents: number;
+  allStandardCents: number;
+  allPremiumCents: number;
+  rightSizedCents: number;
+  premiumCount: number;
+  standardCount: number;
+};</code></pre>
+
+<p>The client component holds only the <code>ScenarioInputs</code> in React state; everything rendered (cards, bars,
+  table, verdict line) is derived by calling <code>computeScenarios(dataset, inputs)</code> on each render. No duplicated
+  arithmetic in JSX.</p>
+
+<!-- ============================================================ -->
+<h2 id="registry">6 · Extensibility contract (future calculators)</h2>
+
+<pre><code><span class="c">// src/lib/scenarios/registry.ts</span>
+export type ScenarioStatus = "live" | "soon";
+export type ScenarioMeta = {
+  slug: string;            <span class="c">// URL segment under /scenarios</span>
+  title: string;
+  blurb: string;           <span class="c">// one line for the index card</span>
+  icon: LucideIcon;
+  status: ScenarioStatus;
+};
+
+export const SCENARIOS: ScenarioMeta[] = [
+  { slug: "api-subscription", title: "API → Subscription migration",
+    blurb: "Map metered Anthropic API users onto flat Standard/Premium seats.",
+    icon: ArrowLeftRight, status: "live" },
+  { slug: "budget-forecast", title: "Budget / Cost Forecast Simulation",
+    blurb: "Project spend forward and simulate budget outcomes.",
+    icon: LineChart, status: "soon" },   <span class="c">// calculator #2 — stubbed now, built later</span>
+];</code></pre>
+
+<p>A new calculator slots in by: (1) appending a <code>ScenarioMeta</code>; (2) adding
+  <code>src/app/scenarios/&lt;slug&gt;/page.tsx</code> + client; (3) optionally its own loader in
+  <code>queries.ts</code> and pure module. The index page and tab strip render straight off <code>SCENARIOS</code>;
+  <code>status: "soon"</code> entries render as non-clickable "coming soon" cards.</p>
+
+<!-- ============================================================ -->
+<h2 id="phases">7 · Phasing (file-level)</h2>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 0 — Section scaffolding</h3><span class="phase-meta">~0.5 day</span></div>
+  <ul>
+    <li class="check">Add <code>{ title: "Scenarios", href: "/scenarios", roles: ["admin"] }</code> to <code>navItems</code> in
+      <code>src/components/app-sidebar.tsx</code> (place after <em>Reports</em>).</li>
+    <li class="check">Create <code>src/lib/scenarios/registry.ts</code> with the <code>ScenarioMeta</code> type + one live entry.</li>
+    <li class="check">Create <code>src/app/scenarios/page.tsx</code> — server component, <code>requireAdmin()</code>, renders a
+      grid of shadcn <code>Card</code>s from <code>SCENARIOS</code> (live → <code>Link</code>; soon → disabled).</li>
+    <li class="check">Optional <code>src/components/scenarios/scenario-tabs.tsx</code> (mirrors <code>claude-tabs.tsx</code>) —
+      only rendered once ≥2 live calculators exist.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 1 — Data layer</h3><span class="phase-meta">~1 day</span></div>
+  <ul>
+    <li class="check"><code>src/lib/scenarios/types.ts</code> — the dataset &amp; input types (or co-locate in the engine file).</li>
+    <li class="check"><code>src/lib/scenarios/queries.ts</code> — <code>getApiSubscriptionDataset()</code>: resolve the two tools
+      by vendor+name, run the aggregation query via Drizzle, classify complete/partial months, read seat-price defaults
+      from <code>access_tiers</code>, return <code>ApiSubscriptionDataset</code>. Guard the empty/zero-tool cases.</li>
+    <li class="check"><code>src/actions/scenarios.ts</code> — <code>"use server"</code>; <code>requireAdmin()</code> then the
+      cached loader (<code>unstable_cache</code>, tag <code>scenarios:api-subscription</code>).</li>
+    <li class="check">Integration test seam: a fixture dataset object reused by unit tests + the client storybook-ish manual check.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 2 — Calculator page &amp; UI</h3><span class="phase-meta">~1.5 days</span></div>
+  <ul>
+    <li class="check"><code>src/lib/scenarios/api-subscription.ts</code> — the pure engine (§5). Write tests first (TDD anchors from §2).</li>
+    <li class="check">Threshold control: a <strong>styled native <code>&lt;input type="range"&gt;</code></strong> (accent fill, mono readout).
+      <code>@radix-ui/react-slider</code> is not installed; a native range adds no dependency and reads as a mechanical
+      instrument — on-brand for Nothing. Revisit a Radix slider only if richer keyboard semantics are needed.</li>
+    <li class="check"><code>src/app/scenarios/api-subscription/page.tsx</code> — server: <code>requireAdmin()</code>, await
+      action, compute the default scenario server-side for first paint, pass <code>dataset</code> + defaults to client.</li>
+    <li class="check"><code>src/app/scenarios/api-subscription/api-subscription-client.tsx</code> — <code>"use client"</code>:
+      controls → <code>ScenarioInputs</code> state → <code>computeScenarios()</code> → KPI strip, four scenario
+      <code>Card</code>s, comparison bars (<code>segmented-bar</code> or simple token-styled divs), verdict line, and the
+      sortable per-user <code>Table</code> with <code>Sparkline</code> month trends and the Δ column.</li>
+    <li class="check">Empty state (no API users / no usage yet) and loading via <code>Suspense</code> + <code>LoadingState</code>.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 3 — Polish &amp; a11y</h3><span class="phase-meta">~0.5 day</span></div>
+  <ul>
+    <li class="check">Design-token pass (no hardcoded hex; use <code>text-ink</code>, <code>muted-foreground</code>,
+      <code>destructive</code>, etc.). Mono uppercase labels to match the house dashboard look — <em>not</em> the
+      prototype's standalone editorial palette.</li>
+    <li class="check">Capacity caveat: badge/tooltip on users whose API basis spend ≫ a Standard seat under the
+      all-Standard scenario ("a $25 seat may not cover this workload").</li>
+    <li class="check">Keyboard + SR labels on slider/select/toggle; column-sort buttons announce direction; responsive
+      table scroll on mobile.</li>
+    <li class="check"><code>pnpm lint</code> (zero warnings), <code>pnpm typecheck</code>, <code>pnpm format</code>.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 4 — Tests</h3><span class="phase-meta">~0.5 day</span></div>
+  <ul>
+    <li class="check"><code>tests/unit/scenarios/api-subscription.test.ts</code> — <code>usageForUser</code> (each basis),
+      <code>mapSeat</code> (threshold boundary: <code>usage == threshold</code> ⇒ Premium), <code>computeScenarios</code>
+      totals against the §2 fixture anchors (3041 / 1175 / 5875 / 2075).</li>
+    <li class="check">Month-classification unit test (current month partial; mid-join month partial).</li>
+    <li class="check">Optional <code>tests/integration/scenarios/dataset.test.ts</code> — <code>getApiSubscriptionDataset()</code>
+      against the real DB (gated like other integration tests).</li>
+    <li class="check">Optional Playwright smoke: <code>/scenarios</code> shows the card; calculator renders 47 rows;
+      moving the threshold changes the right-sized total.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="manifest">8 · File manifest</h2>
+
+<table>
+  <thead><tr><th>File</th><th></th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/app/scenarios/page.tsx</code></td><td><span class="pill new">new</span></td><td>Section index; registry-driven calculator cards.</td></tr>
+    <tr><td><code>src/app/scenarios/api-subscription/page.tsx</code></td><td><span class="pill new">new</span></td><td>Calculator server page — auth, dataset load, first-paint scenario.</td></tr>
+    <tr><td><code>src/app/scenarios/api-subscription/api-subscription-client.tsx</code></td><td><span class="pill new">new</span></td><td>Interactive client UI (controls, cards, bars, table).</td></tr>
+    <tr><td><code>src/lib/scenarios/registry.ts</code></td><td><span class="pill new">new</span></td><td>Calculator catalogue (slug/title/blurb/icon/status).</td></tr>
+    <tr><td><code>src/lib/scenarios/types.ts</code></td><td><span class="pill new">new</span></td><td>Dataset &amp; input types (or fold into engine).</td></tr>
+    <tr><td><code>src/lib/scenarios/queries.ts</code></td><td><span class="pill new">new</span></td><td><code>getApiSubscriptionDataset()</code> — Drizzle reads, month classification, seat-price defaults.</td></tr>
+    <tr><td><code>src/lib/scenarios/api-subscription.ts</code></td><td><span class="pill new">new</span></td><td>Pure calc engine (basis, mapSeat, computeScenarios).</td></tr>
+    <tr><td><code>src/actions/scenarios.ts</code></td><td><span class="pill new">new</span></td><td><code>"use server"</code> wrapper: requireAdmin + cached loader.</td></tr>
+    <tr><td><code>src/components/scenarios/scenario-tabs.tsx</code></td><td><span class="pill new">opt</span></td><td>Section tab strip — when ≥2 live calculators.</td></tr>
+    <tr><td><code>src/components/app-sidebar.tsx</code></td><td><span class="pill warn">edit</span></td><td>Add the <em>Scenarios</em> nav item (admin).</td></tr>
+    <tr><td><code>tests/unit/scenarios/api-subscription.test.ts</code></td><td><span class="pill new">new</span></td><td>Engine unit tests with regression anchors.</td></tr>
+    <tr><td><code>CLAUDE.md</code></td><td><span class="pill warn">edit</span></td><td>"Recent Changes" line for 035 (auto-gen convention).</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="design">9 · Design &amp; component mapping</h2>
+
+<table>
+  <thead><tr><th>Prototype element</th><th>App implementation</th></tr></thead>
+  <tbody>
+    <tr><td>KPI strip</td><td>Reuse the <code>kpi-strip</code> pattern from <code>components/claude</code>, or shadcn <code>Card</code>s with mono labels.</td></tr>
+    <tr><td>Controls (prices / threshold / basis / population)</td><td><code>Input</code> (number), styled native <code>range</code>, <code>Select</code>, and a two-button segmented toggle (mechanical control, not <code>switch</code>).</td></tr>
+    <tr><td>Four scenario cards + verdict</td><td>shadcn <code>Card</code> + <code>Badge</code>; verdict is a token-styled callout.</td></tr>
+    <tr><td>Horizontal comparison bars</td><td><code>components/ui/segmented-bar</code> (already in the kit).</td></tr>
+    <tr><td>Per-month mini-trend</td><td><code>components/ui/sparkline</code>.</td></tr>
+    <tr><td>Per-user table (sortable, Δ column)</td><td>shadcn <code>Table</code>; sort via local state or TanStack Table (already a dep). Money via <code>formatCurrency()</code> from <code>lib/utils</code>.</td></tr>
+    <tr><td>Standalone editorial theme (Fraunces/clay/ivory)</td><td><strong>Dropped</strong> — the app page uses the <strong>Nothing design system</strong> (spec 028 tokens): <code>font-mono</code> ALL-CAPS labels, <code>text-ink</code>/<code>muted-foreground</code>/<code>faint</code> greyscale hierarchy, red <code>destructive</code> as the single interrupt, <code>SegmentedBar</code> for the comparison viz, optics/spacing over borders. The editorial look stays in the prototype only.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="risks">10 · Risks &amp; decisions</h2>
+
+<table>
+  <thead><tr><th>Topic</th><th>Decision / mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Seat prices — live vs editable</td><td><strong>Both.</strong> Default the price inputs from <code>access_tiers</code> (live), but keep them editable for what-if modelling. A "reset to live" affordance restores defaults.</td></tr>
+    <tr><td>Capacity realism</td><td>"All → Standard" can look deceptively cheap; a $25 seat won't cover a $287/mo user. Surface a per-user warning + a footnote. The right-sized scenario is the honest default.</td></tr>
+    <tr><td>Partial months</td><td>Computed dynamically (current month + mid-join months excluded from run-rate). Aligns with Anthropic complete-UTC-day behaviour.</td></tr>
+    <tr><td>Currency</td><td>Figures are USD as billed by Anthropic; <code>formatCurrency()</code> drives display. No FX conversion this spec (open question below).</td></tr>
+    <tr><td>Tool resolution</td><td>Resolve by vendor+name, not hardcoded ids; fail soft to an empty state if the Claude/Claude Console tools aren't present.</td></tr>
+    <tr><td>Role &amp; data sensitivity</td><td>Admin-only (matches <code>/claude</code>, <code>/reports</code>). No API-key material is read — only aggregate spend &amp; assignment metadata.</td></tr>
+    <tr><td>Performance</td><td>~47 users × few months — one indexed aggregation. Cached; negligible.</td></tr>
+    <tr><td>Number parity</td><td>Shared pure engine + unit anchors prevent client/server drift and lock the prototype's figures.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="questions">11 · Decisions (resolved)</h2>
+<div class="card accent">
+  <ul>
+    <li class="pro"><strong>Design system: Nothing</strong> (spec 028 tokens) — confirmed via <code>/nothing-design</code>.</li>
+    <li class="pro"><strong>Calculator #2 = Budget / Cost Forecast Simulation</strong> — stubbed now as a <code>status:"soon"</code> registry card; built in a later spec.</li>
+    <li class="pro"><strong>Seat prices</strong> — live defaults from <code>access_tiers</code>, editable for what-if, with a "reset to live" affordance.</li>
+    <li class="pro"><strong>Default population</strong> — all 47 keys; toggle to active-only.</li>
+    <li class="pro"><strong>Currency</strong> — USD via <code>formatCurrency()</code>; CHF/FX is a follow-up.</li>
+    <li class="pro"><strong>Default threshold</strong> — $125 (Premium break-even).</li>
+    <li class="note"><strong>Saved presets / export</strong> — deferred to a follow-up.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="accept">12 · Acceptance checklist</h2>
+<ul>
+  <li class="check"><em>Scenarios</em> appears in the admin sidebar; non-admins are redirected.</li>
+  <li class="check"><code>/scenarios</code> lists the API→Subscription calculator (registry-driven).</li>
+  <li class="check"><code>/scenarios/api-subscription</code> renders all 47 live API users with correct per-month spend.</li>
+  <li class="check">Default view reproduces the §2 anchor figures exactly.</li>
+  <li class="check">Slider / price / basis / population controls recompute cards, bars, verdict, and table live.</li>
+  <li class="check">Δ column colours and capacity warnings behave as specified.</li>
+  <li class="check"><code>lint</code> / <code>typecheck</code> / <code>format</code> clean; unit tests green with regression anchors.</li>
+  <li class="check">Adding a second calculator requires no edits to the first (registry + new route only).</li>
+</ul>
+
+<footer>
+  AI Developer Hub · spec/035-scenario-calculators · implementation plan · drafted 2026-06-09 · companion: prototype.html
+</footer>
+
+</main>
+</body>
+</html>

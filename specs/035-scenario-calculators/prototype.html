@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>API → Subscription Migration Model · AI Developer Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF7EE;
+    --paper-2:#F4EDE0;
+    --panel:#FFFDF8;
+    --ink:#231D17;
+    --ink-soft:#736A5C;
+    --ink-faint:#9C9384;
+    --line:#E3D9C7;
+    --line-strong:#D2C5AC;
+    --clay:#BF5A37;        /* premium / over-cost */
+    --clay-deep:#9C4427;
+    --clay-wash:#F0DACE;
+    --slate:#3F6470;       /* standard */
+    --slate-wash:#DCE7E8;
+    --green:#4C7350;       /* savings */
+    --green-wash:#DCE7D8;
+    --gold:#B98908;
+    --shadow:0 1px 0 rgba(35,29,23,.04), 0 14px 34px -22px rgba(35,29,23,.45);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    font-family:"Hanken Grotesk",system-ui,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    background-image:
+      radial-gradient(60vw 40vw at 88% -8%, rgba(191,90,55,.07), transparent 60%),
+      radial-gradient(50vw 50vw at -10% 110%, rgba(63,100,112,.06), transparent 55%);
+    background-attachment:fixed;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  /* paper grain */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 28px 96px}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--clay-deep);font-weight:500}
+
+  /* ---------- Header ---------- */
+  header{padding:54px 0 26px;border-bottom:1px solid var(--line-strong)}
+  .head-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+  h1{
+    font-family:"Fraunces",serif;font-optical-sizing:auto;
+    font-weight:900;font-size:clamp(34px,5.4vw,64px);line-height:.98;letter-spacing:-.015em;
+    margin:14px 0 0;max-width:15ch;
+  }
+  h1 em{font-style:italic;font-weight:500;color:var(--clay)}
+  .lede{margin:18px 0 0;max-width:62ch;font-size:16.5px;color:var(--ink-soft)}
+  .stamp{
+    text-align:right;font-family:"JetBrains Mono",monospace;font-size:11.5px;line-height:1.9;
+    color:var(--ink-soft);border:1px solid var(--line);background:var(--panel);
+    padding:12px 16px;border-radius:3px;white-space:nowrap;box-shadow:var(--shadow)
+  }
+  .stamp b{color:var(--ink)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:30px 0 8px;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
+  .kpi{padding:20px 22px;border-right:1px solid var(--line)}
+  .kpi:last-child{border-right:0}
+  .kpi .lbl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+  .kpi .val{font-family:"Fraunces",serif;font-weight:600;font-size:30px;margin-top:8px;letter-spacing:-.01em}
+  .kpi .sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .kpi .val.mono{font-family:"JetBrains Mono",monospace;font-size:26px}
+
+  section{margin-top:52px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+  .sec-head h2{font-family:"Fraunces",serif;font-weight:600;font-size:24px;margin:0;letter-spacing:-.01em}
+  .sec-head .rule{flex:1;height:1px;background:var(--line-strong)}
+  .sec-head .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--clay-deep)}
+
+  /* ---------- Controls ---------- */
+  .controls{
+    position:sticky;top:0;z-index:30;
+    background:rgba(251,247,238,.86);backdrop-filter:blur(10px);
+    border:1px solid var(--line-strong);border-radius:5px;padding:18px 22px;margin-top:24px;
+    box-shadow:var(--shadow);
+    display:grid;grid-template-columns:repeat(2,minmax(170px,1fr)) 1.6fr 1.3fr;gap:22px 28px;align-items:end;
+  }
+  .ctrl label{display:block;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-bottom:7px}
+  .field{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);background:var(--panel);border-radius:4px;padding:0 12px;height:42px}
+  .field span.pre{color:var(--ink-faint);font-family:"JetBrains Mono",monospace}
+  .field input{border:0;background:transparent;font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--ink);width:100%;outline:none}
+  select{
+    width:100%;height:42px;border:1px solid var(--line-strong);background:var(--panel);border-radius:4px;
+    padding:0 12px;font-family:"Hanken Grotesk",sans-serif;font-size:14.5px;color:var(--ink);cursor:pointer;outline:none
+  }
+  .thresh .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+  .thresh .row .v{font-family:"JetBrains Mono",monospace;font-weight:700;color:var(--clay-deep)}
+  input[type=range]{width:100%;accent-color:var(--clay);height:24px;cursor:pointer}
+  .split-note{font-size:12px;color:var(--ink-soft);margin-top:6px}
+  .split-note b.p{color:var(--clay-deep)} .split-note b.s{color:var(--slate)}
+  .toggle{display:flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;height:42px}
+  .toggle button{flex:1;border:0;background:var(--panel);font-family:inherit;font-size:13px;color:var(--ink-soft);cursor:pointer;padding:0 8px;font-weight:600;letter-spacing:.02em}
+  .toggle button.on{background:var(--ink);color:var(--paper)}
+  .toggle button+button{border-left:1px solid var(--line-strong)}
+
+  /* ---------- Verdict ---------- */
+  .verdict{margin-top:26px;border-left:3px solid var(--clay);background:var(--panel);padding:18px 22px;border-radius:0 4px 4px 0;font-size:17px;box-shadow:var(--shadow)}
+  .verdict b{font-weight:700}
+  .verdict .save{color:var(--green);font-weight:700}
+  .verdict .cost{color:var(--clay-deep);font-weight:700}
+
+  /* ---------- Scenario cards ---------- */
+  .scenarios{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:24px}
+  .card{position:relative;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);padding:20px 20px 18px;box-shadow:var(--shadow);overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px}
+  .card.baseline::before{background:var(--ink)}
+  .card.std::before{background:var(--slate)}
+  .card.prem::before{background:var(--clay)}
+  .card.hybrid::before{background:linear-gradient(90deg,var(--slate),var(--clay))}
+  .card .tag{font-size:11px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--ink-faint)}
+  .card h3{font-family:"Fraunces",serif;font-weight:600;font-size:19px;margin:5px 0 14px;letter-spacing:-.01em}
+  .card .big{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:27px;letter-spacing:-.02em}
+  .card .big small{font-size:13px;color:var(--ink-faint);font-weight:500}
+  .card .annual{font-family:"JetBrains Mono",monospace;font-size:13.5px;color:var(--ink-soft);margin-top:4px}
+  .card .delta{margin-top:13px;padding-top:12px;border-top:1px dashed var(--line-strong);font-size:13.5px;font-weight:600}
+  .card .delta.save{color:var(--green)} .card .delta.cost{color:var(--clay-deep)} .card .delta.flat{color:var(--ink-faint)}
+  .card .mix{font-size:12px;color:var(--ink-soft);margin-top:7px}
+
+  /* ---------- Bar comparison ---------- */
+  .bars{border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);padding:24px 26px;margin-top:24px;box-shadow:var(--shadow)}
+  .bar-row{display:grid;grid-template-columns:150px 1fr 150px;align-items:center;gap:16px;margin:13px 0}
+  .bar-row .name{font-size:13.5px;font-weight:600}
+  .bar-row .name small{display:block;color:var(--ink-faint);font-weight:500;font-size:11.5px}
+  .track{height:26px;background:var(--paper-2);border-radius:3px;overflow:hidden;position:relative}
+  .fill{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.22,.61,.36,1)}
+  .fill.baseline{background:repeating-linear-gradient(45deg,var(--ink),var(--ink) 7px,#3a322a 7px,#3a322a 14px)}
+  .fill.std{background:var(--slate)} .fill.prem{background:var(--clay)}
+  .fill.hybrid{background:linear-gradient(90deg,var(--slate),var(--clay))}
+  .bar-row .amt{font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;text-align:right}
+  .bar-row .amt small{display:block;font-weight:400;color:var(--ink-soft);font-size:11.5px}
+
+  /* ---------- Table ---------- */
+  .table-wrap{border:1px solid var(--line-strong);border-radius:6px;overflow:hidden;box-shadow:var(--shadow);background:var(--panel)}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:880px}
+  thead th{
+    position:sticky;top:0;background:var(--paper-2);text-align:right;padding:13px 14px;
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);font-weight:700;
+    border-bottom:1px solid var(--line-strong);cursor:pointer;white-space:nowrap;user-select:none
+  }
+  thead th:first-child,thead th.l{text-align:left}
+  thead th:hover{color:var(--clay-deep)}
+  thead th .arr{opacity:.4;font-size:9px}
+  thead th.sorted .arr{opacity:1;color:var(--clay-deep)}
+  tbody td{padding:12px 14px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody td:first-child,tbody td.l{text-align:left}
+  tbody tr:hover{background:var(--paper-2)}
+  tbody tr:last-child td{border-bottom:0}
+  .uname{font-weight:600;color:var(--ink)}
+  .umeta{font-size:11.5px;color:var(--ink-faint);margin-top:1px}
+  .num{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+  .muted{color:var(--ink-faint)}
+  .basis{font-weight:700}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:999px;text-transform:uppercase}
+  .pill.std{background:var(--slate-wash);color:var(--slate)}
+  .pill.prem{background:var(--clay-wash);color:var(--clay-deep)}
+  .pill.inactive{background:#EBE4D6;color:var(--ink-faint)}
+  .pill.active{background:var(--green-wash);color:var(--green)}
+  td.delta.save{color:var(--green);font-weight:700}
+  td.delta.cost{color:var(--clay-deep);font-weight:700}
+  tfoot td{padding:14px;background:var(--paper-2);font-weight:700;border-top:2px solid var(--line-strong);text-align:right}
+  tfoot td.l{text-align:left;font-family:"Fraunces",serif;font-size:15px}
+
+  /* ---------- Notes ---------- */
+  .notes{margin-top:46px;border-top:1px solid var(--line-strong);padding-top:24px;columns:2;column-gap:42px;font-size:13.5px;color:var(--ink-soft)}
+  .notes h4{font-family:"Fraunces",serif;color:var(--ink);font-size:15px;margin:0 0 8px}
+  .notes p{margin:0 0 14px;break-inside:avoid}
+  .notes code{font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--paper-2);padding:1px 5px;border-radius:3px;color:var(--clay-deep)}
+  footer{margin-top:40px;font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--ink-faint);text-align:center;letter-spacing:.04em}
+
+  @media(max-width:1000px){
+    .kpis{grid-template-columns:repeat(2,1fr)} .kpi:nth-child(2){border-right:0}
+    .controls{grid-template-columns:1fr 1fr} .scenarios{grid-template-columns:1fr 1fr}
+    .notes{columns:1}
+    .bar-row{grid-template-columns:110px 1fr 96px}
+  }
+  @media(max-width:620px){
+    .kpis{grid-template-columns:1fr}.kpi{border-right:0}
+    .controls,.scenarios{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="head-top">
+      <div>
+        <div class="eyebrow">Cost Model · Anthropic API → Claude Seats</div>
+        <h1>If every API key became a <em>subscription seat</em>.</h1>
+      </div>
+      <div class="stamp" id="stamp"></div>
+    </div>
+    <p class="lede">Every user holding a <b>Claude&nbsp;Console</b> (Anthropic API) key is a pay‑as‑you‑go consumer. This model maps each one onto a flat <b>Standard</b> or <b>Premium</b> Claude seat and compares the bill against today's metered API spend. Every input below is live — set seat prices, slide the heavy‑user threshold, and the scenarios recompute.</p>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="ctrl">
+      <label>Standard seat / mo</label>
+      <div class="field"><span class="pre">$</span><input id="stdPrice" type="number" min="0" step="1" value="25"></div>
+    </div>
+    <div class="ctrl">
+      <label>Premium seat / mo</label>
+      <div class="field"><span class="pre">$</span><input id="premPrice" type="number" min="0" step="1" value="125"></div>
+    </div>
+    <div class="ctrl thresh">
+      <div class="row"><label style="margin:0">Premium threshold — API spend ≥</label><span class="v" id="threshVal">$125</span></div>
+      <input id="thresh" type="range" min="0" max="300" step="5" value="125">
+      <div class="split-note" id="splitNote"></div>
+    </div>
+    <div class="ctrl">
+      <label>Usage basis</label>
+      <select id="basis">
+        <option value="avg3">Avg of Mar–May 2026 (run‑rate)</option>
+        <option value="m05">May 2026 (latest full month)</option>
+        <option value="m04">April 2026</option>
+        <option value="m03">March 2026</option>
+        <option value="max3">Peak full month (Mar/Apr/May)</option>
+      </select>
+      <label style="margin-top:14px">Population</label>
+      <div class="toggle" id="popToggle">
+        <button data-pop="all" class="on">All 47 keys</button>
+        <button data-pop="active">Active only (43)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdict"></div>
+
+  <!-- SCENARIOS -->
+  <section>
+    <div class="sec-head"><span class="n">01</span><h2>Scenarios</h2><div class="rule"></div></div>
+    <div class="scenarios" id="scenarios"></div>
+
+    <div class="bars" id="bars"></div>
+  </section>
+
+  <!-- TABLE -->
+  <section>
+    <div class="sec-head"><span class="n">02</span><h2>Per‑user mapping</h2><div class="rule"></div></div>
+    <div class="table-wrap"><div class="scroll">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th class="l" data-k="name">User <span class="arr">▲▼</span></th>
+            <th data-k="status">Status <span class="arr">▲▼</span></th>
+            <th data-k="m03">Mar <span class="arr">▲▼</span></th>
+            <th data-k="m04">Apr <span class="arr">▲▼</span></th>
+            <th data-k="m05">May <span class="arr">▲▼</span></th>
+            <th data-k="jun">Jun·MTD <span class="arr">▲▼</span></th>
+            <th data-k="usage" class="sorted">API basis <span class="arr">▲▼</span></th>
+            <th data-k="rec">Seat <span class="arr">▲▼</span></th>
+            <th data-k="sub">Seat $/mo <span class="arr">▲▼</span></th>
+            <th data-k="delta">Δ seat − API <span class="arr">▲▼</span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+    </div></div>
+  </section>
+
+  <!-- NOTES -->
+  <div class="notes">
+    <h4>What you're looking at</h4>
+    <p>The population is the <b>47 Claude Console license assignments that carry an Anthropic API key</b> (tool <code>Claude Console</code>). These are the metered, pay‑as‑you‑go users — distinct from the <code>Claude</code> subscription tool, whose two seat tiers (Standard&nbsp;$25, Premium&nbsp;$125) supply the default prices here.</p>
+
+    <h4>Where the money comes from</h4>
+    <p>API spend is the real <code>computed_cost_cents</code> recorded per user per day in <code>anthropic_usage_metrics</code>, summed by month. Data runs <b>27&nbsp;Feb&nbsp;→&nbsp;9&nbsp;Jun&nbsp;2026</b>. February (2 days) and June (partial) are excluded from the run‑rate; <b>Mar/Apr/May are the only complete months</b>, so the default basis averages them.</p>
+
+    <h4>How a seat is assigned</h4>
+    <p>A user is mapped to <b>Premium</b> when their API basis spend is <b>at or above the threshold</b> slider, otherwise <b>Standard</b>. Raising the threshold pushes more people onto cheaper Standard seats. The <i>right‑sized</i> scenario bills each user their mapped seat; <i>all‑Standard</i> and <i>all‑Premium</i> ignore the threshold.</p>
+
+    <h4>Reading Δ seat − API</h4>
+    <p>For each user, <code>Δ = seat price − their API spend</code>. <span style="color:var(--green);font-weight:700">Green</span> means the flat seat is <i>cheaper</i> than what they burn on the API (a saving); <span style="color:var(--clay-deep);font-weight:700">clay</span> means the seat costs <i>more</i> than their metered usage — typically light or dormant keys.</p>
+
+    <h4>Caveats</h4>
+    <p>Figures are in <b>USD</b> as billed by Anthropic; seat prices are whatever you type. A flat seat assumes comparable capability/quota to the user's API usage — verify that a Standard seat actually covers a heavy user's workload before migrating. Currency conversion, taxes, and annual‑commit discounts are not modelled. 4 keys are <i>inactive</i> and only count when the population toggle is set to “All”.</p>
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+/* ----- Raw data: 47 Claude Console (API-key) assignments -----
+   m = [March, April, May, June-MTD] computed_cost_cents; t = all-time cents */
+const USERS = [
+ {id:17,n:"Lorenz Pfiffner",e:"lorenz.pfiffner@unic.com",s:"inactive",w:"boost-starter-3",bt:"leader",m:[25937,34602,25652,0],t:86294},
+ {id:12,n:"Jan Steffen",e:"jan.steffen@unic.com",s:"inactive",w:"boost-starter-2",bt:"leader",m:[15086,21937,20423,1465],t:58911},
+ {id:101,n:"Dechapon Bunpia",e:"dechapon.bunpia@unic.com",s:"active",w:"boost-starter-5",bt:"leader",m:[7257,20230,25464,4719],t:57670},
+ {id:6,n:"Roland Kołodziej",e:"roland.kolodziej@unic.com",s:"active",w:"boost-starter-1",bt:"leader",m:[8975,17610,24578,7465],t:58999},
+ {id:9,n:"Amrullo Olimov",e:"amrullo.olimov@unic.com",s:"active",w:"boost-starter-1",bt:"leader",m:[13754,17503,17238,1250],t:50255},
+ {id:26,n:"Robin Löffel",e:"robin.loeffel@unic.com",s:"active",w:"boost-expert-1",bt:"leader",m:[14738,10091,20758,5333],t:50920},
+ {id:36,n:"Mario Thiele",e:"mario.thiele@unic.com",s:"active",w:"boost-starter-5",bt:"starter",m:[13904,31090,0,0],t:44994},
+ {id:35,n:"David Däster",e:"david.daester@unic.com",s:"active",w:"boost-starter-5",bt:"leader",m:[16432,2282,25791,7098],t:51603},
+ {id:16,n:"Michał Bychawski",e:"michal.bychawski@unic.com",s:"active",w:"boost-starter-2",bt:"leader",m:[12412,18205,12352,1062],t:44232},
+ {id:7,n:"Felipe Monteiro de Carvalho",e:"f.monteirodecarvalho@unic.com",s:"active",w:"boost-starter-1",bt:"leader",m:[6816,13419,14447,4555],t:39419},
+ {id:31,n:"Ina Widmer",e:"ina.widmer@unic.com",s:"active",w:"boost-starter-4",bt:"expert",m:[15919,17757,0,0],t:33676},
+ {id:8,n:"Lukas Heilmann",e:"lukas.heilmann@unic.com",s:"active",w:"boost-starter-1",bt:"expert",m:[11072,5215,12781,3036],t:32619},
+ {id:24,n:"Katarzyna Pietraszko",e:"katarzyna.pietraszko@unic.com",s:"active",w:"boost-starter-4",bt:"expert",m:[10643,8329,9258,1709],t:29939},
+ {id:78,n:"Christoph Dubach",e:"christoph.dubach@unic.com",s:"inactive",w:"boost-starter-6",bt:"leader",m:[917,9679,16188,0],t:26784},
+ {id:18,n:"Gerald Wilhelm",e:"gerald.wilhelm@unic.com",s:"active",w:"boost-starter-3",bt:"leader",m:[7998,6811,11566,1887],t:28262},
+ {id:113,n:"Piotr Palej",e:"piotr.palej@unic.com",s:"active",w:"boost-starter-6",bt:"expert",m:[8675,8639,8073,0],t:25387},
+ {id:80,n:"Remo vonArx",e:"remo.vonarx@unic.com",s:"active",w:"boost-starter-6",bt:"expert",m:[670,9080,11848,0],t:21598},
+ {id:32,n:"Monika Kwiatek",e:"monika.kwiatek@unic.com",s:"active",w:"boost-starter-4",bt:"expert",m:[8086,8673,2260,6407],t:25426},
+ {id:33,n:"Roman Domke",e:"roman.domke@unic.com",s:"inactive",w:"boost-starter-4",bt:"expert",m:[97,7640,9403,7079],t:24219},
+ {id:21,n:"Marek Pierzchala",e:"marek.pierzchala@unic.com",s:"active",w:"boost-starter-3",bt:"advanced",m:[4826,6693,4269,1895],t:19542},
+ {id:13,n:"Oliver Ladner",e:"oliver.ladner@unic.com",s:"active",w:"boost-starter-2",bt:"expert",m:[2713,6098,6316,1905],t:17041},
+ {id:115,n:"Tomasz Wołowiec",e:"tomasz.wolowiec@unic.com",s:"active",w:"boost-starter-7",bt:"expert",m:[0,6601,7880,2504],t:16985},
+ {id:19,n:"Joanna Bałanda",e:"joanna.balanda@unic.com",s:"active",w:"boost-starter-3",bt:"leader",m:[670,5421,7795,0],t:13886},
+ {id:37,n:"Corinne Wydler-Roelli",e:"c.wydler-roelli@unic.com",s:"active",w:"boost-starter-5",bt:"starter",m:[4416,5693,3725,149],t:13983},
+ {id:20,n:"Balbina Trepka",e:"balbina.trepka@unic.com",s:"active",w:"boost-starter-3",bt:"advanced",m:[8864,2246,2373,0],t:13483},
+ {id:114,n:"Cédric Zeier",e:"cedric.zeier@unic.com",s:"active",w:"boost-starter-7",bt:"expert",m:[372,8484,3664,1274],t:13794},
+ {id:75,n:"Janick Kunz",e:"janick.kunz@unic.com",s:"active",w:"boost-starter-9",bt:"starter",m:[0,0,10223,0],t:10223},
+ {id:62,n:"Lukas Schiffmann",e:"lukas.schiffmann@unic.com",s:"active",w:"boost-starter-6",bt:"expert",m:[373,5538,4241,624],t:10776},
+ {id:11,n:"Robert Schumann",e:"robert.schumann@unic.com",s:"active",w:"boost-starter-2",bt:"starter",m:[5590,3430,635,512],t:10821},
+ {id:29,n:"Martin Kriegler",e:"martin.kriegler@unic.com",s:"active",w:"boost-starter-4",bt:"advanced",m:[2675,544,5684,24],t:8927},
+ {id:96,n:"Igor Galenchik",e:"igor.galenchik@unic.com",s:"active",w:"boost-starter-7",bt:"advanced",m:[754,3183,3901,1124],t:8962},
+ {id:14,n:"Fredi Bach",e:"fredi.bach@unic.com",s:"active",w:"boost-starter-2",bt:"advanced",m:[2231,3029,1885,182],t:7327},
+ {id:73,n:"Fridolin Jackstadt",e:"fridolin.jackstadt@unic.com",s:"active",w:"boost-starter-8",bt:"advanced",m:[0,0,4900,0],t:4900},
+ {id:92,n:"Agnieszka Skarupinska",e:"a.skarupinska@unic.com",s:"active",w:"boost-starter-8",bt:"starter",m:[0,644,3250,0],t:3894},
+ {id:34,n:"Patricia Gomez",e:"patricia.gomez@unic.com",s:"active",w:"boost-starter-5",bt:"advanced",m:[80,2163,1424,48],t:3715},
+ {id:131,n:"Silvia Monti",e:"silvia.monti@unic.com",s:"active",w:"boost-starter-6",bt:"starter",m:[27,733,2796,5377],t:8933},
+ {id:51,n:"Johannes Riese",e:"johannes.riese@unic.com",s:"active",w:"boost-starter-7",bt:"starter",m:[0,1310,2144,18],t:3472},
+ {id:103,n:"Alexander Farkas",e:"alexander.farkas@unic.com",s:"active",w:"boost-starter-8",bt:"starter",m:[0,0,3036,999],t:4035},
+ {id:54,n:"Branko Markovic",e:"branko.markovic@unic.com",s:"active",w:"boost-starter-8",bt:"starter",m:[0,0,366,0],t:366},
+ {id:135,n:"Nicolas Suter",e:"nicolas.suter@unic.com",s:"active",w:"boost-starter-7",bt:"starter",m:[0,0,259,0],t:259},
+ {id:22,n:"Marcin Zalewski",e:"marcin.zalewski@unic.com",s:"active",w:"boost-starter-9",bt:"starter",m:[0,0,0,51],t:51},
+ {id:3,n:"Mathias Indermühle",e:"mathias.indermuehle@unic.com",s:"active",w:"boost-starter-1",bt:"starter",m:[0,0,0,0],t:0},
+ {id:106,n:"Natalia Pokusa",e:"natalia.pokusa@unic.com",s:"active",w:"boost-starter-9",bt:"starter",m:[0,0,0,375],t:375},
+ {id:82,n:"Artur Oberski",e:"artur.oberski@unic.com",s:"active",w:"boost-starter-9",bt:"starter",m:[0,0,0,10342],t:10342},
+ {id:55,n:"Maciej Pochciał",e:"maciej.pochcial@unic.com",s:"active",w:"boost-starter-8",bt:"starter",m:[0,0,0,0],t:0},
+ {id:57,n:"Raphael Eymann",e:"raphael.eymann@unic.com",s:"active",w:"boost-starter-9",bt:"starter",m:[0,0,0,0],t:0},
+ {id:2,n:"Tobias Studer",e:"tobias.studer@unic.com",s:"active",w:"Automations",bt:"advanced",m:[0,0,1,1],t:2},
+];
+
+/* ---------- formatters ---------- */
+const usd0 = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+const usd2 = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2});
+const $c0 = c => usd0.format(c/100);
+const $c2 = c => usd2.format(c/100);
+const $cAuto = c => Math.abs(c) >= 100000 ? $c0(c) : $c2(c);
+
+/* ---------- state ---------- */
+const state = { stdPrice:2500, premPrice:12500, thresh:12500, basis:'avg3', pop:'all',
+                sortK:'usage', sortDir:-1 };
+
+/* basis usage in cents for a user */
+function usage(u){
+  const [a,b,c]=u.m;
+  switch(state.basis){
+    case 'm03':return a; case 'm04':return b; case 'm05':return c;
+    case 'max3':return Math.max(a,b,c);
+    default:return Math.round((a+b+c)/3); // avg3
+  }
+}
+function pool(){ return state.pop==='active' ? USERS.filter(u=>u.s==='active') : USERS.slice(); }
+
+/* ---------- render ---------- */
+function render(){
+  const list = pool();
+  const n = list.length;
+  let baseline=0, hybrid=0, nPrem=0, nStd=0;
+  const rows = list.map(u=>{
+    const use = usage(u);
+    const prem = use >= state.thresh;
+    const seat = prem ? state.premPrice : state.stdPrice;
+    baseline += use; hybrid += seat;
+    if(prem) nPrem++; else nStd++;
+    return {u, use, prem, seat, delta: seat-use};
+  });
+  const allStd = n*state.stdPrice;
+  const allPrem = n*state.premPrice;
+
+  /* ---- KPIs (fixed run-rate context, independent of pop toggle uses full set) ---- */
+  const fullAvg = USERS.reduce((s,u)=>s+Math.round((u.m[0]+u.m[1]+u.m[2])/3),0);
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="lbl">API keys in scope</div><div class="val">${n}<small style="font-size:14px;color:var(--ink-faint)"> / 47</small></div><div class="sub">${state.pop==='active'?'active assignments':'all assignments (4 inactive)'}</div></div>
+    <div class="kpi"><div class="lbl">Current API run‑rate</div><div class="val mono">${$c0(baseline)}</div><div class="sub">per month · ${basisLabel()}</div></div>
+    <div class="kpi"><div class="lbl">Annualised API spend</div><div class="val mono">${$c0(baseline*12)}</div><div class="sub">${$c0(baseline)} × 12</div></div>
+    <div class="kpi"><div class="lbl">Heavy users ≥ ${$c0(state.thresh)}</div><div class="val">${nPrem}</div><div class="sub">${nStd} fit a Standard seat</div></div>`;
+
+  /* ---- split note ---- */
+  document.getElementById('splitNote').innerHTML =
+    `<b class="p">${nPrem} → Premium</b> &nbsp;·&nbsp; <b class="s">${nStd} → Standard</b>`;
+
+  /* ---- scenario cards ---- */
+  const scen = [
+    {cls:'baseline',tag:'Today',name:'Metered API',m:baseline,mix:`${n} pay‑as‑you‑go keys`},
+    {cls:'std',tag:'Flat',name:'All → Standard',m:allStd,mix:`${n} × ${$c0(state.stdPrice)}`},
+    {cls:'prem',tag:'Flat',name:'All → Premium',m:allPrem,mix:`${n} × ${$c0(state.premPrice)}`},
+    {cls:'hybrid',tag:'Right‑sized',name:'Threshold mix',m:hybrid,mix:`${nPrem} Prem + ${nStd} Std`},
+  ];
+  document.getElementById('scenarios').innerHTML = scen.map(s=>{
+    let d='', dcls='flat';
+    if(s.cls!=='baseline'){
+      const diff=s.m-baseline;
+      if(diff<-0.5){dcls='save';d=`▼ ${$c0(-diff)}/mo saved`;}
+      else if(diff>0.5){dcls='cost';d=`▲ ${$c0(diff)}/mo more`;}
+      else d='— same as API';
+    } else d=`baseline · ${$c0(s.m*12)}/yr`;
+    return `<div class="card ${s.cls}">
+      <div class="tag">${s.tag}</div><h3>${s.name}</h3>
+      <div class="big">${$c0(s.m)}<small> /mo</small></div>
+      <div class="annual">${$c0(s.m*12)} / year</div>
+      <div class="delta ${dcls}">${d}</div>
+      <div class="mix">${s.mix}</div>
+    </div>`;
+  }).join('');
+
+  /* ---- bars ---- */
+  const maxM = Math.max(baseline,allStd,allPrem,hybrid,1);
+  const barRows = [
+    {cls:'baseline',name:'Metered API',sub:'today',m:baseline},
+    {cls:'std',name:'All Standard',sub:`${n}×${$c0(state.stdPrice)}`,m:allStd},
+    {cls:'prem',name:'All Premium',sub:`${n}×${$c0(state.premPrice)}`,m:allPrem},
+    {cls:'hybrid',name:'Right‑sized',sub:`${nPrem}P · ${nStd}S`,m:hybrid},
+  ];
+  document.getElementById('bars').innerHTML = barRows.map(b=>`
+    <div class="bar-row">
+      <div class="name">${b.name}<small>${b.sub}</small></div>
+      <div class="track"><div class="fill ${b.cls}" style="width:${(b.m/maxM*100).toFixed(1)}%"></div></div>
+      <div class="amt">${$c0(b.m)}<small>${$c0(b.m*12)}/yr</small></div>
+    </div>`).join('');
+
+  /* ---- verdict ---- */
+  const bestFlat = Math.min(allStd,hybrid);
+  const diffHy = baseline-hybrid;
+  let v;
+  if(diffHy>0.5){
+    v=`Moving all <b>${n}</b> API users to right‑sized seats (<b>${nPrem}</b> Premium + <b>${nStd}</b> Standard) costs <b>${$c0(hybrid)}/mo</b> — a <span class="save">${$c0(diffHy)}/mo (${(diffHy/baseline*100).toFixed(0)}%) saving</span> against the ${$c0(baseline)}/mo API run‑rate, or <span class="save">${$c0(diffHy*12)}/year</span>.`;
+  } else if(diffHy<-0.5){
+    v=`Right‑sized seats would cost <span class="cost">${$c0(-diffHy)}/mo (${(-diffHy/baseline*100).toFixed(0)}%) more</span> than today's ${$c0(baseline)}/mo API spend — at these prices the metered API is cheaper. Lower the seat prices or raise the threshold to flip this.`;
+  } else {
+    v=`Right‑sized seats land at <b>${$c0(hybrid)}/mo</b>, essentially matching the ${$c0(baseline)}/mo API run‑rate.`;
+  }
+  document.getElementById('verdict').innerHTML = v;
+
+  /* ---- table ---- */
+  rows.sort(cmp);
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = rows.map((r,i)=>{
+    const u=r.u;
+    const dcls = r.delta< -0.5?'save':(r.delta>0.5?'cost':'');
+    const dtxt = r.delta< -0.5?`−${$cAuto(-r.delta)}`:(r.delta>0.5?`+${$cAuto(r.delta)}`:`—`);
+    return `<tr>
+      <td class="l"><div class="uname">${u.n}</div><div class="umeta">${u.w} · boost‑${u.bt}</div></td>
+      <td><span class="pill ${u.s}">${u.s}</span></td>
+      <td class="num muted">${u.m[0]?$c2(u.m[0]):'·'}</td>
+      <td class="num muted">${u.m[1]?$c2(u.m[1]):'·'}</td>
+      <td class="num muted">${u.m[2]?$c2(u.m[2]):'·'}</td>
+      <td class="num muted">${u.m[3]?$c2(u.m[3]):'·'}</td>
+      <td class="num basis">${$c2(r.use)}</td>
+      <td><span class="pill ${r.prem?'prem':'std'}">${r.prem?'Premium':'Standard'}</span></td>
+      <td class="num">${$c0(r.seat)}</td>
+      <td class="num delta ${dcls}">${dtxt}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tfoot').innerHTML = `<tr>
+    <td class="l">Totals · ${n} keys</td><td></td>
+    <td class="num">${$c0(sum(rows,r=>r.u.m[0]))}</td>
+    <td class="num">${$c0(sum(rows,r=>r.u.m[1]))}</td>
+    <td class="num">${$c0(sum(rows,r=>r.u.m[2]))}</td>
+    <td class="num">${$c0(sum(rows,r=>r.u.m[3]))}</td>
+    <td class="num">${$c0(baseline)}</td>
+    <td class="num">${nPrem}P/${nStd}S</td>
+    <td class="num">${$c0(hybrid)}</td>
+    <td class="num ${hybrid<baseline?'delta save':'delta cost'}">${hybrid<baseline?'−':'+'}${$c0(Math.abs(hybrid-baseline))}</td>
+  </tr>`;
+
+  markSortedHeader();
+}
+function sum(rows,f){return rows.reduce((s,r)=>s+f(r),0);}
+function basisLabel(){
+  return {avg3:'avg Mar–May',m05:'May 2026',m04:'Apr 2026',m03:'Mar 2026',max3:'peak month'}[state.basis];
+}
+
+/* ---------- sorting ---------- */
+function cmp(A,B){
+  const d=state.sortDir, k=state.sortK;
+  const get=(r)=>{
+    switch(k){
+      case 'name':return r.u.n.toLowerCase();
+      case 'status':return r.u.s;
+      case 'm03':return r.u.m[0]; case 'm04':return r.u.m[1];
+      case 'm05':return r.u.m[2]; case 'jun':return r.u.m[3];
+      case 'usage':return r.use; case 'sub':return r.seat;
+      case 'rec':return r.prem?1:0; case 'delta':return r.delta;
+      default:return r.use;
+    }
+  };
+  const a=get(A), b=get(B);
+  if(a<b)return -1*d; if(a>b)return 1*d; return 0;
+}
+function markSortedHeader(){
+  document.querySelectorAll('#tbl thead th').forEach(th=>{
+    const on = th.dataset.k===state.sortK;
+    th.classList.toggle('sorted', on);
+    const arr = th.querySelector('.arr');
+    if(arr) arr.textContent = on ? (state.sortDir<0 ? '▼' : '▲') : '▲▼';
+  });
+}
+
+/* ---------- wire up ---------- */
+function setPrice(){
+  state.stdPrice = Math.max(0,Math.round((+document.getElementById('stdPrice').value||0)*100));
+  state.premPrice = Math.max(0,Math.round((+document.getElementById('premPrice').value||0)*100));
+  render();
+}
+document.getElementById('stdPrice').addEventListener('input',setPrice);
+document.getElementById('premPrice').addEventListener('input',setPrice);
+document.getElementById('thresh').addEventListener('input',e=>{
+  state.thresh = (+e.target.value)*100;
+  document.getElementById('threshVal').textContent = '$'+(+e.target.value);
+  render();
+});
+document.getElementById('basis').addEventListener('change',e=>{state.basis=e.target.value;render();});
+document.querySelectorAll('#popToggle button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#popToggle button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); state.pop=b.dataset.pop; render();
+}));
+document.querySelectorAll('#tbl thead th').forEach(th=>th.addEventListener('click',()=>{
+  const k=th.dataset.k;
+  if(state.sortK===k){state.sortDir*=-1;}
+  else{state.sortK=k; state.sortDir = (k==='name'||k==='status')?1:-1;}
+  render();
+}));
+
+/* stamp + footer */
+document.getElementById('stamp').innerHTML =
+  `DATA WINDOW<br><b>27 Feb – 9 Jun 2026</b><br>complete months: <b>Mar·Apr·May</b><br>source: anthropic_usage_metrics`;
+document.getElementById('footer').textContent =
+  'AI Developer Hub · API→Subscription cost model · figures in USD · generated 2026-06-09 from live Neon data (project broad-shadow-82397229)';
+
+render();
+</script>
+</body>
+</html>
