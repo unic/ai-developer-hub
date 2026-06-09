@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Notes — Budget / Cost Forecast Simulation (036)</title>
+  <style>
+    :root {
+      --bg:#0b0d12; --bg-elev:#11141b; --bg-card:#161a24; --border:#232938; --border-strong:#2f3850;
+      --fg:#e7ebf3; --fg-muted:#9aa3b5; --fg-dim:#6b7488;
+      --accent:#f0a072; --accent-2:#7dd3fc; --good:#86efac; --warn:#fcd34d; --bad:#fca5a5;
+      --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+      --sans: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family:var(--sans); line-height:1.55; }
+    body { padding:48px 24px 96px; }
+    main { max-width:1000px; margin:0 auto; }
+    h1 { font-size:30px; margin:0 0 6px; letter-spacing:-0.01em; }
+    h2 { font-size:20px; margin:44px 0 4px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+    h3 { font-size:15px; margin:22px 0 4px; }
+    p { margin:0 0 10px; }
+    a { color:var(--accent); }
+    code { font-family:var(--mono); font-size:0.88em; background:var(--bg-elev); padding:1px 5px; border-radius:4px; border:1px solid var(--border); }
+    .lede { color:var(--fg-muted); font-size:15.5px; max-width:80ch; }
+    .meta { color:var(--fg-dim); font-size:13px; margin-top:8px; font-family:var(--mono); }
+    .badge { display:inline-block; font-size:11px; font-family:var(--mono); padding:2px 8px; border-radius:999px; border:1px solid var(--border-strong); color:var(--fg-muted); background:var(--bg-elev); }
+    .entry { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin:14px 0; }
+    .entry.dd { border-left:3px solid var(--accent-2); }
+    .entry.dev { border-left:3px solid var(--warn); }
+    .entry.to { border-left:3px solid var(--accent); }
+    .entry.oq { border-left:3px solid var(--bad); }
+    .entry h3 { margin-top:0; }
+    .tag { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; padding:2px 7px; border-radius:3px; vertical-align:middle; margin-left:8px; }
+    .tag.dd { color:var(--accent-2); border:1px solid rgba(125,211,252,0.3); }
+    .tag.dev { color:var(--warn); border:1px solid rgba(252,211,77,0.3); }
+    .tag.to { color:var(--accent); border:1px solid rgba(240,160,114,0.3); }
+    .tag.oq { color:var(--bad); border:1px solid rgba(252,165,165,0.3); }
+    .entry p { font-size:13.5px; color:var(--fg-muted); }
+    .entry b { color:var(--fg); }
+    ul { padding-left:20px; margin:6px 0 10px; } li { margin:3px 0; font-size:13.5px; color:var(--fg-muted); }
+    .ts { font-family:var(--mono); font-size:11px; color:var(--fg-dim); }
+    footer { color:var(--fg-dim); font-size:12.5px; margin-top:56px; padding-top:20px; border-top:1px solid var(--border); font-family:var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div style="margin-bottom:14px"><span class="badge">Implementation notes</span> <span class="badge">spec/036-budget-forecast-simulation</span> <span class="badge">running log</span></div>
+  <h1>Implementation notes — Budget / Cost Forecast Simulation</h1>
+  <p class="lede">A running record of where the build diverges from or interprets the spec / plan: design decisions on ambiguous points, intentional deviations, tradeoffs considered, and open questions for review. Newest entries are appended under each heading as work proceeds.</p>
+  <p class="meta">Started 2026-06-09 · branch <code>036-budget-forecast-simulation</code> · companion: <a href="./implementation-plan.html">implementation-plan.html</a> · <a href="./prototype.html">prototype.html</a></p>
+</header>
+
+<!-- ========================================================= -->
+<h2>Design decisions <span class="ts">(ambiguous spots, choices made)</span></h2>
+
+<div class="entry dd">
+  <h3>Historical actuals are NOT decomposed per tool <span class="tag dd">data model</span></h3>
+  <p>The plan shows per-tool growth, which implies per-tool history. But the schema can't reliably attribute
+    <code>billed_costs</code> invoices to individual tools (only a free-text <code>description</code>), and mixing real
+    metered API cost with synthesized seat costs would be dishonest. <b>Decision:</b> elapsed periods use the budget's
+    real <b>combined</b> actual (billed + running) straight from the Budget Report's <code>periodsWithActual</code>;
+    per-tool decomposition applies to the <b>forecast only</b>. The engine's <code>ForecastDataset.periods[]</code>
+    carries <code>actualCents</code> per period; tools carry current state (<code>seats0</code>, <code>burn0</code>,
+    prices) but no per-period history.</p>
+  <p>Consequence: the "Include" toggle scopes the <b>forecast</b>, not history. "Spent to date" is the real budget
+    actual and is independent of which tools are toggled. The stacked monthly bars show one Actual block for elapsed
+    periods and a per-tool stack for forecast periods.</p>
+</div>
+
+<div class="entry dd">
+  <h3>Editable modeled ceiling, defaulting to the live ceiling <span class="tag dd">UX</span></h3>
+  <p>With all five tools in scope (per review), the all-in portfolio runs well above the live <b>$42,000</b> budget,
+    which was effectively sized for the Anthropic API line alone. <b>Decision:</b> the ceiling the verdict compares
+    against is an <b>editable assumption</b> defaulting to the live budget ceiling, so an owner can model an approved
+    portfolio budget and still reach a green ("under") state via the levers. The live ceiling stays visible in the KPI
+    strip for reference. This is modelling only — it never writes back to the budget (that's an explicit follow-up).</p>
+</div>
+
+<div class="entry dd">
+  <h3>Engine generalised to the budget's real period grid <span class="tag dd">engine</span></h3>
+  <p>The prototype hardcoded 12 monthly periods. The app's engine (<code>src/lib/scenarios/budget-forecast.ts</code>)
+    iterates <code>budget_periods</code> as loaded, so it works for a <b>monthly or quarterly</b> budget. Growth offsets
+    are <code>k = periodIndex − lastElapsedIndex</code>; values are per-period.</p>
+</div>
+
+<div class="entry dd">
+  <h3>Data-layer resolution specifics <span class="tag dd">queries</span></h3>
+  <ul>
+    <li><b>burn0</b> (metered API) = round( Σ(each user's average spend across <code>completeMonths</code>) ÷ user count ),
+      reusing <code>getApiSubscriptionDataset()</code>. The divisor is the full user count (active + inactive) so it reads
+      as cents-per-user-per-period.</li>
+    <li><b>Copilot</b> seats0/price come from the latest <code>copilot_billing_snapshots</code> row
+      (<code>totalSeats</code> / <code>seatCostCents</code>), falling back to active-assignment count + the Business tier.</li>
+    <li><b>Claude seats</b>: <code>stdPrice</code>/<code>premPrice</code> = lowest/highest active tier by cost;
+      <code>premShare0</code> = active assignments on the highest tier ÷ seats0.</li>
+    <li><b>elapsed</b> = period <code>endDate</code> (a <code>'YYYY-MM-DD'</code> string) strictly &lt; today's UTC date string.</li>
+    <li>Tools resolve by vendor+name and are <b>silently skipped</b> if absent — a reseeded DB just shows fewer tool rows.</li>
+  </ul>
+</div>
+
+<!-- ========================================================= -->
+<h2>Deviations <span class="ts">(intentional departures from the spec)</span></h2>
+
+<div class="entry dev">
+  <h3>Prototype default scope (3 tools) ≠ app default (5 tools) <span class="tag dev">scope</span></h3>
+  <p>Per review, the live app defaults to <b>all five tools on</b>. The prototype and the unit-test fixture isolate
+    three (API · Copilot · Cursor) so the regression anchors stay stable as live data moves. The engine math is
+    identical; only the default <code>include</code> set differs. The §3 anchor figures in the plan describe the
+    3-tool fixture, not the live 5-tool default view.</p>
+</div>
+
+<div class="entry dev">
+  <h3>Per-tool "FY total" column dropped; planned line corrected <span class="tag dev">UI</span></h3>
+  <p>The build agent's first pass (a) reconstructed per-tool FY totals as <code>currentMonthlyCost × elapsedCount +
+    forecast</code> — a fabricated per-tool history that didn't foot to the real combined actual; and (b) drew the
+    chart's "planned" line by reusing <code>plan.cumulative</code>, duplicating the plan line. Both were corrected in
+    integration: the per-tool table now shows forecast periods + a forecast subtotal with an honest
+    <b>Planned (budget)</b> footer row (real <code>plannedAmountCents</code> per remaining period), and the chart's
+    planned staircase is the true cumulative of <code>periods[].plannedCents</code> across the whole year.</p>
+</div>
+
+<!-- ========================================================= -->
+<h2>Tradeoffs <span class="ts">(alternatives weighed)</span></h2>
+
+<div class="entry to">
+  <h3>Pure engine authored directly; dependent files fanned out via workflow <span class="tag to">process</span></h3>
+  <p>The engine is the shared type contract every other file depends on, and it's already verified in the prototype.
+    Writing it in one coherent pass (rather than distributing it) removes type-drift risk; the data layer, client UI,
+    and tests are then built in parallel against the locked contract, and integration/typecheck/PR stay in the main
+    loop where they're deterministic.</p>
+</div>
+
+<div class="entry to">
+  <h3>Reconcile actuals via the Budget Report, not a fresh query <span class="tag to">reuse</span></h3>
+  <p>Anthropic spend appears as both finalized <code>billed_costs</code> and metered
+    <code>anthropic_workspace_costs</code> — summing both double-counts. Reusing the report's
+    <code>periodsWithActual</code> (<code>actual = billed + running</code>) gives one definition of period actuals that
+    already agrees with the Budget Report to the cent, instead of re-deriving (and risking drift from) it.</p>
+</div>
+
+<!-- ========================================================= -->
+<h2>Open questions <span class="ts">(confirm / revise)</span></h2>
+
+<div class="entry oq">
+  <h3>Editable ceiling framing <span class="tag oq">confirm</span></h3>
+  <p>Is "edit the ceiling to model an approved portfolio budget" the UX you want, given the live $42k can't contain the
+    full portfolio? Alternative: keep the ceiling read-only at $42k and accept a permanently-red verdict as the honest
+    finding. Current build: editable, defaulting to $42k.</p>
+</div>
+
+<div class="entry oq">
+  <h3>burn0 basis for the metered API line <span class="tag oq">confirm</span></h3>
+  <p>The forecast's per-user API burn (<code>burn0</code>) is derived from recent complete-month metered spend ÷ active
+    API users. Open: average of complete months vs latest complete month as the anchor. Current build: documented once
+    the data layer lands.</p>
+</div>
+
+<!-- ========================================================= -->
+<h2>Review pass <span class="ts">(adversarial workflow → fixes)</span></h2>
+
+<div class="entry to">
+  <h3>9 findings; all addressed <span class="tag to">3 reviewers</span></h3>
+  <ul>
+    <li><b>Editable ceiling applied inconsistently</b> (medium/certain) — preset comparison rows &amp; ghost lines scored
+      against the live ceiling while tiles/custom used the edited one. <b>Fixed</b>: <code>presetInputs</code> now spreads
+      <code>inputs.ceilingCents</code> and depends on it, so tiles, ghost lines, and the table agree.</li>
+    <li><b>Copilot baseline collapsed multi-org to one snapshot &amp; ignored connection status</b> (high/likely).
+      <b>Fixed</b>: filter <code>status='active'</code> connections and sum the latest snapshot per connection (blended
+      seat price).</li>
+    <li><b>OLS band fit over zero-actual elapsed periods</b> (medium) — diverged from <code>buildBudgetForecast</code>.
+      <b>Fixed</b>: fit only on elapsed periods with <code>actualCents &gt; 0</code> (anchor still sums all elapsed); two
+      new unit tests lock it.</li>
+    <li><b>Breach could read as a future breach when already over</b> (low). <b>Fixed</b>: <code>breachIsFuture</code>
+      gate — copy says "already over the ceiling" for a historical breach; the breach dot only sits on the forecast line.</li>
+    <li><b>Current in-progress period dropped / "matches to the cent" overclaim</b> (medium). <b>Resolved by
+      documentation</b>: the current period is deliberately projected (not counted as partial actual); the loader
+      docstring &amp; footnote now say completed periods match the Budget tab and "spent to date" trails by the open
+      period. (See open question on partial-period anchoring.)</li>
+    <li><b>OLS band had no legend/tooltip + orphaned <code>bandFill</code> config</b> (low). <b>Fixed</b>: removed the dead
+      config key; added a caption under the chart explaining the shaded band.</li>
+    <li><b>Charts lacked a text alternative</b> (low). <b>Fixed</b>: each chart wrapped in <code>role="img"</code> with a
+      summarising <code>aria-label</code>; the tables remain the accessible data source.</li>
+    <li><b>Stacked-bar legend reused chart-1 for both "Actual" and the first tool</b> (low). <b>Fixed</b>: historical
+      "Actual" bars now use <code>muted-foreground</code>, distinct from the chart-1..5 tool ramp.</li>
+    <li><b>Burn-cap slider conflated undefined with $0</b> (low). <b>Fixed</b>: slider max = "No cap" (stored as
+      undefined → engine leaves the line uncapped); undefined no longer displays as "$0".</li>
+    <li><b>elapsed boundary string-vs-Date compare</b> (low) — kept intentionally: a period is elapsed only once fully
+      past, so the in-progress period (incl. its end day) is projected, consistent with the history/forecast split.</li>
+  </ul>
+</div>
+
+<!-- ========================================================= -->
+<h2>Verification <span class="ts">(what was checked)</span></h2>
+
+<div class="entry to">
+  <h3>Status <span class="tag to">green</span></h3>
+  <ul>
+    <li><b>Unit tests</b>: 31/31 pass (<code>tests/unit/scenarios/budget-forecast.test.ts</code>) — engine math, breach/cumulative/topDriver, trend band (incl. the zero-actual fit filter), presets. (One agent-authored anchor had a transposed digit, <code>9.411192</code> → <code>9.41192</code>; fixed.)</li>
+    <li><b>Typecheck</b>: clean (the only <code>tsc</code> errors are pre-existing, unrelated <code>mcp-handler</code> module-resolution issues on <code>main</code>).</li>
+    <li><b>Lint</b>: clean, zero warnings on all new/changed files.</li>
+    <li><b>Server render</b>: <code>GET /scenarios/budget-forecast</code> returns 200 with the real component markers (verdict, KPIs, chart, scenario tabs) and no error/empty-state markers — the data layer resolves a live budget and the initial render doesn't throw.</li>
+  </ul>
+  <p>Interactive Recharts behaviour (band stacking, control re-compute) leans on the shared pattern with the shipping
+    Budget Report chart plus the adversarial review pass; a manual visual pass in a browser is still worthwhile before merge.</p>
+</div>
+
+<footer>
+  AI Developer Hub · spec/036-budget-forecast-simulation · implementation notes · running log started 2026-06-09
+</footer>
+
+</main>
+</body>
+</html>
