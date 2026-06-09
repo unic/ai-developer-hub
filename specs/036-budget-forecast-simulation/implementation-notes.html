@@ -192,6 +192,17 @@
   </ul>
 </div>
 
+<div class="entry to">
+  <h3>PR #114 AI review round <span class="tag to">copilot + vercel</span></h3>
+  <ul>
+    <li><b>GitHub Copilot Code Review</b> — one inline comment: the footer's
+      <code>new Date(generatedAt).toLocaleString()</code> is timezone-dependent and risks a React hydration mismatch
+      (server vs browser). <b>Fixed</b> (commit <code>6b8e89b</code>): render a deterministic
+      <code>YYYY-MM-DD HH:MM UTC</code> string sliced from the ISO timestamp; replied on the thread.</li>
+    <li><b>Vercel Agent Review</b> — completed <b>NEUTRAL</b>, no actionable inline comments.</li>
+  </ul>
+</div>
+
 <!-- ========================================================= -->
 <h2>Verification <span class="ts">(what was checked)</span></h2>
 
