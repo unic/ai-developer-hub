@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatVariance } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, arrayIncludesFilterFn } from "@/components/data-table";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
@@ -12,6 +12,8 @@ interface BudgetRow {
   fiscalYear: number;
   totalAmountCents: number;
   status: string;
+  extensionCount: number;
+  extensionNetCents: number;
 }
 
 const columns: ColumnDef<BudgetRow>[] = [
@@ -26,6 +28,27 @@ const columns: ColumnDef<BudgetRow>[] = [
     accessorKey: "totalAmountCents",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Planned Amount" />,
     cell: ({ row }) => formatCurrency(row.getValue("totalAmountCents")),
+  },
+  {
+    id: "extensions",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Extensions" />
+    ),
+    accessorFn: (row) => row.extensionCount,
+    cell: ({ row }) => {
+      const count = row.original.extensionCount;
+      const net = row.original.extensionNetCents;
+      if (count === 0)
+        return <span className="text-muted-foreground">—</span>;
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
+          <Badge variant="secondary">{count}</Badge>
+          <span className={net < 0 ? "text-destructive" : "text-ink"}>
+            {formatVariance(net)}
+          </span>
+        </span>
+      );
+    },
   },
   {
     accessorKey: "status",

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ShieldCheck, AlertTriangle } from "lucide-react";
 import { SpendProgressBar } from "@/components/shared/spend-progress-bar";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatVariance } from "@/lib/utils";
 import type { ReportOverviewData } from "@/types";
 import type { AdminSpendSeriesPoint } from "@/actions/dashboard";
 
@@ -12,12 +12,15 @@ interface BudgetHeroSectionProps {
   overview: ReportOverviewData;
   spendSeries: AdminSpendSeriesPoint[];
   budgetCeilingCents: number;
+  /** Original (pre-extension) ceiling. Equal to budgetCeilingCents when not extended. */
+  budgetOriginalCeilingCents: number;
   billedYtdCents: number;
 }
 
 export function BudgetHeroSection({
   overview,
   budgetCeilingCents,
+  budgetOriginalCeilingCents,
   billedYtdCents,
 }: BudgetHeroSectionProps) {
   if (budgetCeilingCents === 0 || !overview.budgetForecast) {
@@ -83,6 +86,18 @@ export function BudgetHeroSection({
                     ? `Projected ${formatCurrency(overage)} over`
                     : "Within budget"}
                 </Badge>
+                {budgetOriginalCeilingCents !== budgetCeilingCents && (
+                  <Badge
+                    variant="secondary"
+                    className="tabular-nums"
+                    title={`Original baseline ${formatCurrency(budgetOriginalCeilingCents)} · extended to ${formatCurrency(budgetCeilingCents)}`}
+                  >
+                    extended{" "}
+                    {formatVariance(
+                      budgetCeilingCents - budgetOriginalCeilingCents
+                    )}
+                  </Badge>
+                )}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 YTD spend is{" "}
