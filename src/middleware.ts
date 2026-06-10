@@ -10,7 +10,7 @@ export default auth((req) => {
   if (!req.auth && !isPublicPath(pathname)) {
     const callbackUrl = encodeURIComponent(pathname + search);
     return NextResponse.redirect(
-      new URL(`/login?callbackUrl=${callbackUrl}`, req.url)
+      new URL(`/login?callbackUrl=${callbackUrl}`, req.url),
     );
   }
 
@@ -41,6 +41,6 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|api/sync|api/invoices/ingest|api/license-requests/ingest|api/profile|api/agent/session).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|api/sync|api/invoices/ingest|api/license-requests/ingest|api/profile|api/agent/session|api/mcp).*)",
   ],
 };

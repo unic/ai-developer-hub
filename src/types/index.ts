@@ -7,6 +7,8 @@ import type {
   licenseAssignments,
   annualBudgets,
   budgetPeriods,
+  budgetExtensions,
+  budgetExtensionPeriodAllocations,
   changeHistory,
   assignmentComments,
   billedCosts,
@@ -41,6 +43,13 @@ export type ToolStatus = "active" | "archived";
 export type AssignmentStatus = "active" | "inactive";
 export type BudgetStatus = "active" | "archived";
 export type PeriodType = "monthly" | "quarterly";
+export type BudgetExtensionCategory =
+  | "new_tool"
+  | "scope_increase"
+  | "seat_increase"
+  | "vendor_price_increase"
+  | "reallocation"
+  | "other";
 export type ChangeType = "created" | "updated" | "deleted" | "status_change";
 export type UserProfile = "boost" | "maxed" | "indie";
 export type UserDiscipline = "developer" | "conception" | "business";
@@ -52,6 +61,10 @@ export type AccessTier = InferSelectModel<typeof accessTiers>;
 export type LicenseAssignment = InferSelectModel<typeof licenseAssignments>;
 export type AnnualBudget = InferSelectModel<typeof annualBudgets>;
 export type BudgetPeriod = InferSelectModel<typeof budgetPeriods>;
+export type BudgetExtension = InferSelectModel<typeof budgetExtensions>;
+export type BudgetExtensionPeriodAllocation = InferSelectModel<
+  typeof budgetExtensionPeriodAllocations
+>;
 export type ChangeHistoryRecord = InferSelectModel<typeof changeHistory>;
 export type AssignmentComment = InferSelectModel<typeof assignmentComments>;
 export type BilledCost = InferSelectModel<typeof billedCosts>;
@@ -63,6 +76,10 @@ export type NewAccessTier = InferInsertModel<typeof accessTiers>;
 export type NewLicenseAssignment = InferInsertModel<typeof licenseAssignments>;
 export type NewAnnualBudget = InferInsertModel<typeof annualBudgets>;
 export type NewBudgetPeriod = InferInsertModel<typeof budgetPeriods>;
+export type NewBudgetExtension = InferInsertModel<typeof budgetExtensions>;
+export type NewBudgetExtensionPeriodAllocation = InferInsertModel<
+  typeof budgetExtensionPeriodAllocations
+>;
 export type NewChangeHistory = InferInsertModel<typeof changeHistory>;
 export type NewAssignmentComment = InferInsertModel<typeof assignmentComments>;
 export type NewBilledCost = InferInsertModel<typeof billedCosts>;
@@ -74,10 +91,28 @@ export type PeriodWithCosts = BudgetPeriod & {
   expectedSpendCents: number;
   billedTotalCents: number;
   billedEntries?: BilledCost[];
+  /**
+   * Sum of all budget_extension_period_allocations.amount_cents for this period.
+   * Positive when extensions added to this period, negative for reductions, 0 otherwise.
+   * Drives the "+€X from extension" sub-label in the period allocations table.
+   */
+  extensionAmountCents: number;
+};
+
+/**
+ * A budget_extension row joined with its allocations and the names of the linked tool
+ * and creating user, for rendering on the budget detail page.
+ */
+export type BudgetExtensionWithAllocations = BudgetExtension & {
+  allocations: BudgetExtensionPeriodAllocation[];
+  linkedToolName: string | null;
+  createdByName: string;
 };
 
 export type BudgetWithCosts = AnnualBudget & {
   periods: PeriodWithCosts[];
+  /** Ordered by effective_date desc — newest first. */
+  extensions: BudgetExtensionWithAllocations[];
 };
 
 // Report data types for 005-rich-reports
@@ -108,6 +143,13 @@ export interface BudgetForecast {
   actualSpendToDateCents: number;
   projectedAnnualTotalCents: number;
   budgetCeilingCents: number;
+  /**
+   * The originally approved ceiling (annual_budgets.original_amount_cents).
+   * Equal to budgetCeilingCents when the budget has not been extended.
+   * Used to draw the dashed "Original baseline" reference line on the
+   * forecast chart so readers can see how much was extended this year.
+   */
+  originalCeilingCents: number;
   status: "on_track" | "at_risk";
   insufficientData?: string;
 }

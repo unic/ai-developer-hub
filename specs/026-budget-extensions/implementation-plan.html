@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Budget Extensions — Implementation Plan</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --radius: 0.625rem;
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.78 0.19 120);
+      --primary-foreground: oklch(0.18 0 0);
+      --secondary: oklch(0.96 0 0);
+      --secondary-foreground: oklch(0.20 0 0);
+      --muted: oklch(0.96 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.95 0.03 120);
+      --accent-foreground: oklch(0.20 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --border: oklch(0.91 0 0);
+      --input: oklch(0.91 0 0);
+      --ring: oklch(0.78 0.19 120);
+      --code-bg: oklch(0.97 0 0);
+    }
+    .dark {
+      --background: oklch(0.16 0 0);
+      --foreground: oklch(0.97 0 0);
+      --card: oklch(0.21 0 0);
+      --card-foreground: oklch(0.98 0 0);
+      --primary: oklch(0.78 0.19 120);
+      --primary-foreground: oklch(0.18 0 0);
+      --secondary: oklch(0.25 0 0);
+      --secondary-foreground: oklch(0.98 0 0);
+      --muted: oklch(0.25 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --accent: oklch(0.25 0.03 120);
+      --accent-foreground: oklch(0.98 0 0);
+      --destructive: oklch(0.704 0.191 22.216);
+      --border: oklch(1 0 0 / 10%);
+      --code-bg: oklch(0.22 0 0);
+    }
+    html, body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+    }
+    .card {
+      background: var(--card);
+      color: var(--card-foreground);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 0.5rem; padding: 0.5rem 0.875rem;
+      border-radius: calc(var(--radius) - 4px);
+      font-size: 0.875rem; font-weight: 500;
+      transition: filter 0.15s; white-space: nowrap;
+    }
+    .btn:hover { filter: brightness(0.95); }
+    .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+    .btn-secondary { background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border); }
+    .btn-ghost { color: var(--foreground); }
+    .btn-ghost:hover { background: var(--muted); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.125rem 0.5rem; border-radius: 9999px;
+      font-size: 0.75rem; font-weight: 500; line-height: 1.2;
+    }
+    .badge-default { background: var(--primary); color: var(--primary-foreground); }
+    .badge-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+    .badge-destructive { background: var(--destructive); color: white; }
+    .badge-outline { background: transparent; color: var(--foreground); border: 1px solid var(--border); }
+    .badge-accent { background: var(--accent); color: var(--accent-foreground); }
+    .text-muted { color: var(--muted-foreground); }
+    .text-destructive { color: var(--destructive); }
+    .text-primary { color: var(--primary); }
+    .border-default { border-color: var(--border); }
+    .section-tag {
+      display: inline-block; padding: 0.125rem 0.5rem;
+      background: var(--accent); color: var(--accent-foreground);
+      border-radius: 9999px; font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    code, pre {
+      font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    code.inline {
+      background: var(--code-bg);
+      padding: 1px 6px; border-radius: 4px;
+      font-size: 0.85em;
+      border: 1px solid var(--border);
+    }
+    pre.code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      overflow-x: auto;
+      white-space: pre;
+      tab-size: 2;
+    }
+    pre.code-block .kw { color: oklch(0.55 0.18 280); }
+    pre.code-block .str { color: oklch(0.62 0.15 145); }
+    pre.code-block .num { color: oklch(0.65 0.18 45); }
+    pre.code-block .cmt { color: var(--muted-foreground); font-style: italic; }
+    pre.code-block .typ { color: oklch(0.62 0.15 220); }
+    pre.code-block .fn  { color: oklch(0.65 0.18 60); }
+    .dark pre.code-block .kw { color: oklch(0.75 0.18 280); }
+    .dark pre.code-block .str { color: oklch(0.78 0.15 145); }
+    .dark pre.code-block .num { color: oklch(0.80 0.18 45); }
+    .dark pre.code-block .typ { color: oklch(0.78 0.15 220); }
+    .dark pre.code-block .fn  { color: oklch(0.82 0.18 60); }
+    .topbar {
+      height: 56px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 1.5rem;
+      gap: 1rem; background: var(--background);
+      position: sticky; top: 0; z-index: 5;
+    }
+    .phase-pill {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 9999px;
+      font-weight: 600; font-size: 13px;
+      background: var(--primary); color: var(--primary-foreground);
+    }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .filebox {
+      display: inline-flex; align-items: center;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 12px;
+    }
+    .file-new { color: var(--primary); }
+    .file-edit { color: var(--accent-foreground); }
+    .check { color: var(--primary); }
+    .gridline { display: grid; grid-template-columns: 18px 1fr; gap: 8px; }
+    details > summary { cursor: pointer; }
+    .anchor-link { opacity: 0; transition: opacity .1s; }
+    h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
+    .icon {
+      width: 14px; height: 14px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .timeline-bar {
+      display: grid; grid-template-columns: repeat(10, 1fr);
+      height: 22px; gap: 2px; border-radius: 6px; overflow: hidden;
+    }
+    .tl-cell { background: var(--secondary); }
+    .tl-fill { background: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <!-- =============== STICKY TOPBAR =============== -->
+  <header class="topbar">
+    <div class="font-medium text-sm flex items-center gap-2">
+      <span class="phase-pill">📋</span>
+      Implementation Plan · Budget Extensions
+    </div>
+    <nav class="ml-auto flex items-center gap-1 text-sm">
+      <a href="#overview" class="btn btn-ghost">Overview</a>
+      <a href="#phase-1" class="btn btn-ghost">P1</a>
+      <a href="#phase-2" class="btn btn-ghost">P2</a>
+      <a href="#phase-3" class="btn btn-ghost">P3</a>
+      <a href="#phase-4" class="btn btn-ghost">P4</a>
+      <a href="#phase-5" class="btn btn-ghost">P5</a>
+      <a href="#tests" class="btn btn-ghost">Tests</a>
+      <a href="#rollout" class="btn btn-ghost">Rollout</a>
+      <button id="theme-toggle" class="btn btn-secondary" title="Toggle theme">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        Theme
+      </button>
+    </nav>
+  </header>
+
+  <main class="max-w-[1180px] mx-auto px-6 py-10 space-y-14">
+
+    <!-- =============== OVERVIEW =============== -->
+    <section id="overview" class="space-y-5">
+      <div>
+        <span class="section-tag">Spec 026 · Implementation</span>
+        <h1 class="text-3xl font-semibold mt-3">Budget Extensions</h1>
+        <p class="text-sm text-muted mt-2 max-w-3xl leading-relaxed">
+          Make every mid-year budget ceiling change a first-class, audit-friendly record — with reason, category, optional tool link, and visibility wherever the budget appears.
+          Drives off the agreed concept in <code class="inline">specs/026-budget-extensions/concept.md</code> and the visual design in <code class="inline">mockup.html</code>.
+        </p>
+      </div>
+
+      <!-- Snapshot grid -->
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-muted">Effort estimate</div>
+          <div class="text-2xl font-semibold mt-1">~4–6 days</div>
+          <div class="text-xs text-muted mt-1">One engineer, sequential. Everything ships as a single PR.</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-muted">Surface area</div>
+          <div class="text-2xl font-semibold mt-1 tabular">1 new table · 1 join · 1 enum</div>
+          <div class="text-xs text-muted mt-1">+ 1 new column on <code class="inline">annual_budgets</code>, 0 destructive changes.</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-muted">Delivery</div>
+          <div class="text-2xl font-semibold mt-1">1 PR · 5 phases</div>
+          <div class="text-xs text-muted mt-1">Phases are work-order milestones inside the same PR — Schema → Actions → Detail UI → Period table → Cross-surface polish.</div>
+        </div>
+      </div>
+
+      <!-- Single-PR delivery note -->
+      <div class="card p-5" style="border-left: 4px solid var(--primary);">
+        <div class="flex items-start gap-3">
+          <span class="badge badge-default mt-0.5">single PR</span>
+          <div class="text-sm leading-relaxed">
+            <strong>Delivery model:</strong> phases below describe the build order and the natural review checkpoints, but the whole feature merges as <strong>one pull request</strong>. Reviewers should still walk the diff phase-by-phase — commit boundaries follow the phase boundaries, so a phase-aligned diff (e.g. <code class="inline">git diff phase-1-tip..phase-2-tip</code>) is easy to produce locally. Each phase still has its own acceptance criteria; all must pass before the PR is ready.
+          </div>
+        </div>
+      </div>
+
+      <!-- Design decisions -->
+      <div class="card p-6 space-y-4">
+        <h2 class="text-lg font-semibold">Key design decisions (locked before build)</h2>
+
+        <div class="space-y-3 text-sm leading-relaxed">
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>Mutate <code class="inline">totalAmountCents</code> on extension create</strong>, and add a new <code class="inline">originalAmountCents</code> column for the baseline.
+            <span class="text-muted">Pragmatic: every existing read site (hero, table, forecast, dashboard, reports) keeps working unchanged. Only the new "baseline + extended" tag reads the new column.</span></div>
+          </div>
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>Per-period allocation tracking via a join table.</strong> Each extension can attribute its delta to specific periods, which powers the "+€X from extension" sub-label and lets a delete cleanly reverse its effect.</div>
+          </div>
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>No approval workflow in v1.</strong> Single-admin app; direct create only. Schema leaves room for a future <code class="inline">status</code> enum.</div>
+          </div>
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>Reuse existing <code class="inline">change_history</code> infra</strong> with <code class="inline">entityType = "budget_extension"</code>. Mirrors how <code class="inline">"billed_cost"</code> is wired.</div>
+          </div>
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>Plain controlled inputs</strong> for the dialog (no react-hook-form). Matches <code class="inline">BilledCostDialog</code> convention; form state lifted to <code class="inline">budget-detail-client.tsx</code>.</div>
+          </div>
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>Archived budgets stay immutable.</strong> Same guard as <code class="inline">updateBudgetTotal</code>: refuse extension create/edit/delete on archived budgets; past extensions remain visible read-only.</div>
+          </div>
+          <div class="gridline">
+            <span class="check">✓</span>
+            <div><strong>Reductions (negative extensions) allowed</strong>, rendered with destructive styling. Validation refuses a net effective ceiling below current commitments.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="card p-6 space-y-4">
+        <h2 class="text-lg font-semibold">Phase timeline</h2>
+        <div class="text-xs text-muted">Each cell ≈ ½ day. Phases run serially within the single PR; later phases depend on earlier schema/types. Use the phase boundaries as commit checkpoints.</div>
+        <div class="space-y-2 text-sm">
+          <div class="grid grid-cols-[160px_1fr_120px] gap-3 items-center">
+            <div class="flex items-center gap-2"><span class="phase-pill">1</span> Schema &amp; data</div>
+            <div class="timeline-bar">
+              <div class="tl-cell tl-fill"></div><div class="tl-cell tl-fill"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div>
+            </div>
+            <div class="text-right text-muted">~1 day</div>
+          </div>
+          <div class="grid grid-cols-[160px_1fr_120px] gap-3 items-center">
+            <div class="flex items-center gap-2"><span class="phase-pill">2</span> Server actions</div>
+            <div class="timeline-bar">
+              <div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell tl-fill"></div><div class="tl-cell tl-fill"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+            </div>
+            <div class="text-right text-muted">~1 day</div>
+          </div>
+          <div class="grid grid-cols-[160px_1fr_120px] gap-3 items-center">
+            <div class="flex items-center gap-2"><span class="phase-pill">3</span> Detail UI</div>
+            <div class="timeline-bar">
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell tl-fill"></div><div class="tl-cell tl-fill"></div><div class="tl-cell tl-fill"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+            </div>
+            <div class="text-right text-muted">~1.5 days</div>
+          </div>
+          <div class="grid grid-cols-[160px_1fr_120px] gap-3 items-center">
+            <div class="flex items-center gap-2"><span class="phase-pill">4</span> Period table</div>
+            <div class="timeline-bar">
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell tl-fill"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+            </div>
+            <div class="text-right text-muted">~½ day</div>
+          </div>
+          <div class="grid grid-cols-[160px_1fr_120px] gap-3 items-center">
+            <div class="flex items-center gap-2"><span class="phase-pill">5</span> Cross-surface</div>
+            <div class="timeline-bar">
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div><div class="tl-cell"></div>
+              <div class="tl-cell tl-fill"></div><div class="tl-cell tl-fill"></div>
+            </div>
+            <div class="text-right text-muted">~1 day</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== PHASE 1 ========================== -->
+    <!-- ================================================== -->
+    <section id="phase-1" class="space-y-5">
+      <div class="flex items-baseline justify-between gap-4">
+        <div class="flex items-baseline gap-3">
+          <span class="phase-pill">1</span>
+          <h2 class="text-2xl font-semibold">Schema &amp; data layer</h2>
+        </div>
+        <span class="badge badge-secondary">~1 day</span>
+      </div>
+      <p class="text-sm text-muted max-w-3xl">
+        Add the new tables, enum, and column. Auto-generate the Drizzle migration. Backfill <code class="inline">originalAmountCents</code> for existing budgets. Update shared types so downstream phases have a typed surface to work against.
+      </p>
+
+      <!-- Files -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">Files changed</h3>
+        <div class="flex flex-wrap gap-2">
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/lib/db/schema.ts</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/lib/db/migrations/0022_*.sql</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/lib/db/migrations/meta/0022_snapshot.json</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/types/index.ts</span>
+        </div>
+      </div>
+
+      <!-- Schema changes -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">1.1 — <code class="inline">src/lib/db/schema.ts</code></h3>
+        <p class="text-sm text-muted">Add one enum, one column on <code class="inline">annual_budgets</code>, and two new tables. Mirrors the existing style — <code class="inline">pgEnum</code>, <code class="inline">pgTable</code>, FK with <code class="inline">{ onDelete: "cascade" }</code>.</p>
+
+<pre class="code-block"><span class="cmt">// after periodTypeEnum, line ~31</span>
+<span class="kw">export const</span> <span class="fn">budgetExtensionCategoryEnum</span> = <span class="fn">pgEnum</span>(<span class="str">"budget_extension_category"</span>, [
+  <span class="str">"new_tool"</span>,
+  <span class="str">"scope_increase"</span>,
+  <span class="str">"seat_increase"</span>,
+  <span class="str">"vendor_price_increase"</span>,
+  <span class="str">"reallocation"</span>,
+  <span class="str">"other"</span>,
+]);
+
+<span class="cmt">// modify annualBudgets — add originalAmountCents column</span>
+<span class="kw">export const</span> annualBudgets = <span class="fn">pgTable</span>(<span class="str">"annual_budgets"</span>, {
+  id: <span class="fn">serial</span>(<span class="str">"id"</span>).<span class="fn">primaryKey</span>(),
+  fiscalYear: <span class="fn">integer</span>(<span class="str">"fiscal_year"</span>).<span class="fn">notNull</span>(),
+  totalAmountCents: <span class="fn">integer</span>(<span class="str">"total_amount_cents"</span>).<span class="fn">notNull</span>(),
+  <span class="cmt">// NEW — the originally approved ceiling, never mutated after creation.</span>
+  <span class="cmt">// Backfilled to current totalAmountCents for existing rows.</span>
+  originalAmountCents: <span class="fn">integer</span>(<span class="str">"original_amount_cents"</span>).<span class="fn">notNull</span>(),
+  periodType: <span class="fn">periodTypeEnum</span>(<span class="str">"period_type"</span>).<span class="fn">notNull</span>(),
+  status: <span class="fn">budgetStatusEnum</span>(<span class="str">"status"</span>).<span class="fn">notNull</span>().<span class="fn">default</span>(<span class="str">"active"</span>),
+  createdAt: <span class="fn">timestamp</span>(<span class="str">"created_at"</span>).<span class="fn">notNull</span>().<span class="fn">defaultNow</span>(),
+  updatedAt: <span class="fn">timestamp</span>(<span class="str">"updated_at"</span>).<span class="fn">notNull</span>().<span class="fn">defaultNow</span>(),
+}, ...);
+
+<span class="cmt">// NEW table — one row per extension event</span>
+<span class="kw">export const</span> budgetExtensions = <span class="fn">pgTable</span>(<span class="str">"budget_extensions"</span>, {
+  id: <span class="fn">serial</span>(<span class="str">"id"</span>).<span class="fn">primaryKey</span>(),
+  budgetId: <span class="fn">integer</span>(<span class="str">"budget_id"</span>).<span class="fn">notNull</span>()
+    .<span class="fn">references</span>(() => annualBudgets.id, { onDelete: <span class="str">"cascade"</span> }),
+  amountCents: <span class="fn">integer</span>(<span class="str">"amount_cents"</span>).<span class="fn">notNull</span>(),  <span class="cmt">// non-zero; negative = reduction</span>
+  reason: <span class="fn">varchar</span>(<span class="str">"reason"</span>, { length: <span class="num">120</span> }).<span class="fn">notNull</span>(),
+  description: <span class="fn">text</span>(<span class="str">"description"</span>),
+  category: <span class="fn">budgetExtensionCategoryEnum</span>(<span class="str">"category"</span>).<span class="fn">notNull</span>(),
+  linkedToolId: <span class="fn">integer</span>(<span class="str">"linked_tool_id"</span>)
+    .<span class="fn">references</span>(() => aiTools.id, { onDelete: <span class="str">"set null"</span> }),
+  effectiveDate: <span class="fn">date</span>(<span class="str">"effective_date"</span>).<span class="fn">notNull</span>(),
+  createdBy: <span class="fn">integer</span>(<span class="str">"created_by"</span>).<span class="fn">notNull</span>()
+    .<span class="fn">references</span>(() => users.id, { onDelete: <span class="str">"restrict"</span> }),
+  createdAt: <span class="fn">timestamp</span>(<span class="str">"created_at"</span>).<span class="fn">notNull</span>().<span class="fn">defaultNow</span>(),
+  updatedAt: <span class="fn">timestamp</span>(<span class="str">"updated_at"</span>).<span class="fn">notNull</span>().<span class="fn">defaultNow</span>(),
+}, (t) => [
+  <span class="fn">index</span>(<span class="str">"budget_extensions_budget_idx"</span>).<span class="fn">on</span>(t.budgetId),
+  <span class="fn">index</span>(<span class="str">"budget_extensions_effective_idx"</span>).<span class="fn">on</span>(t.effectiveDate),
+]);
+
+<span class="cmt">// NEW join table — how much of an extension landed in each period</span>
+<span class="kw">export const</span> budgetExtensionPeriodAllocations = <span class="fn">pgTable</span>(
+  <span class="str">"budget_extension_period_allocations"</span>,
+  {
+    id: <span class="fn">serial</span>(<span class="str">"id"</span>).<span class="fn">primaryKey</span>(),
+    extensionId: <span class="fn">integer</span>(<span class="str">"extension_id"</span>).<span class="fn">notNull</span>()
+      .<span class="fn">references</span>(() => budgetExtensions.id, { onDelete: <span class="str">"cascade"</span> }),
+    periodId: <span class="fn">integer</span>(<span class="str">"period_id"</span>).<span class="fn">notNull</span>()
+      .<span class="fn">references</span>(() => budgetPeriods.id, { onDelete: <span class="str">"cascade"</span> }),
+    amountCents: <span class="fn">integer</span>(<span class="str">"amount_cents"</span>).<span class="fn">notNull</span>(),
+    createdAt: <span class="fn">timestamp</span>(<span class="str">"created_at"</span>).<span class="fn">notNull</span>().<span class="fn">defaultNow</span>(),
+  },
+  (t) => [
+    <span class="fn">uniqueIndex</span>(<span class="str">"bepa_unique_ext_period"</span>).<span class="fn">on</span>(t.extensionId, t.periodId),
+    <span class="fn">index</span>(<span class="str">"bepa_period_idx"</span>).<span class="fn">on</span>(t.periodId),
+  ]
+);
+</pre>
+      </div>
+
+      <!-- Migration -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">1.2 — Generate migration</h3>
+        <p class="text-sm text-muted">Drizzle auto-names the file (e.g. <code class="inline">0022_lovely_silver_surfer.sql</code>) and emits a snapshot under <code class="inline">migrations/meta/</code>. Verify the generated SQL adds the column as <code class="inline">NOT NULL</code> with the backfill — Drizzle's generator may need a hand-edit to land the backfill before the constraint.</p>
+<pre class="code-block">pnpm db:generate
+<span class="cmt"># Inspect the new file. Expected operations:</span>
+<span class="cmt">#   CREATE TYPE budget_extension_category AS ENUM (...);</span>
+<span class="cmt">#   ALTER TABLE annual_budgets ADD COLUMN original_amount_cents int;</span>
+<span class="cmt">#   UPDATE annual_budgets SET original_amount_cents = total_amount_cents;</span>
+<span class="cmt">#   ALTER TABLE annual_budgets ALTER COLUMN original_amount_cents SET NOT NULL;</span>
+<span class="cmt">#   CREATE TABLE budget_extensions (...);</span>
+<span class="cmt">#   CREATE TABLE budget_extension_period_allocations (...);</span>
+<span class="cmt">#   CREATE INDEX ...;</span>
+
+<span class="cmt"># If Drizzle generated the ALTER without the backfill, edit the .sql</span>
+<span class="cmt"># to slot the UPDATE between the ADD COLUMN and the SET NOT NULL.</span>
+
+<span class="cmt"># Run drizzle-migration-reviewer subagent on the result before merging.</span>
+pnpm db:migrate
+</pre>
+        <div class="rounded-md p-3 text-sm" style="background: var(--accent); color: var(--accent-foreground);">
+          <strong>Migration safety:</strong> non-destructive — only ADD COLUMN / CREATE TABLE / CREATE INDEX / CREATE TYPE. Safe under concurrent writes. The backfill is one short <code class="inline">UPDATE</code> against a tiny table (1 row per fiscal year).
+        </div>
+      </div>
+
+      <!-- Types -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">1.3 — <code class="inline">src/types/index.ts</code></h3>
+        <p class="text-sm text-muted">Add inferred types and extend <code class="inline">BudgetWithCosts</code> / <code class="inline">PeriodWithCosts</code> so phases 3 and 4 can render typed data.</p>
+<pre class="code-block"><span class="kw">export type</span> <span class="typ">BudgetExtension</span> = <span class="kw">typeof</span> budgetExtensions.$inferSelect;
+<span class="kw">export type</span> <span class="typ">BudgetExtensionPeriodAllocation</span> =
+  <span class="kw">typeof</span> budgetExtensionPeriodAllocations.$inferSelect;
+
+<span class="kw">export interface</span> <span class="typ">BudgetExtensionWithAllocations</span> <span class="kw">extends</span> <span class="typ">BudgetExtension</span> {
+  allocations: <span class="typ">BudgetExtensionPeriodAllocation</span>[];
+  linkedToolName: <span class="typ">string</span> | <span class="kw">null</span>;
+  createdByName: <span class="typ">string</span>;
+}
+
+<span class="kw">export interface</span> <span class="typ">PeriodWithCosts</span> <span class="kw">extends</span> <span class="typ">BudgetPeriod</span> {
+  billedCosts: <span class="typ">BilledCost</span>[];
+  billedTotalCents: <span class="typ">number</span>;
+  expectedSpendCents: <span class="typ">number</span>;
+  <span class="cmt">// NEW — sum of allocations from extensions landing in this period</span>
+  extensionAmountCents: <span class="typ">number</span>;
+}
+
+<span class="kw">export interface</span> <span class="typ">BudgetWithCosts</span> <span class="kw">extends</span> <span class="typ">AnnualBudget</span> {
+  periods: <span class="typ">PeriodWithCosts</span>[];
+  <span class="cmt">// NEW — ordered effective-date desc</span>
+  extensions: <span class="typ">BudgetExtensionWithAllocations</span>[];
+}
+</pre>
+      </div>
+
+      <!-- Acceptance criteria -->
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5">
+          <li>✓ <code class="inline">pnpm db:push</code> against a fresh DB produces the new schema with no errors</li>
+          <li>✓ <code class="inline">pnpm db:migrate</code> against a copy of prod data succeeds; every existing <code class="inline">annual_budgets</code> row has <code class="inline">original_amount_cents = total_amount_cents</code></li>
+          <li>✓ <code class="inline">pnpm typecheck</code> passes — the new types are wired into <code class="inline">src/types/index.ts</code> but no existing code reads <code class="inline">.extensions</code> yet (defaults to never-accessed)</li>
+          <li>✓ <code class="inline">drizzle-migration-reviewer</code> subagent gives an OK on the generated SQL</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== PHASE 2 ========================== -->
+    <!-- ================================================== -->
+    <section id="phase-2" class="space-y-5">
+      <div class="flex items-baseline justify-between gap-4">
+        <div class="flex items-baseline gap-3">
+          <span class="phase-pill">2</span>
+          <h2 class="text-2xl font-semibold">Server actions &amp; validators</h2>
+        </div>
+        <span class="badge badge-secondary">~1 day</span>
+      </div>
+      <p class="text-sm text-muted max-w-3xl">
+        All business logic — create, edit, delete extensions. Mirrors <code class="inline">createBilledCost</code> / <code class="inline">archiveBudget</code> patterns: <code class="inline">requireAdmin</code> → <code class="inline">safeParse</code> → guards → transaction → history → <code class="inline">revalidatePath</code>.
+      </p>
+
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">Files changed</h3>
+        <div class="flex flex-wrap gap-2">
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/lib/validators.ts</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/actions/budget-extensions.ts</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/actions/budget.ts</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>tests/integration/budget-extensions.test.ts</span>
+        </div>
+      </div>
+
+      <!-- Validators -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">2.1 — <code class="inline">src/lib/validators.ts</code></h3>
+        <p class="text-sm text-muted">Three Zod schemas, sitting next to the existing <code class="inline">budgetSchema</code> / <code class="inline">updateBudgetTotalSchema</code>. Same style — no client-imports, plain <code class="inline">z.object</code>.</p>
+<pre class="code-block"><span class="kw">export const</span> budgetExtensionAllocationModeSchema = z.<span class="fn">discriminatedUnion</span>(<span class="str">"mode"</span>, [
+  z.<span class="fn">object</span>({ mode: z.<span class="fn">literal</span>(<span class="str">"unallocated"</span>) }),
+  z.<span class="fn">object</span>({ mode: z.<span class="fn">literal</span>(<span class="str">"distribute_remaining"</span>) }),
+  z.<span class="fn">object</span>({
+    mode: z.<span class="fn">literal</span>(<span class="str">"single_period"</span>),
+    periodId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>(),
+  }),
+  z.<span class="fn">object</span>({
+    mode: z.<span class="fn">literal</span>(<span class="str">"custom"</span>),
+    allocations: z.<span class="fn">array</span>(z.<span class="fn">object</span>({
+      periodId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>(),
+      amountCents: z.<span class="fn">number</span>().<span class="fn">int</span>(),
+    })).<span class="fn">min</span>(<span class="num">1</span>),
+  }),
+]);
+
+<span class="kw">export const</span> createBudgetExtensionSchema = z.<span class="fn">object</span>({
+  budgetId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>(),
+  amountCents: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">refine</span>(
+    (n) => n !== <span class="num">0</span>,
+    { message: <span class="str">"Amount must be non-zero"</span> }
+  ),
+  reason: z.<span class="fn">string</span>().<span class="fn">trim</span>().<span class="fn">min</span>(<span class="num">3</span>).<span class="fn">max</span>(<span class="num">120</span>),
+  description: z.<span class="fn">string</span>().<span class="fn">trim</span>().<span class="fn">max</span>(<span class="num">2000</span>).<span class="fn">optional</span>(),
+  category: z.<span class="fn">enum</span>([
+    <span class="str">"new_tool"</span>, <span class="str">"scope_increase"</span>, <span class="str">"seat_increase"</span>,
+    <span class="str">"vendor_price_increase"</span>, <span class="str">"reallocation"</span>, <span class="str">"other"</span>,
+  ]),
+  linkedToolId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>().<span class="fn">optional</span>(),
+  effectiveDate: z.<span class="fn">string</span>().<span class="fn">regex</span>(<span class="str">/^\d{4}-\d{2}-\d{2}$/</span>),
+  allocation: budgetExtensionAllocationModeSchema,
+});
+
+<span class="kw">export const</span> updateBudgetExtensionSchema = z.<span class="fn">object</span>({
+  extensionId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>(),
+  reason: z.<span class="fn">string</span>().<span class="fn">trim</span>().<span class="fn">min</span>(<span class="num">3</span>).<span class="fn">max</span>(<span class="num">120</span>).<span class="fn">optional</span>(),
+  description: z.<span class="fn">string</span>().<span class="fn">trim</span>().<span class="fn">max</span>(<span class="num">2000</span>).<span class="fn">optional</span>(),
+  category: z.<span class="fn">enum</span>([<span class="cmt">/* same as above */</span>]).<span class="fn">optional</span>(),
+  linkedToolId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>().<span class="fn">nullable</span>().<span class="fn">optional</span>(),
+  <span class="cmt">// effectiveDate &amp; amount are deliberately immutable — edit those by</span>
+  <span class="cmt">// deleting and re-creating, for a clean audit trail.</span>
+});
+
+<span class="kw">export const</span> deleteBudgetExtensionSchema = z.<span class="fn">object</span>({
+  extensionId: z.<span class="fn">number</span>().<span class="fn">int</span>().<span class="fn">positive</span>(),
+});
+</pre>
+      </div>
+
+      <!-- Server action -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">2.2 — <code class="inline">src/actions/budget-extensions.ts</code> <span class="badge badge-default ml-2">new file</span></h3>
+        <p class="text-sm text-muted">Five exported functions. Pattern lifted verbatim from <code class="inline">src/actions/budget.ts</code> — same auth check, same validation, same transaction style, same revalidation set.</p>
+<pre class="code-block"><span class="kw">"use server"</span>;
+
+<span class="cmt">// ───────────────── createBudgetExtension ─────────────────</span>
+<span class="kw">export async function</span> <span class="fn">createBudgetExtension</span>(
+  input: <span class="typ">unknown</span>
+): <span class="typ">Promise</span>&lt;<span class="typ">ActionResult</span>&lt;{ id: <span class="typ">number</span> }&gt;&gt; {
+  <span class="kw">const</span> admin = <span class="kw">await</span> <span class="fn">requireAdmin</span>();
+  <span class="kw">if</span> (!admin) <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Unauthorized"</span> };
+
+  <span class="kw">const</span> parsed = createBudgetExtensionSchema.<span class="fn">safeParse</span>(input);
+  <span class="kw">if</span> (!parsed.success) {
+    <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Validation failed"</span>,
+             fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  <span class="kw">const</span> data = parsed.data;
+
+  <span class="kw">const</span> budget = <span class="kw">await</span> <span class="fn">getBudgetWithCosts</span>(data.budgetId);
+  <span class="kw">if</span> (!budget) <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Budget not found"</span> };
+  <span class="kw">if</span> (budget.status === <span class="str">"archived"</span>)
+    <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Archived budgets cannot be modified"</span> };
+
+  <span class="cmt">// Effective-date must be within the fiscal year</span>
+  <span class="kw">const</span> fy = budget.fiscalYear;
+  <span class="kw">if</span> (!data.effectiveDate.<span class="fn">startsWith</span>(<span class="str">`${fy}-`</span>))
+    <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Effective date must fall within the fiscal year"</span> };
+
+  <span class="cmt">// Compute per-period allocations from the chosen mode</span>
+  <span class="kw">const</span> perPeriod = <span class="fn">resolveAllocations</span>(budget, data.amountCents, data.allocation);
+  <span class="kw">if</span> (perPeriod.error) <span class="kw">return</span> { success: <span class="kw">false</span>, error: perPeriod.error };
+
+  <span class="cmt">// Guard: total allocations must remain ≤ effective ceiling after this change</span>
+  <span class="kw">const</span> newCeiling = budget.totalAmountCents + data.amountCents;
+  <span class="kw">const</span> newAllocTotal = budget.periods.<span class="fn">reduce</span>(
+    (sum, p) =&gt; sum + p.plannedAmountCents + (perPeriod.byPeriodId[p.id] ?? <span class="num">0</span>),
+    <span class="num">0</span>
+  );
+  <span class="kw">if</span> (newAllocTotal &gt; newCeiling)
+    <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Allocations would exceed new ceiling"</span> };
+  <span class="kw">if</span> (newCeiling &lt; <span class="num">0</span>)
+    <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Ceiling cannot go negative"</span> };
+
+  <span class="kw">let</span> extensionId: <span class="typ">number</span>;
+  <span class="kw">await</span> db.<span class="fn">transaction</span>(<span class="kw">async</span> (tx) =&gt; {
+    <span class="cmt">// 1. Insert the extension row</span>
+    <span class="kw">const</span> [ext] = <span class="kw">await</span> tx.<span class="fn">insert</span>(budgetExtensions)
+      .<span class="fn">values</span>({
+        budgetId: data.budgetId,
+        amountCents: data.amountCents,
+        reason: data.reason,
+        description: data.description ?? <span class="kw">null</span>,
+        category: data.category,
+        linkedToolId: data.linkedToolId ?? <span class="kw">null</span>,
+        effectiveDate: data.effectiveDate,
+        createdBy: <span class="typ">Number</span>(admin.id),
+      })
+      .<span class="fn">returning</span>({ id: budgetExtensions.id });
+    extensionId = ext.id;
+
+    <span class="cmt">// 2. Bump the live ceiling</span>
+    <span class="kw">await</span> tx.<span class="fn">update</span>(annualBudgets)
+      .<span class="fn">set</span>({ totalAmountCents: newCeiling, updatedAt: <span class="kw">new</span> <span class="fn">Date</span>() })
+      .<span class="fn">where</span>(<span class="fn">eq</span>(annualBudgets.id, data.budgetId));
+
+    <span class="cmt">// 3. Write the per-period allocation rows + bump plannedAmountCents</span>
+    <span class="kw">for</span> (<span class="kw">const</span> [periodIdStr, amt] <span class="kw">of</span> <span class="typ">Object</span>.<span class="fn">entries</span>(perPeriod.byPeriodId)) {
+      <span class="kw">const</span> periodId = <span class="typ">Number</span>(periodIdStr);
+      <span class="kw">if</span> (amt === <span class="num">0</span>) <span class="kw">continue</span>;
+      <span class="kw">await</span> tx.<span class="fn">insert</span>(budgetExtensionPeriodAllocations)
+        .<span class="fn">values</span>({ extensionId: ext.id, periodId, amountCents: amt });
+      <span class="kw">await</span> tx.<span class="fn">update</span>(budgetPeriods)
+        .<span class="fn">set</span>({
+          plannedAmountCents: sql<span class="str">`${budgetPeriods.plannedAmountCents} + ${amt}`</span>,
+          updatedAt: <span class="kw">new</span> <span class="fn">Date</span>(),
+        })
+        .<span class="fn">where</span>(<span class="fn">eq</span>(budgetPeriods.id, periodId));
+    }
+  });
+
+  <span class="cmt">// 4. History (outside the tx, matching the createBudget pattern)</span>
+  <span class="kw">await</span> <span class="fn">recordCreation</span>(<span class="str">"budget_extension"</span>, extensionId!, <span class="typ">Number</span>(admin.id));
+
+  <span class="fn">revalidatePath</span>(<span class="str">"/"</span>);                              <span class="cmt">// dashboard widget</span>
+  <span class="fn">revalidatePath</span>(<span class="str">"/budget"</span>);
+  <span class="fn">revalidatePath</span>(<span class="str">`/budget/${data.budgetId}`</span>);
+  <span class="fn">revalidatePath</span>(<span class="str">"/reports"</span>);
+  <span class="fn">revalidatePath</span>(<span class="str">"/reports/budget"</span>);
+
+  <span class="kw">return</span> { success: <span class="kw">true</span>, data: { id: extensionId! } };
+}
+</pre>
+
+        <details class="text-sm">
+          <summary class="text-primary font-medium">▸ deleteBudgetExtension (similar structure, reversed) — click to expand</summary>
+<pre class="code-block mt-3"><span class="kw">export async function</span> <span class="fn">deleteBudgetExtension</span>(
+  input: <span class="typ">unknown</span>
+): <span class="typ">Promise</span>&lt;<span class="typ">ActionResult</span>&gt; {
+  <span class="kw">const</span> admin = <span class="kw">await</span> <span class="fn">requireAdmin</span>();
+  <span class="kw">if</span> (!admin) <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Unauthorized"</span> };
+
+  <span class="kw">const</span> parsed = deleteBudgetExtensionSchema.<span class="fn">safeParse</span>(input);
+  <span class="kw">if</span> (!parsed.success) <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Validation failed"</span> };
+
+  <span class="kw">const</span> ext = <span class="kw">await</span> db.query.budgetExtensions.<span class="fn">findFirst</span>({
+    where: <span class="fn">eq</span>(budgetExtensions.id, parsed.data.extensionId),
+    with: { allocations: <span class="kw">true</span>, budget: <span class="kw">true</span> },
+  });
+  <span class="kw">if</span> (!ext) <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Extension not found"</span> };
+  <span class="kw">if</span> (ext.budget.status === <span class="str">"archived"</span>)
+    <span class="kw">return</span> { success: <span class="kw">false</span>, error: <span class="str">"Archived budgets cannot be modified"</span> };
+
+  <span class="kw">await</span> db.<span class="fn">transaction</span>(<span class="kw">async</span> (tx) =&gt; {
+    <span class="kw">for</span> (<span class="kw">const</span> alloc <span class="kw">of</span> ext.allocations) {
+      <span class="kw">await</span> tx.<span class="fn">update</span>(budgetPeriods)
+        .<span class="fn">set</span>({
+          plannedAmountCents: sql<span class="str">`${budgetPeriods.plannedAmountCents} - ${alloc.amountCents}`</span>,
+        })
+        .<span class="fn">where</span>(<span class="fn">eq</span>(budgetPeriods.id, alloc.periodId));
+    }
+    <span class="kw">await</span> tx.<span class="fn">update</span>(annualBudgets)
+      .<span class="fn">set</span>({
+        totalAmountCents: sql<span class="str">`${annualBudgets.totalAmountCents} - ${ext.amountCents}`</span>,
+        updatedAt: <span class="kw">new</span> <span class="fn">Date</span>(),
+      })
+      .<span class="fn">where</span>(<span class="fn">eq</span>(annualBudgets.id, ext.budgetId));
+    <span class="cmt">// cascade deletes the allocation rows for us</span>
+    <span class="kw">await</span> tx.<span class="fn">delete</span>(budgetExtensions).<span class="fn">where</span>(<span class="fn">eq</span>(budgetExtensions.id, ext.id));
+  });
+
+  <span class="kw">await</span> <span class="fn">recordStatusChange</span>(<span class="str">"budget_extension"</span>, ext.id,
+    <span class="typ">Number</span>(admin.id), <span class="str">"active"</span>, <span class="str">"deleted"</span>);
+  <span class="cmt">// revalidate the same 5 paths as create</span>
+  <span class="kw">return</span> { success: <span class="kw">true</span>, data: <span class="kw">undefined</span> };
+}
+</pre>
+        </details>
+      </div>
+
+      <!-- getBudgetWithCosts extension -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">2.3 — Extend <code class="inline">getBudgetWithCosts</code> in <code class="inline">src/actions/budget.ts</code></h3>
+        <p class="text-sm text-muted">Add a second query for extensions+allocations, attach to <code class="inline">budget.extensions</code>, and compute <code class="inline">extensionAmountCents</code> per period.</p>
+<pre class="code-block"><span class="cmt">// inside getBudgetWithCosts, after periods are loaded:</span>
+
+<span class="kw">const</span> extensions = <span class="kw">await</span> db.query.budgetExtensions.<span class="fn">findMany</span>({
+  where: <span class="fn">eq</span>(budgetExtensions.budgetId, budgetId),
+  orderBy: <span class="fn">desc</span>(budgetExtensions.effectiveDate),
+  with: {
+    allocations: <span class="kw">true</span>,
+    linkedTool: { columns: { name: <span class="kw">true</span> } },
+    creator:     { columns: { name: <span class="kw">true</span> } },
+  },
+});
+
+<span class="kw">const</span> extByPeriod: <span class="typ">Record</span>&lt;<span class="typ">number</span>, <span class="typ">number</span>&gt; = {};
+<span class="kw">for</span> (<span class="kw">const</span> ext <span class="kw">of</span> extensions) {
+  <span class="kw">for</span> (<span class="kw">const</span> a <span class="kw">of</span> ext.allocations) {
+    extByPeriod[a.periodId] = (extByPeriod[a.periodId] ?? <span class="num">0</span>) + a.amountCents;
+  }
+}
+
+<span class="kw">return</span> {
+  ...budget,
+  periods: periodsWithCosts.<span class="fn">map</span>((p) =&gt; ({
+    ...p,
+    extensionAmountCents: extByPeriod[p.id] ?? <span class="num">0</span>,
+  })),
+  extensions: extensions.<span class="fn">map</span>((e) =&gt; ({
+    ...e,
+    linkedToolName: e.linkedTool?.name ?? <span class="kw">null</span>,
+    createdByName: e.creator.name,
+  })),
+};
+</pre>
+      </div>
+
+      <!-- Tests -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">2.4 — Integration tests <span class="badge badge-default ml-2">new file</span></h3>
+        <p class="text-sm text-muted">Mirror <code class="inline">tests/integration/invoice-sync.test.ts</code> setup. Real Neon test branch. 6 specs:</p>
+<pre class="code-block"><span class="cmt">// tests/integration/budget-extensions.test.ts</span>
+
+<span class="fn">describe</span>(<span class="str">"createBudgetExtension"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"creates a positive extension and bumps the ceiling"</span>);
+  <span class="fn">it</span>(<span class="str">"distributes across remaining periods evenly"</span>);
+  <span class="fn">it</span>(<span class="str">"allocates to a single period"</span>);
+  <span class="fn">it</span>(<span class="str">"refuses extension on an archived budget"</span>);
+  <span class="fn">it</span>(<span class="str">"refuses effective date outside fiscal year"</span>);
+  <span class="fn">it</span>(<span class="str">"refuses if total allocations would exceed new ceiling"</span>);
+  <span class="fn">it</span>(<span class="str">"records a change_history row with entityType=budget_extension"</span>);
+});
+
+<span class="fn">describe</span>(<span class="str">"deleteBudgetExtension"</span>, () =&gt; {
+  <span class="fn">it</span>(<span class="str">"reverses the ceiling and period allocations"</span>);
+  <span class="fn">it</span>(<span class="str">"cascade-deletes allocation rows"</span>);
+});
+</pre>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5">
+          <li>✓ <code class="inline">pnpm test:integration</code> passes all 9 specs against a Neon test branch</li>
+          <li>✓ Creating a +€8,000 extension on a €52,000 budget results in <code class="inline">totalAmountCents = 60_000_00</code> and <code class="inline">originalAmountCents = 52_000_00</code></li>
+          <li>✓ Deleting that extension restores both to €52,000 with no allocation rows remaining</li>
+          <li>✓ Manual smoke test via <code class="inline">/api</code> from a logged-in admin session returns <code class="inline">{ success: true }</code></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== PHASE 3 ========================== -->
+    <!-- ================================================== -->
+    <section id="phase-3" class="space-y-5">
+      <div class="flex items-baseline justify-between gap-4">
+        <div class="flex items-baseline gap-3">
+          <span class="phase-pill">3</span>
+          <h2 class="text-2xl font-semibold">Budget detail UI</h2>
+        </div>
+        <span class="badge badge-secondary">~1.5 days</span>
+      </div>
+      <p class="text-sm text-muted max-w-3xl">
+        Light touch on the hero, big new card for extensions, new dialog. By the end of this phase, an admin can fully manage extensions end-to-end from the budget detail page — phase 4 (period-table sub-label) is the next checkpoint inside the same PR.
+      </p>
+
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">Files changed</h3>
+        <div class="flex flex-wrap gap-2">
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/app/budget/components/budget-health-hero.tsx</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/app/budget/components/budget-extensions-card.tsx</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/app/budget/components/dialogs/add-extension-dialog.tsx</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/app/budget/components/dialogs/delete-extension-dialog.tsx</span>
+          <span class="filebox"><span class="badge badge-default mr-2">new</span>src/app/budget/components/forms/extension-form.ts</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/app/budget/components/budget-detail-client.tsx</span>
+        </div>
+      </div>
+
+      <!-- 3.1 Hero update -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">3.1 — <code class="inline">budget-health-hero.tsx</code></h3>
+        <p class="text-sm text-muted">Right-hand "Annual ceiling" column gains a baseline+extended breakdown beneath the big number. Adds one dashed marker on the multi-marker bar. Two read changes, no logic change.</p>
+<pre class="code-block"><span class="cmt">// inside the existing "Annual ceiling" block, ~line 213</span>
+&lt;<span class="typ">p</span> className=<span class="str">"text-2xl font-semibold tabular-nums"</span>&gt;
+  {<span class="fn">formatCurrency</span>(ceiling)}
+&lt;/<span class="typ">p</span>&gt;
+{budget.originalAmountCents !== ceiling &amp;&amp; (
+  &lt;<span class="typ">div</span> className=<span class="str">"mt-1 flex items-center justify-end gap-1.5 text-xs text-muted-foreground"</span>&gt;
+    &lt;<span class="typ">span</span> className=<span class="str">"tabular-nums"</span>&gt;
+      {<span class="fn">formatCurrency</span>(budget.originalAmountCents)} baseline
+    &lt;/<span class="typ">span</span>&gt;
+    &lt;<span class="typ">span</span>&gt;+&lt;/<span class="typ">span</span>&gt;
+    &lt;<span class="typ">Badge</span> variant=<span class="str">"secondary"</span> className=<span class="str">"tabular-nums"</span>&gt;
+      {<span class="fn">formatVariance</span>(ceiling - budget.originalAmountCents)} extended
+    &lt;/<span class="typ">Badge</span>&gt;
+  &lt;/<span class="typ">div</span>&gt;
+)}
+</pre>
+        <p class="text-xs text-muted">Multi-marker bar gets a 5th marker (dashed vertical line at <code class="inline">originalAmountCents / ceiling</code>) and a corresponding legend entry. ~15 lines added inside the existing <code class="inline">MultiMarkerBar</code>.</p>
+      </div>
+
+      <!-- 3.2 Extensions card -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">3.2 — <code class="inline">budget-extensions-card.tsx</code> <span class="badge badge-default ml-2">new</span></h3>
+        <p class="text-sm text-muted">Renders the list. Props receive <code class="inline">extensions</code> + admin/archived flags + callback to open the dialog. Server-side render is fine (no client interactivity inside the rows; "Add" and "Delete" buttons bubble events up).</p>
+<pre class="code-block"><span class="kw">interface</span> <span class="typ">Props</span> {
+  extensions: <span class="typ">BudgetExtensionWithAllocations</span>[];
+  isAdmin: <span class="typ">boolean</span>;
+  isArchived: <span class="typ">boolean</span>;
+  onAdd: () =&gt; <span class="typ">void</span>;
+  onDelete: (ext: <span class="typ">BudgetExtensionWithAllocations</span>) =&gt; <span class="typ">void</span>;
+}
+
+<span class="kw">export function</span> <span class="fn">BudgetExtensionsCard</span>({ extensions, isAdmin, isArchived, onAdd, onDelete }: <span class="typ">Props</span>) {
+  <span class="kw">const</span> net = extensions.<span class="fn">reduce</span>((s, e) =&gt; s + e.amountCents, <span class="num">0</span>);
+
+  <span class="kw">if</span> (extensions.length === <span class="num">0</span> &amp;&amp; !isAdmin) <span class="kw">return null</span>;
+
+  <span class="kw">return</span> (
+    &lt;<span class="typ">Card</span>&gt;
+      &lt;<span class="typ">CardContent</span> className=<span class="str">"space-y-4 pt-6"</span>&gt;
+        &lt;<span class="typ">HeaderRow</span> count={extensions.length} netCents={net} /&gt;
+        {extensions.length === <span class="num">0</span> ? (
+          &lt;<span class="typ">EmptyState</span> isAdmin={isAdmin} isArchived={isArchived} onAdd={onAdd} /&gt;
+        ) : (
+          &lt;<span class="typ">div</span> className=<span class="str">"border rounded-md overflow-hidden"</span>&gt;
+            {extensions.<span class="fn">map</span>((e) =&gt; (
+              &lt;<span class="typ">ExtensionRow</span> key={e.id} extension={e}
+                onDelete={() =&gt; <span class="fn">onDelete</span>(e)}
+                canEdit={isAdmin &amp;&amp; !isArchived} /&gt;
+            ))}
+          &lt;/<span class="typ">div</span>&gt;
+        )}
+        {isAdmin &amp;&amp; !isArchived &amp;&amp; (
+          &lt;<span class="typ">Button</span> variant=<span class="str">"secondary"</span> onClick={onAdd}&gt;
+            &lt;<span class="typ">Plus</span> className=<span class="str">"size-4"</span> /&gt; Add extension
+          &lt;/<span class="typ">Button</span>&gt;
+        )}
+      &lt;/<span class="typ">CardContent</span>&gt;
+    &lt;/<span class="typ">Card</span>&gt;
+  );
+}
+</pre>
+        <p class="text-xs text-muted">Each <code class="inline">&lt;ExtensionRow&gt;</code> renders exactly the layout from the mockup: title + category badge + linked tool badge, description, meta line (added X by Y · effective Z · allocation summary), and a right-aligned amount + actions column.</p>
+      </div>
+
+      <!-- 3.3 Dialog -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">3.3 — <code class="inline">add-extension-dialog.tsx</code> <span class="badge badge-default ml-2">new</span></h3>
+        <p class="text-sm text-muted">Mirrors <code class="inline">BilledCostDialog</code>'s pattern exactly — controlled inputs, form state lifted to parent, disabled submit until required fields are filled. Adds the "allocation mode" radio group (4 options from concept doc) and a live "Effect on FY budget" preview that recomputes as the user types.</p>
+<pre class="code-block"><span class="kw">export interface</span> <span class="typ">ExtensionFormState</span> {
+  reason: <span class="typ">string</span>;
+  amountDollars: <span class="typ">string</span>;       <span class="cmt">// stays string while the user types; parsed on submit</span>
+  effectiveDate: <span class="typ">string</span>;
+  category: <span class="typ">BudgetExtensionCategory</span>;
+  linkedToolId: <span class="typ">string</span>;        <span class="cmt">// "" = none</span>
+  description: <span class="typ">string</span>;
+  allocationMode: <span class="str">"unallocated"</span> | <span class="str">"distribute_remaining"</span> | <span class="str">"single_period"</span> | <span class="str">"custom"</span>;
+  singlePeriodId: <span class="typ">string</span>;       <span class="cmt">// only when mode === single_period</span>
+}
+
+<span class="kw">interface</span> <span class="typ">Props</span> {
+  open: <span class="typ">boolean</span>;
+  onOpenChange: (b: <span class="typ">boolean</span>) =&gt; <span class="typ">void</span>;
+  form: <span class="typ">ExtensionFormState</span>;
+  onFormChange: (next: <span class="typ">ExtensionFormState</span>) =&gt; <span class="typ">void</span>;
+  budget: <span class="typ">BudgetWithCosts</span>;        <span class="cmt">// for live preview &amp; period dropdown</span>
+  tools: { id: <span class="typ">number</span>; name: <span class="typ">string</span> }[];
+  onSubmit: () =&gt; <span class="typ">void</span>;
+  saving: <span class="typ">boolean</span>;
+}
+</pre>
+        <p class="text-xs text-muted">Live preview is a small <code class="inline">&lt;EffectPreview budget form/&gt;</code> component sitting above the footer — reads <code class="inline">budget.totalAmountCents</code> + parsed <code class="inline">amountDollars</code> + allocation mode and shows the deltas the way the mockup does.</p>
+      </div>
+
+      <!-- 3.4 wire in detail-client -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">3.4 — <code class="inline">budget-detail-client.tsx</code> wiring</h3>
+        <p class="text-sm text-muted">Add state for the extension dialog (mirroring the billed-cost dialog state group). Render <code class="inline">BudgetExtensionsCard</code> between <code class="inline">PastMonthSpotlight</code> and the period allocations card.</p>
+<pre class="code-block"><span class="cmt">// new state additions (lines ~70-85)</span>
+<span class="kw">const</span> [extensionAddOpen, setExtensionAddOpen] = <span class="fn">useState</span>(<span class="kw">false</span>);
+<span class="kw">const</span> [extensionForm, setExtensionForm] =
+  <span class="fn">useState</span>&lt;<span class="typ">ExtensionFormState</span>&gt;(makeEmptyExtensionForm);
+<span class="kw">const</span> [extensionSaving, setExtensionSaving] = <span class="fn">useState</span>(<span class="kw">false</span>);
+<span class="kw">const</span> [extensionDeleteTarget, setExtensionDeleteTarget] =
+  <span class="fn">useState</span>&lt;<span class="typ">BudgetExtensionWithAllocations</span> | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+
+<span class="kw">async function</span> <span class="fn">handleSubmitExtension</span>() {
+  <span class="fn">setExtensionSaving</span>(<span class="kw">true</span>);
+  <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">createBudgetExtension</span>(
+    <span class="fn">extensionFormToActionInput</span>(extensionForm, budget.id)
+  );
+  <span class="fn">setExtensionSaving</span>(<span class="kw">false</span>);
+  <span class="kw">if</span> (result.success) {
+    toast.<span class="fn">success</span>(<span class="str">"Extension added"</span>);
+    <span class="fn">setExtensionAddOpen</span>(<span class="kw">false</span>);
+    <span class="fn">setExtensionForm</span>(<span class="fn">makeEmptyExtensionForm</span>());
+    router.<span class="fn">refresh</span>();
+  } <span class="kw">else</span> {
+    toast.<span class="fn">error</span>(result.error);
+  }
+}
+
+<span class="cmt">// render insertion (~line 210)</span>
+&lt;<span class="typ">BudgetExtensionsCard</span>
+  extensions={budget.extensions}
+  isAdmin={isAdmin}
+  isArchived={isArchived}
+  onAdd={() =&gt; <span class="fn">setExtensionAddOpen</span>(<span class="kw">true</span>)}
+  onDelete={(e) =&gt; <span class="fn">setExtensionDeleteTarget</span>(e)} /&gt;
+</pre>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5">
+          <li>✓ As admin on <code class="inline">/budget</code>: clicking "Add extension" opens the dialog with all fields blank and default mode = <em>distribute</em></li>
+          <li>✓ Submitting with valid values closes the dialog, shows a green toast, and the new extension appears in the card without a full page reload (uses <code class="inline">router.refresh()</code>)</li>
+          <li>✓ Hero now shows "€60,000 · €50,000 baseline + €10,000 extended"</li>
+          <li>✓ Deleting an extension reverses both the hero ceiling and the extensions list</li>
+          <li>✓ As a non-admin viewer (or on archived budget): extensions card is read-only — no Add button, no delete buttons</li>
+          <li>✓ <code class="inline">pnpm lint &amp;&amp; pnpm typecheck</code> pass</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== PHASE 4 ========================== -->
+    <!-- ================================================== -->
+    <section id="phase-4" class="space-y-5">
+      <div class="flex items-baseline justify-between gap-4">
+        <div class="flex items-baseline gap-3">
+          <span class="phase-pill">4</span>
+          <h2 class="text-2xl font-semibold">Period table propagation</h2>
+        </div>
+        <span class="badge badge-secondary">~½ day</span>
+      </div>
+      <p class="text-sm text-muted max-w-3xl">
+        The "+€X from extension" sub-label under each period's planned amount. Smallest phase — one component touched, one prop added. Logically a near-extension of phase 3; lives in its own commit for review clarity but the same PR.
+      </p>
+
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">Files changed</h3>
+        <div class="flex flex-wrap gap-2">
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/app/budget/components/period-allocations-table.tsx</span>
+        </div>
+      </div>
+
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">4.1 — Sub-label in the planned cell</h3>
+        <p class="text-sm text-muted">Insert immediately after the Input / <code class="inline">formatCurrency(planned)</code> in the planned column (~line 205). Read directly from <code class="inline">period.extensionAmountCents</code> which Phase 2 added.</p>
+<pre class="code-block"><span class="cmt">// inside the &lt;TableCell&gt; for the Planned column, after the editable Input</span>
+{period.extensionAmountCents &gt; <span class="num">0</span> &amp;&amp; (
+  &lt;<span class="typ">button</span>
+    type=<span class="str">"button"</span>
+    onClick={() =&gt; <span class="fn">scrollToExtensionsCard</span>()}
+    className=<span class="str">"block text-xs text-primary mt-0.5 hover:underline"</span>
+    title=<span class="str">"View extensions contributing to this period"</span>
+  &gt;
+    +{<span class="fn">formatCurrency</span>(period.extensionAmountCents)} from extension
+  &lt;/<span class="typ">button</span>&gt;
+)}
+{period.extensionAmountCents &lt; <span class="num">0</span> &amp;&amp; (
+  &lt;<span class="typ">span</span> className=<span class="str">"block text-xs text-destructive mt-0.5"</span>&gt;
+    {<span class="fn">formatCurrency</span>(period.extensionAmountCents)} from reduction
+  &lt;/<span class="typ">span</span>&gt;
+)}
+</pre>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5">
+          <li>✓ A period that received €1,000 from an extension shows "+€1,000.00 from extension" beneath its planned amount</li>
+          <li>✓ The sub-label is a clickable link that scrolls to and briefly highlights the extensions card</li>
+          <li>✓ Negative extensions render in <code class="inline">text-destructive</code> with appropriate copy ("from reduction")</li>
+          <li>✓ Periods not touched by any extension show no sub-label</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== PHASE 5 ========================== -->
+    <!-- ================================================== -->
+    <section id="phase-5" class="space-y-5">
+      <div class="flex items-baseline justify-between gap-4">
+        <div class="flex items-baseline gap-3">
+          <span class="phase-pill">5</span>
+          <h2 class="text-2xl font-semibold">Cross-surface polish</h2>
+        </div>
+        <span class="badge badge-secondary">~1 day</span>
+      </div>
+      <p class="text-sm text-muted max-w-3xl">
+        Every place the budget shows up gets the extension treatment. Dashboard widget tag, forecast chart baseline line, history feed entries.
+      </p>
+
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">Files changed</h3>
+        <div class="flex flex-wrap gap-2">
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/components/dashboard/admin/budget-hero-section.tsx</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/components/reports/budget/forecast-cumulative-chart.tsx</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/actions/budget.ts (getBudgetForecast)</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/types/index.ts (BudgetForecast)</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/app/budget/history/page.tsx</span>
+          <span class="filebox"><span class="badge badge-accent mr-2">edit</span>src/components/change-history/* (if applicable)</span>
+        </div>
+      </div>
+
+      <!-- 5.1 dashboard -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">5.1 — Dashboard widget tag</h3>
+        <p class="text-sm text-muted">Inside <code class="inline">BudgetHeroSection</code>, next to the big number, render an inline <code class="inline">extended +€Xk</code> tag when <code class="inline">totalAmountCents !== originalAmountCents</code>. The dashboard query already fetches the budget; just project the extra column through.</p>
+<pre class="code-block">{budget.totalAmountCents !== budget.originalAmountCents &amp;&amp; (
+  &lt;<span class="typ">Badge</span> variant=<span class="str">"secondary"</span> className=<span class="str">"text-xs tabular-nums"</span>&gt;
+    extended {<span class="fn">formatVariance</span>(budget.totalAmountCents - budget.originalAmountCents)}
+  &lt;/<span class="typ">Badge</span>&gt;
+)}
+</pre>
+      </div>
+
+      <!-- 5.2 forecast chart -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">5.2 — Forecast chart baseline reference</h3>
+        <p class="text-sm text-muted">Threads <code class="inline">originalAmountCents</code> through <code class="inline">BudgetForecast</code> → forecast component → ReferenceLine. Two-line type change, one prop pass-through, one new <code class="inline">ReferenceLine</code>.</p>
+<pre class="code-block"><span class="cmt">// src/types/index.ts — extend BudgetForecast</span>
+<span class="kw">export interface</span> <span class="typ">BudgetForecast</span> {
+  <span class="cmt">/* ...existing fields... */</span>
+  budgetCeilingCents: <span class="typ">number</span>;
+  originalCeilingCents: <span class="typ">number</span>;   <span class="cmt">// NEW</span>
+  status: <span class="str">"on_track"</span> | <span class="str">"at_risk"</span>;
+}
+
+<span class="cmt">// src/actions/budget.ts — populate it in buildBudgetForecast()</span>
+<span class="kw">return</span> {
+  <span class="cmt">/* ... */</span>
+  budgetCeilingCents: budget.totalAmountCents,
+  originalCeilingCents: budget.originalAmountCents,
+};
+
+<span class="cmt">// src/components/reports/budget/forecast-cumulative-chart.tsx (~line 88)</span>
+&lt;<span class="typ">ReferenceLine</span>
+  y={forecast.budgetCeilingCents}
+  stroke=<span class="str">"var(--chart-3)"</span>
+  strokeDasharray=<span class="str">"6 4"</span>
+  label={...}
+/&gt;
+{forecast.originalCeilingCents !== forecast.budgetCeilingCents &amp;&amp; (
+  &lt;<span class="typ">ReferenceLine</span>
+    y={forecast.originalCeilingCents}
+    stroke=<span class="str">"var(--muted-foreground)"</span>
+    strokeDasharray=<span class="str">"2 4"</span>
+    strokeOpacity={<span class="num">0.6</span>}
+    label={{
+      value: <span class="str">`Original baseline ${formatCurrency(forecast.originalCeilingCents)}`</span>,
+      position: <span class="str">"insideBottomRight"</span>,
+      fontSize: <span class="num">11</span>,
+      fill: <span class="str">"var(--muted-foreground)"</span>,
+    }}
+  /&gt;
+)}
+</pre>
+      </div>
+
+      <!-- 5.3 history -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">5.3 — Change history feed</h3>
+        <p class="text-sm text-muted">If a centralized history feed component exists (search <code class="inline">change_history</code> read sites), add a case for <code class="inline">entityType === "budget_extension"</code> that renders the row using the extension's reason + category + amount. If no such component exists yet, this can be deferred — the data is already being recorded.</p>
+      </div>
+
+      <!-- 5.4 history page -->
+      <div class="card p-6 space-y-4">
+        <h3 class="text-base font-semibold">5.4 — Budget history page</h3>
+        <p class="text-sm text-muted">Add an "Extensions" column to the budgets table at <code class="inline">/budget/history</code>. Shows count + net delta. Trivial: <code class="inline">budget.extensions.length</code> and <code class="inline">budget.totalAmountCents - budget.originalAmountCents</code>.</p>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Acceptance criteria</h3>
+        <ul class="text-sm space-y-1.5">
+          <li>✓ Dashboard widget shows the extension tag whenever <code class="inline">totalAmountCents !== originalAmountCents</code></li>
+          <li>✓ Forecast chart shows a second dashed line at the original baseline, only when there are extensions</li>
+          <li>✓ Budget history page shows extension count per fiscal year</li>
+          <li>✓ Change history feed renders extension entries with category + reason (or, if no central feed exists, ticket created for future work)</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== TESTS ============================ -->
+    <!-- ================================================== -->
+    <section id="tests" class="space-y-5">
+      <h2 class="text-2xl font-semibold flex items-baseline gap-2">
+        <span>🧪</span> Test plan summary
+      </h2>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="card p-5 space-y-2">
+          <div class="text-xs uppercase tracking-wide text-muted">Unit · Vitest</div>
+          <ul class="text-sm space-y-1.5">
+            <li>• <code class="inline">resolveAllocations</code> — modes</li>
+            <li>• Form parsing (cents from "8,000.00")</li>
+            <li>• Effect-preview math</li>
+          </ul>
+          <div class="text-xs text-muted pt-1">Location: <code class="inline">tests/unit/budget-extensions/*</code></div>
+        </div>
+        <div class="card p-5 space-y-2">
+          <div class="text-xs uppercase tracking-wide text-muted">Integration · Vitest</div>
+          <ul class="text-sm space-y-1.5">
+            <li>• Create + ceiling math</li>
+            <li>• Allocation mode propagation</li>
+            <li>• Delete reverses cleanly</li>
+            <li>• Archived budget guard</li>
+            <li>• Over-allocation guard</li>
+            <li>• change_history row written</li>
+          </ul>
+          <div class="text-xs text-muted pt-1">Real Neon test branch · <code class="inline">.env.local</code></div>
+        </div>
+        <div class="card p-5 space-y-2">
+          <div class="text-xs uppercase tracking-wide text-muted">E2E · Playwright</div>
+          <ul class="text-sm space-y-1.5">
+            <li>• Admin creates extension end-to-end</li>
+            <li>• Hero reflects new ceiling</li>
+            <li>• Period row shows sub-label</li>
+            <li>• Viewer (non-admin) cannot see Add button</li>
+          </ul>
+          <div class="text-xs text-muted pt-1">Optional — defer if running short.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== ROLLOUT ========================== -->
+    <!-- ================================================== -->
+    <section id="rollout" class="space-y-5">
+      <h2 class="text-2xl font-semibold flex items-baseline gap-2">🚀 Rollout &amp; risk</h2>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Migration safety</h3>
+        <p class="text-sm text-muted">All schema changes are additive — <code class="inline">ADD COLUMN</code>, <code class="inline">CREATE TABLE</code>, <code class="inline">CREATE TYPE</code>, <code class="inline">CREATE INDEX</code>. The one nuance is the backfill of <code class="inline">original_amount_cents</code>: Drizzle's generator may emit the column as <code class="inline">NOT NULL</code> without the backfill in between. <strong>Action:</strong> after <code class="inline">pnpm db:generate</code>, hand-edit the SQL so the order is <code class="inline">ADD (nullable) → UPDATE backfill → SET NOT NULL</code>. Then run <code class="inline">drizzle-migration-reviewer</code> before merging.</p>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Deployment order</h3>
+        <p class="text-sm">Single PR merge to <code class="inline">main</code>. The deploy is straightforward because every change is additive — the only sequencing that matters happens <em>inside</em> the build:</p>
+        <ol class="text-sm space-y-1.5 list-decimal pl-5">
+          <li>Vercel runs <code class="inline">pnpm db:migrate</code> in the build step → schema and backfill land first (verify in <code class="inline">vercel.ts</code> / build command).</li>
+          <li>App build compiles the new actions + components → server actions are immediately callable.</li>
+          <li>New deployment goes live → admins can use extensions; dashboard / reports / forecast pick up the changes on first render.</li>
+        </ol>
+        <p class="text-xs text-muted">No feature flag needed — feature is admin-only and additive. Existing budget flows are untouched. If anything looks off in production, the rollback plan below restores the previous deployment in one click.</p>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Risks &amp; mitigations</h3>
+        <div class="space-y-3 text-sm">
+          <div class="gridline">
+            <span class="badge badge-secondary">low</span>
+            <div><strong>Forecast chart drift.</strong> <code class="inline">getBudgetForecast</code> already reads <code class="inline">totalAmountCents</code>, so the projected-vs-ceiling math automatically follows the new (extended) ceiling. <em>Mitigation:</em> the new baseline reference line documents the original ceiling visually so the change is interpretable.</div>
+          </div>
+          <div class="gridline">
+            <span class="badge badge-secondary">low</span>
+            <div><strong>Existing <code class="inline">updateBudgetTotal()</code> bypass.</strong> Admins could still bump the total via the existing endpoint without leaving an extension audit trail. <em>Mitigation:</em> not addressed in v1 (decision per concept doc); follow-up ticket to deprecate or convert that call into a synthetic <code class="inline">other</code>-category extension.</div>
+          </div>
+          <div class="gridline">
+            <span class="badge badge-secondary">low</span>
+            <div><strong>Period boundary changes.</strong> If a period's date range ever changes after an extension is allocated to it, the allocation row persists. <em>Mitigation:</em> periods are never edited in practice (they're generated at budget creation and immutable). Out of scope.</div>
+          </div>
+          <div class="gridline">
+            <span class="badge badge-default">very low</span>
+            <div><strong>Concurrent extensions racing.</strong> Two admins creating extensions simultaneously could both pass the "would over-allocate" guard against the same baseline. <em>Mitigation:</em> single-admin app today; if multi-admin arrives, wrap the read+guard+write in a row-level <code class="inline">SELECT … FOR UPDATE</code> on the budget row inside the transaction.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-6 space-y-3">
+        <h3 class="text-base font-semibold">Rollback plan</h3>
+        <p class="text-sm text-muted"><strong>App rollback</strong> — promote the previous Vercel deployment from the dashboard, or <code class="inline">git revert</code> the merge commit and redeploy. Because the PR is one merge commit, this is a single action.</p>
+        <p class="text-sm text-muted"><strong>Schema rollback</strong> — write a reverse migration (drop the two new tables + the enum + the new column). Safe because there's no production data dependency on the new structures yet, and <code class="inline">total_amount_cents</code> already carries the live effective ceiling. If any extensions were created before rollback, the historical "why" is lost but the financial numbers stay intact.</p>
+        <p class="text-xs text-muted">Recommended: keep the previous deployment as the rollback target for the first 48 hours after merge. After that, treat <code class="inline">original_amount_cents</code> as load-bearing.</p>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== OPEN QUESTIONS =================== -->
+    <!-- ================================================== -->
+    <section class="space-y-5">
+      <h2 class="text-2xl font-semibold">❓ Open questions before kickoff</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold">Q1 — Allow editing the amount post-creation?</h3>
+          <p class="text-sm text-muted mt-2">Plan as drafted: <strong>no</strong> — edit reason/category/description/tool-link only. Amount edits go through delete + re-create for a clean audit. Confirm this is acceptable, or relax to allow amount edits with a follow-up <code class="inline">recordUpdate</code>.</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold">Q2 — Deprecate <code class="inline">updateBudgetTotal()</code>?</h3>
+          <p class="text-sm text-muted mt-2">Plan as drafted: <strong>keep working</strong> in v1. After this lands, file a follow-up to either remove it from the UI or convert each invocation into an "other"-category extension automatically.</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold">Q3 — Reductions in the dialog?</h3>
+          <p class="text-sm text-muted mt-2">Plan as drafted: <strong>yes</strong>, allowed (negative amount). Some teams may want this gated behind a different intent ("Reduce budget" button) to avoid accidental keystrokes. Worth confirming with a usage check.</p>
+        </div>
+        <div class="card p-5">
+          <h3 class="text-sm font-semibold">Q4 — Tool-detail page integration?</h3>
+          <p class="text-sm text-muted mt-2">Plan as drafted: <strong>out of scope</strong> for v1. The <code class="inline">linkedToolId</code> FK makes it easy to add "this tool received €X in extensions this year" later. Confirm we can defer.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== OUT OF SCOPE ===================== -->
+    <!-- ================================================== -->
+    <section class="space-y-5">
+      <h2 class="text-2xl font-semibold">🛑 Explicitly out of scope (v1)</h2>
+      <ul class="text-sm space-y-2 max-w-3xl">
+        <li>• Approval workflow (<code class="inline">pending → approved/rejected</code> states). Schema accommodates this later.</li>
+        <li>• Multi-stakeholder notifications (email/Slack on extension create).</li>
+        <li>• Bulk-import of extensions from a CSV.</li>
+        <li>• Tool-page rollup of extensions ("this tool received €X this year").</li>
+        <li>• Auto-generating an extension from an unplanned invoice.</li>
+        <li>• Re-architecting the existing "raw total edit" path — left running in parallel.</li>
+      </ul>
+    </section>
+
+    <!-- ================================================== -->
+    <!-- =============== FOOTER =========================== -->
+    <!-- ================================================== -->
+    <section class="card p-6 space-y-4">
+      <h2 class="text-lg font-semibold">📎 Reference index</h2>
+      <div class="grid md:grid-cols-2 gap-3 text-sm">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-muted mb-1.5">Pattern sources</div>
+          <ul class="space-y-1">
+            <li><code class="inline">src/actions/budget.ts:28–80</code> — <code class="inline">createBudget</code> pattern</li>
+            <li><code class="inline">src/actions/budget.ts:380–400</code> — <code class="inline">createBilledCost</code> w/ revalidate</li>
+            <li><code class="inline">src/actions/history.ts:8–43</code> — <code class="inline">recordCreation</code> / <code class="inline">recordUpdate</code></li>
+            <li><code class="inline">src/lib/validators.ts:82–100</code> — existing budget schemas</li>
+            <li><code class="inline">src/app/budget/components/dialogs/billed-cost-dialog.tsx</code> — dialog pattern</li>
+            <li><code class="inline">src/app/budget/components/budget-detail-client.tsx:41–72</code> — state lift pattern</li>
+            <li><code class="inline">tests/integration/invoice-sync.test.ts:49–112</code> — integration test setup</li>
+          </ul>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wide text-muted mb-1.5">New files this plan creates</div>
+          <ul class="space-y-1">
+            <li><code class="inline">src/actions/budget-extensions.ts</code></li>
+            <li><code class="inline">src/app/budget/components/budget-extensions-card.tsx</code></li>
+            <li><code class="inline">src/app/budget/components/dialogs/add-extension-dialog.tsx</code></li>
+            <li><code class="inline">src/app/budget/components/dialogs/delete-extension-dialog.tsx</code></li>
+            <li><code class="inline">src/app/budget/components/forms/extension-form.ts</code></li>
+            <li><code class="inline">tests/integration/budget-extensions.test.ts</code></li>
+            <li><code class="inline">src/lib/db/migrations/0022_*.sql</code> (generated)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-default pt-4 text-xs text-muted">
+        Concept: <code class="inline">specs/026-budget-extensions/concept.md</code> ·
+        Mockups: <code class="inline">specs/026-budget-extensions/mockup.html</code> ·
+        This document: <code class="inline">specs/026-budget-extensions/implementation-plan.html</code>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const btn = document.getElementById("theme-toggle");
+    btn.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+    });
+  </script>
+</body>
+</html>

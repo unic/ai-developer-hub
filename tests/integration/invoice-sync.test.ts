@@ -65,6 +65,7 @@ beforeAll(async () => {
     .values({
       fiscalYear: 20260 + Math.floor(Math.random() * 10000), // unique
       totalAmountCents: 1_200_000,
+      originalAmountCents: 1_200_000,
       periodType: "monthly",
       status: "active",
     })
@@ -77,6 +78,7 @@ beforeAll(async () => {
     .values({
       fiscalYear: 20250 + Math.floor(Math.random() * 10000),
       totalAmountCents: 1_000_000,
+      originalAmountCents: 1_000_000,
       periodType: "monthly",
       status: "archived",
     })

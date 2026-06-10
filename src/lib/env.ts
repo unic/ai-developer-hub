@@ -7,7 +7,12 @@ const envSchema = z.object({
 
   // Auth (NextAuth v5) — min 32 chars matches `openssl rand -base64 32` output
   // and Auth.js's recommended minimum entropy for HMAC-derived session keys.
-  AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters (generate with `openssl rand -base64 32`)"),
+  AUTH_SECRET: z
+    .string()
+    .min(
+      32,
+      "AUTH_SECRET must be at least 32 characters (generate with `openssl rand -base64 32`)",
+    ),
   AUTH_URL: z.string().optional(),
   NEXTAUTH_URL: z.string().optional(),
 
@@ -16,13 +21,23 @@ const envSchema = z.object({
   VERCEL_URL: z.string().optional(),
 
   // API key encryption
-  API_KEY_ENCRYPTION_SECRET: z.string().min(1, "API_KEY_ENCRYPTION_SECRET is required"),
+  API_KEY_ENCRYPTION_SECRET: z
+    .string()
+    .min(1, "API_KEY_ENCRYPTION_SECRET is required"),
 
   // Cloudflare R2 (invoice PDF storage)
-  CLOUDFLARE_R2_ACCOUNT_ID: z.string().min(1, "CLOUDFLARE_R2_ACCOUNT_ID is required"),
-  CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().min(1, "CLOUDFLARE_R2_ACCESS_KEY_ID is required"),
-  CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().min(1, "CLOUDFLARE_R2_SECRET_ACCESS_KEY is required"),
-  CLOUDFLARE_R2_BUCKET_NAME: z.string().min(1, "CLOUDFLARE_R2_BUCKET_NAME is required"),
+  CLOUDFLARE_R2_ACCOUNT_ID: z
+    .string()
+    .min(1, "CLOUDFLARE_R2_ACCOUNT_ID is required"),
+  CLOUDFLARE_R2_ACCESS_KEY_ID: z
+    .string()
+    .min(1, "CLOUDFLARE_R2_ACCESS_KEY_ID is required"),
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY: z
+    .string()
+    .min(1, "CLOUDFLARE_R2_SECRET_ACCESS_KEY is required"),
+  CLOUDFLARE_R2_BUCKET_NAME: z
+    .string()
+    .min(1, "CLOUDFLARE_R2_BUCKET_NAME is required"),
 
   // Anthropic (invoice extraction)
   ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
@@ -33,7 +48,9 @@ const envSchema = z.object({
   // Cron and bearer authentication secrets — min 16 chars rejects accidental
   // weak values (e.g. "test", "changeme") at startup.
   CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 characters"),
-  INVOICE_INGEST_SECRET: z.string().min(16, "INVOICE_INGEST_SECRET must be at least 16 characters"),
+  INVOICE_INGEST_SECRET: z
+    .string()
+    .min(16, "INVOICE_INGEST_SECRET must be at least 16 characters"),
   // Agent session secret — only required on non-production preview/local
   AGENT_SESSION_SECRET: z.string().optional(),
 
@@ -45,7 +62,9 @@ const envSchema = z.object({
   // Required at startup so /api/invoices/ingest doesn't hard-fail in production.
   // Must reference an active admin user; the actual DB lookup is performed at
   // runtime by getSystemAdminUserId() since the schema can't reach the DB.
-  SYSTEM_ADMIN_USER_ID: z.string().regex(/^[1-9]\d*$/, "SYSTEM_ADMIN_USER_ID must be a positive integer"),
+  SYSTEM_ADMIN_USER_ID: z
+    .string()
+    .regex(/^[1-9]\d*$/, "SYSTEM_ADMIN_USER_ID must be a positive integer"),
 
   // Nighthawk agent
   AGENT_USER_EMAIL: z.string().optional(),
@@ -54,6 +73,14 @@ const envSchema = z.object({
   // Profile API preview
   PROFILE_API_SECRET: z.string().optional(),
   VERCEL_AUTOMATION_BYPASS_SECRET: z.string().optional(),
+
+  // MCP server shared-secret bearer token. Optional so existing deployments
+  // boot without it; when unset the MCP server is dormant and rejects all
+  // requests. min 16 chars rejects accidental weak values, matching CRON_SECRET.
+  MCP_SERVER_SECRET: z
+    .string()
+    .min(16, "MCP_SERVER_SECRET must be at least 16 characters")
+    .optional(),
 
   // Microsoft Teams — Workflows incoming webhook for Claude spend alerts.
   // If unset, the post-sync evaluator is a no-op. This is the feature kill switch.
@@ -74,7 +101,9 @@ export type Env = z.infer<typeof envSchema>;
  *
  * @param input Defaults to process.env. Pass a custom object in unit tests.
  */
-export function validateEnv(input: Record<string, string | undefined> = process.env): void {
+export function validateEnv(
+  input: Record<string, string | undefined> = process.env,
+): void {
   // Read SKIP from the explicit input only — never fall back to process.env so
   // tests passing a custom env object are fully in control of validation.
   if (input.SKIP_ENV_VALIDATION === "1") return;

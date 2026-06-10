@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Developer Hub - MCP Server Implementation Plan</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-2: #1c2330;
+        --border: #2d3543;
+        --text: #e6edf3;
+        --muted: #9aa7b4;
+        --accent: #6ea8fe;
+        --accent-2: #7ee787;
+        --warn: #f0b429;
+        --danger: #ff7b72;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: 0 0 80px;
+      }
+      header {
+        background: linear-gradient(135deg, #1b2735 0%, #0d1117 70%);
+        border-bottom: 1px solid var(--border);
+        padding: 48px 32px 36px;
+      }
+      .wrap { max-width: 980px; margin: 0 auto; }
+      h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.4px; }
+      h2 { font-size: 22px; margin: 44px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+      h3 { font-size: 17px; margin: 26px 0 8px; color: var(--accent); }
+      .sub { color: var(--muted); font-size: 15px; }
+      .pill { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-right: 6px; }
+      .pill.good { color: var(--accent-2); border-color: #2ea04340; background: #2ea04315; }
+      .pill.warn { color: var(--warn); border-color: #d2992240; background: #d2992215; }
+      code { font-family: var(--mono); font-size: 13.5px; background: #2d354366; padding: 1px 6px; border-radius: 5px; color: #c9d4e0; }
+      pre {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+        padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.55;
+      }
+      pre code { background: none; padding: 0; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+      table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+      th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+      td code { white-space: nowrap; }
+      ul { margin: 8px 0; padding-left: 22px; }
+      li { margin: 5px 0; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .muted { color: var(--muted); }
+      .tag { font-family: var(--mono); font-size: 12px; color: var(--accent-2); }
+      .challenge { border-left: 3px solid var(--warn); padding-left: 16px; margin: 14px 0; }
+      .challenge .q { color: var(--warn); font-weight: 600; }
+      .challenge .a { color: var(--text); }
+      .footer { color: var(--muted); font-size: 13px; margin-top: 40px; text-align: center; }
+      a { color: var(--accent); }
+      @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <h1>AI Developer Hub &mdash; MCP Server</h1>
+        <div class="sub">Implementation plan, design rationale, and self-critique &middot; generated for branch <code>claude/mcp-capabilities-overview-D6RMz</code></div>
+        <div style="margin-top:14px">
+          <span class="pill good">Read-only v1</span>
+          <span class="pill">Streamable HTTP</span>
+          <span class="pill">Shared-secret auth</span>
+          <span class="pill">7 tools</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap" style="padding: 0 32px;">
+
+      <h2>1. Goal</h2>
+      <p>
+        Expose the Hub's read-only AI-spend data through a <strong>Model Context Protocol (MCP) server</strong>, so
+        MCP clients (Claude Desktop / Code, Cursor, etc.) can answer questions like
+        <em>&ldquo;What did Alice spend on Claude last month?&rdquo;</em> or
+        <em>&ldquo;Which Claude workspaces are over 80% of their cap?&rdquo;</em>
+        directly against live Hub data, reusing the existing tested data layer rather than duplicating logic.
+      </p>
+
+      <h2>2. SDK research (verified June 2026)</h2>
+      <table>
+        <tr><th>Question</th><th>Finding</th></tr>
+        <tr><td>Which library?</td><td><code>mcp-handler</code> (Vercel-maintained), wraps the official <code>@modelcontextprotocol/sdk</code> as a Next.js App Router route handler.</td></tr>
+        <tr><td>Next.js 15 supported?</td><td><strong>Yes</strong> &mdash; peer dep is <code>next &gt;=13.0.0</code>. (An earlier search result claiming &ldquo;Next 16 required&rdquo; conflated this with Next's own built-in MCP guide; the package README confirms 13+.)</td></tr>
+        <tr><td>Versions pinned</td><td><code>mcp-handler@1.1.0</code> (peer requires <em>exactly</em> <code>@modelcontextprotocol/sdk@1.26.0</code>) &mdash; SDK pinned to <code>1.26.0</code> to satisfy the peer and avoid pnpm warnings. 1.26.0 also clears the pre-1.26 security advisory.</td></tr>
+        <tr><td>Zod v4 (app uses 4.3.6)?</td><td>Supported since SDK <strong>1.22.0</strong> via Standard Schema. <span class="muted">Known quirks: <code>z.discriminatedUnion()</code> can be silently dropped, and per-field descriptions may not always propagate. Mitigation: keep tool inputs to flat strings/numbers/optionals, no unions.</span></td></tr>
+        <tr><td>Transport</td><td>Streamable HTTP (default since the 2025-03 spec). Stateless mode works on serverless with no Redis. <code>redis</code> is a dormant dependency only used for SSE resumability.</td></tr>
+        <tr><td>Tool API</td><td><code>server.registerTool(name, { title, description, inputSchema }, handler)</code> &mdash; <code>inputSchema</code> is a Zod raw shape; handler returns <code>{ content: [{ type: "text", text }] }</code>.</td></tr>
+        <tr><td>Auth</td><td><code>withMcpAuth(handler, verifyToken, { required: true })</code> &mdash; <code>verifyToken(req, bearerToken)</code> returns an <code>AuthInfo</code> or <code>undefined</code> (&rarr; 401). Lets us plug in the Hub's shared-secret model.</td></tr>
+      </table>
+
+      <h2>3. Architecture</h2>
+      <p>One dynamic route mounts the MCP server; all domain logic lives in a small, unit-testable <code>src/lib/mcp/</code> module that delegates to the <em>existing</em> data layer. The route stays thin.</p>
+      <pre><code>src/app/api/mcp/[transport]/route.ts   # createMcpHandler + withMcpAuth (thin)
+src/lib/mcp/
+  ├─ auth.ts     # verifyMcpToken: constant-time shared-secret check
+  ├─ format.ts   # centsToUsd, jsonResult, errorResult (pure)
+  ├─ data.ts     # per-tool data assembly (delegates to existing lib/actions)
+  └─ tools.ts    # registerHubTools(server): wires names → handlers
+docs/mcp-server.md                      # operator + client setup guide</code></pre>
+      <p class="muted">Endpoint resolves to <code>POST /api/mcp/mcp</code> (basePath <code>/api/mcp</code>). Namespacing under <code>/api/mcp</code> avoids a catch-all dynamic segment colliding with existing <code>/api/*</code> routes.</p>
+
+      <h3>Auth &amp; middleware</h3>
+      <ul>
+        <li>New optional env var <code>MCP_SERVER_SECRET</code> (<code>z.string().min(16).optional()</code>) &mdash; mirrors <code>PROFILE_API_SECRET</code>. When unset, the server rejects every request (401) and logs a one-time warning, so the feature is dormant-by-default and safe to ship.</li>
+        <li>Constant-time comparison (<code>crypto.timingSafeEqual</code> with a length guard) to avoid timing leaks.</li>
+        <li>Add <code>api/mcp</code> to the <code>middleware.ts</code> matcher exclusion, so unauthenticated MCP clients get a clean <code>401</code> instead of a <code>302 &rarr; /login</code> redirect (same pattern as <code>/api/profile</code>, <code>/api/sync</code>).</li>
+        <li>Defense-in-depth: add <code>/api/mcp</code> to the nighthawk agent <code>BUILT_IN_DENY_PATHS</code>, matching how <code>/api/sync</code> is treated.</li>
+      </ul>
+
+      <h2>4. Tools to expose (the worthwhile set)</h2>
+      <p>Selected for high value, clean mapping to <em>already-tested</em> read functions, and zero session dependency. All monetary fields are returned as both integer cents and a derived USD number.</p>
+      <table>
+        <tr><th>Tool</th><th>Input</th><th>Backed by</th><th>Returns</th></tr>
+        <tr><td><code>list_ai_tools</code></td><td>&ndash;</td><td><code>aiTools</code> + <code>accessTiers</code> (direct)</td><td>Active tool catalog with tiers &amp; monthly cost</td></tr>
+        <tr><td><code>get_user_cost_profile</code></td><td><code>email</code>, <code>month?</code></td><td><code>fetchProfileDataInternal</code></td><td>User, active licenses, Claude cost breakdown + last sync</td></tr>
+        <tr><td><code>get_claude_spend_summary</code></td><td><code>month?</code></td><td><code>loadDashboardKpis</code></td><td>Org Claude KPIs: MTD total, MoM delta, projection, workspaces over cap, today estimate</td></tr>
+        <tr><td><code>list_claude_workspaces</code></td><td>&ndash;</td><td><code>loadWorkspaceList</code></td><td>Per-workspace cost, cap, utilization %, today estimate</td></tr>
+        <tr><td><code>get_budget_status</code></td><td><code>fiscalYear?</code></td><td><code>getActiveBudget</code> + <code>getBudgetWithCosts</code> + <code>buildBudgetForecast</code></td><td>Annual budget, per-period planned/billed/actual, forecast &amp; on-track/at-risk</td></tr>
+        <tr><td><code>get_copilot_usage_summary</code></td><td><code>since?</code>, <code>until?</code></td><td><code>copilotUsageMetrics</code> + <code>copilotBillingSnapshots</code> (direct)</td><td>Seats, latest billing cost, usage &amp; acceptance rate over range</td></tr>
+        <tr><td><code>list_recent_sync_events</code></td><td><code>sourceType?</code>, <code>limit?</code></td><td><code>syncEvents</code> + <code>loadSyncStatus</code></td><td>Recent sync activity &amp; Claude-spend freshness (health view)</td></tr>
+      </table>
+      <p class="muted">Domain coverage: licenses, per-user Claude cost, org Claude spend, Claude workspaces, budgets, GitHub Copilot, and pipeline health.</p>
+
+      <h3>Deliberately out of scope for v1</h3>
+      <ul>
+        <li><strong>No write/mutation tools.</strong> Read-only removes the largest risk surface; mutations would need to honor the agent deny-list philosophy and per-action auth.</li>
+        <li><strong>No raw API-key or PII exposure.</strong> <code>get_user_cost_profile</code> returns costs and license metadata, never decrypted keys (unlike the admin CSV export).</li>
+        <li><strong>Copilot admin actions</strong> (<code>getCopilotOverview</code>/<code>getCopilotSeats</code>) are skipped &mdash; they call <code>requireAdmin()</code> internally, so a bearer-auth caller would just get &ldquo;Unauthorized&rdquo;. We query the tables directly instead.</li>
+      </ul>
+
+      <h2>5. Testing &amp; QA</h2>
+      <ul>
+        <li><code>tests/unit/mcp/format.test.ts</code> &mdash; cents&rarr;USD rounding, result envelope shape.</li>
+        <li><code>tests/unit/mcp/auth.test.ts</code> &mdash; missing secret &rarr; reject, wrong token &rarr; reject, correct &rarr; <code>AuthInfo</code>, constant-time path.</li>
+        <li><code>tests/unit/mcp/data.test.ts</code> &mdash; each assembly function with mocked db/loaders; asserts shaping &amp; USD conversion &amp; not-found handling.</li>
+        <li><code>tests/unit/mcp/tools.test.ts</code> &mdash; registers tools against a fake server, invokes each handler, asserts content envelope &amp; <code>isError</code> on failures.</li>
+        <li>Gate: <code>pnpm typecheck</code> (strict, no <code>any</code>), <code>pnpm lint</code> (zero warnings), <code>pnpm test</code>, <code>pnpm build</code>. Then <code>/simplify</code>.</li>
+      </ul>
+
+      <h2>6. Self-critique &mdash; challenge &amp; improvements</h2>
+
+      <div class="challenge">
+        <p class="q">Q: <code>mcp-handler@1.1.0</code> drags in <code>redis</code>, <code>commander</code>, <code>chalk</code>. Is that acceptable weight for a serverless app?</p>
+        <p class="a">A: Yes for v1 &mdash; it's the Vercel-blessed path and Redis stays dormant in stateless Streamable HTTP mode. <strong>Mitigation that survives this decision:</strong> all domain logic is decoupled into <code>src/lib/mcp/*</code> and unit-tested independently of <code>mcp-handler</code>, so swapping to the raw SDK transport later is a route-file change, not a rewrite.</p>
+      </div>
+
+      <div class="challenge">
+        <p class="q">Q: Zod v4 + SDK 1.26 has known schema quirks. Risk?</p>
+        <p class="a">A: Bounded by keeping inputs to flat <code>z.string()/z.number()/.optional()</code> &mdash; no discriminated unions, no nested objects. Month/fiscal-year validated with the same regexes the app already uses (<code>/^\d{4}-(0[1-9]|1[0-2])$/</code>).</p>
+      </div>
+
+      <div class="challenge">
+        <p class="q">Q: Shared secret instead of full OAuth 2.1 &mdash; is that good enough?</p>
+        <p class="a">A: For an internal, read-only, single-tenant tool it matches the app's existing bearer-secret convention (<code>PROFILE_API_SECRET</code>, <code>CRON_SECRET</code>) and operators already manage these. OAuth is the documented upgrade path; <code>withMcpAuth</code> keeps that door open without reworking the tools.</p>
+      </div>
+
+      <div class="challenge">
+        <p class="q">Q: Could this leak sensitive data to an AI client?</p>
+        <p class="a">A: <strong>Improvement applied:</strong> no decrypted API keys, no password hashes, no invite tokens. <code>get_user_cost_profile</code> returns only the same surface as the existing <code>/api/profile</code> route. Per-user lookup is by exact email, returning a clean &ldquo;not found&rdquo; rather than enumerable data.</p>
+      </div>
+
+      <div class="challenge">
+        <p class="q">Q: Server actions in <code>budget.ts</code> are <code>"use server"</code>. Safe to call from a route?</p>
+        <p class="a">A: Yes &mdash; the read actions used (<code>getActiveBudget</code>, <code>getBudgetWithCosts</code>, <code>getBudgetForecast</code>, <code>fetchActualByPeriod</code>) contain no <code>requireAdmin()</code> and no client boundary is crossed; they run as ordinary server functions.</p>
+      </div>
+
+      <div class="challenge">
+        <p class="q">Q: What if <code>MCP_SERVER_SECRET</code> is forgotten in production?</p>
+        <p class="a">A: <strong>Improvement applied:</strong> dormant-by-default. Unset &rarr; every call 401s with a one-time server warning. Optional in the env schema so existing deployments keep booting; the feature simply stays off until a secret is provisioned.</p>
+      </div>
+
+      <div class="challenge">
+        <p class="q">Q: Errors inside a tool handler?</p>
+        <p class="a">A: Every handler is wrapped to return <code>{ isError: true, content: [...] }</code> with a safe message instead of throwing a raw protocol error, so a bad email or empty dataset degrades gracefully.</p>
+      </div>
+
+      <h2>7. Client configuration (for the morning)</h2>
+      <pre><code>// Claude Desktop / Code MCP config
+{
+  "mcpServers": {
+    "ai-developer-hub": {
+      "type": "http",
+      "url": "https://&lt;your-hub-host&gt;/api/mcp/mcp",
+      "headers": { "Authorization": "Bearer &lt;MCP_SERVER_SECRET&gt;" }
+    }
+  }
+}</code></pre>
+
+      <div class="footer">
+        AI Developer Hub &middot; MCP server implementation plan &middot; read-only v1
+      </div>
+    </div>
+  </body>
+</html>
