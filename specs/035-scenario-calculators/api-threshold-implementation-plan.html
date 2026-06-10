@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — API threshold (keep light keys metered) · 035</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #f0a072;        /* clay — matches the prototype accent */
+      --accent-2: #7dd3fc;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 32px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 52px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+    pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 820px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.good { color: var(--good); border-color: rgba(134,239,172,0.3); }
+    .badge.warn { color: var(--warn); border-color: rgba(252,211,77,0.3); }
+    .badge.accent { color: var(--accent); border-color: rgba(240,160,114,0.35); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row.between { justify-content: space-between; }
+    .flow { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; white-space: pre; overflow-x: auto; color: var(--fg-muted); }
+    .flow .em { color: var(--fg); }
+    .flow .ok { color: var(--good); }
+    .flow .accent { color: var(--accent); }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    li.check::marker { content: "\2610  "; color: var(--fg-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    td code { white-space: nowrap; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.good { background: rgba(134,239,172,0.12); color: var(--good); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.new { background: rgba(240,160,114,0.14); color: var(--accent); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent-2); background: rgba(125,211,252,0.04); }
+    .callout.accent { border-left-color: var(--accent); background: rgba(240,160,114,0.05); }
+    .callout.bad { border-left-color: var(--bad); background: rgba(252,165,165,0.05); }
+    .phase { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; }
+    .phase-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .phase-head h3 { font-size: 20px; margin: 0; }
+    .phase-meta { color: var(--fg-dim); font-family: var(--mono); font-size: 12px; }
+    .toc { columns: 2; column-gap: 32px; font-size: 14px; }
+    @media (max-width: 760px) { .toc { columns: 1; } }
+    .toc a { display: block; padding: 3px 0; color: var(--fg-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+    .k { color: var(--accent-2); }
+    .s { color: var(--good); }
+    .c { color: var(--fg-dim); font-style: italic; }
+    .del { color: var(--bad); text-decoration: line-through; }
+    .add { color: var(--good); }
+    .band { display: flex; width: 100%; height: 40px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); font-family: var(--mono); font-size: 11px; margin: 14px 0 6px; }
+    .band > div { display: flex; align-items: center; justify-content: center; color: var(--bg); font-weight: 600; letter-spacing: 0.04em; }
+    .band .api { background: var(--fg-dim); flex: 0 0 22%; }
+    .band .std { background: var(--accent-2); flex: 1; }
+    .band .prem { background: var(--accent); flex: 0 0 30%; }
+    .band-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--fg-dim); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Implementation plan</span>
+    <span class="badge">spec/035-scenario-calculators</span>
+    <span class="badge accent">Increment · pending approval</span>
+  </div>
+  <h1>API threshold — keep light keys on metered API</h1>
+  <p class="lede">
+    A focused enhancement to the shipped <strong>API&nbsp;→&nbsp;Subscription</strong> calculator
+    (<a href="./implementation-plan.html">original plan</a>, <a href="./prototype.html">prototype</a>).
+    Today the <em>right-sized</em> scenario forces every key onto a flat seat — even someone burning $3/mo gets a $25
+    Standard seat, which <em>costs more</em> than leaving them on the API. This adds a lower
+    <strong>API threshold</strong>: below it, a key stays on pay-as-you-go metered API. It mirrors the existing
+    <strong>Premium threshold</strong> and <strong>defaults to $25</strong> — the price of a Standard seat, i.e. the
+    break-even point below which a seat can never pay off.
+  </p>
+  <p class="lede">
+    The result is a genuine three-band right-sizing — <span class="c">API · Standard · Premium</span> — and a
+    right-sized total that is now provably ≤ the metered baseline.
+  </p>
+  <p class="meta">Drafted 2026-06-09 · author: T. Studer · feature 035 increment · estimate: ~0.5–1 dev day</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>Scope.</strong> This is an increment to a <em>merged</em> feature (PR #113). It touches the pure engine, the
+  client controls/table, and the unit tests. <strong>No DB schema change, no new route, no new dependency.</strong> It
+  <em>does</em> change the calculator's default headline figures — see <a href="#anchors">§6 Regression anchors</a>.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc card">
+  <a href="#goal">1 · Goal &amp; scope</a>
+  <a href="#model">2 · The three-band model</a>
+  <a href="#engine">3 · Engine changes</a>
+  <a href="#ui">4 · UI changes</a>
+  <a href="#defaults">5 · Defaults, clamping &amp; data</a>
+  <a href="#anchors">6 · Regression anchors (numbers change)</a>
+  <a href="#manifest">7 · File manifest</a>
+  <a href="#phases">8 · Phasing</a>
+  <a href="#risks">9 · Risks &amp; decisions</a>
+  <a href="#accept">10 · Acceptance checklist</a>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="goal">1 · Goal &amp; scope</h2>
+
+<div class="card accent">
+  <h4>In scope</h4>
+  <ul>
+    <li class="note">A new <strong>API threshold</strong> input (slider) in the calculator's assumptions panel,
+      <strong>default $25</strong> (= the live Standard seat price).</li>
+    <li class="note">Engine support for a third seat outcome — <code>"api"</code> — meaning <em>keep this key metered</em>;
+      its right-sized cost is the user's own API spend, not a seat price.</li>
+    <li class="note">The <em>right-sized</em> scenario, its card, bar, verdict, KPI, and the per-user table all become
+      three-way (<span class="c">API · Standard · Premium</span>).</li>
+    <li class="note">Updated unit tests + new regression anchors locking the new default figures.</li>
+  </ul>
+  <h4>Out of scope</h4>
+  <ul>
+    <li class="con">Any DB schema change — still read-only over existing tables.</li>
+    <li class="con">Applying the API floor to the <em>All&nbsp;→&nbsp;Standard</em> / <em>All&nbsp;→&nbsp;Premium</em>
+      scenarios — those stay deliberately naïve as contrast baselines (see <a href="#risks">§9</a>).</li>
+    <li class="con">Re-deriving the prototype's editorial numbers — the standalone <code>prototype.html</code> may be
+      refreshed later; not required for this increment.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="model">2 · The three-band model</h2>
+
+<p>
+  Each key's representative monthly spend (<code>usageForUser</code> under the chosen basis) now falls into one of three
+  bands, decided by two thresholds. With both thresholds at their break-even defaults:
+</p>
+
+<div class="band" aria-hidden="true">
+  <div class="api">API · metered</div>
+  <div class="std">STANDARD seat</div>
+  <div class="prem">PREMIUM seat</div>
+</div>
+<div class="band-scale">
+  <span>$0</span>
+  <span>↑ API threshold ($25)</span>
+  <span>↑ Premium threshold ($125)</span>
+  <span>$300+</span>
+</div>
+
+<table>
+  <thead><tr><th>Band</th><th>Condition (monthly spend <code>U</code>)</th><th>Right-sized cost for that key</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill neutral">API</span></td><td><code>U &lt; apiThreshold</code></td>
+      <td><strong>= U</strong> (stays metered — no seat). A $25 seat can't beat a $3 burn, so don't migrate them.</td></tr>
+    <tr><td><span class="pill" style="background:rgba(125,211,252,.14);color:var(--accent-2)">Standard</span></td>
+      <td><code>apiThreshold ≤ U &lt; premiumThreshold</code></td><td><code>standardCents</code></td></tr>
+    <tr><td><span class="pill new">Premium</span></td><td><code>U ≥ premiumThreshold</code></td><td><code>premiumCents</code></td></tr>
+  </tbody>
+</table>
+
+<div class="callout accent">
+  <strong>Why $25 is the right default.</strong> The API threshold defaults to the <em>Standard seat price</em>. Below
+  that, the cheapest seat already costs more than the key's entire metered bill — converting it is pure waste. Pairing
+  this with the Premium threshold's existing $125 default (the Premium seat price) makes the right-sized scenario the
+  true <em>cost-minimising</em> assignment: every key lands on whichever of {metered API, Standard, Premium} is cheapest
+  for it. Consequently <strong>right-sized ≤ baseline always</strong> (at default thresholds) — the previous version
+  could come out <em>above</em> baseline on a light-skewed population.
+</div>
+
+<p class="c">Boundaries are inclusive of the seat, matching the existing Premium convention: <code>U == apiThreshold</code>
+  ⇒ Standard (tie goes to the seat); <code>U == premiumThreshold</code> ⇒ Premium.</p>
+
+<!-- ============================================================ -->
+<h2 id="engine">3 · Engine changes</h2>
+<p>File: <code>src/lib/scenarios/api-subscription.ts</code> — pure, no React/db. Three small edits.</p>
+
+<h4>3.1 Types — add the band + the input</h4>
+<pre><code><span class="add">export type SeatTier = "api" | "standard" | "premium";</span>   <span class="c">// was: "standard" | "premium"</span>
+
+export type ScenarioInputs = {
+  standardCents: number;
+  premiumCents: number;
+  premiumThresholdCents: number;       <span class="c">// usage &gt;= ⇒ Premium</span>
+  <span class="add">apiThresholdCents: number;</span>           <span class="c">// usage &lt;  ⇒ stay on metered API</span>
+  basis: UsageBasis;
+  population: Population;
+};
+
+export type ScenarioResult = {
+  rows: ScenarioRow[];
+  count: number;
+  baselineCents: number;
+  allStandardCents: number;
+  allPremiumCents: number;
+  rightSizedCents: number;
+  premiumCount: number;
+  standardCount: number;
+  <span class="add">apiCount: number;</span>                    <span class="c">// keys kept metered</span>
+};</code></pre>
+
+<h4>3.2 <code>mapSeat</code> — three-way, Premium-first so any threshold order is sane</h4>
+<pre><code>export function mapSeat(
+  usageCents: number,
+  inputs: ScenarioInputs,
+): { tier: SeatTier; seatCents: number } {
+  <span class="add">if (usageCents &gt;= inputs.premiumThresholdCents)
+    return { tier: "premium", seatCents: inputs.premiumCents };
+  if (usageCents &lt; inputs.apiThresholdCents)
+    return { tier: "api", seatCents: usageCents };   // metered — pays its own burn
+  return { tier: "standard", seatCents: inputs.standardCents };</span>
+}</code></pre>
+<p class="c">Setting <code>seatCents = usageCents</code> for the API band is the key trick: the per-user
+  <code>deltaCents (= seatCents − usageCents)</code> becomes <strong>0</strong> (the table shows “—”, no change), and the
+  <code>seatCents</code> column still sums to <code>rightSizedCents</code> in the footer.</p>
+
+<h4>3.3 <code>computeScenarios</code> — tally the third band</h4>
+<pre><code>let premiumCount = 0;<span class="add">  let apiCount = 0;</span>
+<span class="c">// inside pool.map → after const { tier, seatCents } = mapSeat(...)</span>
+if (tier === "premium") premiumCount += 1;<span class="add">
+else if (tier === "api") apiCount += 1;</span>
+<span class="c">// rightSizedCents += seatCents  ← unchanged; API rows add their own usage</span>
+
+return {
+  /* …unchanged… */
+  premiumCount,
+  <span class="add">apiCount,</span>
+  standardCount: count - premiumCount<span class="add"> - apiCount</span>,
+};</code></pre>
+<p><code>baselineCents</code>, <code>allStandardCents</code>, <code>allPremiumCents</code>, <code>usageForUser</code> and
+  <code>classifyMonths</code> are <strong>untouched</strong>. The All&nbsp;→&nbsp;Standard / All&nbsp;→&nbsp;Premium
+  totals stay naïve by design.</p>
+
+<!-- ============================================================ -->
+<h2 id="ui">4 · UI changes</h2>
+<p>File: <code>src/app/scenarios/api-subscription/api-subscription-client.tsx</code>.</p>
+
+<h4>4.1 New state + input wiring</h4>
+<pre><code>const [apiThresholdDollars, setApiThresholdDollars] = useState(
+  Math.round(dataset.defaultStandardCents / 100),   <span class="c">// $25 on live data</span>
+);
+<span class="c">// fold into the existing useMemo ScenarioInputs:</span>
+apiThresholdCents: Math.max(0, Math.round(apiThresholdDollars * 100)),
+<span class="c">// reset(): setApiThresholdDollars(Math.round(dataset.defaultStandardCents / 100));</span></code></pre>
+
+<h4>4.2 The control — a second slider, paired with the Premium one</h4>
+<p>To keep the 4-column instrument panel, group <strong>both</strong> sliders in one “Seat thresholds” cell: the API
+  floor stacked above the Premium ceiling, with a three-way mix readout below. Two native
+  <code>&lt;input type="range"&gt;</code>s (no new dependency — consistent with the original decision). The API slider:
+  <code>min 0 · max 100 · step 5</code>, accent-filled, mono readout, <code>aria-label="API threshold, keep keys below
+  this metered"</code>.</p>
+<pre><code><span class="c">// readout under the pair — replaces the old 2-way line</span>
+&lt;span className="text-faint"&gt;{result.apiCount}&lt;/span&gt; API ·
+&lt;span className="text-ink"&gt;{result.standardCount}&lt;/span&gt; Standard ·
+&lt;span className="text-ink"&gt;{result.premiumCount}&lt;/span&gt; Premium</code></pre>
+
+<h4>4.3 Clamp — API floor must not exceed the Premium ceiling</h4>
+<pre><code>function onApiThreshold(v: number) {
+  setApiThresholdDollars(Math.min(v, thresholdDollars));        <span class="c">// can't pass Premium</span>
+}
+function onPremiumThreshold(v: number) {
+  setThresholdDollars(v);
+  if (apiThresholdDollars &gt; v) setApiThresholdDollars(v);       <span class="c">// drag the floor down with it</span>
+}</code></pre>
+
+<h4>4.4 Right-sized scenario card / bar / verdict / KPI</h4>
+<ul>
+  <li class="note"><strong>Scenario card &amp; bar</strong> (the “Threshold mix” / “Right-sized” entry): <code>barSub</code>
+    and <code>mix</code> become <code>{apiCount}A · {standardCount}S · {premiumCount}P</code> and
+    <code>{premiumCount} Premium · {standardCount} Standard · {apiCount} metered API</code>.</li>
+  <li class="note"><strong>Verdict line</strong>: “Moving {count} keys to {premiumCount} Premium + {standardCount}
+    Standard seats and keeping <span class="add">{apiCount} light keys metered</span> costs {rightSized}/mo — {phrase}
+    the {baseline}/mo API run-rate.” The save/cost tone logic is unchanged.</li>
+  <li class="note"><strong>KPI #4</strong> “Heavy users ≥ threshold” → repurpose to the three-way split, or keep it and
+    add the mix to the threshold readout. Minimal: leave the KPI, surface <code>apiCount</code> in the readout (4.2).</li>
+</ul>
+
+<h4>4.5 Per-user table</h4>
+<ul>
+  <li class="note"><code>SeatPill</code> gains an <code>"api"</code> variant — a muted/dashed pill labelled
+    <code>API</code> (greyscale, distinct from the outlined Standard/Premium pills). Keep it in the Nothing palette
+    (<code>text-faint</code> / dashed <code>border-input</code>).</li>
+  <li class="note"><strong>Seat $/mo</strong> cell for API rows shows the metered figure (<code>= API basis</code>) so the
+    footer total still equals <code>rightSizedCents</code>; the <strong>Δ seat − API</strong> cell shows “—” (delta 0).</li>
+  <li class="note">Footer mix string: <code>{premiumCount}P / {standardCount}S / {apiCount} API</code>.</li>
+  <li class="note">Sort key <code>"tier"</code>: rank <code>api &lt; standard &lt; premium</code> (e.g. 0/1/2) so the
+    column sorts cleanly across all three.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="defaults">5 · Defaults, clamping &amp; data</h2>
+<table>
+  <thead><tr><th>Concern</th><th>Decision</th></tr></thead>
+  <tbody>
+    <tr><td>Default value</td><td><code>apiThresholdCents = dataset.defaultStandardCents</code> ($25 on live data). “Reset
+      to live” restores it alongside the seat prices. Independent of the Standard <em>price</em> input thereafter (same
+      pattern the Premium threshold already follows).</td></tr>
+    <tr><td>Data / schema</td><td>None. <code>defaultStandardCents</code> already rides on <code>ApiSubscriptionDataset</code>
+      from <code>access_tiers</code> — no query change in <code>queries.ts</code>.</td></tr>
+    <tr><td>Ordering invariant</td><td>UI clamps <code>apiThreshold ≤ premiumThreshold</code> (§4.3). The engine is robust
+      regardless (Premium-first), so a bad order can never produce a negative/empty count.</td></tr>
+    <tr><td>Zero floor</td><td><code>apiThreshold = 0</code> ⇒ no key is ever kept metered ⇒ exactly the pre-increment
+      behaviour. The feature is a strict superset; $0 reproduces the old numbers.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="anchors">6 · Regression anchors (these change)</h2>
+<div class="callout bad">
+  <strong>Heads-up: the default headline numbers move.</strong> Because the API threshold defaults to $25 (not $0), the
+  shipped tests asserting <code>rightSizedCents === 207500</code> (all) and <code>=== 177500</code> (active)
+  <strong>will fail and must be updated</strong>. This is the intended behaviour change, recomputed on the same
+  2026-06-09 live fixture (avg of Mar/Apr/May complete months):
+</div>
+
+<table>
+  <thead><tr><th>Population</th><th>Mix (API · Std · Prem)</th><th>Right-sized /mo</th><th>vs metered baseline</th></tr></thead>
+  <tbody>
+    <tr><td><strong>All 47 keys</strong></td><td>16 · 22 · 9</td>
+      <td><code>177591</code> <span class="c">($1,775.91)</span> <span class="del">was 207500</span></td>
+      <td>baseline <code>304140</code> → <span class="s">−$1,265.49/mo (42%)</span> <span class="c">(was 32%)</span></td></tr>
+    <tr><td><strong>Active 43</strong></td><td>16 · 20 · 7</td>
+      <td><code>147591</code> <span class="c">($1,475.91)</span> <span class="del">was 177500</span></td>
+      <td>baseline <code>241620</code> → <span class="s">−$940.29/mo (39%)</span></td></tr>
+  </tbody>
+</table>
+<p class="c">Verified by re-running the engine logic over the existing <code>REAL[]</code> fixture in
+  <code>tests/unit/scenarios/api-subscription.test.ts</code>. <code>baselineCents</code>,
+  <code>allStandardCents</code> (117500), <code>allPremiumCents</code> (587500) and <code>premiumCount</code> (9 / 7) are
+  unchanged — only the right-sized split and total move. The 38 old “Standard” keys now split <strong>22 Standard + 16
+  metered API</strong>; the 16 metered keys contribute <code>$100.91/mo</code> of real spend (not 16 × $25 = $400).</p>
+
+<h4>New / updated test cases</h4>
+<ul>
+  <li class="check"><code>mapSeat</code> band boundaries: <code>2499 ⇒ api (seatCents 2499)</code>,
+    <code>2500 ⇒ standard</code>, <code>12499 ⇒ standard</code>, <code>12500 ⇒ premium</code> — all at
+    <code>apiThresholdCents 2500</code>.</li>
+  <li class="check"><code>computeScenarios</code> default anchors → <code>{ apiCount:16, standardCount:22, premiumCount:9,
+    rightSizedCents:177591 }</code>; active → <code>{16, 20, 7, 147591}</code>.</li>
+  <li class="check"><code>apiThresholdCents: 0</code> reproduces the legacy figures (<code>207500</code> / <code>177500</code>)
+    — proves the superset property.</li>
+  <li class="check">API row invariants: <code>tier==="api" ⇒ seatCents === usageCents ⇒ deltaCents === 0</code>; footer
+    <code>Σ seatCents === rightSizedCents</code>.</li>
+  <li class="check">Update <code>baseInputs</code> in the test file to include <code>apiThresholdCents</code> (set 0 where a
+    test means to preserve old behaviour, 2500 where it asserts the new defaults).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="manifest">7 · File manifest</h2>
+<table>
+  <thead><tr><th>File</th><th></th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/lib/scenarios/api-subscription.ts</code></td><td><span class="pill warn">edit</span></td>
+      <td><code>SeatTier</code> + <code>"api"</code>; <code>apiThresholdCents</code> on <code>ScenarioInputs</code>;
+        <code>apiCount</code> on <code>ScenarioResult</code>; three-way <code>mapSeat</code>; tally in
+        <code>computeScenarios</code>.</td></tr>
+    <tr><td><code>src/app/scenarios/api-subscription/api-subscription-client.tsx</code></td><td><span class="pill warn">edit</span></td>
+      <td>API-threshold state + slider, clamp, three-way readouts (card/bar/verdict/KPI/table footer), API
+        <code>SeatPill</code> variant, tier sort ranking.</td></tr>
+    <tr><td><code>tests/unit/scenarios/api-subscription.test.ts</code></td><td><span class="pill warn">edit</span></td>
+      <td><code>baseInputs</code> + new band/anchor/superset cases (§6).</td></tr>
+    <tr><td><code>src/lib/scenarios/queries.ts</code></td><td><span class="pill neutral">none</span></td>
+      <td>No change — <code>defaultStandardCents</code> already supplied.</td></tr>
+    <tr><td><code>src/lib/scenarios/types.ts</code></td><td><span class="pill neutral">none</span></td>
+      <td>No change — dataset shape unchanged.</td></tr>
+    <tr><td><code>specs/035-scenario-calculators/prototype.html</code></td><td><span class="pill new">opt</span></td>
+      <td>Optional later refresh to show the three-band split; not required.</td></tr>
+    <tr><td><code>CLAUDE.md</code></td><td><span class="pill warn">edit</span></td><td>“Recent Changes” line for the increment.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="phases">8 · Phasing</h2>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 1 — Engine + tests (TDD)</h3><span class="phase-meta">~0.25 day</span></div>
+  <ul>
+    <li class="check">Add the type changes (§3.1); update <code>baseInputs</code> &amp; write the new anchor/boundary/superset
+      tests (§6) <em>first</em> — they should fail.</li>
+    <li class="check">Implement three-way <code>mapSeat</code> + the <code>apiCount</code> tally (§3.2–3.3) until green.</li>
+    <li class="check"><code>pnpm test tests/unit/scenarios</code> — anchors 177591 / 147591 pass.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 2 — Client UI</h3><span class="phase-meta">~0.25–0.5 day</span></div>
+  <ul>
+    <li class="check">State + input + clamp (§4.1, 4.3); paired-slider control (§4.2).</li>
+    <li class="check">Three-way readouts: card <code>mix</code>/<code>barSub</code>, verdict, KPI, table footer (§4.4).</li>
+    <li class="check">API <code>SeatPill</code> variant + tier sort ranking + “—” delta / metered seat cell (§4.5).</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-head"><h3>Phase 3 — Polish &amp; gates</h3><span class="phase-meta">~0.1 day</span></div>
+  <ul>
+    <li class="check">a11y: slider <code>aria-label</code>, keyboard reach, SR-sane mix readout.</li>
+    <li class="check">Design-token pass on the API pill / band viz (Nothing greyscale; no hardcoded hex).</li>
+    <li class="check"><code>pnpm lint</code> (zero warnings), <code>pnpm typecheck</code>, <code>pnpm format</code>.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="risks">9 · Risks &amp; decisions</h2>
+<table>
+  <thead><tr><th>Topic</th><th>Decision / mitigation</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Default figures shift</strong></td><td>Intended. Documented in §6 with recomputed anchors; the $0
+      superset test pins the legacy numbers so the change is auditable.</td></tr>
+    <tr><td>Should All→Standard adopt the floor?</td><td><strong>No.</strong> Those two cards are naïve “everyone on one
+      seat” baselines — their job is to show the waste the right-sized mix avoids. Only the right-sized scenario gets the
+      floor.</td></tr>
+    <tr><td>Threshold ordering</td><td>UI clamps <code>api ≤ premium</code>; engine is Premium-first so it never breaks
+      even if fed an inverted pair (defensive).</td></tr>
+    <tr><td>“API” seat cost = usage</td><td>Makes delta 0 and keeps the footer total honest. The Seat&nbsp;$/mo cell
+      duplicating the API-basis cell is acceptable signal (“no change”); a “metered” text label is an alternative.</td></tr>
+    <tr><td>Capacity caveat still holds</td><td>The all-Standard warning (“a $25 seat may not cover a $287 user”) is
+      unaffected; the API floor is about the <em>bottom</em> of the distribution, not the top.</td></tr>
+    <tr><td>Naming</td><td>“API threshold” (keep-below-metered) reads symmetrically with “Premium threshold”
+      (promote-above). Confirm the label wording with the user if “metered floor” is preferred.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="accept">10 · Acceptance checklist</h2>
+<ul>
+  <li class="check">An <strong>API threshold</strong> control appears, defaulting to $25 (live Standard price); “Reset to
+    live” restores it.</li>
+  <li class="check">Keys below the threshold render as <code>API</code> seats, contribute their metered spend (not a seat
+    price) to the right-sized total, and show a “—” delta.</li>
+  <li class="check">Right-sized card/bar/verdict/KPI/table all read three-way (API · Standard · Premium).</li>
+  <li class="check">Dragging the API threshold up moves keys API→Standard and re-totals live; it can never exceed the
+    Premium threshold.</li>
+  <li class="check">Default view reproduces the §6 anchors (47 → 16·22·9 → $1,775.91/mo; active → 16·20·7 →
+    $1,475.91/mo); <code>apiThreshold=0</code> reproduces the legacy $2,075 / $1,775.</li>
+  <li class="check"><code>lint</code> / <code>typecheck</code> / <code>format</code> clean; unit tests green with the new
+    anchors.</li>
+</ul>
+
+<footer>
+  AI Developer Hub · spec/035-scenario-calculators · API-threshold increment · drafted 2026-06-09 · companions:
+  implementation-plan.html · prototype.html
+</footer>
+
+</main>
+</body>
+</html>

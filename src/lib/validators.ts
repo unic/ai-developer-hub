@@ -155,10 +155,93 @@ export const deleteBilledCostSchema = z.object({
   id: z.number().int().positive(),
 });
 
-// Update budget total
-export const updateBudgetTotalSchema = z.object({
+// ── Budget Extensions (spec 026) ─────────────────────────────────────────
+// (The former updateBudgetTotalSchema was removed with the updateBudgetTotal
+// action — ceiling changes now go through budget extensions only.)
+
+export const budgetExtensionCategorySchema = z.enum([
+  "new_tool",
+  "scope_increase",
+  "seat_increase",
+  "vendor_price_increase",
+  "reallocation",
+  "other",
+]);
+
+/**
+ * Discriminated union describing how the user wants the extension's
+ * amount distributed across budget periods. The server uses this to
+ * compute per-period deltas and write the join rows.
+ */
+export const budgetExtensionAllocationSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("unallocated") }),
+  z.object({ mode: z.literal("distribute_remaining") }),
+  z.object({
+    mode: z.literal("single_period"),
+    periodId: z.number().int().positive(),
+  }),
+  z.object({
+    mode: z.literal("custom"),
+    allocations: z
+      .array(
+        z.object({
+          periodId: z.number().int().positive(),
+          amountCents: z.number().int(),
+        })
+      )
+      .min(1),
+  }),
+]);
+
+/**
+ * Postgres INTEGER (32-bit) max ≈ $21.4M. Cap individual extensions at $20M so
+ * a budget total can fit a few of them without overflowing the column. Shared
+ * with the dialog's client-side parser (extension-form.ts) so the UI can never
+ * accept a value the server rejects — and vice versa.
+ */
+export const MAX_EXTENSION_CENTS = 2_000_000_000;
+
+export const createBudgetExtensionSchema = z.object({
   budgetId: z.number().int().positive(),
-  totalAmountCents: z.number().int().positive("Budget must be positive"),
+  // Non-zero — positive extension or negative reduction. The DB has a
+  // matching CHECK constraint as defense-in-depth.
+  amountCents: z
+    .number()
+    .int()
+    .refine((n) => n !== 0, { message: "Amount must be non-zero" })
+    .refine((n) => Math.abs(n) <= MAX_EXTENSION_CENTS, {
+      message: "Amount exceeds the maximum supported value",
+    }),
+  reason: z.string().trim().min(3).max(120),
+  description: z.string().trim().max(2000).optional(),
+  category: budgetExtensionCategorySchema,
+  linkedToolId: z.number().int().positive().optional(),
+  effectiveDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date")
+    .refine(
+      (s) => {
+        // Reject calendar-invalid dates like "2026-13-99" or "2026-02-30"
+        // that pass the regex but don't round-trip through Date.
+        const d = new Date(`${s}T00:00:00Z`);
+        return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+      },
+      { message: "Date does not exist on the calendar" }
+    ),
+  allocation: budgetExtensionAllocationSchema,
+});
+
+export const updateBudgetExtensionSchema = z.object({
+  extensionId: z.number().int().positive(),
+  reason: z.string().trim().min(3).max(120).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  category: budgetExtensionCategorySchema.optional(),
+  // null = unset the tool link; undefined = leave unchanged
+  linkedToolId: z.number().int().positive().nullable().optional(),
+});
+
+export const deleteBudgetExtensionSchema = z.object({
+  extensionId: z.number().int().positive(),
 });
 
 // Update user (partial)

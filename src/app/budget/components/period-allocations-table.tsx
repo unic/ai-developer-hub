@@ -203,6 +203,23 @@ export function PeriodAllocationsTable({
                       ) : (
                         formatCurrency(planned)
                       )}
+                      {period.extensionAmountCents !== 0 && (
+                        <a
+                          href="#budget-extensions"
+                          className={`block text-xs mt-0.5 hover:underline ${
+                            period.extensionAmountCents > 0
+                              ? "text-primary"
+                              : "text-destructive"
+                          }`}
+                          title="View extensions contributing to this period"
+                        >
+                          {period.extensionAmountCents > 0 ? "+" : ""}
+                          {formatCurrency(period.extensionAmountCents)} from
+                          {period.extensionAmountCents > 0
+                            ? " extension"
+                            : " reduction"}
+                        </a>
+                      )}
                     </TableCell>
                     <TableCell>{formatCurrency(expected)}</TableCell>
                     <TableCell

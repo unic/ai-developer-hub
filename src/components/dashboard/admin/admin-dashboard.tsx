@@ -54,6 +54,7 @@ export async function AdminDashboard() {
             overview={data.overview}
             spendSeries={data.spendSeries}
             budgetCeilingCents={data.budgetCeilingCents}
+            budgetOriginalCeilingCents={data.budgetOriginalCeilingCents}
             billedYtdCents={data.billedYtdCents}
           />
         </div>

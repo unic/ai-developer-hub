@@ -5,11 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Convert integer cents to a USD number rounded to 2 decimals (`1234` → `12.34`).
+ * Guards against non-finite input by returning 0. Shared by `formatCurrency`
+ * (display) and the MCP layer (machine-readable numbers).
+ */
+export function centsToUsd(cents: number): number {
+  if (!Number.isFinite(cents)) return 0;
+  return Math.round(cents) / 100;
+}
+
 export function formatCurrency(cents: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-  }).format(cents / 100);
+  }).format(centsToUsd(cents));
 }
 
 export function formatVariance(variance: number): string {
@@ -25,7 +35,9 @@ export function varianceClassName(variance: number): string {
 }
 
 /** Normalize an optional string field: empty/undefined/null → null */
-export function normalizeField(value: string | undefined | null): string | null {
+export function normalizeField(
+  value: string | undefined | null,
+): string | null {
   if (value === undefined || value === null || value === "") return null;
   return value;
 }
@@ -49,20 +61,33 @@ export function getChangedUserFields(
     discipline: string;
     githubUsername: string | null;
     profile: string | null;
-  }
+  },
 ): string[] {
   const changed: string[] = [];
   if (row.name !== existing.name) changed.push("name");
-  if (row.circle !== undefined && normalizeField(row.circle) !== existing.circle) changed.push("circle");
-  if (row.role !== undefined && row.role !== existing.role) changed.push("role");
+  if (
+    row.circle !== undefined &&
+    normalizeField(row.circle) !== existing.circle
+  )
+    changed.push("circle");
+  if (row.role !== undefined && row.role !== existing.role)
+    changed.push("role");
   if (
     row.disciplineProvided &&
     row.discipline !== undefined &&
     row.discipline !== existing.discipline
   )
     changed.push("discipline");
-  if (row.githubUsername !== undefined && normalizeField(row.githubUsername) !== existing.githubUsername) changed.push("githubUsername");
-  if (row.profile !== undefined && normalizeField(row.profile) !== existing.profile) changed.push("profile");
+  if (
+    row.githubUsername !== undefined &&
+    normalizeField(row.githubUsername) !== existing.githubUsername
+  )
+    changed.push("githubUsername");
+  if (
+    row.profile !== undefined &&
+    normalizeField(row.profile) !== existing.profile
+  )
+    changed.push("profile");
   return changed;
 }
 
@@ -74,7 +99,7 @@ export function getCurrentMonth(): string {
 /** End of the previous calendar month, 23:59:59.999 UTC. */
 export function getLastMonthEnd(now: Date = new Date()): Date {
   const firstOfThisMonth = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
   );
   return new Date(firstOfThisMonth.getTime() - 1);
 }
@@ -86,7 +111,7 @@ export function getLastMonthEnd(now: Date = new Date()): Date {
 export function projectMonthEnd(
   mtdCents: number,
   daysElapsed: number,
-  daysInMonth: number
+  daysInMonth: number,
 ): number {
   if (daysElapsed === 0) return 0;
   return Math.round((mtdCents / daysElapsed) * daysInMonth);
@@ -139,7 +164,9 @@ export function formatUtcDateOnly(d: Date): string {
  * keyed to UTC, so the projection denominator can't skew at a UTC month boundary.
  */
 export function getUtcDaysInMonth(d: Date): number {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
+  ).getUTCDate();
 }
 
 // Sentinel values for faceted filters on nullable columns.
@@ -153,7 +180,9 @@ export const NO_WORKSPACE_SENTINEL = "__no_workspace__";
  * `/reports` so legacy "n/a"/"none" sentinels collapse with real nulls. Do not reuse for persistence
  * paths without coordinating, since user import/update flows currently rely on `normalizeField`.
  */
-export function normalizeCircle(circle: string | null | undefined): string | null {
+export function normalizeCircle(
+  circle: string | null | undefined,
+): string | null {
   if (circle === null || circle === undefined) return null;
   const trimmed = circle.trim();
   if (trimmed === "") return null;
