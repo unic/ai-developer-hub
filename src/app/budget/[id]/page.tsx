@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getBudgetWithCosts } from "@/actions/budget";
+import { getTools } from "@/actions/tools";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
 import type { RunningCostsResult } from "@/lib/budget-utils";
 import { BudgetDetailClient } from "../components/budget-detail-client";
@@ -21,9 +22,10 @@ export default async function BudgetDetailPage({
   const budget = await getBudgetWithCosts(budgetId);
   if (!budget) notFound();
 
-  const runningCostsResults = await Promise.all(
-    budget.periods.map((p) => getRunningCostsForPeriod(p.id))
-  );
+  const [runningCostsResults, allTools] = await Promise.all([
+    Promise.all(budget.periods.map((p) => getRunningCostsForPeriod(p.id))),
+    getTools(),
+  ]);
   const runningCosts: Record<number, RunningCostsResult> = {};
   budget.periods.forEach((p, i) => {
     const result = runningCostsResults[i];
@@ -31,6 +33,9 @@ export default async function BudgetDetailPage({
       runningCosts[p.id] = result;
     }
   });
+  const tools = allTools
+    .filter((t) => t.status === "active")
+    .map((t) => ({ id: t.id, name: t.name }));
 
   return (
     <AuthGuard requiredRole="admin">
@@ -38,6 +43,7 @@ export default async function BudgetDetailPage({
         budget={budget}
         isAdmin={isAdmin}
         runningCosts={runningCosts}
+        tools={tools}
         showBreadcrumb
       />
     </AuthGuard>

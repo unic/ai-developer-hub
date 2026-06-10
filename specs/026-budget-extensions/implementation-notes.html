@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Budget Extensions — Implementation Notes</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0);
+      --primary: oklch(0.78 0.19 120);
+      --primary-foreground: oklch(0.18 0 0);
+      --secondary: oklch(0.96 0 0);
+      --muted: oklch(0.96 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.95 0.03 120);
+      --accent-foreground: oklch(0.20 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --border: oklch(0.91 0 0);
+      --code-bg: oklch(0.97 0 0);
+    }
+    .dark {
+      --background: oklch(0.16 0 0);
+      --foreground: oklch(0.97 0 0);
+      --card: oklch(0.21 0 0);
+      --primary: oklch(0.78 0.19 120);
+      --secondary: oklch(0.25 0 0);
+      --muted: oklch(0.25 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --accent: oklch(0.25 0.03 120);
+      --accent-foreground: oklch(0.98 0 0);
+      --destructive: oklch(0.704 0.191 22.216);
+      --border: oklch(1 0 0 / 10%);
+      --code-bg: oklch(0.22 0 0);
+    }
+    html, body {
+      font-family: "Inter", system-ui, sans-serif;
+      background: var(--background); color: var(--foreground);
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 0.625rem; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.125rem 0.5rem; border-radius: 9999px;
+      font-size: 0.75rem; font-weight: 500; line-height: 1.2;
+    }
+    .badge-decision { background: var(--accent); color: var(--accent-foreground); }
+    .badge-deviation { background: var(--destructive); color: white; }
+    .badge-tradeoff { background: var(--secondary); color: var(--foreground); border: 1px solid var(--border); }
+    .badge-open { background: var(--primary); color: var(--primary-foreground); }
+    code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    code.inline { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; border: 1px solid var(--border); }
+    pre.code-block { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 12.5px; overflow-x: auto; }
+    .text-muted { color: var(--muted-foreground); }
+    .border-default { border-color: var(--border); }
+    .topbar { height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 1.5rem; gap: 1rem; background: var(--background); position: sticky; top: 0; z-index: 5; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.875rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; }
+    .btn-secondary { background: var(--secondary); color: var(--foreground); border: 1px solid var(--border); }
+    .note-card { display: grid; grid-template-columns: 110px 1fr; gap: 16px; padding: 18px; }
+    .note-meta { font-size: 12px; color: var(--muted-foreground); }
+    .note-meta .badge { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="font-medium text-sm">📓 Budget Extensions · Implementation Notes</div>
+    <div class="ml-auto text-xs text-muted">Updated as work progresses</div>
+    <button id="theme-toggle" class="btn btn-secondary">Theme</button>
+  </header>
+
+  <main class="max-w-[1080px] mx-auto px-6 py-10 space-y-8">
+
+    <section>
+      <h1 class="text-3xl font-semibold">Implementation notes</h1>
+      <p class="text-sm text-muted mt-2 max-w-2xl">
+        Companion to <code class="inline">implementation-plan.html</code>. Captures decisions, deviations, tradeoffs, and open questions as the plan is executed.
+        Newest entries at the top.
+      </p>
+    </section>
+
+    <!-- Entries will be inserted in reverse chronological order below this point -->
+    <section id="entries" class="space-y-4">
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-open">Open</span>
+          <div>Code review · follow-ups</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Findings the code-review surfaced that I'm deferring:</strong>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>TOCTOU on totalAmountCents / plannedAmountCents.</strong> createBudgetExtension reads outside the transaction and writes either an absolute value (ceiling) or relative arithmetic (periods). Two concurrent extensions on the same budget can produce a ceiling that disagrees with the sum of extension rows, or drive a period planned amount negative. <strong>Single-admin app today; no SELECT FOR UPDATE added.</strong> Same shape exists in the existing <code class="inline">updateBudgetAllocations</code> and <code class="inline">updateBudgetTotal</code> actions, so this is a codebase-wide concurrency model, not a new regression.</li>
+            <li><strong><code class="inline">updateBudgetTotal</code> still mutates <code class="inline">totalAmountCents</code> directly</strong> without touching <code class="inline">originalAmountCents</code>. After it runs on an already-extended budget, the hero's "baseline + extended" math is misleading. Per the concept doc / plan section "Open questions Q2", this action is kept working in v1 and a follow-up is supposed to either remove it from the UI or convert each call into a synthetic "other" extension. Filed as follow-up; not blocking.</li>
+            <li><strong><code class="inline">updateBudgetExtension</code> action has no UI caller yet.</strong> Schema + action + tests are in place; the edit dialog is intentionally out of scope for v1 (the plan calls amount/effectiveDate immutable and pushes other edits through delete-and-recreate). Keeping the action so a future edit-extension dialog has a stable contract.</li>
+            <li><strong><code class="inline">recordCreation</code> outside the transaction.</strong> If the audit-insert fails after the tx commits, the extension persists with no history row. This matches the existing <code class="inline">createBudget</code> pattern verbatim — changing it would diverge from a convention the whole codebase relies on. Future refactor: thread <code class="inline">recordCreation</code>'s optional <code class="inline">txClient</code> param through.</li>
+            <li><strong><code class="inline">getBudgetWithCosts</code> spreads <code class="inline">{...e}</code></strong> which leaks <code class="inline">linkedTool: {name}</code> / <code class="inline">creator: {name}</code> into the RSC payload alongside the flattened <code class="inline">linkedToolName</code> / <code class="inline">createdByName</code>. Bytes wasted but no functional bug; type contract is the source of truth. Cheap to fix later by destructuring explicitly.</li>
+            <li><strong><code class="inline">linkedToolId</code> uses <code class="inline">ON DELETE SET NULL</code>.</strong> Deleting an AI tool silently strips attribution from historical extensions — including on archived budgets the action layer treats as immutable. Deliberate: deleting a tool is rare and a tighter constraint would prevent it entirely. If the audit trail of "which tool funded this" becomes load-bearing, denormalize <code class="inline">tool_name</code> onto the extension row at create time.</li>
+            <li><strong>Drizzle relations asymmetric</strong> — <code class="inline">aiTools</code> and <code class="inline">users</code> don't declare inverse <code class="inline">many(budgetExtensions)</code>. Forward queries work; reverse queries would fail. No current call site needs reverse, so this is latent. Cheap fix in a future PR.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-deviation">Deviation</span>
+          <div>Code review · fixes</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Six issues the code-review surfaced that I fixed before merge:</strong>
+          <ol class="list-decimal pl-5 space-y-1">
+            <li><strong>Stale <code class="inline">allocations</code> state</strong> — added a <code class="inline">useEffect</code> keyed on <code class="inline">budget.updatedAt</code> in <code class="inline">budget-detail-client.tsx</code>. Without it, creating an extension would bump <code class="inline">plannedAmountCents</code> server-side but the local input would still show the old value, and the next "Save Allocations" click would silently write the pre-extension values back. <em>This is the most impactful finding from the review.</em></li>
+            <li><strong>Hero "+ −$X" rendering for net reductions</strong> — the hard-coded "+" between baseline and the variance badge produced "$X baseline + -$Y extended" for reductions. Now conditionally renders "+ extended" or "− reduced" with <code class="inline">formatCurrency(Math.abs(…))</code>.</li>
+            <li><strong><code class="inline">deleteBudgetExtension</code> missing negative-planned guard</strong> — symmetric with create. Added a pre-tx check that refuses the reversal when any affected period would go below zero (which happens if the user manually lowered planned via <code class="inline">updateBudgetAllocations</code> after the extension was created).</li>
+            <li><strong>Single-period picker offered closed periods</strong> — now disables periods whose <code class="inline">endDate</code> is before today, with a "(closed)" hint. Kept the items visible but disabled so backfill workflows aren't blocked.</li>
+            <li><strong>Amount input parsing</strong> — rewrote <code class="inline">extensionFormToActionInput</code> to (a) strip thousands separators, (b) reject scientific notation / leading "+" / stray characters via a strict regex, and (c) cap at $20M per extension so users get a clear error instead of an INT32 overflow at the DB.</li>
+            <li><strong>Zod calendar-date validation</strong> — added a <code class="inline">.refine()</code> to <code class="inline">createBudgetExtensionSchema.effectiveDate</code> that round-trips through <code class="inline">Date</code>, so "2026-13-99" / "2026-02-30" now fail with a clean validation error instead of a raw Postgres 22008.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-tradeoff">Tradeoff</span>
+          <div>Phase 2</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong><code class="inline">updateBudgetExtension</code> deliberately cannot edit <code class="inline">amountCents</code>, <code class="inline">effectiveDate</code>, or the allocation breakdown.</strong> The plan called those out as immutable to keep the audit trail clean — re-doing an extension goes through delete + create. The validator's <code class="inline">updateBudgetExtensionSchema</code> only accepts <code class="inline">reason</code>, <code class="inline">description</code>, <code class="inline">category</code>, <code class="inline">linkedToolId</code>. If you later want amount edits, the cleanest path is to add a separate "adjust extension" action that creates a new extension equal to the delta — never a partial update — so each row stays a single moment in the audit trail.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Phase 2</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>Distribute-remaining rounding goes to the first period.</strong> When the user picks <em>distribute_remaining</em> and the amount doesn't divide evenly across the target periods, the integer remainder is added to the first period in the target set. Keeps the sum exact (so the join-row totals equal <code class="inline">amountCents</code>) without introducing fractional cents. Alternatives considered: spread one extra cent across the first N periods until exhausted (more uniform but harder to explain); store the original per-period amount as a fraction (defeats the "money is integer cents" rule). The single-bucket dump is simplest and the variance is at most ~$0.11 in the worst case (12 periods).
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Phase 2</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>"Distribute remaining" falls back to all periods when <code class="inline">effectiveDate</code> is before every period's end.</strong> A backdated extension covering the whole year would otherwise hit "no remaining periods" and fail. Falling back to <em>all</em> periods matches user intent — "I'm documenting a year-round bump." Documented in the action; tested implicitly.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-deviation">Deviation</span>
+          <div>Phase 1</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>Storage strategy:</strong> the plan committed to "mutate <code class="inline">totalAmountCents</code> live and store <code class="inline">originalAmountCents</code> alongside" — chosen so the ~8 existing read sites (hero, period table, forecast, dashboard, reports) keep working unchanged. The concept doc's original semantics (effective ceiling derived from a separate extensions table) are equivalent; this is purely a representation choice. The <code class="inline">budget_extensions</code> table and the <code class="inline">budget_extension_period_allocations</code> join still exist as the source of truth for "why did the ceiling move" and for cleanly reversing on delete.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Phase 1</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>Added two indexes beyond what the plan listed</strong> — <code class="inline">budget_extensions_linked_tool_idx</code> and <code class="inline">budget_extensions_created_by_idx</code>. The drizzle-migration-reviewer subagent flagged the rest of the schema indexes every FK; these two were the only un-indexed FKs in the new tables. Cheap insurance against lock escalation on the rare event a tool or user row is removed, and aligns with the codebase pattern.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-deviation">Deviation</span>
+          <div>Phase 1</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>Backfill is in the same migration as the column add.</strong> The plan said "after pnpm db:generate, hand-edit the SQL so the order is ADD (nullable) → UPDATE backfill → SET NOT NULL" — that's what I did. Drizzle generated <code class="inline">ADD COLUMN ... NOT NULL</code> which would fail on a non-empty table. The hand-edit splits it into the three-step pattern; <code class="inline">0022_far_aaron_stack.sql</code> shows it explicitly with a comment.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-tradeoff">Tradeoff</span>
+          <div>Phase 1</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>Made <code class="inline">ForecastOptions.originalCeilingCents</code> optional with fallback to <code class="inline">budgetCeilingCents</code>.</strong> The alternative was to update the 13 unit-test cases in <code class="inline">tests/unit/forecast.test.ts</code> to pass it explicitly. Optional-with-fallback is semantically correct (un-extended budgets <em>do</em> have original == effective) and keeps the test surface narrow. Production code paths still pass it explicitly via <code class="inline">buildBudgetForecast</code>.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Phase 0 · prep</div>
+        </div>
+        <div class="text-sm leading-relaxed">
+          <strong>Notes file initialized.</strong> The plan calls out five "phases" inside a single PR. I'll treat each phase as a commit checkpoint and record notes against the phase it relates to. If a note straddles phases, I'll mention all relevant ones.
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+    });
+  </script>
+</body>
+</html>

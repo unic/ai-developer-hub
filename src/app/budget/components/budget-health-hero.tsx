@@ -217,6 +217,19 @@ export function BudgetHealthHero({ budget, runningCosts, allocations }: Props) {
             <p className="text-2xl font-semibold tabular-nums">
               {formatCurrency(ceiling)}
             </p>
+            {budget.originalAmountCents !== ceiling && (
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums flex items-center gap-1.5 justify-end">
+                <span>{formatCurrency(budget.originalAmountCents)} baseline</span>
+                {/* Sign rendered inline so the badge doesn't carry its own '-' twice */}
+                <span aria-hidden>{ceiling > budget.originalAmountCents ? "+" : "−"}</span>
+                <a
+                  href="#budget-extensions"
+                  className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-accent-foreground hover:bg-accent/80"
+                >
+                  {formatCurrency(Math.abs(ceiling - budget.originalAmountCents))} {ceiling > budget.originalAmountCents ? "extended" : "reduced"}
+                </a>
+              </p>
+            )}
             {unallocated !== 0 && (
               <p className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {unallocated > 0

@@ -30,6 +30,17 @@ export const budgetStatusEnum = pgEnum("budget_status", [
   "archived",
 ]);
 export const periodTypeEnum = pgEnum("period_type", ["monthly", "quarterly"]);
+export const budgetExtensionCategoryEnum = pgEnum(
+  "budget_extension_category",
+  [
+    "new_tool",
+    "scope_increase",
+    "seat_increase",
+    "vendor_price_increase",
+    "reallocation",
+    "other",
+  ]
+);
 export const changeTypeEnum = pgEnum("change_type", [
   "created",
   "updated",
@@ -264,7 +275,12 @@ export const annualBudgets = pgTable(
   {
     id: serial("id").primaryKey(),
     fiscalYear: integer("fiscal_year").notNull(),
+    // The live, effective ceiling. Mutated by createBudgetExtension /
+    // deleteBudgetExtension so existing read sites stay accurate without churn.
     totalAmountCents: integer("total_amount_cents").notNull(),
+    // The originally approved ceiling. Set at create time, never mutated.
+    // Effective ceiling - original = net extension delta.
+    originalAmountCents: integer("original_amount_cents").notNull(),
     periodType: periodTypeEnum("period_type").notNull(),
     status: budgetStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -298,6 +314,67 @@ export const budgetPeriods = pgTable(
       table.budgetId,
       table.periodIndex
     ),
+  ]
+);
+
+// Budget Extensions — first-class record of mid-year ceiling changes.
+// Each row records a delta to annual_budgets.totalAmountCents with a reason,
+// category, and optional tool attribution. See specs/026-budget-extensions/.
+export const budgetExtensions = pgTable(
+  "budget_extensions",
+  {
+    id: serial("id").primaryKey(),
+    budgetId: integer("budget_id")
+      .notNull()
+      .references(() => annualBudgets.id, { onDelete: "cascade" }),
+    // Non-zero. Positive = extension, negative = reduction. App-level
+    // validation enforces non-zero (Drizzle/Postgres doesn't have an easy
+    // way to express that without a CHECK constraint, but we add one below).
+    amountCents: integer("amount_cents").notNull(),
+    reason: varchar("reason", { length: 120 }).notNull(),
+    description: text("description"),
+    category: budgetExtensionCategoryEnum("category").notNull(),
+    linkedToolId: integer("linked_tool_id").references(() => aiTools.id, {
+      onDelete: "set null",
+    }),
+    effectiveDate: date("effective_date").notNull(),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("budget_extensions_budget_idx").on(table.budgetId),
+    index("budget_extensions_effective_idx").on(table.effectiveDate),
+    index("budget_extensions_linked_tool_idx").on(table.linkedToolId),
+    index("budget_extensions_created_by_idx").on(table.createdBy),
+    check("budget_extensions_amount_non_zero", sql`${table.amountCents} <> 0`),
+  ]
+);
+
+// Budget Extension Period Allocations — which periods absorbed an extension.
+// One row per (extension, period) with the contribution amount. Powers the
+// "+€X from extension" sub-label and lets delete cleanly reverse the impact.
+export const budgetExtensionPeriodAllocations = pgTable(
+  "budget_extension_period_allocations",
+  {
+    id: serial("id").primaryKey(),
+    extensionId: integer("extension_id")
+      .notNull()
+      .references(() => budgetExtensions.id, { onDelete: "cascade" }),
+    periodId: integer("period_id")
+      .notNull()
+      .references(() => budgetPeriods.id, { onDelete: "cascade" }),
+    amountCents: integer("amount_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("bepa_unique_ext_period").on(
+      table.extensionId,
+      table.periodId
+    ),
+    index("bepa_period_idx").on(table.periodId),
   ]
 );
 
@@ -952,6 +1029,7 @@ export const licenseAssignmentsRelations = relations(
 
 export const annualBudgetsRelations = relations(annualBudgets, ({ many }) => ({
   periods: many(budgetPeriods),
+  extensions: many(budgetExtensions),
 }));
 
 export const budgetPeriodsRelations = relations(budgetPeriods, ({ one, many }) => ({
@@ -960,7 +1038,41 @@ export const budgetPeriodsRelations = relations(budgetPeriods, ({ one, many }) =
     references: [annualBudgets.id],
   }),
   billedCosts: many(billedCosts),
+  extensionAllocations: many(budgetExtensionPeriodAllocations),
 }));
+
+export const budgetExtensionsRelations = relations(
+  budgetExtensions,
+  ({ one, many }) => ({
+    budget: one(annualBudgets, {
+      fields: [budgetExtensions.budgetId],
+      references: [annualBudgets.id],
+    }),
+    linkedTool: one(aiTools, {
+      fields: [budgetExtensions.linkedToolId],
+      references: [aiTools.id],
+    }),
+    creator: one(users, {
+      fields: [budgetExtensions.createdBy],
+      references: [users.id],
+    }),
+    allocations: many(budgetExtensionPeriodAllocations),
+  })
+);
+
+export const budgetExtensionPeriodAllocationsRelations = relations(
+  budgetExtensionPeriodAllocations,
+  ({ one }) => ({
+    extension: one(budgetExtensions, {
+      fields: [budgetExtensionPeriodAllocations.extensionId],
+      references: [budgetExtensions.id],
+    }),
+    period: one(budgetPeriods, {
+      fields: [budgetExtensionPeriodAllocations.periodId],
+      references: [budgetPeriods.id],
+    }),
+  })
+);
 
 export const assignmentCommentsRelations = relations(
   assignmentComments,

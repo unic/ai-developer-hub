@@ -98,6 +98,8 @@ export interface AdminDashboardData {
   sync: SyncStatus;
   activity: DashboardActivityItem[];
   budgetCeilingCents: number;
+  /** The originally approved ceiling — equal to budgetCeilingCents when not extended. */
+  budgetOriginalCeilingCents: number;
   billedYtdCents: number;
 }
 
@@ -173,6 +175,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
   );
   const billedYtdCents = trendsData.reduce((s, p) => s + p.billedCents, 0);
   const budgetCeilingCents = activeBudget?.totalAmountCents ?? 0;
+  const budgetOriginalCeilingCents = activeBudget?.originalAmountCents ?? 0;
   const budgetRemainingCents = budgetCeilingCents - billedYtdCents;
   const utilizationPct =
     budgetCeilingCents > 0 ? (billedYtdCents / budgetCeilingCents) * 100 : 0;
@@ -329,6 +332,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
     sync,
     activity,
     budgetCeilingCents,
+    budgetOriginalCeilingCents,
     billedYtdCents,
   };
 }
