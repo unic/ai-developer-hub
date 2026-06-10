@@ -222,12 +222,12 @@ export function BudgetHealthHero({ budget, runningCosts, allocations }: Props) {
                 <span>{formatCurrency(budget.originalAmountCents)} baseline</span>
                 {/* Sign rendered inline so the badge doesn't carry its own '-' twice */}
                 <span aria-hidden>{ceiling > budget.originalAmountCents ? "+" : "−"}</span>
-                <a
-                  href="#budget-extensions"
-                  className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-accent-foreground hover:bg-accent/80"
-                >
-                  {formatCurrency(Math.abs(ceiling - budget.originalAmountCents))} {ceiling > budget.originalAmountCents ? "extended" : "reduced"}
-                </a>
+                <Badge asChild variant="outline" className="hover:bg-accent/50">
+                  <a href="#budget-extensions">
+                    {formatCurrency(Math.abs(ceiling - budget.originalAmountCents))}{" "}
+                    {ceiling > budget.originalAmountCents ? "extended" : "reduced"}
+                  </a>
+                </Badge>
               </p>
             )}
             {unallocated !== 0 && (

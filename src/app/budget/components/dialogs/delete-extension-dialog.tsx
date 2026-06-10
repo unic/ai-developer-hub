@@ -10,6 +10,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  StatusText,
+  type InlineStatusState,
+} from "@/components/ui/status-text";
 import { formatCurrency, formatVariance } from "@/lib/utils";
 import type { BudgetExtensionWithAllocations } from "@/types";
 
@@ -28,6 +32,8 @@ interface Props {
   extension: BudgetExtensionWithAllocations | null;
   onConfirm: () => void;
   saving: boolean;
+  /** Inline delete feedback — rendered in the footer (no toasts in the Nothing system). */
+  status?: InlineStatusState;
 }
 
 export function DeleteExtensionDialog({
@@ -36,6 +42,7 @@ export function DeleteExtensionDialog({
   extension,
   onConfirm,
   saving,
+  status,
 }: Props) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -66,6 +73,7 @@ export function DeleteExtensionDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
+          {status && <StatusText status={status} className="sm:mr-auto" />}
           <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}

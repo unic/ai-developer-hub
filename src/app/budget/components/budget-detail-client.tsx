@@ -68,6 +68,11 @@ export function BudgetDetailClient({
   const allocStatus = useInlineStatus();
   const billedStatus = useInlineStatus();
   const deleteStatus = useInlineStatus();
+  // Two channels for extension feedback: errors render inside the open
+  // dialog (the page-level status would be hidden behind the modal overlay);
+  // success renders in the extensions card header after the dialog closes.
+  const extensionStatus = useInlineStatus();
+  const extensionDialogStatus = useInlineStatus();
   const periods = budget.periods;
   const isArchived = budget.status === "archived";
 
@@ -81,11 +86,11 @@ export function BudgetDetailClient({
   // values back.
   //
   // The trigger is the per-period planned values themselves, not
-  // budget.updatedAt — only extension create/delete, archiveBudget, and
-  // updateBudgetTotal bump annual_budgets.updated_at, while
-  // updateBudgetAllocations and billed-cost CRUD do not. Hashing the period
-  // values catches every case where the server-side planned amount changed,
-  // including future actions that don't touch annual_budgets.
+  // budget.updatedAt — only extension create/delete and archiveBudget bump
+  // annual_budgets.updated_at, while updateBudgetAllocations and billed-cost
+  // CRUD do not. Hashing the period values catches every case where the
+  // server-side planned amount changed, including future actions that don't
+  // touch annual_budgets.
   const periodsKey = periods
     .map((p) => `${p.id}:${p.plannedAmountCents}`)
     .join("|");
@@ -240,25 +245,26 @@ export function BudgetDetailClient({
 
   function openExtensionDialog() {
     setExtensionForm(makeEmptyExtensionForm());
+    extensionDialogStatus.clear();
     setExtensionDialogOpen(true);
   }
 
   async function handleSubmitExtension() {
     const converted = extensionFormToActionInput(extensionForm, budget.id);
     if (!converted.ok) {
-      toast.error(converted.error);
+      extensionDialogStatus.error(converted.error);
       return;
     }
     setExtensionSaving(true);
     const result = await createBudgetExtension(converted.input);
     setExtensionSaving(false);
     if (result.success) {
-      toast.success("Extension added");
       setExtensionDialogOpen(false);
       setExtensionForm(makeEmptyExtensionForm());
+      extensionStatus.ok("EXTENSION ADDED");
       router.refresh();
     } else {
-      toast.error(result.error);
+      extensionDialogStatus.error(result.error);
     }
   }
 
@@ -270,11 +276,11 @@ export function BudgetDetailClient({
     });
     setExtensionDeleteSaving(false);
     if (result.success) {
-      toast.success("Extension deleted");
       setExtensionDeleteTarget(null);
+      extensionStatus.ok("EXTENSION DELETED");
       router.refresh();
     } else {
-      toast.error(result.error);
+      extensionDialogStatus.error(result.error);
     }
   }
 
@@ -299,7 +305,11 @@ export function BudgetDetailClient({
         isAdmin={isAdmin}
         isArchived={isArchived}
         onAdd={openExtensionDialog}
-        onDelete={(e) => setExtensionDeleteTarget(e)}
+        onDelete={(e) => {
+          extensionDialogStatus.clear();
+          setExtensionDeleteTarget(e);
+        }}
+        statusSlot={<StatusText status={extensionStatus.status} />}
       />
 
       <Card>
@@ -368,6 +378,7 @@ export function BudgetDetailClient({
         tools={tools}
         onSubmit={handleSubmitExtension}
         saving={extensionSaving}
+        status={extensionDialogStatus.status}
       />
 
       <DeleteExtensionDialog
@@ -378,6 +389,7 @@ export function BudgetDetailClient({
         extension={extensionDeleteTarget}
         onConfirm={handleDeleteExtension}
         saving={extensionDeleteSaving}
+        status={extensionDialogStatus.status}
       />
     </div>
   );

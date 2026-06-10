@@ -16,7 +16,6 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import {
   budgetSchema,
   budgetAllocationSchema,
-  updateBudgetTotalSchema,
   billedCostSchema,
   updateBilledCostSchema,
   deleteBilledCostSchema,
@@ -215,59 +214,13 @@ export async function updateBudgetAllocations(
   return { success: true, data: undefined };
 }
 
-export async function updateBudgetTotal(
-  input: unknown
-): Promise<ActionResult<void>> {
-  const admin = await requireAdmin();
-  if (!admin) return { success: false, error: "Unauthorized" };
-
-  const parsed = updateBudgetTotalSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, error: "Validation failed" };
-  }
-
-  const { budgetId, totalAmountCents } = parsed.data;
-
-  const budget = await db.query.annualBudgets.findFirst({
-    where: and(
-      eq(annualBudgets.id, budgetId),
-      eq(annualBudgets.status, "active")
-    ),
-    with: { periods: true },
-  });
-  if (!budget) {
-    return { success: false, error: "Active budget not found" };
-  }
-
-  const currentAllocations = budget.periods.reduce(
-    (sum, p) => sum + p.plannedAmountCents,
-    0
-  );
-  if (totalAmountCents < currentAllocations) {
-    return {
-      success: false,
-      error: "New total cannot be less than existing allocations",
-    };
-  }
-
-  await db
-    .update(annualBudgets)
-    .set({ totalAmountCents, updatedAt: new Date() })
-    .where(eq(annualBudgets.id, budgetId));
-
-  await recordUpdate("annual_budget", budgetId, Number(admin.id), {
-    totalAmountCents: {
-      old: budget.totalAmountCents,
-      new: totalAmountCents,
-    },
-  });
-
-  revalidatePath("/budget");
-  revalidatePath(`/budget/${budgetId}`);
-  revalidatePath("/reports");
-  revalidatePath("/reports/budget");
-  return { success: true, data: undefined };
-}
+// NOTE (spec 026): the former `updateBudgetTotal` action was removed. It
+// mutated `totalAmountCents` directly without touching `originalAmountCents`,
+// which would silently break the `total = original + Σ extensions` invariant
+// that the budget hero's "baseline + extended" tag relies on. It had no UI or
+// test callers left. Ceiling changes now go exclusively through
+// `createBudgetExtension` / `deleteBudgetExtension`, which keep the invariant
+// and leave an audit trail with a reason.
 
 export async function archiveBudget(input: {
   id: number;
@@ -634,10 +587,13 @@ export async function getBudgetWithCosts(
   return {
     ...budget,
     periods: periodsWithCosts,
-    extensions: budget.extensions.map((e) => ({
+    // Destructure the joined rows out so the raw `linkedTool` / `creator`
+    // objects don't ride along into the RSC payload — the flattened names
+    // are the type contract (BudgetExtensionWithAllocations).
+    extensions: budget.extensions.map(({ linkedTool, creator, ...e }) => ({
       ...e,
-      linkedToolName: e.linkedTool?.name ?? null,
-      createdByName: e.creator.name,
+      linkedToolName: linkedTool?.name ?? null,
+      createdByName: creator.name,
     })),
   };
 }

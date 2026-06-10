@@ -43,7 +43,7 @@ const columns: ColumnDef<BudgetRow>[] = [
       return (
         <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
           <Badge variant="secondary">{count}</Badge>
-          <span className={net < 0 ? "text-destructive" : "text-primary"}>
+          <span className={net < 0 ? "text-destructive" : "text-ink"}>
             {formatVariance(net)}
           </span>
         </span>

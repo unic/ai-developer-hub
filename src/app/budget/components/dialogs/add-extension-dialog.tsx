@@ -11,6 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  StatusText,
+  type InlineStatusState,
+} from "@/components/ui/status-text";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -38,6 +42,8 @@ interface Props {
   tools: Pick<AiTool, "id" | "name">[];
   onSubmit: () => void;
   saving: boolean;
+  /** Inline submit feedback — rendered in the footer (no toasts in the Nothing system). */
+  status?: InlineStatusState;
 }
 
 const ALLOCATION_OPTIONS: {
@@ -75,6 +81,7 @@ export function AddExtensionDialog({
   tools,
   onSubmit,
   saving,
+  status,
 }: Props) {
   const set = <K extends keyof ExtensionFormState>(
     key: K,
@@ -251,10 +258,10 @@ export function AddExtensionDialog({
               {ALLOCATION_OPTIONS.map((opt) => (
                 <label
                   key={opt.value}
-                  className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer ${
+                  className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer transition-colors ${
                     form.allocationMode === opt.value
-                      ? "border-ring bg-accent"
-                      : "border-border hover:bg-muted/40"
+                      ? "border-ink"
+                      : "border-border hover:bg-accent/50"
                   }`}
                 >
                   <input
@@ -325,22 +332,27 @@ export function AddExtensionDialog({
           </div>
 
           {signedCents !== 0 && (
-            <div className="rounded-md p-3 text-sm space-y-1 bg-accent text-accent-foreground">
-              <div className="text-xs uppercase tracking-wide opacity-70">
+            <div className="rounded-md border border-input p-3 text-sm space-y-1">
+              <div className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                 Effect on FY {budget.fiscalYear} budget
               </div>
               <div className="flex justify-between tabular-nums">
-                <span>Annual ceiling</span>
+                <span className="text-muted-foreground">Annual ceiling</span>
                 <span>
-                  <span className="opacity-60">
+                  <span className="text-muted-foreground">
                     {formatCurrency(budget.totalAmountCents)}
                   </span>{" "}
-                  → <span className="font-semibold">{formatCurrency(nextCeiling)}</span>
+                  →{" "}
+                  <span className="font-medium text-ink">
+                    {formatCurrency(nextCeiling)}
+                  </span>
                 </span>
               </div>
               <div className="flex justify-between tabular-nums">
-                <span>Allocations after change</span>
-                <span className="font-semibold">
+                <span className="text-muted-foreground">
+                  Allocations after change
+                </span>
+                <span className="font-medium text-ink">
                   {formatCurrency(
                     currentAllocations +
                       (form.allocationMode === "unallocated" ? 0 : signedCents)
@@ -352,6 +364,7 @@ export function AddExtensionDialog({
         </div>
 
         <DialogFooter>
+          {status && <StatusText status={status} className="sm:mr-auto" />}
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

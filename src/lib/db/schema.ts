@@ -986,6 +986,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     fields: [users.id],
     references: [anthropicSyncStatus.userId],
   }),
+  budgetExtensionsCreated: many(budgetExtensions),
 }));
 
 export const inviteTokensRelations = relations(inviteTokens, ({ one }) => ({
@@ -998,6 +999,7 @@ export const inviteTokensRelations = relations(inviteTokens, ({ one }) => ({
 export const aiToolsRelations = relations(aiTools, ({ many }) => ({
   accessTiers: many(accessTiers),
   licenseAssignments: many(licenseAssignments),
+  budgetExtensions: many(budgetExtensions),
 }));
 
 export const accessTiersRelations = relations(accessTiers, ({ one, many }) => ({

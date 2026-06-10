@@ -1,8 +1,15 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { formatCurrency, formatVariance } from "@/lib/utils";
 import type { BudgetExtensionWithAllocations } from "@/types";
 import { Plus, Trash2 } from "lucide-react";
@@ -14,6 +21,8 @@ interface Props {
   isArchived: boolean;
   onAdd: () => void;
   onDelete: (ext: BudgetExtensionWithAllocations) => void;
+  /** Inline status text rendered in the card header (Nothing replacement for toasts). */
+  statusSlot?: ReactNode;
 }
 
 export function BudgetExtensionsCard({
@@ -22,6 +31,7 @@ export function BudgetExtensionsCard({
   isArchived,
   onAdd,
   onDelete,
+  statusSlot,
 }: Props) {
   // For non-admin viewers with no extensions, hide the card entirely —
   // there's nothing meaningful to show and it'd just be empty chrome.
@@ -32,32 +42,23 @@ export function BudgetExtensionsCard({
 
   return (
     <Card id="budget-extensions">
-      <CardContent className="space-y-4 pt-6">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold">Budget extensions</h3>
-              <Badge variant="secondary" className="tabular-nums">
-                {extensions.length}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1 max-w-prose">
-              Mid-year changes to the annual ceiling. Each extension records why
-              the budget moved and (optionally) which tool it funds.
-            </p>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CardTitle>Budget extensions</CardTitle>
+            <Badge variant="secondary" className="tabular-nums">
+              {extensions.length}
+            </Badge>
+            {statusSlot}
           </div>
           {extensions.length > 0 && (
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                 Net extended
               </p>
               <p
-                className={`text-base font-semibold tabular-nums ${
-                  net > 0
-                    ? "text-primary"
-                    : net < 0
-                      ? "text-destructive"
-                      : ""
+                className={`text-base font-medium tabular-nums ${
+                  net < 0 ? "text-destructive" : "text-ink"
                 }`}
               >
                 {formatVariance(net)}
@@ -65,7 +66,12 @@ export function BudgetExtensionsCard({
             </div>
           )}
         </div>
-
+        <CardDescription className="max-w-prose">
+          Mid-year changes to the annual ceiling. Each extension records why
+          the budget moved and (optionally) which tool it funds.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
         {extensions.length === 0 ? (
           <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
             No extensions yet for this budget.
@@ -123,8 +129,8 @@ function ExtensionRow({
     >
       <div className="space-y-1.5 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium">{extension.reason}</span>
-          <Badge variant="secondary" className="text-[10px] uppercase">
+          <span className="font-medium text-ink">{extension.reason}</span>
+          <Badge variant="secondary">
             {CATEGORY_LABEL[extension.category]}
           </Badge>
           {extension.linkedToolName && (
@@ -136,7 +142,7 @@ function ExtensionRow({
             {extension.description}
           </p>
         )}
-        <div className="text-xs text-muted-foreground">
+        <div className="font-mono text-xs text-muted-foreground">
           Added{" "}
           <span className="text-foreground tabular-nums">
             {new Date(extension.createdAt).toISOString().slice(0, 10)}
@@ -151,8 +157,8 @@ function ExtensionRow({
       </div>
       <div className="text-right space-y-2 shrink-0">
         <p
-          className={`text-lg font-semibold tabular-nums ${
-            isReduction ? "text-destructive" : "text-primary"
+          className={`text-lg font-medium tabular-nums ${
+            isReduction ? "text-destructive" : "text-ink"
           }`}
         >
           {formatVariance(extension.amountCents)}

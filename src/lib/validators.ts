@@ -155,13 +155,9 @@ export const deleteBilledCostSchema = z.object({
   id: z.number().int().positive(),
 });
 
-// Update budget total
-export const updateBudgetTotalSchema = z.object({
-  budgetId: z.number().int().positive(),
-  totalAmountCents: z.number().int().positive("Budget must be positive"),
-});
-
 // ── Budget Extensions (spec 026) ─────────────────────────────────────────
+// (The former updateBudgetTotalSchema was removed with the updateBudgetTotal
+// action — ceiling changes now go through budget extensions only.)
 
 export const budgetExtensionCategorySchema = z.enum([
   "new_tool",
