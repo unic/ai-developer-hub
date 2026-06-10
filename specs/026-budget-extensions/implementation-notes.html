@@ -93,6 +93,115 @@
 
       <div class="card note-card">
         <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Upgrade pass · 2026-06-10 · Claude (Fable&nbsp;5)</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Migration timestamp bump — merge-blocking discovery.</strong>
+          The unmerged spec-034 branch (<code class="inline">claude/injection-types-distinction-Xcf9K</code>) applied its own
+          <code class="inline">0023_perfect_runaways</code> migration <em>directly to the production Neon main branch</em> on 2026-06-03,
+          with journal <code class="inline">when = 1780475418076</code>. Drizzle's migrator only applies local journal entries whose
+          <code class="inline">when</code> is greater than the DB's last applied <code class="inline">created_at</code> — so our
+          <code class="inline">0023_white_gauntlet</code> (when = 2026-05-22) was <em>silently skipped</em>: "migrations applied successfully"
+          with no DDL executed. Reproduced and verified on a fresh <code class="inline">wt/budget-026</code> Neon branch forked from production.
+          Fix: bumped the journal <code class="inline">when</code> to <code class="inline">1781080218076</code> (2026-06-10). Checked all paths:
+          production applies ours and (already having theirs) skips theirs; fresh DBs apply both in journal order. When 034 merges it must
+          renumber to 0024 — its original <code class="inline">when</code> stays older than ours, which is correct since production already has it.
+          <em>Side flag for the team: production schema currently contains an enum/column from an unmerged branch — that drift predates this PR.</em>
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Upgrade pass · 2026-06-10 · Claude (Fable&nbsp;5)</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Removed <code class="inline">updateBudgetTotal</code> + its schema (concept doc "Open question Q2" resolved).</strong>
+          After the Nothing redesign (#108) the action had no UI caller and no test caller left — yet it remained a reachable
+          server action that mutated <code class="inline">totalAmountCents</code> without touching <code class="inline">originalAmountCents</code>,
+          i.e. the one remaining way to silently break the <code class="inline">total = original + Σ extensions</code> invariant the hero's
+          "baseline + extended" tag depends on. Ceiling changes now go exclusively through create/delete extension, which keep the
+          invariant and carry a reason. If a deliberate re-baseline is ever needed, add an explicit action that shifts
+          <em>both</em> columns by the same delta — never resurrect the raw setter.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-deviation">Deviation</span>
+          <div>Upgrade pass · 2026-06-10 · Claude (Fable&nbsp;5)</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Nothing design migration (spec 028 landed on main after this PR was written).</strong>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>Toasts are gone by design.</strong> The redesign removed sonner; extension handlers now use the
+              <code class="inline">StatusText</code>/<code class="inline">useInlineStatus</code> idiom. Two channels: submit/delete <em>errors</em>
+              render inside the open dialog footer (a page-level status would sit behind the modal overlay — a flaw the billed-cost
+              dialogs on main still have); <em>success</em> renders in the extensions card header after the dialog closes
+              (<code class="inline">[EXTENSION ADDED]</code> / <code class="inline">[EXTENSION DELETED]</code>).</li>
+            <li><strong>Tags are border-only, never filled.</strong> The hero's "extended/reduced" link was a filled
+              <code class="inline">bg-accent</code> pill — now a <code class="inline">Badge asChild</code> outline pill. Category/tool/count
+              badges inherit mono-caps from the redesigned Badge primitive (dropped the ad-hoc <code class="inline">text-[10px] uppercase</code>).</li>
+            <li><strong>Monochrome value colors.</strong> Positive extension amounts read as ink (<code class="inline">text-ink</code>);
+              red (<code class="inline">text-destructive</code>) is reserved for reductions. Applied in the card, history column, and period sub-labels.</li>
+            <li><strong>Borders over fills.</strong> The dialog's "Effect on FY budget" preview panel and the allocation radio cards are
+              border-separated (<code class="inline">border-input</code> / selected = <code class="inline">border-ink</code>) instead of filled surfaces;
+              the panel label is Space Mono caps.</li>
+            <li>Card adopts the redesigned <code class="inline">CardHeader/CardTitle/CardDescription</code> structure; dashed-border empty
+              state matches the redesigned ingestion screens.</li>
+          </ul>
+          Verification screenshots <code class="inline">verify-01…08</code> replaced wholesale — the old set showed the pre-redesign UI.
+          New set covers dark + light, the full create→delete round-trip in the browser, dashboard badge, history column, and the
+          forecast chart's dashed original-baseline reference line.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Upgrade pass · 2026-06-10 · Claude (Fable&nbsp;5)</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Integration tests now run on the unpooled endpoint</strong> (<code class="inline">vitest.config.integration.mts</code>
+          rewrites <code class="inline">DATABASE_URL</code> from <code class="inline">DATABASE_URL_UNPOOLED</code>).
+          Root cause of a persistent flaky failure: <code class="inline">syncInvoices</code> guards with a session-scoped
+          <code class="inline">pg_try_advisory_lock</code>; through the pooled endpoint the lock and unlock can land on different
+          pooler backends, the unlock silently fails, and the leaked lock makes every later sync return "Another sync is already
+          in progress" — across test runs, until the backend dies. Observed live (lock row granted to a stale pid). Note the same
+          hazard exists at runtime in production, which also uses the pooled URL; it self-heals only because Neon suspends the
+          compute. Worth a follow-up: move the advisory lock to a transaction-scoped <code class="inline">pg_try_advisory_xact_lock</code>
+          inside a single transaction, which is pooler-safe.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
+          <span class="badge badge-decision">Decision</span>
+          <div>Upgrade pass · 2026-06-10 · Claude (Fable&nbsp;5)</div>
+        </div>
+        <div class="text-sm leading-relaxed space-y-2">
+          <strong>Follow-up closures from the "Open" list below:</strong>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>Closed:</strong> <code class="inline">updateBudgetTotal</code> invariant (action removed — see entry above).</li>
+            <li><strong>Closed:</strong> RSC payload leak in <code class="inline">getBudgetWithCosts</code> — joined
+              <code class="inline">linkedTool</code>/<code class="inline">creator</code> objects are now destructured out.</li>
+            <li><strong>Closed:</strong> asymmetric Drizzle relations — <code class="inline">users</code> and <code class="inline">aiTools</code>
+              now declare inverse <code class="inline">many(budgetExtensions)</code>.</li>
+            <li><strong>Still open (unchanged, deliberate):</strong> TOCTOU concurrency model (codebase-wide),
+              <code class="inline">recordCreation</code> outside the tx (codebase convention),
+              <code class="inline">linkedToolId ON DELETE SET NULL</code>, no edit-extension UI
+              (<code class="inline">updateBudgetExtension</code> action kept for a future dialog).</li>
+          </ul>
+          Merge mechanics: only textual conflict with main was <code class="inline">src/lib/forecast.ts</code> (prettier reformat vs
+          <code class="inline">originalCeilingCents</code> plumbing — both kept). Migration numbering vs main unchanged (main still ends
+          at 0022). Verified: typecheck, lint, 484 unit tests, 25 integration tests (two consecutive runs) on Neon branch
+          <code class="inline">wt/budget-026</code>.
+        </div>
+      </div>
+
+      <div class="card note-card">
+        <div class="note-meta">
           <span class="badge badge-open">Open</span>
           <div>Code review · follow-ups</div>
         </div>

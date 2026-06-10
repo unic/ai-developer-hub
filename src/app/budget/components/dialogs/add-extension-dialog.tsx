@@ -154,7 +154,7 @@ export function AddExtensionDialog({
                   value={form.sign}
                   onValueChange={(v) => set("sign", v as "+" | "-")}
                 >
-                  <SelectTrigger className="w-20">
+                  <SelectTrigger className="w-28 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
