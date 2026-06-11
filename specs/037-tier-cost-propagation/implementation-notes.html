@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Implementation Notes — stale tier-cost snapshots in reports</title>
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; color: #1a1a1a; }
+  h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  code, pre { font-family: ui-monospace, Consolas, monospace; background: #f5f5f5; border-radius: 4px; }
+  code { padding: .1em .35em; } pre { padding: .75rem 1rem; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: .4rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #fafafa; }
+  .status-todo { color: #b45309; } .status-done { color: #15803d; }
+</style>
+</head>
+<body>
+<h1>Stale tier-cost snapshots — reports show 0 after tier price change</h1>
+<p><em>Branch: <code>fix/tier-cost-propagation</code> · Started 2026-06-11</em></p>
+
+<h2>Symptom</h2>
+<p>A cost was added to the Microsoft Copilot access tier, but the Reports page (and dashboard) still show the tool's monthly spend as 0.</p>
+
+<h2>Root cause</h2>
+<p><code>license_assignments.cost_at_assignment_cents</code> (schema.ts:249) is a price snapshot taken when a license is assigned. Every spend aggregation in the app sums this snapshot, not the live tier price:</p>
+<table>
+  <tr><th>Read site</th><th>What it computes</th></tr>
+  <tr><td><code>src/app/reports/page.tsx:52,69,96</code></td><td>Reports overview: per-tool monthly cost, total monthly spend, prior-month comparison</td></tr>
+  <tr><td><code>src/actions/reports.ts:128–157</code></td><td>Budget tab: per-tool per-period expected spend</td></tr>
+  <tr><td><code>src/actions/dashboard.ts:158,173,199,554</code></td><td>Admin + viewer dashboards</td></tr>
+  <tr><td><code>src/actions/budget.ts:318,571</code></td><td>Expected spend per budget period</td></tr>
+  <tr><td><code>src/lib/reports/circle-report.ts:25</code></td><td>Per-user circle report</td></tr>
+</table>
+<p>But <code>updateTier</code> (<code>src/actions/tools.ts:296</code>) only updates <code>access_tiers.monthly_cost_cents</code>. Existing active assignments keep their old snapshot (0 in this case), so every report keeps summing 0. The tier was created while free → all Copilot assignments snapshotted 0 → price edit changed only the tier row.</p>
+
+<h2>Other places with the same bug</h2>
+<ul>
+  <li><strong><code>src/lib/copilot-sync.ts:103–108</code></strong> — GitHub Copilot billing sync auto-updates a tier's <code>monthlyCostCents</code> when the plan price differs, and likewise never touches existing assignments. A GitHub price change would silently leave every synced seat at the old cost.</li>
+  <li><strong>Existing data</strong> — assignments created while the tier price was wrong remain stale forever; code fixes alone don't repair them. Needs a one-time backfill.</li>
+</ul>
+
+<h2>Places checked and found OK</h2>
+<ul>
+  <li><code>src/actions/assignments.ts:224–229</code> — changing an assignment's tier already re-snapshots the cost.</li>
+  <li>New assignments (manual, bulk import, license requests, copilot-sync seat creation) all snapshot the current tier price at creation.</li>
+  <li>Scenarios (<code>src/lib/scenarios/*queries.ts</code>) and MCP <code>list_ai_tools</code> read live <code>access_tiers.monthly_cost_cents</code> — always current.</li>
+</ul>
+
+<h2>Fix design</h2>
+<p>Chosen approach: <strong>propagate price changes to <em>active</em> assignments</strong> wherever a tier's price is mutated, plus a one-time backfill migration. Revoked/inactive assignments keep their historical snapshot (correct for past-period reporting).</p>
+<p>Rationale: this matches the codebase idiom (cf. <code>annual_budgets.totalAmountCents</code> — "mutated … so existing read sites stay accurate without churn", schema.ts:278) and the existing behavior of <code>updateAssignment</code>, and it fixes all ~15 read sites at once instead of rewriting every aggregation to join <code>access_tiers</code>.</p>
+
+<h2>Changes</h2>
+<table>
+  <tr><th>#</th><th>Change</th><th>Status</th></tr>
+  <tr><td>1</td><td><code>updateTier</code> (src/actions/tools.ts): on <code>monthlyCostCents</code> change, update <code>cost_at_assignment_cents</code> of active assignments on that tier in the same transaction; revalidate /, /assignments, /budget, /reports, /reports/budget</td><td class="status-done">done</td></tr>
+  <tr><td>2</td><td><code>copilot-sync.ts</code> <code>syncBillingData</code>: when billing sync changes a tier price, resync active assignments' snapshots in the same transaction</td><td class="status-done">done</td></tr>
+  <tr><td>3</td><td>Backfill migration <code>0024_resync_assignment_cost_snapshots.sql</code>: <code>UPDATE license_assignments SET cost_at_assignment_cents = tier price WHERE status = 'active' AND snapshot &lt;&gt; tier price</code>. Journal <code>when</code> = 1781164840619 &gt; 1781080218076 (prod journal-ordering guard satisfied)</td><td class="status-done">done</td></tr>
+  <tr><td>4</td><td>Unit tests: <code>tests/unit/actions/tier-cost-propagation.test.ts</code> — price change updates active assignments; name-only change doesn't; unchanged price is a no-op; copilot-sync price drift propagates</td><td class="status-done">done</td></tr>
+</table>
+
+<h2>Migration review (drizzle-migration-reviewer agent)</h2>
+<p>Verdict: <strong>safe to apply</strong>. SQL verified against schema (enum value <code>'active'</code> valid; both columns NOT NULL integers, no NULL pitfalls); snapshot 0024 semantically identical to 0023 with correct <code>prevId</code> chain; single-statement UPDATE, no locking concerns on Neon. Caveats before running against production:</p>
+<ul>
+  <li>The backfill is an irreversible overwrite that bypasses the change-log. Capture the affected rows first:
+  <pre>SELECT la.id, la.cost_at_assignment_cents, t.monthly_cost_cents
+FROM license_assignments la JOIN access_tiers t ON t.id = la.tier_id
+WHERE la.status = 'active' AND la.cost_at_assignment_cents &lt;&gt; t.monthly_cost_cents;</pre></li>
+  <li>Resolve which Neon branch <code>DATABASE_URL</code> points at before <code>pnpm db:migrate</code> (current .env.local → <code>ep-little-frost</code>, not the known prod endpoint).</li>
+  <li>Semantic shift: for <em>active</em> assignments, <code>cost_at_assignment_cents</code> now means "current tier price"; only revoked rows keep a true historical snapshot.</li>
+</ul>
+
+<h2>Verification log</h2>
+<ul>
+  <li class="status-done">pnpm typecheck — clean (after <code>pnpm install</code>; node_modules was stale, missing <code>@modelcontextprotocol/sdk</code> — pre-existing, unrelated)</li>
+  <li class="status-done">eslint on changed files — clean. (Full <code>pnpm lint</code> fails on leftover build artifacts in <code>.claude/worktrees/nothing-design/.next</code> — pre-existing, unrelated to this branch)</li>
+  <li class="status-done">pnpm test — 488/488 passed (46 files), including 4 new tests</li>
+</ul>
+</body>
+</html>
