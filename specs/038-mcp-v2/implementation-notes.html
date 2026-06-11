@@ -161,6 +161,16 @@
   <code>revalidatePath</code> already refreshes the route when invoked from a client component.</p>
 </div>
 
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Copilot passes 2–3 (5 more comments, all addressed; loop stopped here)</h3>
+  <p>Pass 2 (8141d26): concurrent refresh-token rotation race — the revoke UPDATE is now conditional on
+  <code>revokedAt IS NULL</code> with a row-count check; the race loser is treated as a replay (family revoked).
+  Pass 3 (8082f19): 429 on token-endpoint throttling, empty-hostname redirect URIs rejected, empty forwarded
+  headers normalized in <code>clientIp</code>, and <code>consumeAuthCode</code> binds the client id into the
+  atomic consume predicate so a wrong-client presentation doesn't burn the code. Per reviewer-fatigue feedback,
+  no further automated passes were requested — findings had converged to minor hardening.</p>
+</div>
+
 <h2>Open questions</h2>
 
 <div class="entry">
