@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono, Doto } from "next/font/google";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { isPublicPath } from "@/lib/routes";
+import { isBareLayoutPath } from "@/lib/routes";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
@@ -46,7 +46,7 @@ export default async function RootLayout({
 }>) {
   const headerStore = await headers();
   const pathname = (headerStore.get("x-pathname") ?? "/").split("?")[0];
-  const showSidebar = !isPublicPath(pathname);
+  const showSidebar = !isBareLayoutPath(pathname);
   const session = showSidebar ? await auth() : null;
   const alerts = showSidebar && session?.user?.role === "admin"
     ? await getActiveAlerts().catch(() => null)

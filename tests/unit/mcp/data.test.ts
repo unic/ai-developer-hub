@@ -9,6 +9,8 @@ interface SelectChain {
   from: () => SelectChain;
   where: () => SelectChain;
   innerJoin: () => SelectChain;
+  leftJoin: () => SelectChain;
+  groupBy: () => SelectChain;
   orderBy: () => SelectChain;
   limit: () => SelectChain;
   then: (
@@ -37,6 +39,8 @@ vi.mock("@/lib/db", () => {
       from: () => chain,
       where: () => chain,
       innerJoin: () => chain,
+      leftJoin: () => chain,
+      groupBy: () => chain,
       orderBy: () => chain,
       limit: () => chain,
       then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
@@ -69,6 +73,9 @@ vi.mock("@/actions/budget", () => ({
   getBudgetWithCosts: vi.fn(),
   fetchActualByPeriod: vi.fn(),
 }));
+vi.mock("@/actions/reports", () => ({
+  getBudgetReportData: vi.fn(),
+}));
 
 // ── Import after mocks ───────────────────────────────────────────────────────
 
@@ -80,6 +87,13 @@ import {
   getBudgetStatusData,
   getCopilotUsageSummaryData,
   listRecentSyncEventsData,
+  findUsersData,
+  listClaudeUsersData,
+  getClaudeCostDashboardData,
+  getBudgetReportToolData,
+  listLicenseAssignmentsData,
+  listInvoicesData,
+  getCopilotAnalyticsData,
 } from "@/lib/mcp/data";
 import { fetchProfileDataInternal } from "@/lib/profile-data";
 import {
@@ -92,6 +106,7 @@ import {
   getBudgetWithCosts,
   fetchActualByPeriod,
 } from "@/actions/budget";
+import { getBudgetReportData } from "@/actions/reports";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -103,7 +118,15 @@ beforeEach(() => {
 describe("listAiToolsData", () => {
   it("groups active tiers under their tool and converts cost to USD", async () => {
     selectQueue.push(
-      [{ id: 1, name: "Claude API", vendor: "Anthropic", status: "active" }],
+      [
+        {
+          id: 1,
+          name: "Claude API",
+          vendor: "Anthropic",
+          status: "active",
+          maxLicenses: 20,
+        },
+      ],
       [
         {
           id: 10,
@@ -113,6 +136,7 @@ describe("listAiToolsData", () => {
           isActive: true,
         },
       ],
+      [{ toolId: 1, count: 15 }],
     );
 
     const result = await listAiToolsData();
@@ -121,6 +145,9 @@ describe("listAiToolsData", () => {
       id: 1,
       name: "Claude API",
       vendor: "Anthropic",
+      activeAssignments: 15,
+      maxLicenses: 20,
+      licenseUtilizationPct: 75,
     });
     expect(result.tools[0].tiers[0]).toEqual({
       id: 10,
@@ -130,13 +157,24 @@ describe("listAiToolsData", () => {
     });
   });
 
-  it("returns a tool with no tiers when none are active", async () => {
+  it("returns a tool with no tiers and null utilization without maxLicenses", async () => {
     selectQueue.push(
-      [{ id: 2, name: "Cursor", vendor: "Anysphere", status: "active" }],
+      [
+        {
+          id: 2,
+          name: "Cursor",
+          vendor: "Anysphere",
+          status: "active",
+          maxLicenses: null,
+        },
+      ],
+      [],
       [],
     );
     const result = await listAiToolsData();
     expect(result.tools[0].tiers).toEqual([]);
+    expect(result.tools[0].activeAssignments).toBe(0);
+    expect(result.tools[0].licenseUtilizationPct).toBeNull();
   });
 });
 
@@ -184,8 +222,17 @@ describe("getUserCostProfileData", () => {
 
   it("throws when the user is not found", async () => {
     mockUsersFindFirst.mockResolvedValue(undefined);
+    selectQueue.push([]); // no near-match candidates
     await expect(getUserCostProfileData("missing@example.com")).rejects.toThrow(
       /No user found/,
+    );
+  });
+
+  it("suggests near-match candidates when the email misses", async () => {
+    mockUsersFindFirst.mockResolvedValue(undefined);
+    selectQueue.push([{ name: "Jane Doe", email: "jane.doe@example.com" }]);
+    await expect(getUserCostProfileData("jane@example.com")).rejects.toThrow(
+      /Did you mean: jane\.doe@example\.com \(Jane Doe\)/,
     );
   });
 
@@ -457,6 +504,345 @@ describe("listRecentSyncEventsData", () => {
       outcome: "success",
       startedAt: "2026-05-21T08:00:00.000Z",
       completedAt: "2026-05-21T08:01:00.000Z",
+    });
+  });
+});
+
+describe("findUsersData", () => {
+  it("returns matching users with the original query echoed", async () => {
+    selectQueue.push([
+      {
+        id: 1,
+        name: "Jane Doe",
+        email: "jane@example.com",
+        role: "viewer",
+        status: "active",
+        circle: "Platform",
+        profile: "boost",
+        discipline: "developer",
+      },
+    ]);
+    const result = await findUsersData("jane");
+    expect(result.query).toBe("jane");
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0].email).toBe("jane@example.com");
+  });
+});
+
+describe("listClaudeUsersData", () => {
+  it("converts bigint-ish aggregates to numbers and sums the listed total", async () => {
+    selectQueue.push([
+      {
+        userId: 1,
+        name: "Jane",
+        email: "jane@example.com",
+        circle: "Platform",
+        status: "active",
+        costCents: "120000",
+        totalTokens: "5000000",
+        modelsUsed: "2",
+        lastActive: "2026-05-20",
+        hasUnresolvedPricing: false,
+      },
+      {
+        userId: 2,
+        name: "Bob",
+        email: "bob@example.com",
+        circle: null,
+        status: "active",
+        costCents: "30000",
+        totalTokens: "900000",
+        modelsUsed: "1",
+        lastActive: "2026-05-18",
+        hasUnresolvedPricing: true,
+      },
+    ]);
+
+    const result = await listClaudeUsersData("2026-05");
+    expect(result.month).toBe("2026-05");
+    expect(result.userCount).toBe(2);
+    expect(result.listedTotalCents).toBe(150000);
+    expect(result.listedTotalUsd).toBe(1500);
+    expect(result.users[0]).toMatchObject({
+      email: "jane@example.com",
+      costCents: 120000,
+      costUsd: 1200,
+      totalTokens: 5000000,
+      modelsUsed: 2,
+    });
+    expect(result.users[1].hasUnresolvedPricing).toBe(true);
+  });
+});
+
+describe("getClaudeCostDashboardData", () => {
+  it("assembles daily totals, workspace deltas, and the 12-month series", async () => {
+    selectQueue.push(
+      // dailyTotals
+      [
+        { date: "2026-05-01", costCents: "10000" },
+        { date: "2026-05-02", costCents: "20000" },
+      ],
+      // workspaceTotals (current + prior month)
+      [
+        {
+          workspaceId: "ws_1",
+          workspaceName: "Engineering",
+          currentCents: "25000",
+          priorCents: "20000",
+        },
+        {
+          workspaceId: null,
+          workspaceName: null,
+          currentCents: "5000",
+          priorCents: "0",
+        },
+      ],
+      // monthlySeries
+      [
+        { month: "2026-04", costCents: "100000" },
+        { month: "2026-05", costCents: "30000" },
+      ],
+    );
+
+    const result = await getClaudeCostDashboardData("2026-05");
+    expect(result.month).toBe("2026-05");
+    expect(result.priorMonth).toBe("2026-04");
+    expect(result.monthTotalCents).toBe(30000);
+    expect(result.dailyTotals).toHaveLength(2);
+    expect(result.workspaces[0]).toMatchObject({
+      name: "Engineering",
+      currentMonthCents: 25000,
+      priorMonthCents: 20000,
+      deltaCents: 5000,
+      deltaPct: 25,
+    });
+    expect(result.workspaces[1]).toMatchObject({
+      name: "Default workspace",
+      deltaPct: null,
+    });
+    expect(result.last12Months).toHaveLength(2);
+  });
+});
+
+describe("getBudgetReportToolData", () => {
+  it("throws when there is no active budget", async () => {
+    vi.mocked(getBudgetReportData).mockResolvedValue({
+      kind: "empty",
+      reason: "no_active_budget",
+    } as Awaited<ReturnType<typeof getBudgetReportData>>);
+    await expect(getBudgetReportToolData()).rejects.toThrow(/No active budget/);
+  });
+
+  it("maps periods, forecast, per-tool rows, and past-month variance to USD", async () => {
+    vi.mocked(getBudgetReportData).mockResolvedValue({
+      kind: "ready",
+      budget: { fiscalYear: 2026, totalAmountCents: 1200000 },
+      periodsWithActual: [
+        {
+          periodLabel: "May 2026",
+          startDate: "2026-05-01",
+          endDate: "2026-05-31",
+          plannedAmountCents: 100000,
+          billedTotalCents: 60000,
+          runningCostCents: 30000,
+          actualCents: 90000,
+        },
+      ],
+      forecast: {
+        status: "on_track",
+        actualSpendToDateCents: 90000,
+        projectedAnnualTotalCents: 1100000,
+        budgetCeilingCents: 1200000,
+      },
+      perTool: [
+        {
+          toolId: null,
+          toolName: "Anthropic API",
+          isAnthropicApi: true,
+          ytdSpentCents: 50000,
+          currentMonthlyCents: 30000,
+          projectedEoyCents: 260000,
+        },
+      ],
+      pastMonth: {
+        periodLabel: "Apr 2026",
+        plannedCents: 100000,
+        actualCents: 110000,
+        varianceCents: 10000,
+        variancePct: 10,
+        drivers: [
+          {
+            toolName: "Cursor",
+            priorCents: 0,
+            pastCents: 10000,
+            deltaCents: 10000,
+            deltaPct: null,
+          },
+        ],
+      },
+    } as unknown as Awaited<ReturnType<typeof getBudgetReportData>>);
+
+    const result = await getBudgetReportToolData();
+    expect(result.fiscalYear).toBe(2026);
+    expect(result.budgetTotalUsd).toBe(12000);
+    expect(result.periods[0]).toMatchObject({
+      label: "May 2026",
+      runningUsd: 300,
+      actualUsd: 900,
+    });
+    expect(result.perTool[0]).toMatchObject({
+      toolName: "Anthropic API",
+      isAnthropicApi: true,
+      ytdSpentUsd: 500,
+    });
+    expect(result.pastMonth).toMatchObject({
+      periodLabel: "Apr 2026",
+      varianceUsd: 100,
+      variancePct: 10,
+    });
+    expect(result.pastMonth?.drivers[0]).toMatchObject({
+      toolName: "Cursor",
+      deltaUsd: 100,
+    });
+  });
+});
+
+describe("listLicenseAssignmentsData", () => {
+  it("maps assignment rows with USD cost and echoes the filters", async () => {
+    selectQueue.push([
+      {
+        id: 7,
+        userName: "Jane",
+        userEmail: "jane@example.com",
+        toolName: "Cursor",
+        tierName: "Pro",
+        status: "active",
+        costAtAssignmentCents: 2000,
+        assignedAt: new Date("2026-01-15T00:00:00Z"),
+        revokedAt: null,
+        workspace: null,
+        source: "manual",
+      },
+    ]);
+
+    const result = await listLicenseAssignmentsData({ toolName: "Cursor" });
+    expect(result.filters).toEqual({
+      email: null,
+      toolName: "Cursor",
+      status: "active",
+    });
+    expect(result.count).toBe(1);
+    expect(result.monthlyTotalUsd).toBe(20);
+    expect(result.assignments[0]).toMatchObject({
+      user: { name: "Jane", email: "jane@example.com" },
+      toolName: "Cursor",
+      tierName: "Pro",
+      monthlyCostUsd: 20,
+      assignedAt: "2026-01-15T00:00:00.000Z",
+      revokedAt: null,
+    });
+  });
+});
+
+describe("listInvoicesData", () => {
+  it("maps invoices with link status and excludes blob fields", async () => {
+    selectQueue.push([
+      {
+        id: 3,
+        invoiceNumber: "INV-100",
+        invoiceDate: "2026-05-10",
+        amountCents: 50000,
+        vendor: "Anthropic",
+        filteredOut: false,
+        linkedBilledCostId: 9,
+        periodLabel: "May 2026",
+        createdAt: new Date("2026-05-11T08:00:00Z"),
+      },
+      {
+        id: 4,
+        invoiceNumber: "INV-101",
+        invoiceDate: "2026-05-12",
+        amountCents: 10000,
+        vendor: "GitHub",
+        filteredOut: false,
+        linkedBilledCostId: null,
+        periodLabel: null,
+        createdAt: null,
+      },
+    ]);
+
+    const result = await listInvoicesData({ month: "2026-05" });
+    expect(result.count).toBe(2);
+    expect(result.listedTotalUsd).toBe(600);
+    expect(result.invoices[0]).toMatchObject({
+      invoiceNumber: "INV-100",
+      amountUsd: 500,
+      isLinked: true,
+      linkedToPeriod: "May 2026",
+    });
+    expect(result.invoices[1]).toMatchObject({
+      isLinked: false,
+      linkedToPeriod: null,
+      uploadedAt: null,
+    });
+    expect(result.invoices[0]).not.toHaveProperty("blobUrl");
+  });
+});
+
+describe("getCopilotAnalyticsData", () => {
+  it("returns connected:false when no active connection", async () => {
+    mockGithubFindFirst.mockResolvedValue(undefined);
+    const result = await getCopilotAnalyticsData();
+    expect(result).toMatchObject({ connected: false });
+  });
+
+  it("builds the daily series and aggregates language/editor breakdowns", async () => {
+    mockGithubFindFirst.mockResolvedValue({ id: 3, orgLogin: "acme" });
+    selectQueue.push([
+      {
+        date: "2026-05-01",
+        totalActiveUsers: 10,
+        totalEngagedUsers: 8,
+        totalSuggestions: 100,
+        totalAcceptances: 40,
+        totalChatTurns: 12,
+        languageBreakdown: [
+          { language: "typescript", suggestions: 60, acceptances: 30 },
+          { language: "python", suggestions: 40, acceptances: 10 },
+        ],
+        editorBreakdown: [{ editor: "vscode", suggestions: 100, acceptances: 40 }],
+      },
+      {
+        date: "2026-05-02",
+        totalActiveUsers: 12,
+        totalEngagedUsers: 9,
+        totalSuggestions: 50,
+        totalAcceptances: 25,
+        totalChatTurns: 5,
+        languageBreakdown: [
+          { language: "typescript", suggestions: 50, acceptances: 25 },
+        ],
+        editorBreakdown: null,
+      },
+    ]);
+
+    const result = await getCopilotAnalyticsData("2026-05-01", "2026-05-02");
+    if (!result.connected) throw new Error("expected connected");
+    expect(result.daily).toHaveLength(2);
+    expect(result.daily[1]).toMatchObject({
+      date: "2026-05-02",
+      activeUsers: 12,
+      suggestions: 50,
+    });
+    expect(result.topLanguages[0]).toEqual({
+      language: "typescript",
+      suggestions: 110,
+      acceptances: 55,
+      acceptanceRatePct: 50,
+    });
+    expect(result.topEditors[0]).toMatchObject({
+      editor: "vscode",
+      suggestions: 100,
     });
   });
 });

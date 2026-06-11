@@ -8,16 +8,23 @@
  * hashes, or invite tokens.
  */
 
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
   accessTiers,
   aiTools,
   anthropicSyncStatus,
+  anthropicUsageMetrics,
+  anthropicWorkspaceCosts,
+  anthropicWorkspaces,
+  billedCosts,
+  budgetPeriods,
   copilotBillingSnapshots,
   copilotUsageMetrics,
   githubConnections,
+  invoices,
+  licenseAssignments,
   syncEvents,
   users,
 } from "@/lib/db/schema";
@@ -32,10 +39,29 @@ import {
   getBudgetWithCosts,
   fetchActualByPeriod,
 } from "@/actions/budget";
+import { getBudgetReportData } from "@/actions/reports";
 import { buildBudgetForecast } from "@/lib/forecast";
 import { getCurrentMonth, formatUtcDateOnly } from "@/lib/utils";
 import type { SyncSourceType } from "@/lib/sync/framework";
 import { usd } from "@/lib/mcp/format";
+
+/** Inclusive YYYY-MM-DD start/end of a YYYY-MM month (UTC). */
+function monthRange(month: string): { start: string; end: string } {
+  const [y, m] = month.split("-").map(Number);
+  return {
+    start: `${month}-01`,
+    end: formatUtcDateOnly(new Date(Date.UTC(y, m, 0))),
+  };
+}
+
+/** Escape ILIKE wildcards in user-supplied search terms. */
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+function clampLimit(limit: number | undefined, fallback: number, max: number): number {
+  return Math.min(Math.max(limit ?? fallback, 1), max);
+}
 
 /** Shape a calibrated "today" spend estimate (or null) for an MCP response. */
 function formatTodayEstimate(
@@ -54,13 +80,14 @@ function formatTodayEstimate(
 // ---------------------------------------------------------------------------
 
 export async function listAiToolsData() {
-  const [tools, tiers] = await Promise.all([
+  const [tools, tiers, assignmentCounts] = await Promise.all([
     db
       .select({
         id: aiTools.id,
         name: aiTools.name,
         vendor: aiTools.vendor,
         status: aiTools.status,
+        maxLicenses: aiTools.maxLicenses,
       })
       .from(aiTools)
       .where(eq(aiTools.status, "active")),
@@ -74,6 +101,14 @@ export async function listAiToolsData() {
       })
       .from(accessTiers)
       .where(eq(accessTiers.isActive, true)),
+    db
+      .select({
+        toolId: licenseAssignments.toolId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(licenseAssignments)
+      .where(eq(licenseAssignments.status, "active"))
+      .groupBy(licenseAssignments.toolId),
   ]);
 
   const tiersByTool = new Map<number, typeof tiers>();
@@ -82,16 +117,31 @@ export async function listAiToolsData() {
     list.push(tier);
     tiersByTool.set(tier.toolId, list);
   }
+  const countByTool = new Map(
+    assignmentCounts.map((c) => [c.toolId, Number(c.count)]),
+  );
 
   return {
-    tools: tools.map((tool) => ({
-      ...tool,
-      tiers: (tiersByTool.get(tool.id) ?? []).map((tier) => ({
-        id: tier.id,
-        name: tier.name,
-        ...usd("monthlyCost", tier.monthlyCostCents),
-      })),
-    })),
+    tools: tools.map((tool) => {
+      const activeAssignments = countByTool.get(tool.id) ?? 0;
+      return {
+        id: tool.id,
+        name: tool.name,
+        vendor: tool.vendor,
+        status: tool.status,
+        activeAssignments,
+        maxLicenses: tool.maxLicenses,
+        licenseUtilizationPct:
+          tool.maxLicenses && tool.maxLicenses > 0
+            ? Math.round((activeAssignments / tool.maxLicenses) * 100)
+            : null,
+        tiers: (tiersByTool.get(tool.id) ?? []).map((tier) => ({
+          id: tier.id,
+          name: tier.name,
+          ...usd("monthlyCost", tier.monthlyCostCents),
+        })),
+      };
+    }),
   };
 }
 
@@ -105,7 +155,27 @@ export async function getUserCostProfileData(email: string, month?: string) {
     columns: { id: true },
   });
   if (!user) {
-    throw new Error(`No user found with email: ${email}`);
+    // Help the caller recover from a near-miss (assistants rarely have the
+    // exact address) by suggesting candidates that share the local part.
+    const localPart = email.split("@")[0] ?? email;
+    const candidates = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(
+        and(
+          eq(users.isAgent, false),
+          or(
+            ilike(users.email, `%${escapeLike(localPart)}%`),
+            ilike(users.name, `%${escapeLike(localPart.replace(/[._-]/g, " "))}%`),
+          ),
+        ),
+      )
+      .limit(5);
+    const hint =
+      candidates.length > 0
+        ? ` Did you mean: ${candidates.map((c) => `${c.email} (${c.name})`).join(", ")}? Use find_users to search.`
+        : ` Use find_users to search by name or partial email.`;
+    throw new Error(`No user found with email: ${email}.${hint}`);
   }
 
   const [profile, syncRows] = await Promise.all([
@@ -394,5 +464,460 @@ export async function listRecentSyncEventsData(
       errorCount: e.errorCount,
       errorMessage: e.errorMessage,
     })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// find_users
+// ---------------------------------------------------------------------------
+
+export async function findUsersData(query: string, limit?: number) {
+  const pattern = `%${escapeLike(query.trim())}%`;
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      status: users.status,
+      circle: users.circle,
+      profile: users.profile,
+      discipline: users.discipline,
+    })
+    .from(users)
+    .where(
+      and(
+        eq(users.isAgent, false),
+        or(ilike(users.name, pattern), ilike(users.email, pattern)),
+      ),
+    )
+    .orderBy(asc(users.name))
+    .limit(clampLimit(limit, 10, 25));
+
+  return { query, matches: rows };
+}
+
+// ---------------------------------------------------------------------------
+// list_claude_users
+// ---------------------------------------------------------------------------
+
+export async function listClaudeUsersData(month?: string, limit?: number) {
+  const targetMonth = month ?? getCurrentMonth();
+  const { start, end } = monthRange(targetMonth);
+
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      circle: users.circle,
+      status: users.status,
+      costCents: sql<string>`coalesce(sum(${anthropicUsageMetrics.computedCostCents}), 0)`,
+      totalTokens: sql<string>`coalesce(sum(${anthropicUsageMetrics.uncachedInputTokens} + ${anthropicUsageMetrics.cacheReadInputTokens} + ${anthropicUsageMetrics.cacheCreationInputTokens} + ${anthropicUsageMetrics.outputTokens}), 0)`,
+      modelsUsed: sql<string>`count(distinct ${anthropicUsageMetrics.model})`,
+      lastActive: sql<string | null>`max(${anthropicUsageMetrics.date})`,
+      hasUnresolvedPricing: sql<boolean>`bool_or(not ${anthropicUsageMetrics.pricingResolved})`,
+    })
+    .from(anthropicUsageMetrics)
+    .innerJoin(users, eq(users.id, anthropicUsageMetrics.userId))
+    .where(
+      and(
+        gte(anthropicUsageMetrics.date, start),
+        lte(anthropicUsageMetrics.date, end),
+      ),
+    )
+    .groupBy(users.id, users.name, users.email, users.circle, users.status)
+    .orderBy(desc(sql`sum(${anthropicUsageMetrics.computedCostCents})`))
+    .limit(clampLimit(limit, 25, 100));
+
+  const userRows = rows.map((r) => ({
+    userId: r.userId,
+    name: r.name,
+    email: r.email,
+    circle: r.circle,
+    status: r.status,
+    ...usd("cost", Number(r.costCents)),
+    totalTokens: Number(r.totalTokens),
+    modelsUsed: Number(r.modelsUsed),
+    lastActive: r.lastActive,
+    hasUnresolvedPricing: Boolean(r.hasUnresolvedPricing),
+  }));
+
+  return {
+    month: targetMonth,
+    note: "Users with Claude API usage in the month, ordered by spend (descending).",
+    userCount: userRows.length,
+    ...usd("listedTotal", userRows.reduce((s, u) => s + (u.costCents ?? 0), 0)),
+    users: userRows,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// get_claude_cost_dashboard
+// ---------------------------------------------------------------------------
+
+export async function getClaudeCostDashboardData(month?: string) {
+  const targetMonth = month ?? getCurrentMonth();
+  const { start, end } = monthRange(targetMonth);
+
+  const [y, m] = targetMonth.split("-").map(Number);
+  const priorMonthDate = new Date(Date.UTC(y, m - 2, 1));
+  const priorMonth = `${priorMonthDate.getUTCFullYear()}-${String(priorMonthDate.getUTCMonth() + 1).padStart(2, "0")}`;
+  const { start: priorStart, end: priorEnd } = monthRange(priorMonth);
+  const twelveMonthsAgo = new Date(Date.UTC(y - 1, m - 1, 1));
+
+  const workspaceName = sql<string | null>`${anthropicWorkspaces.name}`;
+  const workspaceJoin = sql`${anthropicWorkspaces.workspaceId} IS NOT DISTINCT FROM ${anthropicWorkspaceCosts.workspaceId}`;
+
+  const [dailyTotals, workspaceTotals, monthlySeries] = await Promise.all([
+    db
+      .select({
+        date: anthropicWorkspaceCosts.date,
+        costCents: sql<string>`sum(${anthropicWorkspaceCosts.costCents})`,
+      })
+      .from(anthropicWorkspaceCosts)
+      .where(
+        and(
+          gte(anthropicWorkspaceCosts.date, start),
+          lte(anthropicWorkspaceCosts.date, end),
+        ),
+      )
+      .groupBy(anthropicWorkspaceCosts.date)
+      .orderBy(asc(anthropicWorkspaceCosts.date)),
+    db
+      .select({
+        workspaceId: anthropicWorkspaceCosts.workspaceId,
+        workspaceName,
+        currentCents: sql<string>`coalesce(sum(${anthropicWorkspaceCosts.costCents}) filter (where ${anthropicWorkspaceCosts.date} between ${start} and ${end}), 0)`,
+        priorCents: sql<string>`coalesce(sum(${anthropicWorkspaceCosts.costCents}) filter (where ${anthropicWorkspaceCosts.date} between ${priorStart} and ${priorEnd}), 0)`,
+      })
+      .from(anthropicWorkspaceCosts)
+      .leftJoin(anthropicWorkspaces, workspaceJoin)
+      .where(
+        and(
+          gte(anthropicWorkspaceCosts.date, priorStart),
+          lte(anthropicWorkspaceCosts.date, end),
+        ),
+      )
+      .groupBy(anthropicWorkspaceCosts.workspaceId, anthropicWorkspaces.name),
+    db
+      .select({
+        month: sql<string>`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`,
+        costCents: sql<string>`sum(${anthropicWorkspaceCosts.costCents})`,
+      })
+      .from(anthropicWorkspaceCosts)
+      .where(gte(anthropicWorkspaceCosts.date, formatUtcDateOnly(twelveMonthsAgo)))
+      .groupBy(sql`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`),
+  ]);
+
+  const workspaces = workspaceTotals
+    .map((w) => {
+      const current = Number(w.currentCents);
+      const prior = Number(w.priorCents);
+      return {
+        workspaceId: w.workspaceId,
+        name: w.workspaceName ?? "Default workspace",
+        ...usd("currentMonth", current),
+        ...usd("priorMonth", prior),
+        ...usd("delta", current - prior),
+        deltaPct: prior > 0 ? Math.round(((current - prior) / prior) * 100) : null,
+      };
+    })
+    .sort((a, b) => (b.currentMonthCents ?? 0) - (a.currentMonthCents ?? 0));
+
+  const monthTotal = dailyTotals.reduce((s, d) => s + Number(d.costCents), 0);
+
+  return {
+    month: targetMonth,
+    priorMonth,
+    ...usd("monthTotal", monthTotal),
+    dailyTotals: dailyTotals.map((d) => ({
+      date: d.date,
+      ...usd("cost", Number(d.costCents)),
+    })),
+    workspaces,
+    last12Months: monthlySeries.map((row) => ({
+      month: row.month,
+      ...usd("cost", Number(row.costCents)),
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// get_budget_report
+// ---------------------------------------------------------------------------
+
+export async function getBudgetReportToolData() {
+  const report = await getBudgetReportData();
+  if (report.kind === "empty") {
+    throw new Error("No active budget configured");
+  }
+
+  return {
+    fiscalYear: report.budget.fiscalYear,
+    ...usd("budgetTotal", report.budget.totalAmountCents),
+    periods: report.periodsWithActual.map((p) => ({
+      label: p.periodLabel,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      ...usd("planned", p.plannedAmountCents),
+      ...usd("billed", p.billedTotalCents),
+      ...usd("running", p.runningCostCents),
+      ...usd("actual", p.actualCents),
+    })),
+    forecast: {
+      status: report.forecast.status,
+      ...usd("actualSpendToDate", report.forecast.actualSpendToDateCents),
+      ...usd("projectedAnnualTotal", report.forecast.projectedAnnualTotalCents),
+      ...usd("budgetCeiling", report.forecast.budgetCeilingCents),
+    },
+    perTool: report.perTool.map((t) => ({
+      toolName: t.toolName,
+      isAnthropicApi: t.isAnthropicApi,
+      ...usd("ytdSpent", t.ytdSpentCents),
+      ...usd("currentMonthly", t.currentMonthlyCents),
+      ...usd("projectedEoy", t.projectedEoyCents),
+    })),
+    pastMonth: report.pastMonth
+      ? {
+          periodLabel: report.pastMonth.periodLabel,
+          ...usd("planned", report.pastMonth.plannedCents),
+          ...usd("actual", report.pastMonth.actualCents),
+          ...usd("variance", report.pastMonth.varianceCents),
+          variancePct: report.pastMonth.variancePct,
+          drivers: report.pastMonth.drivers.map((d) => ({
+            toolName: d.toolName,
+            ...usd("prior", d.priorCents),
+            ...usd("past", d.pastCents),
+            ...usd("delta", d.deltaCents),
+            deltaPct: d.deltaPct,
+          })),
+        }
+      : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// list_license_assignments
+// ---------------------------------------------------------------------------
+
+export async function listLicenseAssignmentsData(filters: {
+  email?: string;
+  toolName?: string;
+  status?: "active" | "inactive";
+  limit?: number;
+}) {
+  const conditions = [
+    filters.email ? ilike(users.email, escapeLike(filters.email)) : undefined,
+    filters.toolName
+      ? ilike(aiTools.name, `%${escapeLike(filters.toolName)}%`)
+      : undefined,
+    eq(licenseAssignments.status, filters.status ?? "active"),
+  ].filter((c) => c !== undefined);
+
+  const rows = await db
+    .select({
+      id: licenseAssignments.id,
+      userName: users.name,
+      userEmail: users.email,
+      toolName: aiTools.name,
+      tierName: accessTiers.name,
+      status: licenseAssignments.status,
+      costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+      assignedAt: licenseAssignments.assignedAt,
+      revokedAt: licenseAssignments.revokedAt,
+      workspace: licenseAssignments.workspace,
+      source: licenseAssignments.source,
+    })
+    .from(licenseAssignments)
+    .innerJoin(users, eq(users.id, licenseAssignments.userId))
+    .innerJoin(aiTools, eq(aiTools.id, licenseAssignments.toolId))
+    .leftJoin(accessTiers, eq(accessTiers.id, licenseAssignments.tierId))
+    .where(and(...conditions))
+    .orderBy(desc(licenseAssignments.assignedAt))
+    .limit(clampLimit(filters.limit, 100, 500));
+
+  return {
+    filters: {
+      email: filters.email ?? null,
+      toolName: filters.toolName ?? null,
+      status: filters.status ?? "active",
+    },
+    count: rows.length,
+    ...usd("monthlyTotal", rows.reduce((s, r) => s + r.costAtAssignmentCents, 0)),
+    assignments: rows.map((r) => ({
+      id: r.id,
+      user: { name: r.userName, email: r.userEmail },
+      toolName: r.toolName,
+      tierName: r.tierName,
+      status: r.status,
+      ...usd("monthlyCost", r.costAtAssignmentCents),
+      assignedAt: r.assignedAt?.toISOString() ?? null,
+      revokedAt: r.revokedAt?.toISOString() ?? null,
+      workspace: r.workspace,
+      source: r.source,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// list_invoices
+// ---------------------------------------------------------------------------
+
+export async function listInvoicesData(filters: {
+  month?: string;
+  vendor?: string;
+  linked?: boolean;
+  limit?: number;
+}) {
+  const range = filters.month ? monthRange(filters.month) : null;
+  const conditions = [
+    range ? gte(invoices.invoiceDate, range.start) : undefined,
+    range ? lte(invoices.invoiceDate, range.end) : undefined,
+    filters.vendor
+      ? ilike(invoices.vendor, `%${escapeLike(filters.vendor)}%`)
+      : undefined,
+    filters.linked === true
+      ? sql`${invoices.linkedBilledCostId} IS NOT NULL`
+      : undefined,
+    filters.linked === false ? isNull(invoices.linkedBilledCostId) : undefined,
+  ].filter((c) => c !== undefined);
+
+  const rows = await db
+    .select({
+      id: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      invoiceDate: invoices.invoiceDate,
+      amountCents: invoices.amountCents,
+      vendor: invoices.vendor,
+      filteredOut: invoices.filteredOut,
+      linkedBilledCostId: invoices.linkedBilledCostId,
+      periodLabel: budgetPeriods.periodLabel,
+      createdAt: invoices.createdAt,
+    })
+    .from(invoices)
+    .leftJoin(billedCosts, eq(billedCosts.id, invoices.linkedBilledCostId))
+    .leftJoin(budgetPeriods, eq(budgetPeriods.id, billedCosts.periodId))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(invoices.invoiceDate))
+    .limit(clampLimit(filters.limit, 50, 200));
+
+  return {
+    filters: {
+      month: filters.month ?? null,
+      vendor: filters.vendor ?? null,
+      linked: filters.linked ?? null,
+    },
+    count: rows.length,
+    ...usd("listedTotal", rows.reduce((s, r) => s + r.amountCents, 0)),
+    invoices: rows.map((r) => ({
+      id: r.id,
+      invoiceNumber: r.invoiceNumber,
+      invoiceDate: r.invoiceDate,
+      ...usd("amount", r.amountCents),
+      vendor: r.vendor,
+      linkedToPeriod: r.periodLabel,
+      isLinked: r.linkedBilledCostId !== null,
+      filteredOut: r.filteredOut,
+      uploadedAt: r.createdAt?.toISOString() ?? null,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// get_copilot_analytics
+// ---------------------------------------------------------------------------
+
+interface BreakdownAccumulator {
+  suggestions: number;
+  acceptances: number;
+}
+
+function accumulateBreakdown(
+  map: Map<string, BreakdownAccumulator>,
+  breakdown: unknown,
+  nameKeys: string[],
+): void {
+  if (!Array.isArray(breakdown)) return;
+  for (const entry of breakdown) {
+    const item = entry as Record<string, unknown>;
+    const nameKey = nameKeys.find((k) => item[k] != null);
+    const name = String(nameKey ? item[nameKey] : "unknown");
+    const acc = map.get(name) ?? { suggestions: 0, acceptances: 0 };
+    acc.suggestions += Number(item.suggestions ?? item.totalSuggestions ?? 0);
+    acc.acceptances += Number(item.acceptances ?? item.totalAcceptances ?? 0);
+    map.set(name, acc);
+  }
+}
+
+function topBreakdown(map: Map<string, BreakdownAccumulator>, label: string) {
+  return Array.from(map.entries())
+    .map(([name, data]) => ({
+      [label]: name,
+      suggestions: data.suggestions,
+      acceptances: data.acceptances,
+      acceptanceRatePct:
+        data.suggestions > 0
+          ? Math.round((data.acceptances / data.suggestions) * 100)
+          : null,
+    }))
+    .sort((a, b) => b.suggestions - a.suggestions)
+    .slice(0, 10);
+}
+
+export async function getCopilotAnalyticsData(since?: string, until?: string) {
+  const connection = await db.query.githubConnections.findFirst({
+    where: and(
+      eq(githubConnections.status, "active"),
+      eq(githubConnections.copilotSyncEnabled, true),
+    ),
+    columns: { id: true, orgLogin: true },
+  });
+  if (!connection) {
+    return {
+      connected: false as const,
+      message: "No active GitHub connection with Copilot sync enabled",
+    };
+  }
+
+  const today = new Date();
+  const untilDate = until ?? formatUtcDateOnly(today);
+  const sinceDate =
+    since ?? formatUtcDateOnly(new Date(today.getTime() - 27 * 86_400_000));
+
+  const rows = await db
+    .select()
+    .from(copilotUsageMetrics)
+    .where(
+      and(
+        eq(copilotUsageMetrics.connectionId, connection.id),
+        gte(copilotUsageMetrics.date, sinceDate),
+        lte(copilotUsageMetrics.date, untilDate),
+      ),
+    )
+    .orderBy(asc(copilotUsageMetrics.date));
+
+  const byLanguage = new Map<string, BreakdownAccumulator>();
+  const byEditor = new Map<string, BreakdownAccumulator>();
+  for (const row of rows) {
+    accumulateBreakdown(byLanguage, row.languageBreakdown, ["language", "name"]);
+    accumulateBreakdown(byEditor, row.editorBreakdown, ["editor", "name"]);
+  }
+
+  return {
+    connected: true as const,
+    org: connection.orgLogin,
+    dateRange: { since: sinceDate, until: untilDate },
+    daily: rows.map((r) => ({
+      date: r.date,
+      activeUsers: r.totalActiveUsers,
+      engagedUsers: r.totalEngagedUsers,
+      suggestions: r.totalSuggestions,
+      acceptances: r.totalAcceptances,
+      chatTurns: r.totalChatTurns,
+    })),
+    topLanguages: topBreakdown(byLanguage, "language"),
+    topEditors: topBreakdown(byEditor, "editor"),
   };
 }

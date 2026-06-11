@@ -1,11 +1,21 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+
+vi.mock("@/lib/oauth/store", () => ({
+  verifyAccessToken: vi.fn(),
+}));
+
 import { safeEqual, verifyMcpToken } from "@/lib/mcp/auth";
+import { verifyAccessToken } from "@/lib/oauth/store";
 
 const SECRET = "super-secret-mcp-token-123456";
 
 function req(): Request {
   return new Request("http://localhost:3000/api/mcp/mcp", { method: "POST" });
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -26,29 +36,67 @@ describe("safeEqual", () => {
   });
 });
 
-describe("verifyMcpToken", () => {
-  it("rejects when MCP_SERVER_SECRET is not set", () => {
+describe("verifyMcpToken — shared secret", () => {
+  it("rejects a non-OAuth token when MCP_SERVER_SECRET is not set", async () => {
     vi.stubEnv("MCP_SERVER_SECRET", "");
-    expect(verifyMcpToken(req(), "anything")).toBeUndefined();
+    await expect(verifyMcpToken(req(), "anything")).resolves.toBeUndefined();
+    expect(verifyAccessToken).not.toHaveBeenCalled();
   });
 
-  it("rejects when no bearer token is provided", () => {
+  it("rejects when no bearer token is provided", async () => {
     vi.stubEnv("MCP_SERVER_SECRET", SECRET);
-    expect(verifyMcpToken(req(), undefined)).toBeUndefined();
+    await expect(verifyMcpToken(req(), undefined)).resolves.toBeUndefined();
   });
 
-  it("rejects an incorrect token", () => {
+  it("rejects an incorrect token", async () => {
     vi.stubEnv("MCP_SERVER_SECRET", SECRET);
-    expect(verifyMcpToken(req(), "wrong-token")).toBeUndefined();
+    await expect(verifyMcpToken(req(), "wrong-token")).resolves.toBeUndefined();
   });
 
-  it("returns AuthInfo for the correct token", () => {
+  it("returns AuthInfo with the read scope for the correct token", async () => {
     vi.stubEnv("MCP_SERVER_SECRET", SECRET);
-    const info = verifyMcpToken(req(), SECRET);
+    const info = await verifyMcpToken(req(), SECRET);
     expect(info).toEqual({
       token: SECRET,
       clientId: "mcp-shared-secret",
-      scopes: [],
+      scopes: ["mcp:read"],
     });
+    expect(verifyAccessToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("verifyMcpToken — OAuth access tokens", () => {
+  it("resolves an mcp_at_ token via the OAuth store even without a shared secret", async () => {
+    vi.stubEnv("MCP_SERVER_SECRET", "");
+    vi.mocked(verifyAccessToken).mockResolvedValue({
+      userId: 42,
+      email: "jane@example.com",
+      name: "Jane",
+      clientPublicId: "mcp_client_abc",
+      scope: "mcp:read",
+    });
+
+    const info = await verifyMcpToken(req(), "mcp_at_sometoken");
+    expect(info).toEqual({
+      token: "mcp_at_sometoken",
+      clientId: "mcp_client_abc",
+      scopes: ["mcp:read"],
+      extra: { userId: 42, email: "jane@example.com", name: "Jane" },
+    });
+    expect(verifyAccessToken).toHaveBeenCalledWith("mcp_at_sometoken");
+  });
+
+  it("rejects an unknown/revoked/expired OAuth token", async () => {
+    vi.stubEnv("MCP_SERVER_SECRET", SECRET);
+    vi.mocked(verifyAccessToken).mockResolvedValue(null);
+    await expect(
+      verifyMcpToken(req(), "mcp_at_revoked"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("does not hit the OAuth store for tokens without the mcp_at_ prefix", async () => {
+    vi.stubEnv("MCP_SERVER_SECRET", SECRET);
+    await expect(verifyMcpToken(req(), "random-token")).resolves.toBeUndefined();
+    expect(verifyAccessToken).not.toHaveBeenCalled();
   });
 });

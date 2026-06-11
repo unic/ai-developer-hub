@@ -9,6 +9,13 @@ vi.mock("@/lib/mcp/data", () => ({
   getBudgetStatusData: vi.fn(),
   getCopilotUsageSummaryData: vi.fn(),
   listRecentSyncEventsData: vi.fn(),
+  findUsersData: vi.fn(),
+  listClaudeUsersData: vi.fn(),
+  getClaudeCostDashboardData: vi.fn(),
+  getBudgetReportToolData: vi.fn(),
+  listLicenseAssignmentsData: vi.fn(),
+  listInvoicesData: vi.fn(),
+  getCopilotAnalyticsData: vi.fn(),
 }));
 
 import { registerHubTools, type ToolRegistrar } from "@/lib/mcp/tools";
@@ -40,6 +47,13 @@ const EXPECTED_TOOLS = [
   "get_budget_status",
   "get_copilot_usage_summary",
   "list_recent_sync_events",
+  "find_users",
+  "list_claude_users",
+  "get_claude_cost_dashboard",
+  "get_budget_report",
+  "list_license_assignments",
+  "list_invoices",
+  "get_copilot_analytics",
 ];
 
 beforeEach(() => {
