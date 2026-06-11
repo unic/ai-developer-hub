@@ -105,16 +105,19 @@ export async function issueAuthCode(input: {
 
 /**
  * Atomically consume an authorization code: the UPDATE only matches an
- * unconsumed, unexpired row, so a replayed code (or a race between two token
- * requests) yields undefined for the loser.
+ * unconsumed, unexpired row bound to the presenting client, so a replayed
+ * code, a race between two token requests, or a code presented by the wrong
+ * client yields undefined — without burning a code that belongs to another
+ * client.
  */
-export async function consumeAuthCode(rawCode: string) {
+export async function consumeAuthCode(rawCode: string, clientRowId: number) {
   const [row] = await db
     .update(mcpOauthCodes)
     .set({ consumedAt: new Date() })
     .where(
       and(
         eq(mcpOauthCodes.codeHash, sha256Hex(rawCode)),
+        eq(mcpOauthCodes.clientId, clientRowId),
         isNull(mcpOauthCodes.consumedAt),
         gt(mcpOauthCodes.expiresAt, new Date()),
       ),

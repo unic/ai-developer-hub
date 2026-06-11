@@ -58,6 +58,7 @@ export function isAllowedRedirectUri(uri: string): boolean {
   } catch {
     return false;
   }
+  if (parsed.hostname === "") return false;
   if (parsed.hash !== "") return false;
   if (parsed.username !== "" || parsed.password !== "") return false;
   if (parsed.protocol === "https:") return true;

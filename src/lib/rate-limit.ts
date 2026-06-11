@@ -43,9 +43,7 @@ export function resetLimit(key: string): void {
  * (Vercel sets x-forwarded-for; x-real-ip is a common fallback).
  */
 export function clientIp(headers: Headers): string {
-  return (
-    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    headers.get("x-real-ip") ??
-    "unknown"
-  );
+  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const realIp = headers.get("x-real-ip")?.trim();
+  return forwarded || realIp || "unknown";
 }

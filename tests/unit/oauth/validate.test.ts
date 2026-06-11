@@ -23,11 +23,12 @@ describe("isAllowedRedirectUri", () => {
     expect(isAllowedRedirectUri("http://192.168.1.10/callback")).toBe(false);
   });
 
-  it("rejects fragments, credentials, custom schemes, and garbage", () => {
+  it("rejects fragments, credentials, custom schemes, empty hosts, and garbage", () => {
     expect(isAllowedRedirectUri("https://a.com/cb#frag")).toBe(false);
     expect(isAllowedRedirectUri("https://user:pw@a.com/cb")).toBe(false);
     expect(isAllowedRedirectUri("myapp://callback")).toBe(false);
     expect(isAllowedRedirectUri("javascript:alert(1)")).toBe(false);
+    expect(isAllowedRedirectUri("file:///etc/passwd")).toBe(false);
     expect(isAllowedRedirectUri("not a uri")).toBe(false);
   });
 });

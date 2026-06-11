@@ -61,7 +61,12 @@ export async function POST(req: Request): Promise<Response> {
       windowMs: 10 * 60 * 1000,
     })
   ) {
-    return tokenError("invalid_request", "Rate limited");
+    // 429 (not an OAuth error code) so clients back off instead of treating
+    // throttling as a permanent request error.
+    return oauthJson(
+      { error: "invalid_request", error_description: "Rate limited" },
+      { status: 429 },
+    );
   }
 
   if (!clientId) {
@@ -84,8 +89,10 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    const consumed = await consumeAuthCode(code);
-    if (!consumed || consumed.clientId !== client.id) {
+    // Client binding is part of the consume predicate, so a code presented
+    // by the wrong client is refused without being burned.
+    const consumed = await consumeAuthCode(code, client.id);
+    if (!consumed) {
       return tokenError("invalid_grant", "Authorization code is invalid, expired, or already used");
     }
 
