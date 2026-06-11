@@ -9,6 +9,13 @@ vi.mock("@/lib/mcp/data", () => ({
   getBudgetStatusData: vi.fn(),
   getCopilotUsageSummaryData: vi.fn(),
   listRecentSyncEventsData: vi.fn(),
+  findUsersData: vi.fn(),
+  listClaudeUsersData: vi.fn(),
+  getClaudeCostDashboardData: vi.fn(),
+  getBudgetReportToolData: vi.fn(),
+  listLicenseAssignmentsData: vi.fn(),
+  listInvoicesData: vi.fn(),
+  getCopilotAnalyticsData: vi.fn(),
 }));
 
 import { registerHubTools, type ToolRegistrar } from "@/lib/mcp/tools";
@@ -19,17 +26,24 @@ import {
 } from "@/lib/mcp/data";
 
 type Handler = (args: Record<string, unknown>) => Promise<McpToolResult>;
+type ToolMeta = { annotations?: { readOnlyHint?: boolean } };
 
-function collectHandlers(): Map<string, Handler> {
-  const handlers = new Map<string, Handler>();
+function collectTools(): Map<string, { meta: ToolMeta; handler: Handler }> {
+  const tools = new Map<string, { meta: ToolMeta; handler: Handler }>();
   const fakeServer = {
-    registerTool: (name: string, _meta: unknown, handler: Handler) => {
-      handlers.set(name, handler);
+    registerTool: (name: string, meta: ToolMeta, handler: Handler) => {
+      tools.set(name, { meta, handler });
       return undefined;
     },
   };
   registerHubTools(fakeServer as unknown as ToolRegistrar);
-  return handlers;
+  return tools;
+}
+
+function collectHandlers(): Map<string, Handler> {
+  return new Map(
+    [...collectTools()].map(([name, { handler }]) => [name, handler]),
+  );
 }
 
 const EXPECTED_TOOLS = [
@@ -40,6 +54,13 @@ const EXPECTED_TOOLS = [
   "get_budget_status",
   "get_copilot_usage_summary",
   "list_recent_sync_events",
+  "find_users",
+  "list_claude_users",
+  "get_claude_cost_dashboard",
+  "get_budget_report",
+  "list_license_assignments",
+  "list_invoices",
+  "get_copilot_analytics",
 ];
 
 beforeEach(() => {
@@ -50,6 +71,14 @@ describe("registerHubTools", () => {
   it("registers exactly the expected read-only tools", () => {
     const handlers = collectHandlers();
     expect([...handlers.keys()].sort()).toEqual([...EXPECTED_TOOLS].sort());
+  });
+
+  it("marks every tool with the readOnlyHint annotation", () => {
+    for (const [name, { meta }] of collectTools()) {
+      expect(meta.annotations?.readOnlyHint, `${name} missing readOnlyHint`).toBe(
+        true,
+      );
+    }
   });
 
   it("routes a successful call through jsonResult", async () => {

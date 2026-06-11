@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>038 · MCP v2 — Implementation Notes</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1d212b; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #e8503a; --good: #4cc38a;
+    --warn: #e5b454; --bad: #e0556a; --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 32px 96px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 30px; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  h2 { font-size: 21px; margin: 44px 0 12px; }
+  p { margin: 10px 0; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  .entry { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 14px 0; }
+  .entry h3 { margin: 0 0 6px; font-size: 15.5px; }
+  .tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); margin-right: 8px; vertical-align: 2px; }
+  .tag.decision { color: var(--good); border-color: var(--good); }
+  .tag.deviation { color: var(--bad); border-color: var(--bad); }
+  .tag.tradeoff { color: var(--warn); border-color: var(--warn); }
+  .tag.question { color: #7aa7e8; border-color: #7aa7e8; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Spec 038 · Implementation Notes</div>
+  <h1>MCP v2 — Running Notes</h1>
+  <div class="meta">Maintained during implementation · entries are append-ordered, newest last ·
+  tags: <span class="tag decision">decision</span><span class="tag deviation">deviation</span><span class="tag tradeoff">tradeoff</span><span class="tag question">open question</span></div>
+</header>
+
+<h2>Entries</h2>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Spec folder numbered 038</h3>
+  <p>Specs run through 037 (<code>037-tier-cost-propagation</code>); this feature is <code>specs/038-mcp-v2/</code>.
+  The original MCP server spec is 034; this builds on it rather than amending it.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Embedded OAuth AS over external IdP / PAT-style keys</h3>
+  <p>Claude Desktop &amp; claude.ai custom connectors cannot send custom headers, so any header-token scheme fails
+  the primary requirement. An external IdP would federate identity for a single consumer of an app whose users
+  live in its own Postgres. Full rationale in <code>brainstorm.html</code> §2; risk discussion in
+  <code>implementation-plan.html</code> §4.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag tradeoff">tradeoff</span>Opaque hashed tokens (DB lookup per call) over JWTs</h3>
+  <p>Chose instant revocation + user-deactivation guarantees over saving one indexed SELECT per tool call.
+  For an internal admin tool the read is negligible; "revoke" in the settings UI must actually mean revoke.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag deviation">deviation</span>No silent re-approve on the consent screen</h3>
+  <p>The plan leaned toward auto-issuing a code when the user already holds a live grant for the same client.
+  Implemented <strong>always-show-consent</strong> instead: silent re-approve means issuing a code (a DB write)
+  during a server-component render, which Next.js semantics discourage (renders may be replayed/prefetched).
+  Cost is one extra click per re-connect, and with 60-day rotating refresh tokens that screen appears rarely.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Redirect URI policy: https + loopback http only — no custom schemes</h3>
+  <p>Claude's documented callbacks are <code>https://claude.ai/api/mcp/auth_callback</code> and port-agnostic
+  <code>http://localhost/…</code> (RFC 8252 §7.3 — port ignored at match time, implemented and unit-tested).
+  Private-use schemes like <code>cursor://</code> are rejected at registration. If a custom-scheme client ever
+  matters, it's a one-line relaxation in <code>isAllowedRedirectUri</code> plus a deny-list for
+  <code>javascript:</code>/<code>data:</code> — deliberately not pre-built.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Scope handling: <code>offline_access</code> tolerated, always grant <code>mcp:read</code></h3>
+  <p>Claude appends <code>offline_access</code> when a server lists it; we don't list it but tolerate it being
+  requested (refresh tokens are always issued anyway). Any other unknown scope is rejected with
+  <code>invalid_scope</code> so the consent screen never under-describes what's granted.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag deviation">deviation</span>New tools query the DB directly instead of "lifting" page queries into src/lib</h3>
+  <p>The plan said to lift session-checking action queries (e.g. <code>_getUserList</code>) into shared lib
+  modules. Dropped that: exporting anything from a <code>"use server"</code> file mints a callable server-action
+  endpoint, and refactoring 700-line action files to share internals would churn admin-page code in an MCP PR.
+  Instead each tool runs a focused read-only query in <code>src/lib/mcp/data.ts</code> (the pattern spec 034
+  already used for Copilot). <code>getBudgetReportData</code> is the exception — it performs no session check
+  and is imported directly, exactly like the existing <code>actions/budget</code> imports.
+  <strong>Consequence:</strong> MCP results are deliberately leaner than the admin pages (e.g. the cost dashboard
+  omits the page's pacing curve and calibrated today-estimate). The <code>/simplify</code> pass flagged the
+  duplication risk and two real drift points were fixed (the sync-lock sentinel user is now excluded from
+  <code>list_claude_users</code> like the admin query does, and the default-workspace label matches the
+  dashboard's capitalization); the structural duplication is accepted and documented rather than refactoring
+  <code>anthropic-users.ts</code>/<code>anthropic-global.ts</code> inside this PR.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Authorization model unchanged: any authenticated MCP credential sees all read-only data</h3>
+  <p>OAuth adds <em>who</em> (user-bound tokens, per-user revocation) but not per-role filtering: a viewer-role
+  user's token reads the same org-wide spend data as an admin's, matching the shared-secret behavior spec 034
+  shipped and the data-is-viewer-safe judgment made there. Per-user spend (<code>list_claude_users</code>) is
+  visible org-wide in the admin UI only — flagging this explicitly as something to confirm (see open questions).</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Token-endpoint rate limit keyed on IP + client_id</h3>
+  <p>Hosted Claude egresses every tenant through <code>160.79.104.0/21</code>, so a pure-IP limiter could lock out
+  unrelated users. Registration stays per-IP (10/10 min); token grants are 60/10 min per IP+client.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span><code>safeEqual</code> moved to <code>src/lib/oauth/validate.ts</code></h3>
+  <p><code>mcp/auth.ts</code> now imports from the OAuth layer, which itself needs <code>safeEqual</code> — keeping
+  it in <code>mcp/auth.ts</code> would create an import cycle. Re-exported from the old location so existing
+  imports/tests are untouched.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag tradeoff">tradeoff</span>Opportunistic cleanup instead of a cron job</h3>
+  <p>Expired codes/tokens are deleted piggy-backed on issuance writes. Registered <em>clients</em> are never
+  auto-pruned (a client row is ~200 bytes and registration is rate-limited); accepting slow accumulation over
+  another scheduled job. Revisit if DCR abuse ever shows up in practice.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Migration 0025 generated; not applied from this machine</h3>
+  <p><code>0025_colorful_vector.sql</code> creates the three OAuth tables. The worktree's <code>.env.local</code>
+  (copied from the main checkout for the build) points at the <em>production</em> Neon branch, so no
+  <code>db:push</code>/<code>db:migrate</code> was run locally — the migration applies through the normal deploy
+  pipeline. Journal ordering verified (new <code>when</code> &gt; 1781164840619).</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Red Vercel check on PR #118 is environmental, not this branch</h3>
+  <p>The preview deployment fails during <code>next build</code>: static generation of
+  <code>/reports</code>, <code>/reports/budget</code>, and <code>/settings/license-templates</code> times out
+  (3 × 60 s) hitting the database. Verified by control experiment: deploying <strong>main</strong>
+  (<code>6bd1dac</code>, whose last deployment succeeded) from the same machine fails with byte-identical
+  timeouts, while this branch builds clean locally. The Vercel-build→preview-DB path is unhealthy at the time
+  of writing; the check should be retried once it recovers. Also explains why the PR's git deployments show no
+  build logs via <code>vercel inspect --logs</code>.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>PR #118 review round (Copilot, 3 comments — all addressed in 8361720)</h3>
+  <p>Copilot's first pass errored; re-triggered via
+  <code>gh api …/requested_reviewers -f "reviewers[]=copilot-pull-request-reviewer[bot]"</code> (pushes and
+  close/reopen do not re-trigger it). Findings: (1) <code>requestOrigin</code> must split comma-separated
+  forwarded headers — fixed + unit test; (2)+(3) revoke button should <code>router.refresh()</code> after
+  success — adopted to match the settings-page convention, noting the server action's
+  <code>revalidatePath</code> already refreshes the route when invoked from a client component.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Copilot passes 2–3 (5 more comments, all addressed; loop stopped here)</h3>
+  <p>Pass 2 (8141d26): concurrent refresh-token rotation race — the revoke UPDATE is now conditional on
+  <code>revokedAt IS NULL</code> with a row-count check; the race loser is treated as a replay (family revoked).
+  Pass 3 (8082f19): 429 on token-endpoint throttling, empty-hostname redirect URIs rejected, empty forwarded
+  headers normalized in <code>clientIp</code>, and <code>consumeAuthCode</code> binds the client id into the
+  atomic consume predicate so a wrong-client presentation doesn't burn the code. Per reviewer-fatigue feedback,
+  no further automated passes were requested — findings had converged to minor hardening.</p>
+</div>
+
+<h2>Open questions</h2>
+
+<div class="entry">
+  <h3><span class="tag question">open question</span>Should viewer-role tokens see org-wide per-user spend?</h3>
+  <p>Today: yes (matches spec 034's shared-secret model — anyone with the org secret saw everything). If that's
+  not acceptable now that tokens are user-bound, the hook exists: <code>verifyMcpToken</code> already puts
+  <code>userId</code>/<code>email</code> into <code>AuthInfo.extra</code>, so role-scoping individual tools is a
+  follow-up, not a redesign.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag question">open question</span>Access-token TTL: 1 hour</h3>
+  <p>Chose the strict OAuth 2.1 posture (1 h access / 60 d rotating refresh). If hourly refresh traffic ever
+  bothers you in logs, bumping <code>ACCESS_TOKEN_TTL_MS</code> is a one-line change.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag question">open question</span>P2 tools shipped — confirm they earn their keep</h3>
+  <p><code>list_invoices</code> and <code>get_copilot_analytics</code> were the designated drop-candidates if
+  review finds the tool count excessive (14 total). Both are thin; flagging rather than pre-cutting.</p>
+</div>
+
+</div>
+</body>
+</html>

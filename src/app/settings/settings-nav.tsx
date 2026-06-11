@@ -4,7 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const baseTabs = [{ label: "Appearance", href: "/settings/appearance" }];
+const baseTabs = [
+  { label: "Appearance", href: "/settings/appearance" },
+  { label: "Connections", href: "/settings/connections" },
+];
 
 const adminTabs = [
   { label: "Integrations", href: "/settings/integrations" },

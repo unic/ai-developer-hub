@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>038 · MCP v2 — Brainstorm: OAuth + Tool Expansion</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1d212b; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #e8503a; --good: #4cc38a;
+    --warn: #e5b454; --bad: #e0556a; --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 32px 96px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 30px; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  h2 { font-size: 21px; margin: 48px 0 12px; padding-top: 8px; }
+  h2 .no { color: var(--accent); font-family: var(--mono); font-size: 15px; margin-right: 10px; }
+  h3 { font-size: 16px; margin: 28px 0 8px; }
+  p { margin: 10px 0; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
+  pre code { background: none; border: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; }
+  th { text-align: left; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: 1px solid var(--border); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 9px 10px; vertical-align: top; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; }
+  .card h3 { margin-top: 0; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); margin-right: 6px; }
+  .pill.rec { color: var(--good); border-color: var(--good); }
+  .pill.rej { color: var(--bad); border-color: var(--bad); }
+  .pill.p1 { color: var(--good); border-color: var(--good); }
+  .pill.p2 { color: var(--warn); border-color: var(--warn); }
+  .pill.p3 { color: var(--muted); }
+  .flow { font-family: var(--mono); font-size: 12.5px; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .verdict { border-left: 3px solid var(--accent); padding: 10px 16px; background: var(--panel); border-radius: 0 8px 8px 0; margin: 16px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Spec 038 · Brainstorm</div>
+  <h1>MCP v2 — OAuth Connectivity &amp; Tool Expansion</h1>
+  <div class="meta">ai-developer-hub · 2026-06-11 · builds on spec 034 (read-only MCP server, PR #112)</div>
+</header>
+
+<p>The Hub already ships a read-only MCP server at <code>/api/mcp/mcp</code> (Streamable HTTP via
+<code>mcp-handler</code> 1.1.0) guarded by a single shared bearer secret (<code>MCP_SERVER_SECRET</code>).
+Two asks for v2:</p>
+<ul>
+  <li><strong>Connectivity</strong> — make the Hub addable as a custom connector in Claude Desktop / claude.ai and
+      via <code>claude mcp add</code> in Claude Code, which means a real OAuth flow instead of a copy-pasted secret.</li>
+  <li><strong>Capability</strong> — extend the seven existing tools with the highest-value data the app already computes.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2><span class="no">1</span>What Claude clients actually require</h2>
+
+<p>Verified against the Claude connector docs (June 2026) and <code>mcp-handler</code>'s authorization guide:</p>
+<table>
+  <tr><th>Requirement</th><th>Detail</th></tr>
+  <tr><td>Transport</td><td>Streamable HTTP — already in place (<code>/api/mcp/mcp</code>).</td></tr>
+  <tr><td>Resource metadata (RFC 9728)</td><td>Claude probes <code>/.well-known/oauth-protected-resource/api/mcp/mcp</code> first, then the root path; alternatively a <code>WWW-Authenticate: Bearer resource_metadata="…"</code> on the 401. <code>mcp-handler</code> ships <code>protectedResourceHandler</code> for this.</td></tr>
+  <tr><td>AS metadata (RFC 8414)</td><td><code>/.well-known/oauth-authorization-server</code> advertising authorize/token/register endpoints, <code>code_challenge_methods_supported: ["S256"]</code>.</td></tr>
+  <tr><td>Dynamic Client Registration (RFC 7591)</td><td>Claude registers itself as a <strong>public client</strong> (no secret) by POSTing JSON to the registration endpoint. No manual client setup possible for claude.ai/Desktop free-form connectors (advanced settings allow a pre-provisioned client id, but DCR is the zero-friction path).</td></tr>
+  <tr><td>PKCE</td><td>S256 on every authorization request; OAuth 2.1 — no implicit grant, exact redirect URI matching.</td></tr>
+  <tr><td>Redirect URIs</td><td>Hosted Claude (web/Desktop/mobile): <code>https://claude.ai/api/mcp/auth_callback</code>. Claude Code: loopback <code>http://localhost:&lt;ephemeral-port&gt;/callback</code> — the AS must ignore the port component per RFC 8252.</td></tr>
+  <tr><td>Token endpoint</td><td>Accepts <code>application/x-www-form-urlencoded</code>; RFC 6749 error codes (<code>invalid_grant</code> for a dead refresh token, not <code>invalid_request</code>). Refresh-token rotation expected for public clients. 10 s timeout budget.</td></tr>
+</table>
+
+<div class="verdict"><strong>Implication.</strong> <code>mcp-handler</code> covers only the <em>resource-server</em> half
+(token verification hook + resource metadata route). The <em>authorization-server</em> half — authorize page, consent,
+code &amp; token issuance, DCR — does not exist anywhere in the stack and is the core of this feature. NextAuth v5
+(credentials provider) is a session library, not an OAuth provider; it gives us the logged-in admin/viewer identity
+we anchor the consent screen to, nothing more.</p></div>
+
+<!-- ============================================================ -->
+<h2><span class="no">2</span>Auth approaches considered</h2>
+
+<div class="card">
+  <h3><span class="pill rej">rejected</span> A. Keep shared secret only</h3>
+  <p>Claude Desktop custom connectors have no header field for arbitrary bearer tokens; only Claude Code supports
+  <code>--header</code>. One org-wide secret means no per-user identity, no revocation granularity, and manual
+  secret distribution. Fails ask #1 outright.</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill rej">rejected</span> B. External identity provider (Auth0 / Clerk / Entra ID)</h3>
+  <p>Offloads the hard OAuth parts, but: the Hub's users live in its own Postgres <code>users</code> table with
+  bcrypt credentials — wiring an external IdP means federating identity for exactly one consumer, a new SaaS
+  dependency, new secrets, and tenant setup the team doesn't otherwise need. Entra ID DCR support is poor.
+  Disproportionate for a single internal app.</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill rej">rejected</span> C. Per-user long-lived API keys (PAT style)</h3>
+  <p>A "create MCP token" button under settings, pasted into Claude Code via <code>--header</code>. Simple, but
+  Claude Desktop/claude.ai custom connectors can't send custom headers, so it fails ask #1 for the desktop app;
+  it would only serve Claude Code. Could exist as a fallback, but it's not the headline.</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill rec">recommended</span> D. Minimal embedded OAuth 2.1 authorization server</h3>
+  <p>Implement the four endpoints inside the app, anchored on the existing NextAuth session for the authorize step:</p>
+  <pre class="flow">Claude                        Hub (Next.js)
+  |                              |
+  |  GET /api/mcp/mcp  ───────► | 401 + WWW-Authenticate: resource_metadata=…
+  |  GET /.well-known/oauth-protected-resource/api/mcp/mcp ─► points at Hub-as-AS
+  |  GET /.well-known/oauth-authorization-server ──────────► endpoints + S256
+  |  POST /api/oauth/register (DCR, public client) ────────► client_id
+  |  browser: GET /oauth/authorize?…&code_challenge=…
+  |     └─ no session → /login?callbackUrl=…  (existing flow)
+  |     └─ session    → consent screen → issue code (10 min, single-use)
+  |  POST /api/oauth/token (code + PKCE verifier) ─────────► access + refresh
+  |  POST /api/mcp/mcp  Bearer &lt;access&gt; ───────────────────► tools, scoped to user</pre>
+  <p>Three new tables (<code>mcp_oauth_clients</code>, <code>mcp_oauth_codes</code>, <code>mcp_oauth_tokens</code>),
+  tokens stored as SHA-256 hashes (the <code>invite_tokens</code> pattern), rotating refresh tokens, exact-match
+  redirect URIs with the RFC 8252 loopback-port exception. The shared secret stays as a parallel path for
+  headless/CI clients. <strong>Every grant is tied to a real Hub user</strong>, so MCP access inherits account
+  lifecycle: deactivate the user → tokens die.</p>
+  <p class="muted">Scope model: single <code>mcp:read</code> scope for now (server is read-only by design — spec 034).
+  Writing tools would be a separate feature with per-scope consent.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="no">3</span>Tool expansion — candidates</h2>
+
+<p>From a full sweep of the data layer (37 tables, ~30 reusable query helpers). Existing seven tools:
+<code>list_ai_tools</code>, <code>get_user_cost_profile</code>, <code>get_claude_spend_summary</code>,
+<code>list_claude_workspaces</code>, <code>get_budget_status</code>, <code>get_copilot_usage_summary</code>,
+<code>list_recent_sync_events</code>.</p>
+
+<table>
+  <tr><th></th><th>Proposed tool</th><th>Backed by</th><th>Why / why not</th></tr>
+  <tr><td><span class="pill p1">P1</span></td><td><code>list_claude_users</code></td><td><code>getUserList</code> (anthropic-users)</td><td>"Who are the top Claude spenders this month?" — single most common spend question; per-user cents, tokens, models, last-active. Today it takes one exact-email call per user.</td></tr>
+  <tr><td><span class="pill p1">P1</span></td><td><code>find_users</code></td><td><code>users</code> table, ILIKE</td><td>Fuzzy name/email lookup. <code>get_user_cost_profile</code> requires an exact email — an assistant rarely has it. Tiny tool, big UX unlock for every user-keyed tool.</td></tr>
+  <tr><td><span class="pill p1">P1</span></td><td><code>get_claude_cost_dashboard</code></td><td><code>getGlobalCostDashboard</code></td><td>Daily per-workspace series, 12-month history, pacing vs last month, top movers. The page exists; the data is one call away.</td></tr>
+  <tr><td><span class="pill p1">P1</span></td><td><code>get_budget_report</code></td><td><code>getBudgetReportData</code> (028)</td><td>Per-tool spend breakdown + running (un-invoiced) Claude costs per period — the piece <code>get_budget_status</code> lacks; answers "what is each tool costing us".</td></tr>
+  <tr><td><span class="pill p1">P1</span></td><td><code>list_license_assignments</code></td><td><code>licenseAssignments</code> + joins</td><td>The register: who has what license at what cost, filter by tool/status/email. Core inventory question, currently invisible to MCP.</td></tr>
+  <tr><td><span class="pill p2">P2</span></td><td><code>list_invoices</code></td><td><code>invoices</code> + period link</td><td>Vendor/month/link-status filters; "which invoices arrived for February and are any unlinked?"</td></tr>
+  <tr><td><span class="pill p2">P2</span></td><td><code>get_copilot_analytics</code></td><td><code>getCopilotAnalyticsData</code></td><td>Daily series + language/editor breakdowns; existing summary only aggregates.</td></tr>
+  <tr><td><span class="pill p3">P3</span></td><td><code>list_license_requests</code></td><td>spec 032 workflow</td><td>Approval queue visibility. Niche audience (admins in Teams already see it). Defer.</td></tr>
+  <tr><td><span class="pill p3">P3</span></td><td><code>get_ingestion_history</code></td><td>spec 023 log</td><td>Mostly covered by <code>list_recent_sync_events</code> + <code>list_invoices</code>. Defer.</td></tr>
+  <tr><td><span class="pill p3">P3</span></td><td><code>simulate_budget_forecast</code> / <code>compare_api_vs_subscription</code></td><td>specs 035/036 engines</td><td>Tempting "calculator" tools, but inputs are wide (price overrides, seat counts) and the engines are client-side modules — porting them server-side is its own feature. Defer.</td></tr>
+  <tr><td><span class="pill p3">P3</span></td><td>MCP resources / prompts</td><td>—</td><td>Claude clients' resource support is still thin compared to tools; skip for v2.</td></tr>
+</table>
+
+<h3>Improvements to existing tools</h3>
+<ul>
+  <li><code>list_ai_tools</code> — add active license counts and <code>maxLicenses</code> utilization per tool (cheap join; turns a static catalog into an inventory answer).</li>
+  <li><code>get_user_cost_profile</code> — on email miss, return near-match candidates (powered by the same lookup as <code>find_users</code>) instead of a bare error.</li>
+  <li>All tools — add MCP <code>annotations: { readOnlyHint: true }</code> so clients can skip confirmation prompts.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2><span class="no">4</span>Security considerations</h2>
+<ul>
+  <li><strong>Token storage</strong> — only SHA-256 hashes in Postgres; raw tokens exist client-side only. Access tokens short-lived (≈1 h), refresh tokens rotating with reuse detection (rotated-token replay revokes the family).</li>
+  <li><strong>Consent is user-anchored</strong> — the authorize page sits behind the normal NextAuth login; agent accounts (<code>isAgent</code>) are refused consent. Viewer-role users get the same read-only tools as admins — acceptable because spec 034 already deemed every exposed field viewer-safe (no API keys, no hashes); revisit if a write tool ever lands.</li>
+  <li><strong>Redirect URI policy</strong> — exact string match against registered URIs; the only relaxation is ignoring the port for <code>http://localhost</code> / <code>http://127.0.0.1</code> loopbacks (RFC 8252 §7.3). No wildcards, no open redirects; <code>state</code> echoed verbatim.</li>
+  <li><strong>DCR abuse</strong> — registration is unauthenticated by spec. Mitigations: store only validated metadata, cap stored clients, prune clients with no tokens, and rate-limit via the existing <code>rate-limit.ts</code> helper. A registered client grants nothing without a logged-in user consenting.</li>
+  <li><strong>No new write surface</strong> — the MCP server stays read-only; OAuth only changes <em>who can read</em>, from "anyone with the org secret" to "named users who consented".</li>
+  <li><strong>Revocation</strong> — settings page lists a user's active grants (client name, last used) with revoke; deactivating a user revokes everything via the token check joining <code>users.status</code>.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2><span class="no">5</span>Recommended scope for v2</h2>
+<div class="verdict">
+  <p><strong>Ship:</strong> embedded OAuth 2.1 AS (option D) with DCR + PKCE + rotating refresh tokens, shared-secret path retained · five P1 tools + two P2 tools · the three existing-tool improvements · grants management in settings · migration with three new tables.</p>
+  <p><strong>Defer:</strong> license-request/ingestion tools, scenario calculators, MCP resources, scoped write access, pre-provisioned client management UI.</p>
+</div>
+
+<h3>Open questions for the implementation plan</h3>
+<ul>
+  <li>Access-token TTL: 1 h (strict OAuth 2.1 posture) vs 24 h (fewer refresh round-trips). Leaning 1 h since Claude refreshes automatically.</li>
+  <li>Should the consent screen be per-client-forever (silent re-approve on the same client) or re-prompt each authorize? Leaning silent re-approve when an unexpired grant for the same client exists.</li>
+  <li>Where the well-known routes live: Next.js route handlers under <code>src/app/.well-known/…/route.ts</code> — need to confirm middleware matcher exclusion.</li>
+</ul>
+
+</div>
+</body>
+</html>

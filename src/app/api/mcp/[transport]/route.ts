@@ -1,9 +1,13 @@
 /**
  * MCP server endpoint (Model Context Protocol over Streamable HTTP).
  *
- * Mounts the Hub's read-only tools at `/api/mcp/mcp`. Auth is the shared
- * `MCP_SERVER_SECRET` bearer token enforced by `withMcpAuth`; when the secret
- * is unset the server rejects every request (see src/lib/mcp/auth.ts).
+ * Mounts the Hub's read-only tools at `/api/mcp/mcp`. Auth accepts either the
+ * shared `MCP_SERVER_SECRET` bearer token (headless clients) or an OAuth
+ * access token issued by the embedded authorization server (Claude Desktop /
+ * claude.ai / Claude Code connectors) — see src/lib/mcp/auth.ts and
+ * src/lib/oauth/*. Unauthenticated requests get a 401 whose WWW-Authenticate
+ * header points clients at /.well-known/oauth-protected-resource to start the
+ * OAuth flow.
  *
  * This route is excluded from the NextAuth middleware matcher so unauthenticated
  * clients receive a clean 401 instead of a redirect to /login.

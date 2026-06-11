@@ -970,6 +970,84 @@ export const messageTemplates = pgTable(
   ]
 );
 
+// MCP OAuth (038-mcp-v2) — minimal embedded OAuth 2.1 authorization server so
+// Claude clients can connect to the MCP endpoint with per-user grants. Tokens
+// and authorization codes are stored as SHA-256 hashes only (invite_tokens
+// pattern); raw values exist client-side only.
+export const mcpOauthClients = pgTable(
+  "mcp_oauth_clients",
+  {
+    id: serial("id").primaryKey(),
+    clientId: varchar("client_id", { length: 64 }).notNull(),
+    clientName: varchar("client_name", { length: 255 }).notNull(),
+    redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  (table) => [uniqueIndex("mcp_oauth_clients_client_id_idx").on(table.clientId)]
+);
+
+export const mcpOauthCodes = pgTable(
+  "mcp_oauth_codes",
+  {
+    id: serial("id").primaryKey(),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    // PKCE S256 challenge — base64url(sha256(verifier)), always 43 chars but
+    // sized generously.
+    codeChallenge: varchar("code_challenge", { length: 128 }).notNull(),
+    scope: varchar("scope", { length: 255 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mcp_oauth_codes_code_hash_idx").on(table.codeHash),
+    index("mcp_oauth_codes_user_id_idx").on(table.userId),
+  ]
+);
+
+export const mcpOauthTokens = pgTable(
+  "mcp_oauth_tokens",
+  {
+    id: serial("id").primaryKey(),
+    // Refresh-rotation lineage: rotation revokes the old row and inserts a new
+    // one with the same familyId. Replaying a revoked refresh token revokes
+    // the whole family (RFC 9700 §4.14 reuse detection).
+    familyId: varchar("family_id", { length: 36 }).notNull(),
+    accessTokenHash: varchar("access_token_hash", { length: 64 }).notNull(),
+    refreshTokenHash: varchar("refresh_token_hash", { length: 64 }).notNull(),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    scope: varchar("scope", { length: 255 }).notNull(),
+    accessExpiresAt: timestamp("access_expires_at").notNull(),
+    refreshExpiresAt: timestamp("refresh_expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mcp_oauth_tokens_access_token_hash_idx").on(
+      table.accessTokenHash
+    ),
+    uniqueIndex("mcp_oauth_tokens_refresh_token_hash_idx").on(
+      table.refreshTokenHash
+    ),
+    index("mcp_oauth_tokens_user_id_idx").on(table.userId),
+    index("mcp_oauth_tokens_family_id_idx").on(table.familyId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
