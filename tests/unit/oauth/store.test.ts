@@ -156,6 +156,7 @@ describe("rotateRefreshToken", () => {
 
   it("rotates within the same family on success", async () => {
     selectQueue.push([tokenRow()]);
+    updateReturningQueue.push([{ id: 11 }]); // conditional revoke matched
 
     const result = await rotateRefreshToken("mcp_rt_x", 1);
     if (!result.ok) throw new Error("expected rotation to succeed");
@@ -165,6 +166,18 @@ describe("rotateRefreshToken", () => {
     expect(stored.familyId).toBe("fam-1");
     expect(stored.userId).toBe(42);
     expect(stored.scope).toBe("mcp:read");
+  });
+
+  it("revokes the family when losing a concurrent-rotation race", async () => {
+    selectQueue.push([tokenRow()]);
+    updateReturningQueue.push([]); // conditional revoke matched no rows
+
+    const result = await rotateRefreshToken("mcp_rt_x", 1);
+    expect(result).toEqual({ ok: false, error: "invalid_grant" });
+    // Two updates fired (failed conditional revoke + family revocation),
+    // no successor tokens inserted.
+    expect(updateCalls.length).toBe(2);
+    expect(insertedRows.length).toBe(0);
   });
 });
 

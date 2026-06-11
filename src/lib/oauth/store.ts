@@ -216,10 +216,20 @@ export async function rotateRefreshToken(
     return { ok: false, error: "invalid_grant" };
   }
 
-  await db
+  // Atomic revoke: only matches the row while it is still unrevoked, so two
+  // concurrent refreshes of the same token cannot both rotate. The loser is
+  // indistinguishable from a replay and gets the same family revocation.
+  const [revoked] = await db
     .update(mcpOauthTokens)
     .set({ revokedAt: new Date() })
-    .where(eq(mcpOauthTokens.id, row.id));
+    .where(
+      and(eq(mcpOauthTokens.id, row.id), isNull(mcpOauthTokens.revokedAt)),
+    )
+    .returning({ id: mcpOauthTokens.id });
+  if (!revoked) {
+    await revokeTokenFamily(row.familyId);
+    return { ok: false, error: "invalid_grant" };
+  }
 
   const tokens = await issueTokens({
     clientRowId: row.clientId,
