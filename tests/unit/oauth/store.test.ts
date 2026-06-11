@@ -82,19 +82,17 @@ import {
 const FUTURE = new Date(Date.now() + 86_400_000);
 const PAST = new Date(Date.now() - 86_400_000);
 
+/** Row shape returned by rotateRefreshToken's token+user joined select. */
 function tokenRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 11,
     familyId: "fam-1",
-    refreshTokenHash: "h",
     clientId: 1,
     userId: 42,
     scope: "mcp:read",
-    accessExpiresAt: FUTURE,
     refreshExpiresAt: FUTURE,
     revokedAt: null,
-    lastUsedAt: null,
-    createdAt: PAST,
+    userIsActive: true,
     ...overrides,
   };
 }
@@ -125,7 +123,7 @@ describe("issueTokens", () => {
 
 describe("rotateRefreshToken", () => {
   it("rejects an unknown refresh token", async () => {
-    mockTokensFindFirst.mockResolvedValue(undefined);
+    selectQueue.push([]);
     expect(await rotateRefreshToken("mcp_rt_x", 1)).toEqual({
       ok: false,
       error: "invalid_grant",
@@ -133,12 +131,12 @@ describe("rotateRefreshToken", () => {
   });
 
   it("rejects a token presented by a different client", async () => {
-    mockTokensFindFirst.mockResolvedValue(tokenRow({ clientId: 99 }));
+    selectQueue.push([tokenRow({ clientId: 99 })]);
     expect((await rotateRefreshToken("mcp_rt_x", 1)).ok).toBe(false);
   });
 
   it("revokes the whole family when a revoked token is replayed", async () => {
-    mockTokensFindFirst.mockResolvedValue(tokenRow({ revokedAt: PAST }));
+    selectQueue.push([tokenRow({ revokedAt: PAST })]);
     const result = await rotateRefreshToken("mcp_rt_x", 1);
     expect(result.ok).toBe(false);
     // One revocation update fired (the family), no new tokens inserted.
@@ -147,19 +145,17 @@ describe("rotateRefreshToken", () => {
   });
 
   it("rejects an expired refresh token", async () => {
-    mockTokensFindFirst.mockResolvedValue(tokenRow({ refreshExpiresAt: PAST }));
+    selectQueue.push([tokenRow({ refreshExpiresAt: PAST })]);
     expect((await rotateRefreshToken("mcp_rt_x", 1)).ok).toBe(false);
   });
 
   it("rejects when the user behind the grant is no longer active", async () => {
-    mockTokensFindFirst.mockResolvedValue(tokenRow());
-    mockUsersFindFirst.mockResolvedValue(undefined);
+    selectQueue.push([tokenRow({ userIsActive: false })]);
     expect((await rotateRefreshToken("mcp_rt_x", 1)).ok).toBe(false);
   });
 
   it("rotates within the same family on success", async () => {
-    mockTokensFindFirst.mockResolvedValue(tokenRow());
-    mockUsersFindFirst.mockResolvedValue({ id: 42 });
+    selectQueue.push([tokenRow()]);
 
     const result = await rotateRefreshToken("mcp_rt_x", 1);
     if (!result.ok) throw new Error("expected rotation to succeed");

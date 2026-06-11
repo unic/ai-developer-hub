@@ -36,8 +36,6 @@ export const clientRegistrationSchema = z.object({
     .max(10, "too many redirect_uris"),
 });
 
-export type ClientRegistration = z.infer<typeof clientRegistrationSchema>;
-
 function isLoopbackHost(hostname: string): boolean {
   return (
     hostname === "localhost" ||
@@ -115,21 +113,17 @@ export function verifyPkce(verifier: string, storedChallenge: string): boolean {
 }
 
 /**
- * Validate a requested scope string (space-delimited). Empty/absent is fine —
- * the grant defaults to MCP_SCOPE. Unknown scopes are rejected so the consent
- * screen never overstates what it grants. `offline_access` is tolerated and
- * ignored (some clients request it reflexively; refresh tokens are always
- * issued).
+ * Is the requested scope string (space-delimited) acceptable? Empty/absent is
+ * fine — the grant is always MCP_SCOPE regardless. Unknown scopes are rejected
+ * so the consent screen never overstates what it grants. `offline_access` is
+ * tolerated and ignored (some clients request it reflexively; refresh tokens
+ * are always issued).
  */
-export function validateRequestedScope(scope: string | undefined | null): {
-  ok: boolean;
-  granted: string;
-} {
-  if (!scope || scope.trim() === "") return { ok: true, granted: MCP_SCOPE };
-  const requested = scope.trim().split(/\s+/);
+export function isValidScopeRequest(scope: string | undefined | null): boolean {
+  if (!scope || scope.trim() === "") return true;
   const known = new Set([MCP_SCOPE, "offline_access"]);
-  if (requested.some((s) => !known.has(s))) {
-    return { ok: false, granted: MCP_SCOPE };
-  }
-  return { ok: true, granted: MCP_SCOPE };
+  return scope
+    .trim()
+    .split(/\s+/)
+    .every((s) => known.has(s));
 }

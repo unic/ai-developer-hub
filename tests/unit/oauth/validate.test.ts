@@ -4,11 +4,10 @@ import { createHash } from "node:crypto";
 import {
   clientRegistrationSchema,
   isAllowedRedirectUri,
+  isValidScopeRequest,
   pkceChallengeFromVerifier,
   redirectUriMatches,
-  validateRequestedScope,
   verifyPkce,
-  MCP_SCOPE,
 } from "@/lib/oauth/validate";
 
 describe("isAllowedRedirectUri", () => {
@@ -93,19 +92,19 @@ describe("PKCE", () => {
   });
 });
 
-describe("validateRequestedScope", () => {
-  it("defaults to mcp:read when absent", () => {
-    expect(validateRequestedScope(undefined)).toEqual({ ok: true, granted: MCP_SCOPE });
-    expect(validateRequestedScope("")).toEqual({ ok: true, granted: MCP_SCOPE });
+describe("isValidScopeRequest", () => {
+  it("accepts an absent or empty scope", () => {
+    expect(isValidScopeRequest(undefined)).toBe(true);
+    expect(isValidScopeRequest("")).toBe(true);
   });
 
   it("accepts mcp:read and tolerates offline_access", () => {
-    expect(validateRequestedScope("mcp:read")).toEqual({ ok: true, granted: MCP_SCOPE });
-    expect(validateRequestedScope("mcp:read offline_access").ok).toBe(true);
+    expect(isValidScopeRequest("mcp:read")).toBe(true);
+    expect(isValidScopeRequest("mcp:read offline_access")).toBe(true);
   });
 
   it("rejects unknown scopes", () => {
-    expect(validateRequestedScope("admin:write").ok).toBe(false);
+    expect(isValidScopeRequest("admin:write")).toBe(false);
   });
 });
 

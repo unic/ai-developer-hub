@@ -5,7 +5,7 @@
  * consenting on /oauth/authorize. Rate-limited per IP to blunt abuse.
  */
 
-import { isRateLimited } from "@/lib/rate-limit";
+import { clientIp, isRateLimited } from "@/lib/rate-limit";
 import { oauthJson, oauthPreflight } from "@/lib/oauth/metadata";
 import {
   clientRegistrationSchema,
@@ -23,10 +23,8 @@ function registrationError(description: string): Response {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (
-    isRateLimited(`oauth-register:${ip}`, {
+    isRateLimited(`oauth-register:${clientIp(req.headers)}`, {
       maxAttempts: 10,
       windowMs: 10 * 60 * 1000,
     })

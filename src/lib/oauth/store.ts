@@ -14,7 +14,7 @@
  */
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
@@ -24,15 +24,23 @@ import {
   users,
 } from "@/lib/db/schema";
 
-export const AUTH_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-export const ACCESS_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-export const REFRESH_TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+const AUTH_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const ACCESS_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const REFRESH_TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+
+/**
+ * Token prefixes. ACCESS_TOKEN_PREFIX is also used by verifyMcpToken to decide
+ * whether a presented bearer token should be looked up in this store.
+ */
+export const ACCESS_TOKEN_PREFIX = "mcp_at_";
+const REFRESH_TOKEN_PREFIX = "mcp_rt_";
+const AUTH_CODE_PREFIX = "mcp_ac_";
 
 export function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-function newSecret(prefix: "mcp_ac_" | "mcp_at_" | "mcp_rt_"): string {
+function newSecret(prefix: string): string {
   return `${prefix}${randomBytes(32).toString("base64url")}`;
 }
 
@@ -73,21 +81,25 @@ export async function issueAuthCode(input: {
   codeChallenge: string;
   scope: string;
 }): Promise<string> {
-  const code = newSecret("mcp_ac_");
-  await db.insert(mcpOauthCodes).values({
-    codeHash: sha256Hex(code),
-    clientId: input.clientRowId,
-    userId: input.userId,
-    redirectUri: input.redirectUri,
-    codeChallenge: input.codeChallenge,
-    scope: input.scope,
-    expiresAt: new Date(Date.now() + AUTH_CODE_TTL_MS),
-  });
-  // Opportunistic cleanup — keeps the table from accumulating dead rows
-  // without needing a cron job.
-  await db
-    .delete(mcpOauthCodes)
-    .where(lt(mcpOauthCodes.expiresAt, new Date(Date.now() - AUTH_CODE_TTL_MS)));
+  const code = newSecret(AUTH_CODE_PREFIX);
+  await Promise.all([
+    db.insert(mcpOauthCodes).values({
+      codeHash: sha256Hex(code),
+      clientId: input.clientRowId,
+      userId: input.userId,
+      redirectUri: input.redirectUri,
+      codeChallenge: input.codeChallenge,
+      scope: input.scope,
+      expiresAt: new Date(Date.now() + AUTH_CODE_TTL_MS),
+    }),
+    // Opportunistic cleanup — keeps the table from accumulating dead rows
+    // without needing a cron job.
+    db
+      .delete(mcpOauthCodes)
+      .where(
+        lt(mcpOauthCodes.expiresAt, new Date(Date.now() - AUTH_CODE_TTL_MS)),
+      ),
+  ]);
   return code;
 }
 
@@ -129,8 +141,8 @@ export async function issueTokens(input: {
   scope: string;
   familyId?: string;
 }): Promise<IssuedTokens> {
-  const accessToken = newSecret("mcp_at_");
-  const refreshToken = newSecret("mcp_rt_");
+  const accessToken = newSecret(ACCESS_TOKEN_PREFIX);
+  const refreshToken = newSecret(REFRESH_TOKEN_PREFIX);
   const now = Date.now();
 
   await db.insert(mcpOauthTokens).values({
@@ -176,9 +188,23 @@ export async function rotateRefreshToken(
   rawRefreshToken: string,
   clientRowId: number,
 ): Promise<RefreshResult> {
-  const row = await db.query.mcpOauthTokens.findFirst({
-    where: eq(mcpOauthTokens.refreshTokenHash, sha256Hex(rawRefreshToken)),
-  });
+  // Single round-trip: the token row plus whether its user is still active
+  // (the join mirrors verifyAccessToken below).
+  const [row] = await db
+    .select({
+      id: mcpOauthTokens.id,
+      familyId: mcpOauthTokens.familyId,
+      clientId: mcpOauthTokens.clientId,
+      userId: mcpOauthTokens.userId,
+      scope: mcpOauthTokens.scope,
+      refreshExpiresAt: mcpOauthTokens.refreshExpiresAt,
+      revokedAt: mcpOauthTokens.revokedAt,
+      userIsActive: sql<boolean>`${users.status} = 'active'`,
+    })
+    .from(mcpOauthTokens)
+    .innerJoin(users, eq(users.id, mcpOauthTokens.userId))
+    .where(eq(mcpOauthTokens.refreshTokenHash, sha256Hex(rawRefreshToken)))
+    .limit(1);
 
   if (!row || row.clientId !== clientRowId) return { ok: false, error: "invalid_grant" };
 
@@ -186,16 +212,9 @@ export async function rotateRefreshToken(
     await revokeTokenFamily(row.familyId);
     return { ok: false, error: "invalid_grant" };
   }
-  if (row.refreshExpiresAt <= new Date()) {
+  if (row.refreshExpiresAt <= new Date() || !row.userIsActive) {
     return { ok: false, error: "invalid_grant" };
   }
-
-  // The user behind the grant must still be active.
-  const user = await db.query.users.findFirst({
-    where: and(eq(users.id, row.userId), eq(users.status, "active")),
-    columns: { id: true },
-  });
-  if (!user) return { ok: false, error: "invalid_grant" };
 
   await db
     .update(mcpOauthTokens)
@@ -211,7 +230,7 @@ export async function rotateRefreshToken(
   return { ok: true, tokens };
 }
 
-export async function revokeTokenFamily(familyId: string): Promise<void> {
+async function revokeTokenFamily(familyId: string): Promise<void> {
   await db
     .update(mcpOauthTokens)
     .set({ revokedAt: new Date() })
@@ -296,7 +315,6 @@ export async function verifyAccessToken(
 export async function listGrantsForUser(userId: number) {
   return db
     .select({
-      tokenId: mcpOauthTokens.id,
       familyId: mcpOauthTokens.familyId,
       clientName: mcpOauthClients.clientName,
       scope: mcpOauthTokens.scope,

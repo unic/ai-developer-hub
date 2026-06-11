@@ -69,7 +69,6 @@ vi.mock("@/lib/anthropic/queries", () => ({
   loadSyncStatus: vi.fn(),
 }));
 vi.mock("@/actions/budget", () => ({
-  getActiveBudget: vi.fn(),
   getBudgetWithCosts: vi.fn(),
   fetchActualByPeriod: vi.fn(),
 }));
@@ -101,11 +100,7 @@ import {
   loadWorkspaceList,
   loadSyncStatus,
 } from "@/lib/anthropic/queries";
-import {
-  getActiveBudget,
-  getBudgetWithCosts,
-  fetchActualByPeriod,
-} from "@/actions/budget";
+import { getBudgetWithCosts, fetchActualByPeriod } from "@/actions/budget";
 import { getBudgetReportData } from "@/actions/reports";
 
 beforeEach(() => {
@@ -368,14 +363,12 @@ describe("getBudgetStatusData", () => {
   };
 
   it("throws when there is no active budget", async () => {
-    vi.mocked(getActiveBudget).mockResolvedValue(undefined);
+    mockAnnualFindFirst.mockResolvedValue(undefined);
     await expect(getBudgetStatusData()).rejects.toThrow(/No active budget/);
   });
 
   it("assembles per-period actuals and a forecast verdict", async () => {
-    vi.mocked(getActiveBudget).mockResolvedValue(
-      budget as unknown as Awaited<ReturnType<typeof getActiveBudget>>,
-    );
+    mockAnnualFindFirst.mockResolvedValue({ id: 5 });
     vi.mocked(getBudgetWithCosts).mockResolvedValue(
       budget as unknown as Awaited<ReturnType<typeof getBudgetWithCosts>>,
     );
@@ -402,7 +395,7 @@ describe("getBudgetStatusData", () => {
     vi.mocked(fetchActualByPeriod).mockResolvedValue(new Map([[50, 96000]]));
     const result = await getBudgetStatusData(2026);
     expect(result.fiscalYear).toBe(2026);
-    expect(getActiveBudget).not.toHaveBeenCalled();
+    expect(mockAnnualFindFirst).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -617,7 +610,7 @@ describe("getClaudeCostDashboardData", () => {
       deltaPct: 25,
     });
     expect(result.workspaces[1]).toMatchObject({
-      name: "Default workspace",
+      name: "Default Workspace",
       deltaPct: null,
     });
     expect(result.last12Months).toHaveLength(2);

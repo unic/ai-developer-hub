@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
 vi.mock("@/lib/oauth/store", () => ({
   verifyAccessToken: vi.fn(),
+  ACCESS_TOKEN_PREFIX: "mcp_at_",
 }));
 
 import { safeEqual, verifyMcpToken } from "@/lib/mcp/auth";

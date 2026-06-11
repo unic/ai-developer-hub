@@ -37,3 +37,15 @@ export function isRateLimited(key: string, config: RateLimitConfig): boolean {
 export function resetLimit(key: string): void {
   store.delete(key);
 }
+
+/**
+ * Best-effort client IP for rate-limit keys, honouring reverse-proxy headers
+ * (Vercel sets x-forwarded-for; x-real-ip is a common fallback).
+ */
+export function clientIp(headers: Headers): string {
+  return (
+    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    headers.get("x-real-ip") ??
+    "unknown"
+  );
+}

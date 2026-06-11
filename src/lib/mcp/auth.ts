@@ -16,7 +16,7 @@
 
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
-import { verifyAccessToken } from "@/lib/oauth/store";
+import { ACCESS_TOKEN_PREFIX, verifyAccessToken } from "@/lib/oauth/store";
 import { MCP_SCOPE, safeEqual } from "@/lib/oauth/validate";
 
 // Re-exported for existing consumers/tests; implementation moved to
@@ -24,9 +24,6 @@ import { MCP_SCOPE, safeEqual } from "@/lib/oauth/validate";
 export { safeEqual };
 
 let warnedMissingSecret = false;
-
-/** Prefix of access tokens issued by the embedded OAuth server. */
-const OAUTH_ACCESS_TOKEN_PREFIX = "mcp_at_";
 
 /**
  * Validate the bearer token presented by an MCP client. Checks the shared
@@ -56,7 +53,7 @@ export async function verifyMcpToken(
     };
   }
 
-  if (bearerToken.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) {
+  if (bearerToken.startsWith(ACCESS_TOKEN_PREFIX)) {
     const verified = await verifyAccessToken(bearerToken);
     if (verified) {
       return {

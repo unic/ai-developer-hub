@@ -12,49 +12,47 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import {
   buildRedirect,
+  readAuthorizeParams,
   validateAuthorizeRequest,
-  type AuthorizeParams,
 } from "@/lib/oauth/authorize";
 import { issueAuthCode, revokeGrantForUser } from "@/lib/oauth/store";
 
-function authorizeParamsFromForm(formData: FormData): AuthorizeParams {
-  const read = (key: string): string | undefined => {
-    const value = formData.get(key);
-    return typeof value === "string" && value !== "" ? value : undefined;
-  };
-  return {
-    client_id: read("client_id"),
-    redirect_uri: read("redirect_uri"),
-    response_type: read("response_type"),
-    code_challenge: read("code_challenge"),
-    code_challenge_method: read("code_challenge_method"),
-    scope: read("scope"),
-    state: read("state"),
-  };
-}
-
 /**
- * Consent "Allow" — re-validates the full authorization request (form fields
- * are client-controlled), issues a single-use code bound to the signed-in
- * user, and redirects back to the client.
+ * Shared head of both consent actions: require a session and re-validate the
+ * full authorization request (hidden form fields are client-controlled).
+ * Redirects with an OAuth error for client-deliverable failures, throws for
+ * fatal ones, and returns the validated request plus the acting user id.
  */
-export async function approveAuthorization(formData: FormData): Promise<void> {
+async function validateConsentSubmission(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id || session.user.isAgent) {
     throw new Error("Unauthorized");
   }
 
-  const validation = await validateAuthorizeRequest(
-    authorizeParamsFromForm(formData),
-  );
+  const params = readAuthorizeParams((key) => {
+    const value = formData.get(key);
+    return typeof value === "string" && value !== "" ? value : undefined;
+  });
+
+  const validation = await validateAuthorizeRequest(params);
   if (!validation.ok) {
     if (validation.fatal) throw new Error(validation.message);
     redirect(validation.redirectTo);
   }
 
+  return { validation, userId: Number(session.user.id) };
+}
+
+/**
+ * Consent "Allow" — issues a single-use code bound to the signed-in user and
+ * redirects back to the client.
+ */
+export async function approveAuthorization(formData: FormData): Promise<void> {
+  const { validation, userId } = await validateConsentSubmission(formData);
+
   const code = await issueAuthCode({
     clientRowId: validation.client.id,
-    userId: Number(session.user.id),
+    userId,
     redirectUri: validation.redirectUri,
     codeChallenge: validation.codeChallenge,
     scope: validation.grantedScope,
@@ -65,16 +63,7 @@ export async function approveAuthorization(formData: FormData): Promise<void> {
 
 /** Consent "Deny" — informs the client via the standard error redirect. */
 export async function denyAuthorization(formData: FormData): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const validation = await validateAuthorizeRequest(
-    authorizeParamsFromForm(formData),
-  );
-  if (!validation.ok) {
-    if (validation.fatal) throw new Error(validation.message);
-    redirect(validation.redirectTo);
-  }
+  const { validation } = await validateConsentSubmission(formData);
 
   redirect(
     buildRedirect(validation.redirectUri, {

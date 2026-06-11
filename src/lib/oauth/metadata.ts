@@ -10,7 +10,7 @@
 import { MCP_SCOPE } from "@/lib/oauth/validate";
 
 /** Path of the MCP Streamable HTTP endpoint this AS protects. */
-export const MCP_RESOURCE_PATH = "/api/mcp/mcp";
+const MCP_RESOURCE_PATH = "/api/mcp/mcp";
 
 /**
  * Derive the external origin (scheme://host) for an incoming request,
@@ -52,7 +52,7 @@ export function protectedResourceMetadata(origin: string) {
 }
 
 /** Shared CORS headers for the public discovery/registration/token endpoints. */
-export const OAUTH_CORS_HEADERS = {
+const OAUTH_CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-protocol-version",

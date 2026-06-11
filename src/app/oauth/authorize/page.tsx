@@ -13,8 +13,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { approveAuthorization, denyAuthorization } from "@/actions/oauth";
 import {
+  readAuthorizeParams,
   validateAuthorizeRequest,
-  type AuthorizeParams,
 } from "@/lib/oauth/authorize";
 import { MCP_SCOPE } from "@/lib/oauth/validate";
 import { Button } from "@/components/ui/button";
@@ -57,15 +57,7 @@ export default async function AuthorizePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const params: AuthorizeParams = {
-    client_id: first(raw.client_id),
-    redirect_uri: first(raw.redirect_uri),
-    response_type: first(raw.response_type),
-    code_challenge: first(raw.code_challenge),
-    code_challenge_method: first(raw.code_challenge_method),
-    scope: first(raw.scope),
-    state: first(raw.state),
-  };
+  const params = readAuthorizeParams((key) => first(raw[key]));
 
   const session = await auth();
   if (!session?.user) {
@@ -87,8 +79,6 @@ export default async function AuthorizePage({
     if (validation.fatal) return <ErrorCard message={validation.message} />;
     redirect(validation.redirectTo);
   }
-
-  const hiddenFields: AuthorizeParams = { ...params };
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
@@ -121,7 +111,7 @@ export default async function AuthorizePage({
         </CardContent>
         <CardFooter>
           <form action={approveAuthorization} className="flex w-full gap-3">
-            {Object.entries(hiddenFields).map(([key, value]) =>
+            {Object.entries(params).map(([key, value]) =>
               value !== undefined ? (
                 <input key={key} type="hidden" name={key} value={value} />
               ) : null,

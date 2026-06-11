@@ -13,18 +13,40 @@ import type { mcpOauthClients } from "@/lib/db/schema";
 
 import { getClientByPublicId } from "@/lib/oauth/store";
 import {
+  isValidScopeRequest,
   redirectUriMatches,
-  validateRequestedScope,
+  MCP_SCOPE,
 } from "@/lib/oauth/validate";
 
-export interface AuthorizeParams {
-  client_id?: string;
-  redirect_uri?: string;
-  response_type?: string;
-  code_challenge?: string;
-  code_challenge_method?: string;
-  scope?: string;
-  state?: string;
+/**
+ * The OAuth authorize request parameters the Hub understands. The page reads
+ * them from searchParams and round-trips them through hidden form fields to
+ * the consent server actions — both sides iterate this list.
+ */
+export const AUTHORIZE_PARAM_KEYS = [
+  "client_id",
+  "redirect_uri",
+  "response_type",
+  "code_challenge",
+  "code_challenge_method",
+  "scope",
+  "state",
+] as const;
+
+export type AuthorizeParams = Partial<
+  Record<(typeof AUTHORIZE_PARAM_KEYS)[number], string>
+>;
+
+/** Build AuthorizeParams by reading each known key through `read`. */
+export function readAuthorizeParams(
+  read: (key: (typeof AUTHORIZE_PARAM_KEYS)[number]) => string | undefined,
+): AuthorizeParams {
+  const params: AuthorizeParams = {};
+  for (const key of AUTHORIZE_PARAM_KEYS) {
+    const value = read(key);
+    if (value !== undefined) params[key] = value;
+  }
+  return params;
 }
 
 export type AuthorizeValidation =
@@ -101,8 +123,7 @@ export async function validateAuthorizeRequest(
     return fail("invalid_request", "Only code_challenge_method=S256 is supported");
   }
 
-  const scope = validateRequestedScope(params.scope);
-  if (!scope.ok) {
+  if (!isValidScopeRequest(params.scope)) {
     return fail("invalid_scope", "Unknown scope requested");
   }
 
@@ -111,7 +132,7 @@ export async function validateAuthorizeRequest(
     client,
     redirectUri,
     codeChallenge: params.code_challenge,
-    grantedScope: scope.granted,
+    grantedScope: MCP_SCOPE,
     state,
   };
 }

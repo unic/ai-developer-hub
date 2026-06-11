@@ -2,10 +2,12 @@ export const PUBLIC_PATHS = ["/login", "/setup-password"];
 
 export const MUST_CHANGE_PASSWORD_ERROR = "MUST_CHANGE_PASSWORD";
 
+function matchesAny(pathname: string, paths: string[]): boolean {
+  return paths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 export function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  return matchesAny(pathname, PUBLIC_PATHS);
 }
 
 /**
@@ -16,10 +18,5 @@ export function isPublicPath(pathname: string): boolean {
 const BARE_LAYOUT_PATHS = ["/oauth/authorize"];
 
 export function isBareLayoutPath(pathname: string): boolean {
-  return (
-    isPublicPath(pathname) ||
-    BARE_LAYOUT_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(p + "/")
-    )
-  );
+  return isPublicPath(pathname) || matchesAny(pathname, BARE_LAYOUT_PATHS);
 }

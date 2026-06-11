@@ -9,7 +9,7 @@
  * to know when to restart the flow).
  */
 
-import { isRateLimited } from "@/lib/rate-limit";
+import { clientIp, isRateLimited } from "@/lib/rate-limit";
 import { oauthJson, oauthPreflight } from "@/lib/oauth/metadata";
 import { verifyPkce } from "@/lib/oauth/validate";
 import {
@@ -55,10 +55,8 @@ export async function POST(req: Request): Promise<Response> {
 
   // Hosted Claude egresses many tenants through one IP range, so the limiter
   // is keyed on IP + client to avoid cross-tenant lockout.
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (
-    isRateLimited(`oauth-token:${ip}:${clientId ?? "none"}`, {
+    isRateLimited(`oauth-token:${clientIp(req.headers)}:${clientId ?? "none"}`, {
       maxAttempts: 60,
       windowMs: 10 * 60 * 1000,
     })

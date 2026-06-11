@@ -97,7 +97,11 @@
   already used for Copilot). <code>getBudgetReportData</code> is the exception — it performs no session check
   and is imported directly, exactly like the existing <code>actions/budget</code> imports.
   <strong>Consequence:</strong> MCP results are deliberately leaner than the admin pages (e.g. the cost dashboard
-  omits the page's pacing curve and calibrated today-estimate).</p>
+  omits the page's pacing curve and calibrated today-estimate). The <code>/simplify</code> pass flagged the
+  duplication risk and two real drift points were fixed (the sync-lock sentinel user is now excluded from
+  <code>list_claude_users</code> like the admin query does, and the default-workspace label matches the
+  dashboard's capitalization); the structural duplication is accepted and documented rather than refactoring
+  <code>anthropic-users.ts</code>/<code>anthropic-global.ts</code> inside this PR.</p>
 </div>
 
 <div class="entry">

@@ -6,6 +6,7 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
+import { formatDate } from "@/lib/utils";
 import { listGrantsForUser } from "@/lib/oauth/store";
 import {
   Card,
@@ -25,15 +26,6 @@ import {
 import { RevokeConnectionButton } from "./revoke-button";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(date: Date | null): string {
-  if (!date) return "—";
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default async function ConnectionsPage() {
   const session = await auth();
@@ -75,7 +67,7 @@ export default async function ConnectionsPage() {
             </TableHeader>
             <TableBody>
               {grants.map((grant) => (
-                <TableRow key={grant.tokenId}>
+                <TableRow key={grant.familyId}>
                   <TableCell className="font-medium">
                     {grant.clientName}
                   </TableCell>

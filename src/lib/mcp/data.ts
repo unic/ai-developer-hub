@@ -8,7 +8,8 @@
  * hashes, or invite tokens.
  */
 
-import { and, asc, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { endOfMonth, format, parseISO, subMonths } from "date-fns";
 
 import { db } from "@/lib/db";
 import {
@@ -34,24 +35,18 @@ import {
   loadSyncStatus,
   loadWorkspaceList,
 } from "@/lib/anthropic/queries";
-import {
-  getActiveBudget,
-  getBudgetWithCosts,
-  fetchActualByPeriod,
-} from "@/actions/budget";
+import { getBudgetWithCosts, fetchActualByPeriod } from "@/actions/budget";
 import { getBudgetReportData } from "@/actions/reports";
 import { buildBudgetForecast } from "@/lib/forecast";
+import { LOCK_USER_ID } from "@/lib/anthropic-sync";
 import { getCurrentMonth, formatUtcDateOnly } from "@/lib/utils";
 import type { SyncSourceType } from "@/lib/sync/framework";
 import { usd } from "@/lib/mcp/format";
 
-/** Inclusive YYYY-MM-DD start/end of a YYYY-MM month (UTC). */
+/** Inclusive YYYY-MM-DD start/end of a YYYY-MM month. */
 function monthRange(month: string): { start: string; end: string } {
-  const [y, m] = month.split("-").map(Number);
-  return {
-    start: `${month}-01`,
-    end: formatUtcDateOnly(new Date(Date.UTC(y, m, 0))),
-  };
+  const start = `${month}-01`;
+  return { start, end: format(endOfMonth(parseISO(start)), "yyyy-MM-dd") };
 }
 
 /** Escape ILIKE wildcards in user-supplied search terms. */
@@ -283,7 +278,10 @@ export async function getBudgetStatusData(fiscalYear?: number) {
     if (!row) throw new Error(`No budget found for fiscal year ${fiscalYear}`);
     budgetId = row.id;
   } else {
-    const active = await getActiveBudget();
+    const active = await db.query.annualBudgets.findFirst({
+      where: (b, { eq: eqOp }) => eqOp(b.status, "active"),
+      columns: { id: true },
+    });
     if (!active) throw new Error("No active budget configured");
     budgetId = active.id;
   }
@@ -323,20 +321,40 @@ export async function getBudgetStatusData(fiscalYear?: number) {
 // get_copilot_usage_summary
 // ---------------------------------------------------------------------------
 
-export async function getCopilotUsageSummaryData(
-  since?: string,
-  until?: string,
-) {
-  // Match getActiveConnection() in copilot-data.ts: a connection only counts as
-  // active for Copilot when syncing is enabled — otherwise its metrics are
-  // absent or stale and "connected: true" would be misleading.
-  const connection = await db.query.githubConnections.findFirst({
+/**
+ * Match getActiveConnection() in copilot-data.ts: a connection only counts as
+ * active for Copilot when syncing is enabled — otherwise its metrics are
+ * absent or stale and "connected: true" would be misleading.
+ */
+function findActiveCopilotConnection() {
+  return db.query.githubConnections.findFirst({
     where: and(
       eq(githubConnections.status, "active"),
       eq(githubConnections.copilotSyncEnabled, true),
     ),
     columns: { id: true, orgLogin: true },
   });
+}
+
+/**
+ * Default a Copilot date range to the last 28 days in UTC so the YYYY-MM-DD
+ * day boundary is timezone-stable (matches the rest of the codebase, which
+ * keys daily metrics on UTC dates).
+ */
+function defaultCopilotRange(since?: string, until?: string) {
+  const today = new Date();
+  return {
+    sinceDate:
+      since ?? formatUtcDateOnly(new Date(today.getTime() - 27 * 86_400_000)),
+    untilDate: until ?? formatUtcDateOnly(today),
+  };
+}
+
+export async function getCopilotUsageSummaryData(
+  since?: string,
+  until?: string,
+) {
+  const connection = await findActiveCopilotConnection();
   if (!connection) {
     return {
       connected: false as const,
@@ -344,12 +362,7 @@ export async function getCopilotUsageSummaryData(
     };
   }
 
-  // Default the range in UTC so the YYYY-MM-DD day boundary is timezone-stable
-  // (matches the rest of the codebase, which keys daily metrics on UTC dates).
-  const today = new Date();
-  const untilDate = until ?? formatUtcDateOnly(today);
-  const sinceDate =
-    since ?? formatUtcDateOnly(new Date(today.getTime() - 27 * 86_400_000));
+  const { sinceDate, untilDate } = defaultCopilotRange(since, until);
 
   const [rows, billing] = await Promise.all([
     db
@@ -423,7 +436,7 @@ export async function listRecentSyncEventsData(
   sourceType?: SyncSourceType,
   limit?: number,
 ) {
-  const cappedLimit = Math.min(Math.max(limit ?? 10, 1), 50);
+  const cappedLimit = clampLimit(limit, 10, 50);
 
   const [rows, freshness] = await Promise.all([
     db
@@ -524,6 +537,9 @@ export async function listClaudeUsersData(month?: string, limit?: number) {
       and(
         gte(anthropicUsageMetrics.date, start),
         lte(anthropicUsageMetrics.date, end),
+        // Exclude the sync-lock sentinel row, matching _getUserList in
+        // src/actions/anthropic-users.ts.
+        ne(users.id, LOCK_USER_ID),
       ),
     )
     .groupBy(users.id, users.name, users.email, users.circle, users.status)
@@ -560,14 +576,13 @@ export async function getClaudeCostDashboardData(month?: string) {
   const targetMonth = month ?? getCurrentMonth();
   const { start, end } = monthRange(targetMonth);
 
-  const [y, m] = targetMonth.split("-").map(Number);
-  const priorMonthDate = new Date(Date.UTC(y, m - 2, 1));
-  const priorMonth = `${priorMonthDate.getUTCFullYear()}-${String(priorMonthDate.getUTCMonth() + 1).padStart(2, "0")}`;
+  const priorMonth = format(subMonths(parseISO(start), 1), "yyyy-MM");
   const { start: priorStart, end: priorEnd } = monthRange(priorMonth);
-  const twelveMonthsAgo = new Date(Date.UTC(y - 1, m - 1, 1));
+  const twelveMonthsAgoStart = format(subMonths(parseISO(start), 12), "yyyy-MM-dd");
 
   const workspaceName = sql<string | null>`${anthropicWorkspaces.name}`;
   const workspaceJoin = sql`${anthropicWorkspaces.workspaceId} IS NOT DISTINCT FROM ${anthropicWorkspaceCosts.workspaceId}`;
+  const monthExpr = sql<string>`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`;
 
   const [dailyTotals, workspaceTotals, monthlySeries] = await Promise.all([
     db
@@ -602,13 +617,13 @@ export async function getClaudeCostDashboardData(month?: string) {
       .groupBy(anthropicWorkspaceCosts.workspaceId, anthropicWorkspaces.name),
     db
       .select({
-        month: sql<string>`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`,
+        month: monthExpr,
         costCents: sql<string>`sum(${anthropicWorkspaceCosts.costCents})`,
       })
       .from(anthropicWorkspaceCosts)
-      .where(gte(anthropicWorkspaceCosts.date, formatUtcDateOnly(twelveMonthsAgo)))
-      .groupBy(sql`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`)
-      .orderBy(sql`to_char(${anthropicWorkspaceCosts.date}, 'YYYY-MM')`),
+      .where(gte(anthropicWorkspaceCosts.date, twelveMonthsAgoStart))
+      .groupBy(monthExpr)
+      .orderBy(monthExpr),
   ]);
 
   const workspaces = workspaceTotals
@@ -617,7 +632,8 @@ export async function getClaudeCostDashboardData(month?: string) {
       const prior = Number(w.priorCents);
       return {
         workspaceId: w.workspaceId,
-        name: w.workspaceName ?? "Default workspace",
+        // Capitalization matches the admin dashboard (anthropic-global.ts).
+        name: w.workspaceName ?? "Default Workspace",
         ...usd("currentMonth", current),
         ...usd("priorMonth", prior),
         ...usd("delta", current - prior),
@@ -708,12 +724,13 @@ export async function listLicenseAssignmentsData(filters: {
   status?: "active" | "inactive";
   limit?: number;
 }) {
+  const status = filters.status ?? "active";
   const conditions = [
     filters.email ? ilike(users.email, escapeLike(filters.email)) : undefined,
     filters.toolName
       ? ilike(aiTools.name, `%${escapeLike(filters.toolName)}%`)
       : undefined,
-    eq(licenseAssignments.status, filters.status ?? "active"),
+    eq(licenseAssignments.status, status),
   ].filter((c) => c !== undefined);
 
   const rows = await db
@@ -742,7 +759,7 @@ export async function listLicenseAssignmentsData(filters: {
     filters: {
       email: filters.email ?? null,
       toolName: filters.toolName ?? null,
-      status: filters.status ?? "active",
+      status,
     },
     count: rows.length,
     ...usd("monthlyTotal", rows.reduce((s, r) => s + r.costAtAssignmentCents, 0)),
@@ -867,13 +884,7 @@ function topBreakdown(map: Map<string, BreakdownAccumulator>, label: string) {
 }
 
 export async function getCopilotAnalyticsData(since?: string, until?: string) {
-  const connection = await db.query.githubConnections.findFirst({
-    where: and(
-      eq(githubConnections.status, "active"),
-      eq(githubConnections.copilotSyncEnabled, true),
-    ),
-    columns: { id: true, orgLogin: true },
-  });
+  const connection = await findActiveCopilotConnection();
   if (!connection) {
     return {
       connected: false as const,
@@ -881,13 +892,19 @@ export async function getCopilotAnalyticsData(since?: string, until?: string) {
     };
   }
 
-  const today = new Date();
-  const untilDate = until ?? formatUtcDateOnly(today);
-  const sinceDate =
-    since ?? formatUtcDateOnly(new Date(today.getTime() - 27 * 86_400_000));
+  const { sinceDate, untilDate } = defaultCopilotRange(since, until);
 
   const rows = await db
-    .select()
+    .select({
+      date: copilotUsageMetrics.date,
+      totalActiveUsers: copilotUsageMetrics.totalActiveUsers,
+      totalEngagedUsers: copilotUsageMetrics.totalEngagedUsers,
+      totalSuggestions: copilotUsageMetrics.totalSuggestions,
+      totalAcceptances: copilotUsageMetrics.totalAcceptances,
+      totalChatTurns: copilotUsageMetrics.totalChatTurns,
+      languageBreakdown: copilotUsageMetrics.languageBreakdown,
+      editorBreakdown: copilotUsageMetrics.editorBreakdown,
+    })
     .from(copilotUsageMetrics)
     .where(
       and(
