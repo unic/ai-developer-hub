@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { revokeConnection } from "@/actions/oauth";
@@ -25,12 +26,14 @@ export function RevokeConnectionButton({
   clientName: string;
 }) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const handleRevoke = () => {
     startTransition(async () => {
       const result = await revokeConnection(familyId);
       if (result.success) {
         toast.success(`Revoked access for ${clientName}`);
+        router.refresh();
       } else {
         toast.error(result.error);
       }

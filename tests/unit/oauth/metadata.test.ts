@@ -21,6 +21,16 @@ describe("requestOrigin", () => {
     });
     expect(requestOrigin(req)).toBe("https://hub.example.com");
   });
+
+  it("takes the first entry of comma-separated forwarded headers", () => {
+    const req = new Request("http://10.0.0.1/.well-known/oauth-authorization-server", {
+      headers: {
+        "x-forwarded-host": "hub.example.com, internal-proxy.local",
+        "x-forwarded-proto": "https, http",
+      },
+    });
+    expect(requestOrigin(req)).toBe("https://hub.example.com");
+  });
 });
 
 describe("authorizationServerMetadata", () => {

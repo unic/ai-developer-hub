@@ -13,15 +13,27 @@ import { MCP_SCOPE } from "@/lib/oauth/validate";
 const MCP_RESOURCE_PATH = "/api/mcp/mcp";
 
 /**
+ * In multi-hop proxy chains forwarded headers can be comma-separated lists
+ * ("client-facing, hop2"); the first entry is the client-facing value.
+ */
+function firstForwardedValue(value: string | null): string | undefined {
+  const first = value?.split(",")[0]?.trim();
+  return first ? first : undefined;
+}
+
+/**
  * Derive the external origin (scheme://host) for an incoming request,
  * honouring reverse-proxy headers (Vercel sets x-forwarded-host/proto).
  */
 export function requestOrigin(req: Request): string {
   const url = new URL(req.url);
   const host =
-    req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
+    firstForwardedValue(req.headers.get("x-forwarded-host")) ??
+    req.headers.get("host") ??
+    url.host;
   const proto =
-    req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
+    firstForwardedValue(req.headers.get("x-forwarded-proto")) ??
+    url.protocol.replace(":", "");
   return `${proto}://${host}`;
 }
 
