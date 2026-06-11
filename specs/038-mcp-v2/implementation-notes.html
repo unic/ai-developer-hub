@@ -151,6 +151,16 @@
   build logs via <code>vercel inspect --logs</code>.</p>
 </div>
 
+<div class="entry">
+  <h3><span class="tag decision">decision</span>PR #118 review round (Copilot, 3 comments — all addressed in 8361720)</h3>
+  <p>Copilot's first pass errored; re-triggered via
+  <code>gh api …/requested_reviewers -f "reviewers[]=copilot-pull-request-reviewer[bot]"</code> (pushes and
+  close/reopen do not re-trigger it). Findings: (1) <code>requestOrigin</code> must split comma-separated
+  forwarded headers — fixed + unit test; (2)+(3) revoke button should <code>router.refresh()</code> after
+  success — adopted to match the settings-page convention, noting the server action's
+  <code>revalidatePath</code> already refreshes the route when invoked from a client component.</p>
+</div>
+
 <h2>Open questions</h2>
 
 <div class="entry">
