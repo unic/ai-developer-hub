@@ -256,6 +256,8 @@ export interface VerifiedAccessToken {
   userId: number;
   email: string;
   name: string;
+  /** Live role from the users row — re-read on every verification (039). */
+  role: "admin" | "viewer";
   clientPublicId: string;
   scope: string;
 }
@@ -278,6 +280,7 @@ export async function verifyAccessToken(
       lastUsedAt: mcpOauthTokens.lastUsedAt,
       email: users.email,
       name: users.name,
+      role: users.role,
       clientPublicId: mcpOauthClients.clientId,
     })
     .from(mcpOauthTokens)
@@ -311,6 +314,7 @@ export async function verifyAccessToken(
     userId: row.userId,
     email: row.email,
     name: row.name,
+    role: row.role,
     clientPublicId: row.clientPublicId,
     scope: row.scope,
   };

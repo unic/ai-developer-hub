@@ -50,6 +50,9 @@ export async function verifyMcpToken(
       token: bearerToken,
       clientId: "mcp-shared-secret",
       scopes: [MCP_SCOPE],
+      // The org-level secret is admin-equivalent by the spec-034 judgment
+      // (039): role is asserted explicitly — never reached via fallback.
+      extra: { role: "admin" },
     };
   }
 
@@ -64,6 +67,7 @@ export async function verifyMcpToken(
           userId: verified.userId,
           email: verified.email,
           name: verified.name,
+          role: verified.role,
         },
       };
     }

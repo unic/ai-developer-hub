@@ -134,7 +134,7 @@ describe("listAiToolsData", () => {
       [{ toolId: 1, count: 15 }],
     );
 
-    const result = await listAiToolsData();
+    const result = await listAiToolsData({ includeUtilization: true });
     expect(result.tools).toHaveLength(1);
     expect(result.tools[0]).toMatchObject({
       id: 1,
@@ -166,10 +166,48 @@ describe("listAiToolsData", () => {
       [],
       [],
     );
-    const result = await listAiToolsData();
+    const result = await listAiToolsData({ includeUtilization: true });
     expect(result.tools[0].tiers).toEqual([]);
-    expect(result.tools[0].activeAssignments).toBe(0);
-    expect(result.tools[0].licenseUtilizationPct).toBeNull();
+    expect(result.tools[0]).toMatchObject({
+      activeAssignments: 0,
+      licenseUtilizationPct: null,
+    });
+  });
+
+  it("omits utilization fields (and skips the count query) for viewers", async () => {
+    // Only two selects queued — the assignment-count aggregate must not run.
+    selectQueue.push(
+      [
+        {
+          id: 1,
+          name: "Claude API",
+          vendor: "Anthropic",
+          status: "active",
+          maxLicenses: 20,
+        },
+      ],
+      [
+        {
+          id: 10,
+          toolId: 1,
+          name: "Team",
+          monthlyCostCents: 2500,
+          isActive: true,
+        },
+      ],
+    );
+    const result = await listAiToolsData({ includeUtilization: false });
+    expect(result.tools).toHaveLength(1);
+    expect(result.tools[0]).not.toHaveProperty("activeAssignments");
+    expect(result.tools[0]).not.toHaveProperty("maxLicenses");
+    expect(result.tools[0]).not.toHaveProperty("licenseUtilizationPct");
+    expect(result.tools[0].tiers[0]).toEqual({
+      id: 10,
+      name: "Team",
+      monthlyCostCents: 2500,
+      monthlyCostUsd: 25,
+    });
+    expect(selectQueue).toHaveLength(0);
   });
 });
 
