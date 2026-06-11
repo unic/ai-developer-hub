@@ -140,6 +140,17 @@
   pipeline. Journal ordering verified (new <code>when</code> &gt; 1781164840619).</p>
 </div>
 
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Red Vercel check on PR #118 is environmental, not this branch</h3>
+  <p>The preview deployment fails during <code>next build</code>: static generation of
+  <code>/reports</code>, <code>/reports/budget</code>, and <code>/settings/license-templates</code> times out
+  (3 × 60 s) hitting the database. Verified by control experiment: deploying <strong>main</strong>
+  (<code>6bd1dac</code>, whose last deployment succeeded) from the same machine fails with byte-identical
+  timeouts, while this branch builds clean locally. The Vercel-build→preview-DB path is unhealthy at the time
+  of writing; the check should be retried once it recovers. Also explains why the PR's git deployments show no
+  build logs via <code>vercel inspect --logs</code>.</p>
+</div>
+
 <h2>Open questions</h2>
 
 <div class="entry">
