@@ -54,13 +54,15 @@ describe("verifyMcpToken — shared secret", () => {
     await expect(verifyMcpToken(req(), "wrong-token")).resolves.toBeUndefined();
   });
 
-  it("returns AuthInfo with the read scope for the correct token", async () => {
+  it("returns admin-equivalent AuthInfo with the read scope for the correct token", async () => {
     vi.stubEnv("MCP_SERVER_SECRET", SECRET);
     const info = await verifyMcpToken(req(), SECRET);
     expect(info).toEqual({
       token: SECRET,
       clientId: "mcp-shared-secret",
       scopes: ["mcp:read"],
+      // Org-level secret is explicitly admin-equivalent (039) — no bound user.
+      extra: { role: "admin" },
     });
     expect(verifyAccessToken).not.toHaveBeenCalled();
   });
@@ -73,6 +75,7 @@ describe("verifyMcpToken — OAuth access tokens", () => {
       userId: 42,
       email: "jane@example.com",
       name: "Jane",
+      role: "viewer",
       clientPublicId: "mcp_client_abc",
       scope: "mcp:read",
     });
@@ -82,7 +85,12 @@ describe("verifyMcpToken — OAuth access tokens", () => {
       token: "mcp_at_sometoken",
       clientId: "mcp_client_abc",
       scopes: ["mcp:read"],
-      extra: { userId: 42, email: "jane@example.com", name: "Jane" },
+      extra: {
+        userId: 42,
+        email: "jane@example.com",
+        name: "Jane",
+        role: "viewer",
+      },
     });
     expect(verifyAccessToken).toHaveBeenCalledWith("mcp_at_sometoken");
   });

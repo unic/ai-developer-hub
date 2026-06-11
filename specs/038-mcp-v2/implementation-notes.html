@@ -179,6 +179,10 @@
   not acceptable now that tokens are user-bound, the hook exists: <code>verifyMcpToken</code> already puts
   <code>userId</code>/<code>email</code> into <code>AuthInfo.extra</code>, so role-scoping individual tools is a
   follow-up, not a redesign.</p>
+  <p><strong>Resolved 2026-06-11:</strong> answered "no" — implemented as feature
+  <code>specs/039-mcp-role-scoping/</code>. Viewer tokens are denied the 11 org-wide tools, the two personal
+  tools are pinned to the token owner, and <code>list_ai_tools</code> drops utilization for viewers; the
+  shared secret stays admin-equivalent.</p>
 </div>
 
 <div class="entry">

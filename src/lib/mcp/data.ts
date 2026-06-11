@@ -74,7 +74,14 @@ function formatTodayEstimate(
 // list_ai_tools
 // ---------------------------------------------------------------------------
 
-export async function listAiToolsData() {
+export async function listAiToolsData(options: {
+  /**
+   * License utilization (active counts, caps, utilization %) mirrors the
+   * admin-only column on the /tools page — viewer-role callers get the
+   * catalog without it, and the aggregate query is skipped entirely (039).
+   */
+  includeUtilization: boolean;
+}) {
   const [tools, tiers, assignmentCounts] = await Promise.all([
     db
       .select({
@@ -96,14 +103,16 @@ export async function listAiToolsData() {
       })
       .from(accessTiers)
       .where(eq(accessTiers.isActive, true)),
-    db
-      .select({
-        toolId: licenseAssignments.toolId,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(licenseAssignments)
-      .where(eq(licenseAssignments.status, "active"))
-      .groupBy(licenseAssignments.toolId),
+    options.includeUtilization
+      ? db
+          .select({
+            toolId: licenseAssignments.toolId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(licenseAssignments)
+          .where(eq(licenseAssignments.status, "active"))
+          .groupBy(licenseAssignments.toolId)
+      : Promise.resolve([]),
   ]);
 
   const tiersByTool = new Map<number, typeof tiers>();
@@ -118,23 +127,27 @@ export async function listAiToolsData() {
 
   return {
     tools: tools.map((tool) => {
-      const activeAssignments = countByTool.get(tool.id) ?? 0;
-      return {
+      const base = {
         id: tool.id,
         name: tool.name,
         vendor: tool.vendor,
         status: tool.status,
+        tiers: (tiersByTool.get(tool.id) ?? []).map((tier) => ({
+          id: tier.id,
+          name: tier.name,
+          ...usd("monthlyCost", tier.monthlyCostCents),
+        })),
+      };
+      if (!options.includeUtilization) return base;
+      const activeAssignments = countByTool.get(tool.id) ?? 0;
+      return {
+        ...base,
         activeAssignments,
         maxLicenses: tool.maxLicenses,
         licenseUtilizationPct:
           tool.maxLicenses && tool.maxLicenses > 0
             ? Math.round((activeAssignments / tool.maxLicenses) * 100)
             : null,
-        tiers: (tiersByTool.get(tool.id) ?? []).map((tier) => ({
-          id: tier.id,
-          name: tier.name,
-          ...usd("monthlyCost", tier.monthlyCostCents),
-        })),
       };
     }),
   };

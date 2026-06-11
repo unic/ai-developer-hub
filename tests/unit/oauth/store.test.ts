@@ -187,7 +187,7 @@ describe("verifyAccessToken", () => {
     expect(await verifyAccessToken("mcp_at_x")).toBeNull();
   });
 
-  it("maps a live token row to the verified identity", async () => {
+  it("maps a live token row to the verified identity including the live role", async () => {
     selectQueue.push([
       {
         tokenId: 11,
@@ -196,6 +196,7 @@ describe("verifyAccessToken", () => {
         lastUsedAt: new Date(),
         email: "jane@example.com",
         name: "Jane",
+        role: "viewer",
         clientPublicId: "mcp_client_abc",
       },
     ]);
@@ -203,6 +204,7 @@ describe("verifyAccessToken", () => {
       userId: 42,
       email: "jane@example.com",
       name: "Jane",
+      role: "viewer",
       clientPublicId: "mcp_client_abc",
       scope: "mcp:read",
     });

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>039 · Role-Scoped MCP Tools — Implementation Plan</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1d212b; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #e8503a; --good: #4cc38a;
+    --warn: #e5b454; --bad: #e0556a; --info: #7aa7e8;
+    --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 32px 96px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 30px; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  h2 { font-size: 21px; margin: 44px 0 12px; }
+  h2 .num { color: var(--accent); font-family: var(--mono); font-size: 15px; margin-right: 10px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+  p { margin: 10px 0; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.55; }
+  pre code { background: none; border: none; padding: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 14px 0; }
+  .panel h3 { margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--panel-2); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+  .ok { color: var(--good); font-weight: 600; }
+  .deny { color: var(--bad); font-weight: 600; }
+  .self { color: var(--warn); font-weight: 600; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); margin-right: 8px; }
+  .pill.new { color: var(--good); border-color: var(--good); }
+  .pill.mod { color: var(--warn); border-color: var(--warn); }
+  .pill.test { color: var(--info); border-color: var(--info); }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .flow { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .flow b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Spec 039 · Implementation Plan</div>
+  <h1>Role-Scoped MCP Tools</h1>
+  <div class="meta">Branch 039-mcp-role-scoping · builds on 038-mcp-v2 (PR #118) · 2026-06-11 ·
+  no schema changes · no new packages</div>
+</header>
+
+<h2><span class="num">§1</span>Why</h2>
+<p>Feature 038 left one authorization question deliberately open: OAuth made MCP tokens <em>user-bound</em>,
+but every authenticated credential — viewer or admin — still reads the same org-wide spend, budget, and
+per-user cost data. The web UI doesn't work that way: viewers see their own profile and a utilization-free
+tool catalog; everything financial is admin-gated. This feature brings the MCP surface to <strong>exact
+parity with the web UI</strong>: an admin loses nothing, a viewer sees over MCP no more than they see in
+a browser.</p>
+
+<h2><span class="num">§2</span>Shape of the change</h2>
+<p class="flow">users.role <b>→</b> verifyAccessToken (existing join, +1 column) <b>→</b> AuthInfo.extra.role
+<b>→</b> callerFromAuthInfo <b>→</b> per-tool enforcement in tools.ts</p>
+
+<div class="panel">
+  <h3>Three access classes over the existing 14 tools</h3>
+  <ul>
+    <li><strong>Admin-only (11)</strong> — all Claude/budget/Copilot/invoice/sync/user-directory tools.
+    Viewer calls return a structured <code>isError</code> tool result naming the required role. The data
+    function is never invoked.</li>
+    <li><strong>Self-scoped (2)</strong> — <code>get_user_cost_profile</code>, <code>list_license_assignments</code>.
+    Viewers are pinned to the token owner's identity; a foreign email is refused, never silently substituted.
+    <code>email</code> on the profile tool becomes optional, defaulting to the token owner.</li>
+    <li><strong>Viewer-safe catalog (1)</strong> — <code>list_ai_tools</code>. Viewers get the catalog without
+    <code>activeAssignments</code> / <code>maxLicenses</code> / <code>licenseUtilizationPct</code>, mirroring
+    the <code>/tools</code> page, which skips the license-count column for non-admins.</li>
+  </ul>
+</div>
+
+<h2><span class="num">§3</span>Key decisions</h2>
+
+<div class="panel">
+  <h3>Live role, never frozen into the token</h3>
+  <p><code>verifyAccessToken</code> already inner-joins <code>users</code> to enforce
+  <code>status = 'active'</code>; projecting <code>users.role</code> adds the live role to every request at
+  <strong>zero query cost</strong>. Demoting an admin takes effect on their very next tool call — no waiting
+  out the 60-day refresh-token window. Rejected alternative: role-scoped OAuth scopes at issuance (frozen,
+  violates the immediacy requirement).</p>
+</div>
+
+<div class="panel">
+  <h3>Enforce at invocation, not at discovery</h3>
+  <p><code>createMcpHandler</code> registers tools in a callback with no access to the request's
+  <code>AuthInfo</code> — the advertised tool list is static. The MCP SDK passes
+  <code>RequestHandlerExtra.authInfo</code> into every tool callback, so invocation is the natural,
+  zero-cost enforcement seam. Tool names leak no data; denial messages are self-explanatory so an assistant
+  can relay the reason.</p>
+</div>
+
+<div class="panel">
+  <h3>Shared secret is explicitly admin — unknown roles are explicitly viewer</h3>
+  <p>The shared-secret path returns <code>extra: { role: "admin" }</code> (the spec-034 org-credential
+  judgment, unchanged). <code>callerFromAuthInfo</code> treats anything that isn't literally
+  <code>"admin"</code> as viewer — least privilege by default, admin only by explicit assertion. The shared
+  secret has no bound identity, so the profile tool with no email argument asks for an explicit one
+  (matching how 034 clients always called it).</p>
+</div>
+
+<div class="panel">
+  <h3>Denials are tool results, not protocol errors</h3>
+  <p>Same philosophy as 038's <code>safeJsonResult</code>: a viewer hitting an admin tool gets
+  <code>isError: true</code> with one shared message constant — the MCP session stays healthy, the client
+  model can explain the refusal, and no org data (not even counts) rides along in the payload.</p>
+</div>
+
+<h2><span class="num">§4</span>Access matrix (the contract)</h2>
+<table>
+  <thead><tr><th>Tool</th><th>Admin token</th><th>Viewer token</th><th>Shared secret</th></tr></thead>
+  <tbody>
+    <tr><td><code>list_ai_tools</code></td><td class="ok">full</td><td class="self">no utilization fields</td><td class="ok">full</td></tr>
+    <tr><td><code>get_user_cost_profile</code></td><td class="ok">any email · omitted → own</td><td class="self">own only · omitted → own</td><td class="ok">any email · omitted → error</td></tr>
+    <tr><td><code>list_license_assignments</code></td><td class="ok">any filters</td><td class="self">pinned to own email</td><td class="ok">any filters</td></tr>
+    <tr><td><code>get_claude_spend_summary</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>list_claude_workspaces</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>list_claude_users</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>get_claude_cost_dashboard</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>get_budget_status</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>get_budget_report</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>get_copilot_usage_summary</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>get_copilot_analytics</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>list_invoices</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>list_recent_sync_events</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+    <tr><td><code>find_users</code></td><td class="ok">OK</td><td class="deny">denied</td><td class="ok">OK</td></tr>
+  </tbody>
+</table>
+<p class="muted">Class derivation audited against the web UI's gates: <code>/claude/*</code>,
+<code>/copilot</code>, <code>/budget</code>, <code>/reports</code> redirect non-admins; <code>/users</code>
+is <code>AuthGuard requiredRole="admin"</code>; <code>/tools</code> renders for viewers minus license counts
+(<code>src/app/tools/page.tsx:14</code>).</p>
+
+<h2><span class="num">§5</span>File-by-file plan</h2>
+<table>
+  <thead><tr><th>File</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="pill mod">mod</span><code>src/lib/oauth/store.ts</code></td>
+      <td>Add <code>role: users.role</code> to the <code>verifyAccessToken</code> projection and
+      <code>VerifiedAccessToken</code>. One line each — the join already exists.</td>
+    </tr>
+    <tr>
+      <td><span class="pill mod">mod</span><code>src/lib/mcp/auth.ts</code></td>
+      <td>OAuth path: <code>extra.role = verified.role</code>. Shared-secret path: add
+      <code>extra: { role: "admin" }</code>.</td>
+    </tr>
+    <tr>
+      <td><span class="pill new">new</span><code>src/lib/mcp/access.ts</code></td>
+      <td>Pure module (~80 lines, no I/O): <code>McpRole</code>, <code>McpCaller</code>,
+      <code>callerFromAuthInfo</code> (least-privilege parse), <code>ADMIN_REQUIRED_MESSAGE</code>,
+      <code>adminOnly(handler)</code> higher-order wrapper, <code>resolveSelfEmail(caller, email?)</code>
+      (trim + case-insensitive identity pinning).</td>
+    </tr>
+    <tr>
+      <td><span class="pill mod">mod</span><code>src/lib/mcp/tools.ts</code></td>
+      <td>Handlers take the SDK's second <code>extra</code> arg. 11 tools wrapped in
+      <code>adminOnly</code> + "Requires an admin-role token." description suffix. Profile tool:
+      <code>email</code> optional, resolved via <code>resolveSelfEmail</code>. Assignments tool: viewer email
+      pinned. Catalog tool: passes <code>includeUtilization</code> by role.</td>
+    </tr>
+    <tr>
+      <td><span class="pill mod">mod</span><code>src/lib/mcp/data.ts</code></td>
+      <td>Only <code>listAiToolsData({ includeUtilization })</code>: when false, skip the
+      assignment-count aggregate (one query saved) and omit the three utilization fields from the result type.
+      All other data functions unchanged.</td>
+    </tr>
+    <tr>
+      <td><span class="pill test">test</span><code>tests/unit/mcp/access.test.ts</code></td>
+      <td>New: role parsing (admin / viewer / missing / unknown / shared-secret), full
+      <code>resolveSelfEmail</code> matrix incl. case-variant emails.</td>
+    </tr>
+    <tr>
+      <td><span class="pill test">test</span><code>tests/unit/mcp/tools.test.ts</code></td>
+      <td>Extend the fake-registrar suite: per-tool admin/viewer/shared-secret matrix (denial = isError +
+      data fn <em>not called</em>), self-scope pinning, catalog flag, optional-email default. Existing
+      admin-path assertions prove the no-regression requirement.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2><span class="num">§6</span>What deliberately does not change</h2>
+<ul>
+  <li><strong>No DB schema / migrations</strong> — <code>users.role</code> already exists.</li>
+  <li><strong>No new packages</strong>, no route changes, no middleware changes.</li>
+  <li><strong>Tool discovery</strong> — all credentials see the same 14 tools listed; only calls are gated.</li>
+  <li><strong>Shared-secret behaviour on org-wide tools</strong> — byte-identical to 038.</li>
+  <li><strong>OAuth flow, token rotation, revocation</strong> — untouched.</li>
+</ul>
+
+<h2><span class="num">§7</span>Risks &amp; mitigations</h2>
+<table>
+  <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>A future 15th tool forgets the wrapper and ships org-wide data to viewers.</td>
+      <td>Unit test asserts <em>every registered tool</em> is classified: the test enumerates registered
+      names against the explicit access-class lists and fails on any unclassified tool.</td></tr>
+    <tr><td>Optional <code>email</code> on the profile tool breaks existing shared-secret automations.</td>
+      <td>Backward compatible — passing an email keeps working everywhere; only the omitted case changes
+      (error message asking for an email instead of a Zod required-field error).</td></tr>
+    <tr><td>Viewer denial message drifts per tool and confuses assistants.</td>
+      <td>Single exported message constant; contract doc pins the exact string shape.</td></tr>
+    <tr><td>Role check bypassed if <code>authInfo</code> is absent in some transport path.</td>
+      <td><code>withMcpAuth(..., { required: true })</code> already 401s unauthenticated requests; if
+      <code>authInfo</code> is ever missing downstream anyway, <code>callerFromAuthInfo</code> yields a
+      viewer with no identity — fail-closed.</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">§8</span>Verification gates</h2>
+<ol>
+  <li><code>pnpm test tests/unit/mcp</code> — new access tests + extended tool matrix green.</li>
+  <li><code>pnpm typecheck</code> · <code>pnpm lint</code> — zero errors/warnings (constitution gate).</li>
+  <li>Manual probe per <code>quickstart.md</code>: viewer token denied on <code>get_budget_status</code>,
+  own profile works with no arguments, live demotion flips access on the next call.</li>
+  <li>Full unit suite — no regression outside the MCP layer.</li>
+</ol>
+
+<footer class="muted" style="margin-top:56px; border-top:1px solid var(--border); padding-top:16px; font-size:13px;">
+  Companion artifacts: <code>spec.md</code> · <code>plan.md</code> · <code>research.md</code> ·
+  <code>data-model.md</code> · <code>contracts/tool-authorization.md</code> · <code>quickstart.md</code>.
+  Closes the open question recorded in <code>specs/038-mcp-v2/implementation-notes.html</code>.
+</footer>
+
+</div>
+</body>
+</html>
