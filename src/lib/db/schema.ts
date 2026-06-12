@@ -1388,9 +1388,9 @@ export const forecastScenarios = pgTable(
   (table) => [
     index("forecast_scenarios_budget_id_idx").on(table.budgetId),
     index("forecast_scenarios_created_by_idx").on(table.createdBy),
-    // One name per budget, case-insensitive ("Plan B" ≡ "plan b"). The
-    // application pre-checks for a friendly error; this is the race backstop
-    // (create/update map its violation back to the same friendly error).
+    // One name per budget, case-insensitive ("Plan B" ≡ "plan b"). This index
+    // is the single source of duplicate-name rejection — create/update map
+    // its violation (23505) to a friendly ActionResult error, race-free.
     uniqueIndex("forecast_scenarios_budget_name_idx").on(
       table.budgetId,
       sql`lower(${table.name})`,

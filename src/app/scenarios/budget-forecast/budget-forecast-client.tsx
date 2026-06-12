@@ -237,26 +237,21 @@ export function BudgetForecastClient({
   );
 
   const [isPending, startTransition] = useTransition();
-  // Two-channel feedback (house pattern): per-dialog status for errors while
-  // the overlay is open, card-header status for success after it closes.
+  // Two-channel feedback (house pattern): one dialog status for errors while
+  // an overlay is open (the three dialogs are mutually exclusive, so they
+  // share it; each opener clears it), card-header status for success after
+  // the overlay closes.
   const cardStatus = useInlineStatus();
-  const saveDialogStatus = useInlineStatus();
-  const renameDialogStatus = useInlineStatus();
-  const deleteDialogStatus = useInlineStatus();
+  const dialogStatus = useInlineStatus();
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveMode, setSaveMode] = useState<"update" | "new">("new");
   const [saveName, setSaveName] = useState("");
-  const [renameTarget, setRenameTarget] = useState<{
-    id: number;
-    name: string;
-  } | null>(null);
+  const [renameTarget, setRenameTarget] =
+    useState<SavedForecastScenario | null>(null);
   const [renameName, setRenameName] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: number;
-    name: string;
-    creatorName: string | null;
-  } | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    useState<SavedForecastScenario | null>(null);
 
   // Focus lands here after a delete — the trigger row is gone by then.
   const savedHeadingRef = useRef<HTMLParagraphElement>(null);
@@ -270,7 +265,7 @@ export function BudgetForecastClient({
   }
 
   function openSaveDialog() {
-    saveDialogStatus.clear();
+    dialogStatus.clear();
     setSaveMode(loadedScenario ? "update" : "new");
     setSaveName(loadedScenario ? loadedScenario.name : "");
     setSaveOpen(true);
@@ -296,14 +291,14 @@ export function BudgetForecastClient({
         cardStatus.ok("SAVED");
         router.refresh();
       } else {
-        saveDialogStatus.error(result.error);
+        dialogStatus.error(result.error);
       }
     });
   }
 
   function openRenameDialog(s: SavedForecastScenario) {
-    renameDialogStatus.clear();
-    setRenameTarget({ id: s.id, name: s.name });
+    dialogStatus.clear();
+    setRenameTarget(s);
     setRenameName(s.name);
   }
 
@@ -319,7 +314,7 @@ export function BudgetForecastClient({
         cardStatus.ok("RENAMED");
         router.refresh();
       } else {
-        renameDialogStatus.error(result.error);
+        dialogStatus.error(result.error);
       }
     });
   }
@@ -340,7 +335,7 @@ export function BudgetForecastClient({
         router.refresh();
         savedHeadingRef.current?.focus();
       } else {
-        deleteDialogStatus.error(result.error);
+        dialogStatus.error(result.error);
       }
     });
   }
@@ -715,12 +710,8 @@ export function BudgetForecastClient({
                         className="size-8 text-destructive"
                         aria-label={`Delete scenario ${scenario.name}`}
                         onClick={() => {
-                          deleteDialogStatus.clear();
-                          setDeleteTarget({
-                            id: scenario.id,
-                            name: scenario.name,
-                            creatorName: scenario.creatorName,
-                          });
+                          dialogStatus.clear();
+                          setDeleteTarget(scenario);
                         }}
                       >
                         <Trash2 className="size-4" />
@@ -1333,7 +1324,7 @@ export function BudgetForecastClient({
             </p>
           </div>
           <DialogFooter className="items-center">
-            <StatusText status={saveDialogStatus.status} className="mr-auto" />
+            <StatusText status={dialogStatus.status} className="mr-auto" />
             <Button
               variant="outline"
               onClick={() => setSaveOpen(false)}
@@ -1382,10 +1373,7 @@ export function BudgetForecastClient({
             />
           </div>
           <DialogFooter className="items-center">
-            <StatusText
-              status={renameDialogStatus.status}
-              className="mr-auto"
-            />
+            <StatusText status={dialogStatus.status} className="mr-auto" />
             <Button
               variant="outline"
               onClick={() => setRenameTarget(null)}
@@ -1420,10 +1408,7 @@ export function BudgetForecastClient({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="items-center">
-            <StatusText
-              status={deleteDialogStatus.status}
-              className="mr-auto"
-            />
+            <StatusText status={dialogStatus.status} className="mr-auto" />
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
             <Button
               variant="destructive"

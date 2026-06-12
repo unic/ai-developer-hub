@@ -1,16 +1,16 @@
 "use server";
 
 import { db } from "@/lib/db";
-import {
-  annualBudgets,
-  changeHistory,
-  forecastScenarios,
-  users,
-} from "@/lib/db/schema";
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { forecastScenarios, users } from "@/lib/db/schema";
+import { asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { recordCreation, recordUpdate } from "@/actions/history";
+import { getActiveBudgetId } from "@/lib/budget-utils";
+import {
+  recordCreation,
+  recordDeletion,
+  recordUpdate,
+} from "@/actions/history";
 import {
   createForecastScenarioSchema,
   deleteForecastScenarioSchema,
@@ -40,49 +40,21 @@ export interface SavedForecastScenario {
 }
 
 /**
- * Resolve the budget scenarios attach to. The schema permits multiple
- * status='active' rows, so the contract is deterministic: the active budget
- * with the highest fiscal year wins.
+ * True when an error is the unique-index violation on (budget_id, lower(name)).
+ * The index is the single source of duplicate-name rejection: a violation maps
+ * back to the same friendly ActionResult error a pre-check would have given,
+ * with no race window. Drizzle wraps the Postgres error (the 23505 code lives
+ * on the cause), so the whole cause chain is checked.
  */
-async function resolveActiveBudgetId(): Promise<number | null> {
-  const [budget] = await db
-    .select({ id: annualBudgets.id })
-    .from(annualBudgets)
-    .where(eq(annualBudgets.status, "active"))
-    .orderBy(desc(annualBudgets.fiscalYear))
-    .limit(1);
-  return budget?.id ?? null;
-}
-
-/** Case-insensitive duplicate-name probe, optionally excluding a row (update). */
-async function nameTaken(
-  budgetId: number,
-  name: string,
-  excludeId?: number,
-): Promise<boolean> {
-  const conditions = [
-    eq(forecastScenarios.budgetId, budgetId),
-    sql`lower(${forecastScenarios.name}) = lower(${name})`,
-  ];
-  if (excludeId !== undefined) {
-    conditions.push(ne(forecastScenarios.id, excludeId));
-  }
-  const [existing] = await db
-    .select({ id: forecastScenarios.id })
-    .from(forecastScenarios)
-    .where(and(...conditions))
-    .limit(1);
-  return existing !== undefined;
-}
-
-/** True when an error is the unique-index violation on (budget_id, lower(name)). */
 function isDuplicateNameViolation(e: unknown): boolean {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    "code" in e &&
-    (e as { code?: unknown }).code === "23505"
-  );
+  for (
+    let err = e;
+    typeof err === "object" && err !== null;
+    err = (err as { cause?: unknown }).cause
+  ) {
+    if ((err as { code?: unknown }).code === "23505") return true;
+  }
+  return false;
 }
 
 const DUPLICATE_NAME_ERROR =
@@ -99,7 +71,7 @@ export async function listForecastScenarios(): Promise<
   const admin = await requireAdmin();
   if (!admin) return [];
 
-  const budgetId = await resolveActiveBudgetId();
+  const budgetId = await getActiveBudgetId();
   if (budgetId === null) return [];
 
   const rows = await db
@@ -155,7 +127,7 @@ export async function createForecastScenario(
     };
   }
 
-  const budgetId = await resolveActiveBudgetId();
+  const budgetId = await getActiveBudgetId();
   if (budgetId === null) {
     return { success: false, error: "No active budget" };
   }
@@ -171,10 +143,6 @@ export async function createForecastScenario(
     };
   }
 
-  if (await nameTaken(budgetId, parsed.data.name)) {
-    return { success: false, error: DUPLICATE_NAME_ERROR };
-  }
-
   let created: { id: number };
   try {
     [created] = await db
@@ -187,8 +155,6 @@ export async function createForecastScenario(
       })
       .returning({ id: forecastScenarios.id });
   } catch (e) {
-    // The unique index is the race backstop behind the pre-check; its
-    // violation must honour the ActionResult contract, not surface a digest.
     if (isDuplicateNameViolation(e)) {
       return { success: false, error: DUPLICATE_NAME_ERROR };
     }
@@ -224,10 +190,6 @@ export async function updateForecastScenario(
     where: eq(forecastScenarios.id, id),
   });
   if (!scenario) return { success: false, error: "Scenario not found" };
-
-  if (await nameTaken(scenario.budgetId, name, id)) {
-    return { success: false, error: DUPLICATE_NAME_ERROR };
-  }
 
   try {
     await db
@@ -273,28 +235,18 @@ export async function deleteForecastScenario(
     return { success: false, error: "Invalid scenario ID" };
   }
 
-  const scenario = await db.query.forecastScenarios.findFirst({
-    where: eq(forecastScenarios.id, parsed.data.id),
-  });
+  // Delete-and-fetch in one statement; the returned row is the audit snapshot.
+  const [scenario] = await db
+    .delete(forecastScenarios)
+    .where(eq(forecastScenarios.id, parsed.data.id))
+    .returning();
   if (!scenario) return { success: false, error: "Scenario not found" };
 
-  // Record deletion with a previous-value snapshot (deleteBilledCost pattern)
-  // so the audit trail can reconstruct what was removed.
-  await db.insert(changeHistory).values({
-    entityType: ENTITY_TYPE,
-    entityId: scenario.id,
-    changeType: "deleted",
-    previousValue: JSON.stringify({
-      budgetId: scenario.budgetId,
-      name: scenario.name,
-      params: scenario.params,
-    }),
-    changedBy: Number(admin.id),
+  await recordDeletion(ENTITY_TYPE, scenario.id, Number(admin.id), {
+    budgetId: scenario.budgetId,
+    name: scenario.name,
+    params: scenario.params,
   });
-
-  await db
-    .delete(forecastScenarios)
-    .where(eq(forecastScenarios.id, scenario.id));
 
   revalidatePath(SCENARIO_PAGE);
   return { success: true, data: { id: scenario.id } };

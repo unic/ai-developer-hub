@@ -47,6 +47,24 @@ const _engineToSchema: SchemaOutput = {} as ForecastInputs;
 void _schemaToEngine;
 void _engineToSchema;
 
+// Assignability alone cannot catch a forgotten OPTIONAL lever (an object
+// missing `billing?` is still assignable both ways — exactly how a new lever
+// would silently strip on save). Key-set equality does: if ToolParams gains a
+// field the schema doesn't know, this constant stops typechecking.
+type KeysMatch<A, B> = [
+  Exclude<keyof A, keyof B> | Exclude<keyof B, keyof A>,
+] extends [never]
+  ? true
+  : false;
+type SchemaToolParams = z.infer<typeof toolParamsSchema>;
+const _toolParamKeysMatch: KeysMatch<
+  SchemaToolParams,
+  ForecastInputs["tools"][string]
+> = true;
+const _inputKeysMatch: KeysMatch<SchemaOutput, ForecastInputs> = true;
+void _toolParamKeysMatch;
+void _inputKeysMatch;
+
 describe("forecastInputsSchema", () => {
   it("accepts a realistic tuned parameter set and returns it intact", () => {
     const parsed = forecastInputsSchema.safeParse(VALID_INPUTS);

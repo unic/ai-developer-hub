@@ -8,11 +8,27 @@ import {
 import { eq, and, lte, gte, desc, sql } from "drizzle-orm";
 
 /**
+ * Resolve the active budget new writes attach to (spec 041). The schema
+ * permits multiple status='active' rows, so the contract is deterministic:
+ * the active budget with the highest fiscal year wins. getActiveBudget() in
+ * actions/budget.ts orders by the same rule — keep them in sync.
+ */
+export async function getActiveBudgetId(): Promise<number | null> {
+  const [budget] = await db
+    .select({ id: annualBudgets.id })
+    .from(annualBudgets)
+    .where(eq(annualBudgets.status, "active"))
+    .orderBy(desc(annualBudgets.fiscalYear))
+    .limit(1);
+  return budget?.id ?? null;
+}
+
+/**
  * Find the active budget period that covers a given date.
  * Returns the period id and label, or null if no period matches.
  */
 export async function findActivePeriodForDate(
-  invoiceDate: string
+  invoiceDate: string,
 ): Promise<{ id: number; periodLabel: string } | null> {
   const rows = await db
     .select({
@@ -25,8 +41,8 @@ export async function findActivePeriodForDate(
       and(
         eq(annualBudgets.status, "active"),
         lte(budgetPeriods.startDate, invoiceDate),
-        gte(budgetPeriods.endDate, invoiceDate)
-      )
+        gte(budgetPeriods.endDate, invoiceDate),
+      ),
     )
     .orderBy(desc(annualBudgets.createdAt))
     .limit(1);
@@ -39,7 +55,7 @@ export async function findActivePeriodForDate(
  * Searches all budgets (active + archived), preferring active budgets.
  */
 export async function findPeriodForDate(
-  invoiceDate: string
+  invoiceDate: string,
 ): Promise<{ id: number; periodLabel: string } | null> {
   const rows = await db
     .select({
@@ -49,17 +65,16 @@ export async function findPeriodForDate(
     .from(budgetPeriods)
     .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
     .where(
-      sql`${budgetPeriods.startDate} <= ${invoiceDate} AND ${budgetPeriods.endDate} >= ${invoiceDate}`
+      sql`${budgetPeriods.startDate} <= ${invoiceDate} AND ${budgetPeriods.endDate} >= ${invoiceDate}`,
     )
     .orderBy(
       sql`CASE WHEN ${annualBudgets.status} = 'active' THEN 0 ELSE 1 END ASC`,
-      desc(annualBudgets.createdAt)
+      desc(annualBudgets.createdAt),
     )
     .limit(1);
 
   return rows[0] ?? null;
 }
-
 
 /** Return type for getRunningCostsForPeriod */
 export interface RunningCostsResult {
@@ -81,7 +96,7 @@ export interface RunningCostsResult {
  * can simply skip rendering when there are no running costs.
  */
 export async function getRunningCostsForPeriod(
-  periodId: number
+  periodId: number,
 ): Promise<RunningCostsResult | null> {
   // 1. Look up the period's start/end dates
   const period = await db.query.budgetPeriods.findFirst({
@@ -95,18 +110,20 @@ export async function getRunningCostsForPeriod(
       workspaceId: anthropicWorkspaceCosts.workspaceId,
       name: sql<string>`COALESCE(${anthropicWorkspaces.name}, 'Default')`,
       costCents: sql<number>`CAST(SUM(${anthropicWorkspaceCosts.costCents}) AS integer)`,
-      lastUpdatedAt: sql<string | null>`MAX(${anthropicWorkspaceCosts.updatedAt})`,
+      lastUpdatedAt: sql<
+        string | null
+      >`MAX(${anthropicWorkspaceCosts.updatedAt})`,
     })
     .from(anthropicWorkspaceCosts)
     .leftJoin(
       anthropicWorkspaces,
-      sql`${anthropicWorkspaceCosts.workspaceId} IS NOT DISTINCT FROM ${anthropicWorkspaces.workspaceId}`
+      sql`${anthropicWorkspaceCosts.workspaceId} IS NOT DISTINCT FROM ${anthropicWorkspaces.workspaceId}`,
     )
     .where(
       and(
         sql`${anthropicWorkspaceCosts.date} >= ${period.startDate}`,
-        sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`
-      )
+        sql`${anthropicWorkspaceCosts.date} <= ${period.endDate}`,
+      ),
     )
     .groupBy(anthropicWorkspaceCosts.workspaceId, anthropicWorkspaces.name);
 
@@ -125,9 +142,9 @@ export async function getRunningCostsForPeriod(
   return {
     runningCostCents,
     lastUpdatedAt: lastUpdatedAt
-      ? ((lastUpdatedAt as unknown) instanceof Date
-          ? (lastUpdatedAt as unknown as Date).toISOString()
-          : new Date(lastUpdatedAt).toISOString())
+      ? (lastUpdatedAt as unknown) instanceof Date
+        ? (lastUpdatedAt as unknown as Date).toISOString()
+        : new Date(lastUpdatedAt).toISOString()
       : null,
     source: "anthropic_workspace_costs",
     ...(breakdown.length > 1

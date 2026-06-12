@@ -478,6 +478,80 @@
       </div>
 
       <!-- ========================================================= -->
+      <h2>Simplify pass <span class="ts">(4 parallel cleanup reviews → fixes applied)</span></h2>
+
+      <div class="entry to">
+        <h3>7 fixes applied — one exposed a real latent bug — 4 findings deliberately skipped <span class="tag to">post-implementation</span></h3>
+        <ul>
+          <li>
+            <b>Applied — and it caught a bug:</b> the case-insensitive
+            <code>nameTaken</code> pre-check was redundant with the
+            unique-index catch (both produced the identical friendly error), so
+            it was deleted (~30 lines + one Neon round trip per save/rename;
+            the index permits same-row case-variant renames naturally).
+            Removing it made the integration suite exercise the catch path for
+            the first time — which <b>failed</b>: drizzle 0.45 wraps driver
+            errors (<code>DrizzleQueryError</code> with the Postgres error on
+            <code>.cause</code>), so the top-level <code>code === "23505"</code>
+            check never matched. The detector now walks the cause chain, and
+            both the integration test and a live-browser probe confirm the
+            duplicate error renders. The pre-check had been silently masking
+            this the whole time.
+          </li>
+          <li>
+            <b>Applied:</b> the bespoke <code>resolveActiveBudgetId</code> was
+            one of two competing definitions of "the active budget" on the same
+            page (<code>getActiveBudget()</code> in <code>budget.ts</code> is
+            an unordered <code>findFirst</code> that could disagree under the
+            multi-active state). The deterministic rule (highest fiscal year
+            wins) now lives once in <code>lib/budget-utils.ts</code> as
+            <code>getActiveBudgetId()</code>, and <code>getActiveBudget()</code>
+            gained the same ordering — the chart and the scenario list can no
+            longer resolve different budgets.
+          </li>
+          <li>
+            <b>Applied:</b> the hand-rolled delete-snapshot audit insert was
+            the third copy of the <code>deleteBilledCost</code> pattern —
+            extracted as <code>recordDeletion()</code> in
+            <code>actions/history.ts</code> beside
+            <code>recordCreation</code>/<code>recordUpdate</code> (this feature
+            migrates; the two legacy sites are a follow-up). The delete also
+            folds its fetch into <code>delete().returning()</code> — one fewer
+            round trip and no fetch/delete TOCTOU window.
+          </li>
+          <li>
+            <b>Applied:</b> three per-dialog <code>useInlineStatus</code>
+            instances collapsed to one shared <code>dialogStatus</code> (the
+            dialogs are mutually exclusive; each opener already clears);
+            <code>renameTarget</code>/<code>deleteTarget</code> hold the whole
+            <code>SavedForecastScenario</code> instead of re-picked field
+            subsets; dead validator exports removed; a <b>key-set equality</b>
+            type assertion added beside the assignability round trip —
+            assignability alone cannot catch a forgotten <i>optional</i> lever
+            (exactly how <code>billing</code> arrived in 040), key-set equality
+            fails <code>pnpm typecheck</code> if <code>ToolParams</code> gains
+            a field the schema doesn't know.
+          </li>
+          <li>
+            <b>Skipped:</b> folding the active-budget subquery into the list
+            select (saves one ~30 ms round trip on an admin page at the cost of
+            raw-SQL readability); removing the
+            <code>revalidatePath</code>+<code>router.refresh()</code> double
+            refresh (matches the established house pattern, e.g.
+            budget-detail); a shared <code>validationFailure()</code> helper
+            for the <code>fieldErrors</code> boilerplate (16 copies codebase-
+            wide — a repo-wide cleanup, not a 041 obligation); migrating the
+            two legacy delete-audit sites to <code>recordDeletion</code> (out
+            of this PR's scope, noted as follow-up).
+          </li>
+          <li>
+            All suites re-run green after the pass: 648 unit · 36 integration ·
+            typecheck · lint clean · browser probe of the now-live catch path.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ========================================================= -->
       <h2>Open questions <span class="ts">(for review)</span></h2>
 
       <div class="entry oq">
@@ -524,14 +598,82 @@
       </div>
 
       <!-- ========================================================= -->
+      <h2>Migration review <span class="ts">(drizzle-migration-reviewer agent)</span></h2>
+
+      <div class="entry to">
+        <h3>One change requested, applied before the migration was committed <span class="tag to">schema</span></h3>
+        <p>
+          The reviewer verified the migration is purely additive, the FK
+          semantics match siblings, the expression unique index emits correct
+          SQL with <code>"isExpression": true</code> in the snapshot (so future
+          generates round-trip it), the journal/snapshot chain is intact, and
+          the type-only import creates no runtime cycle. <b>One blocking item:</b>
+          <code>created_by</code> had no index on the referencing column (the
+          repo's FK-index rule; sibling precedent was split). Fixed by
+          regenerating migration 0026 with
+          <code>forecast_scenarios_created_by_idx</code> while it was still
+          uncommitted. The reviewer also flagged the <code>db:push</code>
+          blind spot for expression indexes — this table must go through
+          <code>generate</code>/<code>migrate</code>, noted in the plan.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
       <h2>Verification <span class="ts">(what was checked)</span></h2>
 
       <div class="entry to">
-        <h3>Status <span class="tag to">pending</span></h3>
-        <p>
-          To be filled as implementation proceeds: unit suite, integration round
-          trip, lint/typecheck, Playwright browser pass, migration review.
-        </p>
+        <h3>Status <span class="tag to">green</span></h3>
+        <ul>
+          <li>
+            <b>Unit tests</b>: 648/648 pass (<code>pnpm test</code>; 623 before
+            this feature, 25 new) — <code>inputsFromSaved</code> merge matrix
+            incl. the yearly-billing round-trip and the stranded-billing
+            cost-neutrality proof; the validator accept/reject/strip matrix +
+            the type-level round trip (enforced via <code>pnpm typecheck</code>);
+            auth gating (list → <code>[]</code>, mutations →
+            <code>Unauthorized</code>, DB untouched).
+          </li>
+          <li>
+            <b>Integration</b> (real Neon dev DB): 11/11 — create lands on the
+            seeded budget under the deterministic resolution contract;
+            audit rows asserted for created/updated (incl. full params
+            snapshots) and the delete previousValue round trip; rename-only
+            leaves params untouched; case-insensitive duplicate rejected via
+            the action <i>and</i> via a direct insert (the expression index
+            itself fires); a deliberately-malformed jsonb row is skipped by the
+            read path; the 50-cap error (bulk-seeded, one action call). First
+            full-suite run exposed a real isolation bug: <code>invoice-sync</code>
+            seeds active budgets at FY ≈ 20k–30k, above the plan's FY 3000 —
+            the suite now seeds FY ≥ 999,000 and documents that it must own the
+            highest fiscal year in the run.
+          </li>
+          <li><b>Lint</b>: source clean, zero warnings. <b>Typecheck</b>: clean.</li>
+          <li>
+            <b>Browser (Playwright, dev server + minted agent session, live
+            data)</b>: 27/27 checks — persistent card with mono empty state;
+            save dialog echoes <code>CEILING $50,000 · CLAUDE BILLING YEARLY ·
+            5 OF 5 TOOLS INCLUDED</code>; saved row shows recomputed year-end,
+            &ldquo;+$44,538 vs saved $50,000&rdquo;, and the
+            <code>Nighthawk Agent · 2026-06-12</code> caption; reset → load
+            restores the $50,000 ceiling, the yearly cadence, and presses the
+            row; the &ldquo;Your plan&rdquo; comparison row takes the active
+            ink-bar; control edits flip to Custom but keep the
+            <code>Update &ldquo;name&rdquo;</code> offer; a preset tile click
+            clears it; rename-only leaves the stored ceiling intact on reload;
+            case-variant duplicate shows the inline dialog error; delete
+            confirm names scenario + creator; deleting the last row restores
+            the empty state. Full-page screenshots reviewed. (Two initial
+            script failures were probe races — a non-waiting visibility check
+            caught the dialog mid-<code>SAVING…</code> — re-probed green.)
+          </li>
+          <li>
+            <b>Process note</b>: <code>pnpm format</code> repo-wide fails on
+            pre-existing malformed HTML in old spec folders (030, 038) and
+            reformats ~800 files of pre-existing drift — deliberately not
+            applied beyond this feature's files (which the format-on-edit hook
+            already keeps canonical).
+          </li>
+        </ul>
       </div>
 
       <footer>

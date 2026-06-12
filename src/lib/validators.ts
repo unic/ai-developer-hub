@@ -622,7 +622,7 @@ export const forecastInputsSchema = z
     message: "Too many tool entries",
   });
 
-export const forecastScenarioNameSchema = z.string().trim().min(1).max(60);
+const forecastScenarioNameSchema = z.string().trim().min(1).max(60);
 
 export const createForecastScenarioSchema = z.object({
   name: forecastScenarioNameSchema,
@@ -637,10 +637,3 @@ export const updateForecastScenarioSchema = z.object({
 export const deleteForecastScenarioSchema = z.object({
   id: z.number().int().positive(),
 });
-
-export type CreateForecastScenarioInput = z.infer<
-  typeof createForecastScenarioSchema
->;
-export type UpdateForecastScenarioInput = z.infer<
-  typeof updateForecastScenarioSchema
->;
