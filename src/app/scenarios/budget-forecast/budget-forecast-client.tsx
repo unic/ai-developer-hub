@@ -284,12 +284,17 @@ export function BudgetForecastClient({
             })
           : await createForecastScenario({ name, params: inputs });
       if (result.success) {
-        setSaveOpen(false);
-        // The current inputs now match the saved row — mark it loaded/active.
-        setLoadedSavedId(result.data.id);
-        setActive(`saved:${result.data.id}`);
-        cardStatus.ok("SAVED");
-        router.refresh();
+        // React 19 caveat: state updates after an await need their own
+        // startTransition to stay part of the Transition (isPending already
+        // spans the whole async Action either way).
+        startTransition(() => {
+          setSaveOpen(false);
+          // The current inputs now match the saved row — mark it loaded/active.
+          setLoadedSavedId(result.data.id);
+          setActive(`saved:${result.data.id}`);
+          cardStatus.ok("SAVED");
+          router.refresh();
+        });
       } else {
         dialogStatus.error(result.error);
       }
@@ -310,9 +315,11 @@ export function BudgetForecastClient({
       // params omitted — rename-only, stored assumptions untouched.
       const result = await updateForecastScenario({ id: target.id, name });
       if (result.success) {
-        setRenameTarget(null);
-        cardStatus.ok("RENAMED");
-        router.refresh();
+        startTransition(() => {
+          setRenameTarget(null);
+          cardStatus.ok("RENAMED");
+          router.refresh();
+        });
       } else {
         dialogStatus.error(result.error);
       }
@@ -325,14 +332,16 @@ export function BudgetForecastClient({
     startTransition(async () => {
       const result = await deleteForecastScenario(target.id);
       if (result.success) {
-        setDeleteTarget(null);
-        if (loadedSavedId === target.id) {
-          // The record is gone but the user's working state stays.
-          setLoadedSavedId(null);
-          if (active === `saved:${target.id}`) setActive("custom");
-        }
-        cardStatus.ok("DELETED");
-        router.refresh();
+        startTransition(() => {
+          setDeleteTarget(null);
+          if (loadedSavedId === target.id) {
+            // The record is gone but the user's working state stays.
+            setLoadedSavedId(null);
+            if (active === `saved:${target.id}`) setActive("custom");
+          }
+          cardStatus.ok("DELETED");
+          router.refresh();
+        });
         savedHeadingRef.current?.focus();
       } else {
         dialogStatus.error(result.error);

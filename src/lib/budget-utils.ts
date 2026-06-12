@@ -44,7 +44,9 @@ export async function findActivePeriodForDate(
         gte(budgetPeriods.endDate, invoiceDate),
       ),
     )
-    .orderBy(desc(annualBudgets.createdAt))
+    // Tie-break between multiple active budgets by the same deterministic
+    // rule as getActiveBudgetId(): highest fiscal year wins.
+    .orderBy(desc(annualBudgets.fiscalYear))
     .limit(1);
 
   return rows[0] ?? null;
@@ -69,7 +71,8 @@ export async function findPeriodForDate(
     )
     .orderBy(
       sql`CASE WHEN ${annualBudgets.status} = 'active' THEN 0 ELSE 1 END ASC`,
-      desc(annualBudgets.createdAt),
+      // Same deterministic tie-break as getActiveBudgetId().
+      desc(annualBudgets.fiscalYear),
     )
     .limit(1);
 

@@ -552,6 +552,46 @@
       </div>
 
       <!-- ========================================================= -->
+      <h2>Review pass <span class="ts">(PR #122 — single cycle)</span></h2>
+
+      <div class="entry to">
+        <h3>GitHub Copilot Code Review — 4 inline comments, 3 fixed, 1 refuted with docs <span class="tag to">copilot</span></h3>
+        <ul>
+          <li>
+            <b>Tie-break inconsistency in <code>budget-utils.ts</code> (2
+            comments — both legitimate):</b> <code>findActivePeriodForDate</code>
+            and <code>findPeriodForDate</code> still broke ties between
+            multiple active budgets by <code>createdAt</code>, while this PR's
+            new contract is "highest fiscal year wins". <b>Fixed</b>: both now
+            order by <code>fiscal_year DESC</code>, matching
+            <code>getActiveBudgetId()</code>.
+          </li>
+          <li>
+            <b>Integration FY collision window:</b> the 999-value random range
+            on a unique column could flake on parallel/retried runs.
+            <b>Fixed</b>: widened to 900k values (999,000–1,898,999), still
+            strictly above every other suite's range.
+          </li>
+          <li>
+            <b><code>startTransition(async …)</code> / <code>isPending</code>
+            concern — refuted for React 19, half-adopted anyway:</b> per the
+            current React docs, <code>isPending</code> "switches to true at the
+            first call to startTransition, and stays true until all Actions
+            complete", so the disabled buttons cover the whole server round
+            trip and double-submission cannot occur (and the identical pattern
+            is the house precedent in <code>ingestion-filters-section.tsx</code>).
+            The documented React 19 caveat about post-<code>await</code> state
+            updates is real, so those are now wrapped in an inner
+            <code>startTransition</code> per the docs' recommended shape.
+          </li>
+        </ul>
+        <p>
+          All suites re-run green after the fixes (648 unit · 36 integration ·
+          typecheck · lint). Replies posted in-thread on each comment.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
       <h2>Open questions <span class="ts">(for review)</span></h2>
 
       <div class="entry oq">

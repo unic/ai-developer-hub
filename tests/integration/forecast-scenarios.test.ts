@@ -34,7 +34,9 @@ let scenarioId: number;
 // other integration suites seed in parallel (budget-extensions: 2090-2098,
 // invoice-sync: up to ~30,259). This suite must own the HIGHEST fiscal year
 // in the whole integration run — keep this range above every other suite's.
-const ACTIVE_FY = 999_000 + Math.floor(Math.random() * 999);
+// fiscal_year is unique, so the range is wide (900k values) to keep parallel
+// or retried runs from colliding on the constraint.
+const ACTIVE_FY = 999_000 + Math.floor(Math.random() * 900_000);
 
 const PARAMS_V1: ForecastInputs = {
   ceilingCents: 4_200_000,
