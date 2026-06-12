@@ -1219,7 +1219,13 @@ function ToolControl({
               <BillingToggle
                 tool={tool}
                 billing={params.billing ?? "monthly"}
-                onChange={(billing) => onChange({ billing })}
+                onChange={(billing) =>
+                  // undefined ≡ monthly — keep monthly params normalized so
+                  // they stay deep-equal to pristine preset inputs.
+                  onChange({
+                    billing: billing === "yearly" ? "yearly" : undefined,
+                  })
+                }
               />
             </>
           ) : null}
@@ -1262,20 +1268,25 @@ function BillingToggle({
       >
         <ToggleButton
           active={billing === "monthly"}
-          onClick={() => onChange("monthly")}
+          // No-op guard: clicking the active cadence shouldn't mutate state
+          // (patchTool would needlessly mark the plan Custom).
+          onClick={() => billing !== "monthly" && onChange("monthly")}
         >
           Monthly
         </ToggleButton>
         <ToggleButton
           active={billing === "yearly"}
-          onClick={() => onChange("yearly")}
+          onClick={() => billing !== "yearly" && onChange("yearly")}
         >
           Yearly
         </ToggleButton>
       </div>
       <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-faint">
-        {formatUSD0((tool.stdPrice ?? 0) * factor)} std ·{" "}
-        {formatUSD0((tool.premPrice ?? 0) * factor)} prem / seat / mo
+        {/* formatUSD0 takes integer cents — round in case a discounted tier
+            price ever lands on fractional cents. */}
+        {formatUSD0(Math.round((tool.stdPrice ?? 0) * factor))} std ·{" "}
+        {formatUSD0(Math.round((tool.premPrice ?? 0) * factor))} prem / seat /
+        mo
       </p>
     </div>
   );

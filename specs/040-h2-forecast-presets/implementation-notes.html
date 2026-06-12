@@ -205,6 +205,29 @@
 </div>
 
 <!-- ========================================================= -->
+<h2>Review pass <span class="ts">(PR #120 — single cycle)</span></h2>
+
+<div class="entry to">
+  <h3>GitHub Copilot Code Review — 4 inline comments, all addressed <span class="tag to">copilot</span></h3>
+  <ul>
+    <li><b>No-op toggle clicks mutated state</b> (2 comments): clicking the already-active cadence fired
+      <code>patchTool</code> and needlessly marked the plan Custom. <b>Fixed</b>: the toggle's click handlers guard on
+      a cadence change; a new browser check locks it (clicking active Monthly keeps the H2 Plan tile active).</li>
+    <li><b>Selecting Monthly wrote an explicit <code>billing: "monthly"</code></b>, breaking the
+      "undefined ≡ monthly" normalization the stamping rule relies on. <b>Fixed</b>: the control normalizes monthly
+      back to <code>undefined</code> at the call site (same pattern as the burn-cap slider's "No cap" →
+      <code>undefined</code>).</li>
+    <li><b>Fractional cents could reach <code>formatUSD0</code></b> (documented as integer cents) if a discounted tier
+      price ever stops being divisible by 5. <b>Fixed</b>: restored <code>Math.round</code> at the display boundary
+      with a comment. (The simplify pass had removed it as redundant; the reviewer's contract argument — don't rely on
+      Intl float rounding — won.)</li>
+    <li><b>Vercel Agent Review</b>: skipped this PR (no actionable output).</li>
+  </ul>
+  <p>All checks re-run green after the fixes: 623 unit tests · lint zero warnings · typecheck clean · 25/25 browser
+    checks (incl. the new no-op-click regression check).</p>
+</div>
+
+<!-- ========================================================= -->
 <h2>Verification <span class="ts">(what was checked)</span></h2>
 
 <div class="entry to">
