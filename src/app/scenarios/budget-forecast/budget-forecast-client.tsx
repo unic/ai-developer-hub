@@ -45,12 +45,15 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 import { formatAxisUSDk, formatUSD0 } from "@/lib/chart-format";
 import {
+  CLAUDE_YEARLY_FACTOR,
+  claudeBillingFactor,
   computeTrendBand,
   currentMonthlyCost,
   defaultInputs,
   FORECAST_PRESETS,
   inputsFromPreset,
   projectForecast,
+  type ClaudeBilling,
   type ForecastDataset,
   type ForecastInputs,
   type ForecastTool,
@@ -72,12 +75,12 @@ const TOOL_SWATCHES = [
   "var(--chart-5)",
 ] as const;
 
-const PRESET_ORDER: PresetKey[] = ["conservative", "expected", "aggressive"];
+const PRESET_ORDER: PresetKey[] = ["h2Gradual", "h2Plan", "h2Accelerated"];
 // Ghost cumulative line tokens for the three presets on the burn-up chart.
 const GHOST_COLOR: Record<PresetKey, string> = {
-  conservative: "var(--chart-4)",
-  expected: "var(--chart-3)",
-  aggressive: "var(--chart-2)",
+  h2Gradual: "var(--chart-4)",
+  h2Plan: "var(--chart-3)",
+  h2Accelerated: "var(--chart-2)",
 };
 
 const MODEL_LABEL: Record<GrowthModel, string> = {
@@ -102,7 +105,7 @@ export function BudgetForecastClient({
   const [inputs, setInputs] = useState<ForecastInputs>(() =>
     defaultInputs(dataset),
   );
-  const [active, setActive] = useState<ActiveScenario>("expected");
+  const [active, setActive] = useState<ActiveScenario>("h2Plan");
   // Local string-backed editor for the ceiling so an in-progress empty field
   // doesn't snap to 0 mid-keystroke; the dollars value drives inputs.ceilingCents.
   const [ceilingDollars, setCeilingDollars] = useState(
@@ -114,19 +117,30 @@ export function BudgetForecastClient({
     [dataset, inputs],
   );
 
+  // Claude billing cadence is a procurement assumption, not a scenario lever —
+  // it lives on the claudeSeats-kind tool's params (undefined ≡ monthly) and is
+  // threaded through preset application *and* scoring so it survives tile
+  // switches and every comparison stays like-for-like. A primitive, so the
+  // presetInputs memo below only invalidates when the cadence actually flips.
+  const claudeSeatsTool = dataset.tools.find((t) => t.kind === "claudeSeats");
+  const claudeBilling: ClaudeBilling =
+    (claudeSeatsTool && inputs.tools[claudeSeatsTool.key]?.billing) ??
+    "monthly";
+
   // The three named presets, computed once per dataset — drives the scenario
   // tiles, the comparison table, and the ghost cumulative lines.
-  // Presets are scored against the *edited* ceiling so the tiles, ghost lines,
-  // and comparison rows all compare against the same target the verdict uses.
+  // Presets are scored against the *edited* ceiling and the current billing
+  // cadence so the tiles, ghost lines, and comparison rows all compare against
+  // the same target and price basis the verdict uses.
   const presetInputs = useMemo(() => {
     const out = {} as Record<PresetKey, ForecastInputs>;
     for (const key of PRESET_ORDER)
       out[key] = {
-        ...inputsFromPreset(dataset, key),
+        ...inputsFromPreset(dataset, key, claudeBilling),
         ceilingCents: inputs.ceilingCents,
       };
     return out;
-  }, [dataset, inputs.ceilingCents]);
+  }, [dataset, inputs.ceilingCents, claudeBilling]);
   const presetPlans = useMemo(() => {
     const out = {} as Record<PresetKey, ScenarioResult>;
     for (const key of PRESET_ORDER)
@@ -153,7 +167,10 @@ export function BudgetForecastClient({
   /* ---------------------------- mutation helpers --------------------------- */
 
   function applyPreset(key: PresetKey) {
-    const next = inputsFromPreset(dataset, key);
+    // The edited ceiling deliberately resets to the live one (the tile answers
+    // "this plan against the live budget"), but the billing cadence is kept —
+    // switching scenarios shouldn't silently flip how Claude seats are paid.
+    const next = inputsFromPreset(dataset, key, claudeBilling);
     setInputs(next);
     setCeilingDollars(String(Math.round(next.ceilingCents / 100)));
     setActive(key);
@@ -186,7 +203,7 @@ export function BudgetForecastClient({
     const next = defaultInputs(dataset);
     setInputs(next);
     setCeilingDollars(String(Math.round(next.ceilingCents / 100)));
-    setActive("expected");
+    setActive("h2Plan");
   }
 
   /* ------------------------------- derived UI ------------------------------ */
@@ -442,7 +459,7 @@ export function BudgetForecastClient({
               onClick={reset}
               className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
             >
-              <RotateCcw className="size-3" aria-hidden /> Reset to Expected
+              <RotateCcw className="size-3" aria-hidden /> Reset to H2 Plan
             </button>
           </div>
 
@@ -941,8 +958,13 @@ export function BudgetForecastClient({
         · history ({elapsedCount} elapsed{" "}
         {elapsedCount === 1 ? "period" : "periods"}) is the budget&apos;s real
         combined actual; the forecast is modelled per tool from the controls
-        above · assembled {dataset.generatedAt.slice(0, 16).replace("T", " ")}{" "}
-        UTC
+        above
+        {claudeBilling === "yearly"
+          ? ` · Claude seats priced at the yearly-billing rate (${Math.round(
+              (1 - CLAUDE_YEARLY_FACTOR) * 100,
+            )}% off the monthly tier prices)`
+          : ""}{" "}
+        · assembled {dataset.generatedAt.slice(0, 16).replace("T", " ")} UTC
       </p>
     </div>
   );
@@ -1179,20 +1201,33 @@ function ToolControl({
           ) : null}
 
           {tool.kind === "claudeSeats" ? (
-            <RangeField
-              id={`${tool.key}-prem`}
-              label="Premium share"
-              value={Math.round(
-                (params.premShare ?? tool.premShare0 ?? 0) * 100,
-              )}
-              min={0}
-              max={100}
-              step={1}
-              display={`${Math.round(
-                (params.premShare ?? tool.premShare0 ?? 0) * 100,
-              )}%`}
-              onChange={(v) => onChange({ premShare: v / 100 })}
-            />
+            <>
+              <RangeField
+                id={`${tool.key}-prem`}
+                label="Premium share"
+                value={Math.round(
+                  (params.premShare ?? tool.premShare0 ?? 0) * 100,
+                )}
+                min={0}
+                max={100}
+                step={1}
+                display={`${Math.round(
+                  (params.premShare ?? tool.premShare0 ?? 0) * 100,
+                )}%`}
+                onChange={(v) => onChange({ premShare: v / 100 })}
+              />
+              <BillingToggle
+                tool={tool}
+                billing={params.billing ?? "monthly"}
+                onChange={(billing) =>
+                  // undefined ≡ monthly — keep monthly params normalized so
+                  // they stay deep-equal to pristine preset inputs.
+                  onChange({
+                    billing: billing === "yearly" ? "yearly" : undefined,
+                  })
+                }
+              />
+            </>
           ) : null}
 
           {tool.kind === "seat" ? (
@@ -1205,6 +1240,83 @@ function ToolControl({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Monthly / Yearly billing cadence for the Claude seats line. The effective
+ * per-seat prices under the selected cadence render as the caption so the
+ * annual-commit discount is visible without leaving the row.
+ */
+function BillingToggle({
+  tool,
+  billing,
+  onChange,
+}: {
+  tool: ForecastTool;
+  billing: ClaudeBilling;
+  onChange: (billing: ClaudeBilling) => void;
+}) {
+  const factor = claudeBillingFactor(billing);
+  return (
+    <div>
+      <ControlLabel>Billing</ControlLabel>
+      <div
+        role="group"
+        aria-label={`Billing cadence for ${tool.label}`}
+        className="mt-2 inline-flex w-full overflow-hidden rounded-[6px] border border-input"
+      >
+        <ToggleButton
+          active={billing === "monthly"}
+          // No-op guard: clicking the active cadence shouldn't mutate state
+          // (patchTool would needlessly mark the plan Custom).
+          onClick={() => billing !== "monthly" && onChange("monthly")}
+        >
+          Monthly
+        </ToggleButton>
+        <ToggleButton
+          active={billing === "yearly"}
+          onClick={() => billing !== "yearly" && onChange("yearly")}
+        >
+          Yearly
+        </ToggleButton>
+      </div>
+      <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-faint">
+        {/* formatUSD0 takes integer cents — round in case a discounted tier
+            price ever lands on fractional cents. */}
+        {formatUSD0(Math.round((tool.stdPrice ?? 0) * factor))} std ·{" "}
+        {formatUSD0(Math.round((tool.premPrice ?? 0) * factor))} prem / seat /
+        mo
+      </p>
+    </div>
+  );
+}
+
+// Same segmented-toggle pattern as 035's population toggle (page-local there,
+// so replicated rather than cross-imported from another route).
+function ToggleButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex-1 px-2 py-2 font-mono text-[11px] uppercase tracking-[0.08em] transition-colors",
+        active
+          ? "bg-ink text-background"
+          : "bg-card text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — H2 Forecast Presets &amp; Claude Billing Toggle (040)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #f0a072;
+      --accent-2: #7dd3fc;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 32px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 52px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+    pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 820px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.accent { color: var(--accent); border-color: rgba(240,160,114,0.35); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    li.check::marker { content: "\2610  "; color: var(--fg-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    td code { white-space: nowrap; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.new { background: rgba(240,160,114,0.14); color: var(--accent); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent-2); background: rgba(125,211,252,0.04); }
+    .callout.accent { border-left-color: var(--accent); background: rgba(240,160,114,0.05); }
+    .phase { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; }
+    .phase-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .phase-head h3 { font-size: 20px; margin: 0; }
+    .phase-meta { color: var(--fg-dim); font-family: var(--mono); font-size: 12px; }
+    .toc { columns: 2; column-gap: 32px; font-size: 14px; }
+    @media (max-width: 760px) { .toc { columns: 1; } }
+    .toc a { display: block; padding: 3px 0; color: var(--fg-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+    .s { color: var(--good); }
+    .c { color: var(--fg-dim); font-style: italic; }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Implementation plan</span>
+    <span class="badge">spec/040-h2-forecast-presets</span>
+    <span class="badge accent">Challenged &amp; revised — ready to implement</span>
+  </div>
+  <h1>H2 Forecast Presets &amp; Claude Billing Toggle</h1>
+  <p class="lede">
+    Evolve the Budget / Cost Forecast Simulation (spec 036) to model the org's actual <strong>H2 2026 plan</strong>:
+    sunset Claude Console API access fast (down to a few applications and a few users), ramp Claude seats hard
+    (+10–20 seats per period at a ~40% Premium share), let GitHub Copilot drift down very slowly or hold flat, and keep
+    Cursor and Microsoft Copilot as-is. The three generic presets (Conservative / Expected / Aggressive) are
+    <strong>replaced</strong> by three H2-migration variants of that plan. Additionally, the Claude seats line gets a
+    <strong>Monthly / Yearly billing toggle</strong> — yearly commitment prices a Standard seat at $20 and a Premium
+    seat at $100, versus $25 / $125 on monthly billing.
+  </p>
+  <p class="meta">Drafted 2026-06-12 · author: T. Studer · branch: <code>040-h2-forecast-presets</code> · builds on spec 036 · estimate: ~1 dev day</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>No data-layer or schema change.</strong> Presets are engine constants; the billing toggle is a pure
+  price transform on prices the loader already supplies. The whole feature lives in the projection engine
+  (<code>src/lib/scenarios/budget-forecast.ts</code>), the client UI, and the unit tests.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc card">
+  <a href="#goal">1 · Goal &amp; scope</a>
+  <a href="#presets">2 · The three H2 presets</a>
+  <a href="#billing">3 · Billing cadence toggle</a>
+  <a href="#engine">4 · Engine changes</a>
+  <a href="#ui">5 · UI changes</a>
+  <a href="#anchors">6 · Regression anchors (frozen fixture)</a>
+  <a href="#manifest">7 · File manifest</a>
+  <a href="#risks">8 · Risks &amp; decisions</a>
+  <a href="#accept">9 · Acceptance checklist</a>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="goal">1 · Goal &amp; scope</h2>
+
+<div class="card accent">
+  <h4>In scope</h4>
+  <ul>
+    <li class="note"><strong>Replace</strong> <code>FORECAST_PRESETS</code> (Conservative / Expected / Aggressive) with three H2-migration presets — <em>H2 Gradual</em>, <em>H2 Plan</em> (the central prediction, new default), <em>H2 Accelerated</em> — encoding the fade-API / ramp-Claude-seats / hold-the-rest strategy at three speeds.</li>
+    <li class="note">A <strong>Monthly / Yearly billing toggle</strong> on the Claude seats control row. Yearly = $20 Standard / $100 Premium effective per month; monthly = $25 / $125 (the live tier prices). Engine-level so every figure (tiles, ghost lines, charts, tables, verdict) reflects it.</li>
+    <li class="note">Billing choice <strong>persists across preset switches</strong>: it's a procurement assumption, not a scenario lever, so all four tiles compare under the same cadence. Note this is <em>new</em> behavior with no existing analogue — clicking a tile today resets the edited ceiling to the live one, and that ceiling behavior is kept; the resulting asymmetry (tile click resets ceiling, keeps billing) is deliberate (<a href="#risks">§8</a>).</li>
+    <li class="note">Updated unit tests: new hand-computed preset anchors on the frozen fixture + billing-factor coverage.</li>
+  </ul>
+  <h4>Out of scope</h4>
+  <ul>
+    <li class="con">No DB schema change; no new yearly tiers in <code>access_tiers</code>. The yearly price is a modelling assumption (<a href="#billing">§3</a>), not a billing record.</li>
+    <li class="con">No change to the data loader (<code>budget-forecast-queries.ts</code>) — seats, prices, and burn baselines come from the same live queries.</li>
+    <li class="con">No lump-sum annual payment modelling — yearly billing is smoothed to an effective per-period rate (<a href="#billing">§3</a>).</li>
+    <li class="con">Keeping the old generic presets alongside the new ones — explicitly replaced per the request.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="presets">2 · The three H2 presets</h2>
+
+<p>The H2 strategy, as stated: <em>"fade out Claude console API access very fast, down to almost zero seats, maybe only
+  having a few applications and a few users. The Claude seats will be increased drastically, like 10–20 seats per
+  period, and the premium share should be rather high, like 35 to 40%. Maybe 40 would be good. GitHub Copilot will very
+  very slowly fade out or stay flat, Cursor will stay flat, and Microsoft Copilot will also stay as is."</em></p>
+
+<p>Three variants of the same plan at different migration speeds — keeping the slow / central / fast triad shape
+  the UI already has (tiles, ghost lines, comparison rows), so the chart still tells a bracketed story:</p>
+
+<table>
+  <thead><tr><th>Lever</th><th>H2 Gradual<br/><span class="c">"Soft landing"</span></th><th>H2 Plan <span class="pill new">default</span><br/><span class="c">"Console sunset"</span></th><th>H2 Accelerated<br/><span class="c">"Hard cutover"</span></th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>api</code> — Claude Console (metered, 42 keys live)</td>
+      <td>compound <strong>−15%</strong>/period<br/>burn growth 0% · no cap</td>
+      <td>compound <strong>−25%</strong>/period<br/>burn growth 0% · no cap</td>
+      <td>compound <strong>−50%</strong>/period<br/>burn growth 0% · no cap</td>
+    </tr>
+    <tr>
+      <td><code>claude</code> — Claude seats (63 live)</td>
+      <td>linear <strong>+10</strong>/period<br/>Premium share <strong>35%</strong></td>
+      <td>linear <strong>+15</strong>/period<br/>Premium share <strong>40%</strong></td>
+      <td>linear <strong>+20</strong>/period<br/>Premium share <strong>40%</strong></td>
+    </tr>
+    <tr>
+      <td><code>copilot</code> — GitHub Copilot (72 seats)</td>
+      <td>flat</td>
+      <td>linear <strong>−1</strong>/period</td>
+      <td>linear <strong>−2</strong>/period</td>
+    </tr>
+    <tr><td><code>cursor</code> — Cursor (4 seats)</td><td>flat</td><td>flat</td><td>flat</td></tr>
+    <tr><td><code>mscopilot</code> — Microsoft Copilot (56 seats)</td><td>flat</td><td>flat</td><td>flat</td></tr>
+  </tbody>
+</table>
+
+<div class="grid-2">
+  <div class="card accent-2">
+    <h4>Why compound decline for the API fade</h4>
+    <p>A compound negative rate decays toward — but never hits — zero, which is exactly the brief: <em>"almost zero
+      seats, maybe only a few applications and a few users."</em> From today's 42 active keys, over the ~7 remaining
+      FY2026 monthly periods:</p>
+    <ul>
+      <li class="note">−15%/period → <strong>≈ 13–14 keys</strong> at year-end (gradual)</li>
+      <li class="note">−25%/period → <strong>≈ 5–6 keys</strong> at year-end (the plan: a few apps + a few users — confirmed "~5 is realistic" in review)</li>
+      <li class="note">−50%/period → <strong>≈ 0.3 keys</strong> at year-end (hard cutover)</li>
+    </ul>
+    <p class="c">Burn growth stays 0% and the cap is off: the seat fade is the story; per-key burn of the surviving
+      applications is held at today's average.</p>
+  </div>
+  <div class="card accent-2">
+    <h4>Why linear ramp for Claude seats</h4>
+    <p>"10–20 seats per period" is a linear statement, so the three presets use +10 / +15 / +20. From 63 live seats
+      that lands ≈ 133 / 168 / 203 seats at year-end — "increased drastically". Premium share: 35% on the cautious
+      variant, <strong>40% on the plan and the accelerated variant</strong> ("maybe 40 would be good").</p>
+    <h4 style="margin-top:14px">Copilot's "very very slow" fade</h4>
+    <p>Flat on the gradual variant ("or stay flat"), −1 seat/period on the plan (72 → ≈ 65), −2/period accelerated
+      (72 → ≈ 58). Cursor and MS Copilot stay flat everywhere.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>Key rename, not key reuse.</strong> The preset keys become <code>h2Gradual | h2Plan | h2Accelerated</code>
+  (replacing <code>conservative | expected | aggressive</code>). Reusing the old keys with new params would silently
+  repoint everything that mentions "expected" (default seeding, reset affordance, tests) at different math — an honest
+  rename surfaces every call site in the type checker. <code>defaultInputs()</code> seeds from <code>h2Plan</code>;
+  the reset affordance becomes "Reset to H2 Plan".
+</div>
+
+<!-- ============================================================ -->
+<h2 id="billing">3 · Billing cadence toggle</h2>
+
+<p>The Claude seats line gets a billing cadence: <strong>monthly</strong> (today's reality — the live
+  <code>access_tiers</code> prices, $25 Standard / $125 Premium) or <strong>yearly</strong> (annual commitment —
+  $20 / $100 effective per month).</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>Implemented as a factor, not hardcoded prices</h4>
+    <p>$20/$25 and $100/$125 are both exactly <strong>0.8</strong> — a 20% annual-commitment discount. The engine
+      applies <code>CLAUDE_YEARLY_FACTOR = 0.8</code> to the loader-supplied <code>stdPrice</code> /
+      <code>premPrice</code> when <code>billing === "yearly"</code>. Verified against the live DB: the Claude tool has
+      exactly two active tiers — Standard Seat 2500¢, Premium Seat 12500¢ — so the factor reproduces the stated yearly
+      prices to the cent while staying anchored to the live tier prices if they're ever edited.</p>
+  </div>
+  <div class="card">
+    <h4>Semantics</h4>
+    <ul>
+      <li class="note"><strong>Smoothed, not lumpy</strong>: yearly billing is modelled as an effective per-period rate (annual ÷ 12), not a January lump sum. The burn-up chart keeps its meaning; payment-timing modelling is out of scope.</li>
+      <li class="note"><strong>Persists across presets</strong>: <code>applyPreset</code> threads the current cadence into <code>inputsFromPreset(ds, key, billing)</code>, and the preset <em>scoring</em> path (<code>presetInputs</code>) does the same — tiles, ghost lines, and comparison rows are all recomputed under the current cadence, so every comparison is like-for-like. (The scoring half mirrors how the edited ceiling is spread into <code>presetInputs</code> today; the apply half is new behavior — the ceiling deliberately still resets on tile click, billing doesn't.)</li>
+      <li class="note"><strong>Source of truth</strong>: the claudeSeats-kind tool's <code>params.billing</code> — located by <code>kind === "claudeSeats"</code>, never by hardcoded key. The derived cadence joins <code>presetInputs</code>' memo dependencies (currently <code>[dataset, inputs.ceilingCents]</code>) so toggling re-scores the tiles.</li>
+      <li class="note"><strong>Stamping rule</strong>: <code>undefined ≡ "monthly"</code> everywhere; <code>inputsFromPreset</code> stamps <code>billing</code> onto claudeSeats params <em>only when it is <code>"yearly"</code></em>, so default/monthly inputs stay deep-equal to pristine preset inputs.</li>
+      <li class="note"><strong>Reset returns to monthly</strong> — "Reset to H2 Plan" restores the full default assumption set, exactly as it restores the live ceiling today.</li>
+      <li class="note">Toggling cadence marks the plan <strong>Custom</strong>, same as editing the ceiling.</li>
+      <li class="note">When yearly is active, the page footnote gains a clause noting the Claude line is priced at the annual-commit rate — the footnote otherwise implies all figures derive from live data.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="engine">4 · Engine changes</h2>
+
+<p>All in <code>src/lib/scenarios/budget-forecast.ts</code> — still pure, no new imports:</p>
+
+<pre><code>export type ClaudeBilling = "monthly" | "yearly";
+
+<span class="c">// Yearly commitment: $25 → $20 Standard, $125 → $100 Premium — exactly 20% off
+// the monthly tier price, expressed as a factor so it tracks the live tier prices.</span>
+export const CLAUDE_YEARLY_FACTOR = 0.8;
+
+export type ToolParams = {
+  <span class="c">/* …existing fields unchanged… */</span>
+  /** claudeSeats: billing cadence; undefined = "monthly". */
+  billing?: ClaudeBilling;
+};
+
+<span class="c">// toolCostAt / currentMonthlyCost, claudeSeats branch:</span>
+const factor = p.billing === "yearly" ? CLAUDE_YEARLY_FACTOR : 1;
+return Math.round(std * (tool.stdPrice ?? 0) * factor + prem * (tool.premPrice ?? 0) * factor);
+
+<span class="c">// Presets: new keys + H2 parameter sets (§2 table).</span>
+export type PresetKey = "h2Gradual" | "h2Plan" | "h2Accelerated";
+
+<span class="c">// Billing is orthogonal to presets — threaded in at application time so the
+// client can keep the user's cadence when switching tiles:</span>
+export function inputsFromPreset(ds, key, billing?: ClaudeBilling): ForecastInputs;
+<span class="c">//   → stamps `billing` on claudeSeats-kind tools' params ONLY when "yearly"
+//     (undefined ≡ monthly, so monthly inputs stay deep-equal to pristine presets).</span>
+export function defaultInputs(ds): ForecastInputs;   <span class="c">// seeds from "h2Plan", monthly</span></code></pre>
+
+<p class="c"><code>seatsAt</code>, <code>projectForecast</code>, <code>computeTrendBand</code>, and every dataset /
+  result type are untouched. The negative-growth clamp (<code>Math.max(0, …)</code>) already handles the fading lines.</p>
+
+<!-- ============================================================ -->
+<h2 id="ui">5 · UI changes</h2>
+
+<p>All in <code>src/app/scenarios/budget-forecast/budget-forecast-client.tsx</code>:</p>
+
+<table>
+  <thead><tr><th>Where</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Preset constants</td>
+      <td><code>PRESET_ORDER</code> / <code>GHOST_COLOR</code> re-keyed (<code>h2Gradual</code>→chart-4, <code>h2Plan</code>→chart-3, <code>h2Accelerated</code>→chart-2 — same positions as before). Tile labels/tags come from <code>FORECAST_PRESETS</code> as today.</td>
+    </tr>
+    <tr>
+      <td>Claude control row (<code>ToolControl</code>, <code>claudeSeats</code> kind)</td>
+      <td>New <strong>Billing</strong> segmented toggle — two <code>aria-pressed</code> buttons (Monthly / Yearly) in a bordered inline-flex group, <em>replicating</em> 035's local <code>ToggleButton</code> (~20 lines in <code>api-subscription-client.tsx</code>; it is page-local, so it is copied, not cross-imported from another route). The toggle occupies one grid cell, with the effective seat prices as its caption rendered live from the tool's prices × factor (e.g. <code>$25 std · $125 prem</code> vs <code>$20 std · $100 prem</code>) — the claudeSeats row goes from 3 to 4 cells in the existing <code>sm:grid-cols-2 lg:grid-cols-3</code> grid, wrapping to a second row on lg, which is acceptable. The header's <code>$X/mo</code> figure (<code>currentMonthlyCost</code>) reflects the cadence automatically.</td>
+    </tr>
+    <tr>
+      <td><code>applyPreset</code> / <code>presetInputs</code></td>
+      <td>Both thread the current cadence through <code>inputsFromPreset(ds, key, billing)</code> — preset switches keep the user's billing choice; tiles, ghost lines, and comparison rows are scored under it. The cadence is derived from the claudeSeats-kind tool's params (by kind, not key) and added to the <code>presetInputs</code> memo deps. (Scoring mirrors the edited-ceiling spread; threading through <code>applyPreset</code> is new behavior — the ceiling still resets on tile click by design.)</td>
+    </tr>
+    <tr>
+      <td>Reset affordance</td>
+      <td>"Reset to Expected" → <strong>"Reset to H2 Plan"</strong>; restores monthly billing + live ceiling.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="anchors">6 · Regression anchors (frozen fixture)</h2>
+
+<p>Unit tests keep the 036 fixture (6 monthly periods, 3 elapsed with actuals 50 000 / 60 000 / 70 000¢; tools
+  <code>api</code> seats0 10 / burn0 1000, <code>copilot</code> seats0 20 / price 1900, <code>claude</code> seats0 8 /
+  std 2000 / prem 10000 / premShare0 0.25). Hand-computed anchors for the new presets — 3 remaining periods, k = 1…3:</p>
+
+<table>
+  <thead><tr><th>Series (cents)</th><th>H2 Gradual</th><th>H2 Plan</th><th>H2 Accelerated</th></tr></thead>
+  <tbody>
+    <tr><td><code>api</code> k=1…3</td><td>8500 · 7225 · 6141</td><td>7500 · 5625 · 4219</td><td>5000 · 2500 · 1250</td></tr>
+    <tr><td><code>claude</code> k=1…3 <span class="c">(monthly)</span></td><td>86400 · 134400 · 182400</td><td>119600 · 197600 · 275600</td><td>145600 · 249600 · 353600</td></tr>
+    <tr><td><code>copilot</code> k=1…3</td><td>38000 ×3</td><td>36100 · 34200 · 32300</td><td>34200 · 30400 · 26600</td></tr>
+    <tr><td><strong>Year-end (monthly billing)</strong></td><td><code>719 066</code></td><td><code>892 744</code></td><td><code>1 028 750</code></td></tr>
+    <tr><td><strong>Year-end (yearly billing)</strong></td><td>—</td><td><code>774 184</code> <span class="c">(claude ×0.8)</span></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<ul>
+  <li class="note">Worked example, H2 Plan <code>claude</code> k=1: seats = 8+15 = 23; prem = 23×0.40 = 9.2; std = 13.8 → 13.8×2000 + 9.2×10000 = 119 600.</li>
+  <li class="note">Yearly billing on the fixture: blended per-seat 5200 → 4160 (×0.8); H2 Plan claude remaining 592 800 → 474 240; year-end 180 000 + 17 344 + 474 240 + 102 600 = 774 184.</li>
+  <li class="note">Ascending property preserved: gradual &lt; plan &lt; accelerated — the seat ramp dominates the API savings, so the existing strictly-ascending test keeps its teeth with new numbers.</li>
+  <li class="note">Billing unit tests: <code>toolCostAt</code> claudeSeats yearly (32 000 → 25 600 at share 0.25), <code>currentMonthlyCost</code> yearly, <code>billing</code> undefined ≡ monthly, factor not applied to <code>seat</code>/<code>metered</code> kinds, <code>inputsFromPreset(ds, key, "yearly")</code> stamping only claudeSeats params (and stamping nothing when monthly).</li>
+  <li class="note">One anchor pins the factor's placement <em>inside</em> <code>Math.round</code>: with a non-multiple-of-5 <code>stdPrice = 2001</code>, yearly at share 0.25 gives 6×2001×0.8 + 2×10000×0.8 = 25 604.8 → <code>25 605</code>; a round-then-discount implementation would yield a fractional 25 604.8 and fail.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="manifest">7 · File manifest</h2>
+
+<table>
+  <thead><tr><th>File</th><th></th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/lib/scenarios/budget-forecast.ts</code></td><td><span class="pill warn">edit</span></td><td>New preset keys + H2 parameter sets; <code>ClaudeBilling</code> type, <code>CLAUDE_YEARLY_FACTOR</code>, billing-aware <code>toolCostAt</code> / <code>currentMonthlyCost</code>; <code>inputsFromPreset(…, billing?)</code>.</td></tr>
+    <tr><td><code>src/app/scenarios/budget-forecast/budget-forecast-client.tsx</code></td><td><span class="pill warn">edit</span></td><td>Re-keyed preset constants; billing toggle in the Claude control row; cadence threading; reset label.</td></tr>
+    <tr><td><code>tests/unit/scenarios/budget-forecast.test.ts</code></td><td><span class="pill warn">edit</span></td><td>New preset anchors (§6); billing-factor tests; key/label/default assertions updated.</td></tr>
+    <tr><td><code>CLAUDE.md</code></td><td><span class="pill warn">edit</span></td><td>"Recent Changes" line for 040.</td></tr>
+    <tr><td><code>specs/040-h2-forecast-presets/*</code></td><td><span class="pill new">new</span></td><td>This plan + running implementation notes.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="risks">8 · Risks &amp; decisions</h2>
+
+<table>
+  <thead><tr><th>Topic</th><th>Decision / mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Yearly price drift</td><td>The 0.8 factor is exact today (verified against the live tiers: 2500¢/12500¢). If yearly pricing ever stops being 20%-off-monthly, replace the factor with explicit yearly prices on <code>ForecastTool</code> — a noted follow-up, not speculatively built.</td></tr>
+    <tr><td>"A few seats" is a judgment call</td><td>−15/−25/−50%/period are tuned so the central plan lands ≈ 5–6 keys at FY-end from today's 42 — the user confirmed "~5 is realistic" in review (the original draft's −35% landed ≈ 2 and was re-tuned). They're presets, not policy — every value remains live-editable.</td></tr>
+    <tr><td>Preset ordering invariant</td><td>The "strictly ascending year-end" test is recomputed, not dropped — on the fixture the Claude ramp dominates, so gradual &lt; plan &lt; accelerated holds. If a future preset edit breaks monotonicity the test will say so loudly, which is the point.</td></tr>
+    <tr><td>Billing in <code>ToolParams</code> vs a top-level input</td><td>Kept in <code>ToolParams</code> (claudeSeats only): the engine signature stays <code>(tool, params, k)</code>, serialization is unchanged, and a hypothetical second seat-tier tool gets the lever for free. Persistence across presets is handled at application time (<code>inputsFromPreset</code>'s third arg), not by global state.</td></tr>
+    <tr><td>Tile click: ceiling resets, billing persists</td><td>Deliberate asymmetry. The ceiling is part of a preset's "what-if" frame (a tile answers "this plan against the live budget"), so 036's reset-on-apply behavior is kept. Billing is a procurement fact about how the org pays for Claude seats — flipping tiles should not silently flip the contract. Surfaced in the notes file for review.</td></tr>
+    <tr><td>Quarterly budgets</td><td>Growth values are per-period by design (036). On a quarterly budget "+15 seats/period" means per quarter — same pre-existing semantics, unchanged.</td></tr>
+    <tr><td>Stale preset references</td><td><code>rg "conservative|expected|aggressive"</code> across <code>src/</code> + <code>tests/</code> after the rename; the type-checker catches the rest via the <code>PresetKey</code> union.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="accept">9 · Acceptance checklist</h2>
+<ul>
+  <li class="check"><code>/scenarios/budget-forecast</code> shows the three H2 tiles (Gradual / Plan / Accelerated) + Custom; H2 Plan is the default and the reset target.</li>
+  <li class="check">Selecting each preset loads the §2 parameter set into the controls (verifiable in the UI: API row shows compound −25% on H2 Plan, Claude row +15/period at 40% Premium, Copilot −1/period…).</li>
+  <li class="check">The Claude row shows a Monthly / Yearly toggle; switching to Yearly drops the Claude line's cost by exactly 20% everywhere (tile deltas, charts, tables, verdict) and survives preset switches; reset restores Monthly.</li>
+  <li class="check">Effective seat prices render next to the toggle ($25/$125 vs $20/$100 on live data).</li>
+  <li class="check">Unit tests green with the §6 anchors; lint zero warnings; typecheck clean.</li>
+  <li class="check">No schema change, no loader change; feature remains read-only.</li>
+</ul>
+
+<footer>
+  AI Developer Hub · spec/040-h2-forecast-presets · implementation plan · drafted 2026-06-12 · companion: implementation-notes.html
+</footer>
+
+</main>
+</body>
+</html>
