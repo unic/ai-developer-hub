@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — Saved Forecast Scenarios (041)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elev: #11141b;
+      --bg-card: #161a24;
+      --border: #232938;
+      --border-strong: #2f3850;
+      --fg: #e7ebf3;
+      --fg-muted: #9aa3b5;
+      --fg-dim: #6b7488;
+      --accent: #f0a072;
+      --accent-2: #7dd3fc;
+      --good: #86efac;
+      --warn: #fcd34d;
+      --bad: #fca5a5;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+    body { padding: 48px 24px 96px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+    h1 { font-size: 32px; margin: 0 0 8px; }
+    h2 { font-size: 22px; margin: 52px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; margin: 0 0 6px; }
+    h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    p { margin: 0 0 12px; }
+    a { color: var(--accent); }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+    pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+    .lede { color: var(--fg-muted); font-size: 16px; max-width: 820px; }
+    .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+    .badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--fg-muted); background: var(--bg-elev); }
+    .badge.accent { color: var(--accent); border-color: rgba(240,160,114,0.35); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 16px 0; }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.accent-2 { border-left: 3px solid var(--accent-2); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    ul { padding-left: 20px; margin: 8px 0 12px; }
+    li { margin: 4px 0; }
+    li.pro::marker { content: "+ "; color: var(--good); font-weight: 700; }
+    li.con::marker { content: "− "; color: var(--bad); font-weight: 700; }
+    li.note::marker { content: "› "; color: var(--fg-dim); }
+    li.check::marker { content: "\2610  "; color: var(--fg-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--fg-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-elev); }
+    td code { white-space: nowrap; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-family: var(--mono); }
+    .pill.warn { background: rgba(252,211,77,0.12); color: var(--warn); }
+    .pill.new { background: rgba(240,160,114,0.14); color: var(--accent); }
+    .pill.neutral { background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border); }
+    .callout { border: 1px solid var(--border-strong); border-left: 3px solid var(--warn); background: rgba(252,211,77,0.04); padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
+    .callout.info { border-left-color: var(--accent-2); background: rgba(125,211,252,0.04); }
+    .callout.accent { border-left-color: var(--accent); background: rgba(240,160,114,0.05); }
+    .toc { columns: 2; column-gap: 32px; font-size: 14px; }
+    @media (max-width: 760px) { .toc { columns: 1; } }
+    .toc a { display: block; padding: 3px 0; color: var(--fg-muted); text-decoration: none; }
+    .toc a:hover { color: var(--accent); }
+    footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+    .s { color: var(--good); }
+    .c { color: var(--fg-dim); font-style: italic; }
+    .k { color: var(--accent-2); }
+  </style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="row" style="margin-bottom: 16px;">
+    <span class="badge">Implementation plan</span>
+    <span class="badge">spec/041-forecast-scenario-persistence</span>
+    <span class="badge accent">Challenged &amp; revised — ready to implement</span>
+  </div>
+  <h1>Saved Forecast Scenarios</h1>
+  <p class="lede">
+    Ship the follow-up that spec 036 explicitly deferred: <strong>persisting named scenarios</strong> for the
+    Budget / Cost Forecast Simulation. An admin who has tuned a plan — levers, edited ceiling, billing cadence —
+    can save it under a name, reload it later (or in another browser, or as another admin), rename it, update it
+    after refinement, and delete it when it has served its purpose. Saved scenarios are shared across all admins
+    and scoped to the active fiscal-year budget, exactly the <code>forecast_scenarios</code> table
+    (&ldquo;JSON params + label + budget_id&rdquo;) the 036 plan sketched for this follow-up.
+  </p>
+  <p class="meta">Drafted 2026-06-12 · challenged by a 5-lens adversarial panel, revised same day · author: T. Studer · branch: <code>041-forecast-scenario-persistence</code> · builds on specs 036 + 040 · estimate: ~1.5–2 dev days</p>
+</header>
+
+<div class="callout info" style="margin-top: 24px;">
+  <strong>First write path in the Scenarios section.</strong> 036 and 040 were read-only; this spec adds one new
+  table (migration <code>0026</code>), one new server-action file, and a save/load/rename/delete UI — while the
+  projection engine&rsquo;s existing functions, the data loader, and every existing figure remain untouched. A saved
+  scenario stores <em>assumptions</em> (the <code>ForecastInputs</code> parameter set), never computed results: on
+  load it is re-projected against whatever the live dataset says today.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc card">
+  <a href="#goal">1 · Goal &amp; scope</a>
+  <a href="#semantics">2 · What a saved scenario is</a>
+  <a href="#schema">3 · Data model &amp; migration</a>
+  <a href="#validation">4 · Validation &amp; (de)serialization</a>
+  <a href="#actions">5 · Server actions</a>
+  <a href="#engine">6 · Engine changes</a>
+  <a href="#ui">7 · UI changes</a>
+  <a href="#tests">8 · Test plan</a>
+  <a href="#manifest">9 · File manifest</a>
+  <a href="#risks">10 · Risks &amp; decisions</a>
+  <a href="#accept">11 · Acceptance checklist</a>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="goal">1 · Goal &amp; scope</h2>
+
+<div class="card accent">
+  <h4>In scope</h4>
+  <ul>
+    <li class="note">A <code>forecast_scenarios</code> table (new migration <code>0026</code>): <code>budget_id</code> FK, unique name per budget (case-insensitive, expression index), <code>params</code> jsonb holding the full <code>ForecastInputs</code>, <code>created_by</code> attribution, timestamps.</li>
+    <li class="note">Server actions: <code>listForecastScenarios</code> (read, active budget, creator name joined), <code>createForecastScenario</code>, <code>updateForecastScenario</code> (overwrite params and/or rename; <strong>params optional</strong> so rename never silently rewrites assumptions), <code>deleteForecastScenario</code> — all admin-gated, Zod-validated, following the <code>ActionResult</code> + <code>revalidatePath</code> + audit-history conventions. Unique-violation races are caught and mapped to the same friendly duplicate-name error as the pre-check.</li>
+    <li class="note">A <strong>deterministic active-budget resolution contract</strong>: <code>status = 'active'</code> ordered by <code>fiscal_year DESC</code>, <code>LIMIT 1</code> — hardens the two-active-budgets state the schema permits and makes the integration tests deterministic.</li>
+    <li class="note">A pure engine helper <code>inputsFromSaved(ds, saved)</code> that re-bases any <code>ForecastInputs</code> onto the <em>current</em> dataset: tools that disappeared are dropped, tools that appeared get defaults. Used for loading saved scenarios <em>and</em> for re-basing surviving client state when the dataset prop refreshes.</li>
+    <li class="note">UI: a persistent <strong>Saved scenarios</strong> card (load / rename / delete, mono empty state), a <strong>Save scenario</strong> dialog (single primary button; Update-vs-new resolved by an in-dialog mode toggle), active-state tracking (<code>saved:&lt;id&gt;</code> activates the &ldquo;Your plan&rdquo; comparison row), inline <code>StatusText</code> feedback (the Nothing-system replacement for toasts).</li>
+    <li class="note">Unit tests (engine merge incl. billing round-trip, Zod schema matrix, auth gating), an integration test (real-DB CRUD round trip with audit + index assertions, deterministic seeding), and a manual Playwright browser pass against live data.</li>
+  </ul>
+  <h4>Out of scope</h4>
+  <ul>
+    <li class="con"><strong>Applying a scenario to the budget of record</strong> (writing <code>planned_amount_cents</code>) — still the separate follow-up 036 named; saving assumptions is modelling, not budget editing.</li>
+    <li class="con"><strong>Per-user/private scenarios, sharing controls, or roles beyond admin</strong> — the whole Scenarios section is admin-only; saved scenarios are one shared pool per budget (last-write-wins; overwrites are recoverable from the audit trail, <a href="#actions">§5</a>).</li>
+    <li class="con"><strong>Saved scenarios as extra ghost lines / comparison rows</strong> — the loaded scenario <em>is</em> the &ldquo;Your plan&rdquo; line; the three H2 presets stay the fixed comparison frame.</li>
+    <li class="con"><strong>Conflict detection / locking</strong> between admins editing the same scenario — accepted last-write-wins for v1, mitigated by audit snapshots.</li>
+    <li class="con"><strong>MCP exposure</strong> of saved scenarios — possible follow-up for the read side, not built speculatively.</li>
+    <li class="con"><strong>Scenario history / versioning UI</strong> — update overwrites; the audit trail records full param snapshots (recoverable forensically, no restore UI).</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="semantics">2 · What a saved scenario is</h2>
+
+<p>A saved scenario is a <strong>named, shared parameter set</strong>: the exact <code>ForecastInputs</code> the client
+  already holds in state — the edited ceiling (cents) plus the per-tool levers (include / growth model / value /
+  burn growth / burn cap / premium share / billing cadence). It is deliberately <em>not</em> a snapshot of results:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>Stored: assumptions</h4>
+    <ul>
+      <li class="note"><code>params.ceilingCents</code> — the modeled ceiling the plan was tuned against (may differ from the live budget ceiling).</li>
+      <li class="note"><code>params.tools[key]</code> — one <code>ToolParams</code> per tool key (<code>api</code>, <code>claude</code>, <code>copilot</code>, <code>cursor</code>, <code>mscopilot</code>), including the Claude <code>billing</code> cadence when yearly (<code>undefined ≡ monthly</code> survives the JSON round trip — <code>JSON.stringify</code> drops undefined keys).</li>
+      <li class="note">A <code>name</code> (≤ 60 chars, unique per budget, case-insensitive) and <code>created_by</code> attribution (surfaced in the list and the delete confirm).</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Recomputed: everything else</h4>
+    <ul>
+      <li class="note">On load, the engine re-projects the saved params against the <em>current</em> dataset — seats, prices, burn, and elapsed actuals as of today. Year-end, breach, drivers all shift with live data, exactly like a preset.</li>
+      <li class="note">The saved-scenarios list shows each entry&rsquo;s <em>recomputed</em> year-end and Δ explicitly labelled against <strong>its own saved ceiling</strong> (&ldquo;vs saved $X&rdquo;), so the list reads as &ldquo;what would this plan mean today&rdquo; and the differing denominator is visible.</li>
+      <li class="note">A saved scenario whose tool keys drift from the live tool set still loads (<a href="#engine">§6</a>) — extinct keys dropped, new tools defaulted.</li>
+    </ul>
+  </div>
+</div>
+
+<p class="c">Scope rule: scenarios belong to the budget they were tuned against (<code>budget_id</code> FK). The page
+  always lists scenarios for the <em>active</em> budget — when FY2027 activates, FY2026 scenarios disappear from view
+  but survive in the table (and cascade away only if the budget row itself is deleted).</p>
+
+<!-- ============================================================ -->
+<h2 id="schema">3 · Data model &amp; migration</h2>
+
+<p>One table, following the house style (snake_case DB names, camelCase TS, array-form third argument,
+  <code>&lt;table&gt;_&lt;cols&gt;_idx</code> index names). Next journal entry: <code>0026</code>.</p>
+
+<pre><code><span class="c">// Forecast Scenarios (041-forecast-scenario-persistence)</span>
+export const forecastScenarios = pgTable(
+  "forecast_scenarios",
+  {
+    id: serial("id").primaryKey(),
+    budgetId: integer("budget_id")
+      .notNull()
+      .references(() =&gt; annualBudgets.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    <span class="c">// The full ForecastInputs parameter set (type-only import — no runtime dep).</span>
+    params: jsonb("params").$type&lt;ForecastInputs&gt;().notNull(),
+    createdBy: integer("created_by").references(() =&gt; users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) =&gt; [
+    index("forecast_scenarios_budget_id_idx").on(table.budgetId),
+    <span class="c">// One name per budget, case-insensitive ("Plan B" ≡ "plan b").</span>
+    uniqueIndex("forecast_scenarios_budget_name_idx").on(
+      table.budgetId,
+      sql`lower(${table.name})`,
+    ),
+  ],
+);</code></pre>
+
+<ul>
+  <li class="note"><strong>FK choices.</strong> <code>budget_id → cascade</code>: scenarios are owned what-ifs of a budget, worthless without it (matches <code>budget_periods</code>). <code>created_by → set null</code>: attribution is informational; deleting a user must not destroy shared scenarios (so the column is nullable; precedent: <code>ingestion_log.uploadedBy</code>).</li>
+  <li class="note"><strong>jsonb typing.</strong> <code>$type&lt;ForecastInputs&gt;()</code> with <code>import type { ForecastInputs } from "@/lib/scenarios/budget-forecast"</code> — type-only, erased at compile time, no runtime cycle (the engine itself imports nothing from <code>db</code>). Precedent: <code>users.preferences</code> is <code>$type&lt;UserPreferences&gt;()</code>.</li>
+  <li class="note"><strong>updatedAt</strong> maintained in app code on update (house convention — no <code>$onUpdate</code>).</li>
+  <li class="note"><strong>relations()</strong> block: <code>budget: one(annualBudgets)</code>, <code>creator: one(users)</code>, mirroring <code>inviteTokensRelations</code>.</li>
+  <li class="note"><strong>Migration workflow:</strong> <code>pnpm db:generate</code> → review the emitted SQL (additive only: 1 CREATE TABLE, 2 FKs, 2 indexes) with the <code>drizzle-migration-reviewer</code> agent → <code>pnpm db:migrate</code> against the dev DB. Verified against the installed drizzle-kit 0.31.9: the expression index emits as <code>USING btree ("budget_id", lower("name"))</code>.</li>
+  <li class="note"><strong><code>db:push</code> caveat (challenge finding):</strong> this is the repo&rsquo;s first expression index, and drizzle-kit&rsquo;s <code>push</code> diffing does not reliably detect expression changes inside index definitions — this table must go through <code>generate</code>/<code>migrate</code>, and a push-based dev loop should be sanity-checked once against the dev DB.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="validation">4 · Validation &amp; (de)serialization</h2>
+
+<div class="callout">
+  <strong>The boundary rule: validate on write <em>and</em> on read.</strong> The jsonb column is an open contract —
+  a row written by an older/newer build, or edited by hand, must never crash the page or feed the engine
+  <code>NaN</code>/<code>Infinity</code>. Writes <code>safeParse</code> the params and store <code>parsed.data</code>
+  (canonical shape); reads <code>safeParse</code> each row and <em>skip</em> (with a <code>console.error</code>) any
+  row that no longer conforms.
+</div>
+
+<p>Schemas live in <code>src/lib/validators.ts</code> (shared client/server, per house rules):</p>
+
+<pre><code>export const toolParamsSchema = z.object({
+  include: z.boolean(),
+  model: z.enum(["flat", "linear", "compound"]),
+  val: z.number().min(-100_000).max(100_000),
+  burnPct: z.number().min(-100).max(100_000).optional(),
+  burnCap: z.number().int().min(0).max(100_000_000).optional(),      <span class="c">// ≤ $1M/user/period</span>
+  premShare: z.number().min(0).max(1).optional(),
+  billing: z.enum(["monthly", "yearly"]).optional(),
+});
+
+export const forecastInputsSchema = z
+  .object({
+    ceilingCents: z.number().int().min(0).max(100_000_000_000),      <span class="c">// ≤ $1B</span>
+    tools: z.record(z.string().min(1).max(40), toolParamsSchema),
+  })
+  .refine((v) =&gt; Object.keys(v.tools).length &lt;= 20, {
+    message: "Too many tool entries",
+  });
+
+export const forecastScenarioNameSchema = z.string().trim().min(1).max(60);
+
+export const createForecastScenarioSchema = z.object({
+  name: forecastScenarioNameSchema,
+  params: forecastInputsSchema,
+});
+export const updateForecastScenarioSchema = z.object({
+  id: z.number().int().positive(),
+  name: forecastScenarioNameSchema,
+  params: forecastInputsSchema.optional(),   <span class="c">// omitted = rename-only, stored params untouched</span>
+});
+export const deleteForecastScenarioSchema = z.object({
+  id: z.number().int().positive(),
+});</code></pre>
+
+<ul>
+  <li class="note"><strong>Strip, don&rsquo;t strict (challenge revision).</strong> Plain <code>z.object</code> (Zod&rsquo;s default strip semantics, the only style used in <code>validators.ts</code>): unknown keys are dropped, not rejected. On write that keeps the stored shape canonical (we insert <code>parsed.data</code>); on read it keeps rows loadable if a future build adds-then-removes a field. <code>.strict()</code> would turn schema drift into save failures and skipped rows — worse availability for zero practical safety gain.</li>
+  <li class="note"><strong>Non-finite protection is built in:</strong> Zod 4&rsquo;s <code>z.number()</code> rejects <code>NaN</code>/<code>Infinity</code> by default (<code>.finite()</code> is a documented no-op in v4 and is not used). Nothing non-finite can reach <code>Math.pow</code>.</li>
+  <li class="note">Bounds are generous modelling limits, not business rules — wide enough for any sane what-if, tight enough to keep arithmetic and rendering safe. <code>ceilingCents: 0</code> is deliberately accepted (the UI guards the accidental-empty-field path, <a href="#ui">§7</a>).</li>
+  <li class="note"><strong>Type-level round trip:</strong> two type-only assignments (schema output → <code>ForecastInputs</code>, <code>ForecastInputs</code> → schema input) live in the validator test file and are enforced by <code>pnpm typecheck</code> (tests are in the tsconfig include), not by the vitest run.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="actions">5 · Server actions</h2>
+
+<p>New file <code>src/actions/forecast-scenarios.ts</code> (<code>"use server"</code>) — CRUD stays out of
+  <code>scenarios.ts</code>, which holds only the cached dataset loaders. All four follow the house conventions:
+  <code>requireAdmin()</code> first, <code>safeParse</code> against <code>unknown</code>, <code>ActionResult&lt;T&gt;</code>
+  result shape, audit history, <code>revalidatePath("/scenarios/budget-forecast")</code> after writes.</p>
+
+<div class="callout accent">
+  <strong>Active-budget resolution contract (challenge must-fix).</strong> All actions resolve the active budget
+  server-side — never trusted from the client — as <code>status = 'active'</code> <strong>ordered by
+  <code>fiscal_year DESC</code>, <code>LIMIT 1</code></strong>. The schema permits multiple active rows; an unordered
+  <code>findFirst</code> would be nondeterministic there (and made the integration-test seeding pattern unsafe).
+  Ordering by fiscal year makes production behaviour well-defined and lets tests seed a far-future active budget
+  that deterministically wins resolution.
+</div>
+
+<table>
+  <thead><tr><th>Action</th><th>Behaviour</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>listForecastScenarios()</code></td>
+      <td>Read. Admin gate returns <code>[]</code> — defense-in-depth only: the <code>/scenarios</code> layout already redirects non-admins and the sibling dataset loader throws first in <code>Promise.all</code>. Resolves the active budget (contract above); returns its scenarios ordered by name, each row&rsquo;s <code>params</code> re-validated with <code>safeParse</code> (invalid → skipped + <code>console.error</code>). Returns <code>{ id, name, params, creatorName, updatedAt }</code> (<code>users</code> left-joined, <code>updatedAt</code> as ISO string). <strong>Uncached</strong> — the page is already dynamic (auth) and the query is a single indexed select; freshness beats a cache here.</td>
+    </tr>
+    <tr>
+      <td><code>createForecastScenario(input: unknown)</code></td>
+      <td>Validate → resolve active budget (<code>error: "No active budget"</code> if none) → cap check (<strong>≤ 50 per budget</strong>, pre-check only — see §10) → case-insensitive duplicate-name pre-check (friendly <code>error</code>) → insert with <code>createdBy: Number(admin.id)</code>, <strong>unique-violation (PG 23505) caught and mapped to the same duplicate-name error</strong> (the race path must honour the <code>ActionResult</code> contract too) → <code>recordCreation("forecast_scenario", id, adminId)</code> → revalidate. Returns <code>{ id }</code>.</td>
+    </tr>
+    <tr>
+      <td><code>updateForecastScenario(input: unknown)</code></td>
+      <td>Validate → load row (<code>error: "Scenario not found"</code>) → duplicate-name pre-check excluding self → update <code>name</code>, <code>params</code> (only when provided — rename-only leaves stored params untouched), <code>updatedAt: new Date()</code>, 23505 caught as above → <code>recordUpdate(...)</code> with a name diff when renamed <strong>and a full params snapshot</strong> (<code>{ params: { old: &lt;previous object&gt;, new: &lt;next object&gt; } }</code>) when params change — so a teammate&rsquo;s overwritten plan is recoverable from <code>change_history</code>, and a params-only update never hits <code>recordUpdate</code>&rsquo;s empty-diff early-return (challenge finding) → revalidate. Returns <code>{ id }</code>.</td>
+    </tr>
+    <tr>
+      <td><code>deleteForecastScenario(id: number)</code></td>
+      <td>Validate id → load row → snapshot into the audit trail (<code>deleteBilledCost</code> pattern: name + params recorded as <code>previousValue</code> before <code>db.delete</code>) → delete → revalidate. Returns <code>{ id }</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<ul>
+  <li class="note"><code>change_history.entity_type</code> is a free-form <code>varchar(50)</code> — <code>"forecast_scenario"</code> needs no enum migration.</li>
+  <li class="note"><code>page.tsx</code> loads the list alongside the dataset (<code>Promise.all</code>); after a mutation, <code>revalidatePath</code> + the client&rsquo;s <code>router.refresh()</code> re-render the page with the fresh list while client state (the user&rsquo;s current inputs) survives — and is re-based if the dataset itself changed (<a href="#ui">§7</a>).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="engine">6 · Engine changes</h2>
+
+<p>One additive pure function in <code>src/lib/scenarios/budget-forecast.ts</code> — no signature changes, no new imports:</p>
+
+<pre><code><span class="c">/**
+ * Re-base a parameter set onto the current dataset. Tools that no longer
+ * exist are dropped; tools that appeared since the params were captured get
+ * DEFAULT_PARAMS — so a stale scenario (or surviving client state after a
+ * dataset refresh) always yields a complete, renderable input set.
+ */</span>
+export function inputsFromSaved(
+  ds: ForecastDataset,
+  saved: ForecastInputs,
+): ForecastInputs {
+  const tools: Record&lt;string, ToolParams&gt; = {};
+  for (const tool of ds.tools) {
+    const p = saved.tools[tool.key];
+    tools[tool.key] = p ? { ...p } : { ...DEFAULT_PARAMS };
+  }
+  return { ceilingCents: saved.ceilingCents, tools };
+}</code></pre>
+
+<p class="c">Mirrors <code>inputsFromPreset</code>&rsquo;s shape (copy semantics, dataset-scoped keys) so the client can
+  treat presets and saved scenarios uniformly. Params are copied verbatim — including the claudeSeats
+  <code>billing</code> cadence, which is what makes &ldquo;load restores the cadence&rdquo; true (pinned by a unit
+  test). <code>projectForecast</code>, the presets, and all result types are untouched.</p>
+
+<!-- ============================================================ -->
+<h2 id="ui">7 · UI changes</h2>
+
+<p>All in <code>src/app/scenarios/budget-forecast/</code>. The client gains a <code>savedScenarios</code> prop
+  (<code>{ id, name, params, creatorName, updatedAt }[]</code>, already validated server-side).</p>
+
+<table>
+  <thead><tr><th>Where</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>page.tsx</code></td>
+      <td><code>Promise.all([loadBudgetForecastDataset(), listForecastScenarios()])</code>; pass both to the client.</td>
+    </tr>
+    <tr>
+      <td>Active-state model</td>
+      <td><code>ActiveScenario</code> widens to <code>PresetKey | "custom" | `saved:${number}`</code>. <strong>Mapping (challenge fix):</strong> when active is <code>saved:*</code>, the <strong>&ldquo;Your plan&rdquo; comparison row renders as active</strong> (it is showing exactly the loaded scenario&rsquo;s numbers: <code>isPlanActive = active === "custom" || active.startsWith("saved:")</code>); preset tiles stay inactive; the Custom tile also stays inactive (the saved card row carries the specific identity). A separate <code>loadedSavedId</code> powers the Update offer and <strong>is cleared by Reset <em>and</em> by clicking any preset tile</strong> (a preset is a new starting point, not a refinement of the loaded scenario — prevents one-click overwrite of a shared row with preset params); plain control edits keep it (flipping <code>active</code> to <code>"custom"</code> as today). The Update offer is derived live from <code>savedScenarios.find(s =&gt; s.id === loadedSavedId)</code> — if another admin deleted the row, the offer disappears instead of going stale.</td>
+    </tr>
+    <tr>
+      <td>Dataset-refresh re-base (challenge fix)</td>
+      <td><code>router.refresh()</code> after mutations is the page&rsquo;s first path to a <em>changed dataset prop under surviving client state</em> (the loader&rsquo;s 1h cache can expire mid-session). A dataset tool key absent from <code>inputs.tools</code> would be hidden by the controls (<code>if (!p) return null</code>) yet projected at defaults by the engine. Fix: an effect keyed on <code>dataset.generatedAt</code> re-bases surviving inputs through <code>inputsFromSaved(dataset, prev)</code> (skipping the initial mount) — same helper, same semantics.</td>
+    </tr>
+    <tr>
+      <td><strong>Saved scenarios card</strong> (new, between the preset tiles and Assumptions; <strong>always rendered</strong>)</td>
+      <td>Header: mono &ldquo;Saved scenarios&rdquo; microlabel + the page-level <code>StatusText</code> (a stable landing spot for save/delete feedback even when the list empties). Empty state: one mono line, house style — <code>[ NO SAVED SCENARIOS — SAVE YOUR CURRENT PLAN ]</code> (persistent card fixes first-use discoverability and the delete-the-last-row focus dead end). Rows as a <code>ul</code>/<code>li</code> list, <code>max-h</code> + internal scroll beyond ~6 rows: a load <code>&lt;button aria-pressed&gt;</code> whose accessible name is the scenario name (ink-bar active treatment mirroring the comparison table, but on a real pressed state, not aria-hidden decoration); outside the button: recomputed year-end + Δ <strong>labelled &ldquo;vs saved $X&rdquo;</strong> (different denominator than the page&rsquo;s edited ceiling — made visible, challenge finding), creator + updated caption (<code>T. Studer · 2026-06-12</code>); a pencil icon-button (<code>aria-label="Rename scenario &lt;name&gt;"</code>) and a <code>Trash2</code> ghost icon-button (<code>aria-label="Delete scenario &lt;name&gt;"</code>).</td>
+    </tr>
+    <tr>
+      <td>Load behaviour</td>
+      <td><code>setInputs(inputsFromSaved(dataset, s.params))</code> + sync <code>ceilingDollars</code> with the <em>exact</em> value (<code>String(cents / 100)</code> — no rounding, so a fractional saved ceiling round-trips; challenge finding) + <code>setActive(`saved:${id}`)</code> + <code>setLoadedSavedId(id)</code>. Loading restores the <em>full</em> assumption set including the saved ceiling and billing cadence — unlike preset tiles, which deliberately reset the ceiling (040&rsquo;s asymmetry stays preset-only).</td>
+    </tr>
+    <tr>
+      <td><strong>Save dialog</strong> (trigger: &ldquo;Save scenario&rdquo; button in the Assumptions header, next to &ldquo;Reset to H2 Plan&rdquo;)</td>
+      <td>House dialog pattern (plain-state controlled <code>Dialog</code>, <code>Label</code> + <code>Input</code>, footer with <code>StatusText</code> on the left, <strong>one primary button</strong> — two commit buttons have no precedent; challenge finding). When a loaded scenario exists, a segmented mode toggle (the page&rsquo;s own <code>ToggleButton</code> pattern) selects <em>Update &ldquo;name&rdquo;</em> vs <em>Save as new</em>; otherwise create-only, no toggle. Name field pre-filled from the <em>live</em> row in update mode. A mono summary line echoes exactly what will be saved: <code>Ceiling $X · Claude billing monthly/yearly · N of M tools included</code> — the user sees a $0 ceiling before committing one. Primary label <em>Update</em>/<em>Create</em>, pending label <em>Saving...</em>; submit disabled while pending, when the name is empty, or when the ceiling field is empty/cleared (prevents silently persisting <code>ceilingCents: 0</code>; challenge finding). <strong>Update always saves the CURRENT inputs and ceiling.</strong> Errors render inside the dialog (two-channel pattern); on success: close → <code>status.ok("SAVED")</code> on the card header → <code>router.refresh()</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Rename dialog</strong> (pencil on each row)</td>
+      <td>Small name-only dialog → <code>updateForecastScenario({ id, name })</code> (params omitted — stored assumptions untouched; closes the &ldquo;rename forces a params rewrite&rdquo; hole the panel found). Same footer conventions.</td>
+    </tr>
+    <tr>
+      <td>Delete confirm</td>
+      <td>House <code>AlertDialog</code> with nullable <code>deleteTarget</code> naming the scenario (and its creator); destructive action button with pending label <em>Deleting...</em>, <strong>disabled while pending</strong> (no double-fire); errors render via <code>StatusText</code> in the <code>AlertDialogFooter</code> (two-channel). On success: clear target, <code>status.ok("DELETED")</code> on the card header, <code>router.refresh()</code>, move focus to the card heading (the trigger row is gone — don&rsquo;t drop focus to <code>&lt;body&gt;</code>); if the deleted scenario was loaded, drop <code>loadedSavedId</code> (current inputs stay — deleting the record doesn&rsquo;t yank the user&rsquo;s working state).</td>
+    </tr>
+    <tr>
+      <td>Feedback</td>
+      <td><code>useInlineStatus</code> + <code>StatusText</code> everywhere — <strong>no Sonner</strong> (deprecated by the Nothing design system; bracketed mono <code>[SAVED]</code> text is the convention).</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="tests">8 · Test plan</h2>
+
+<div class="grid-2">
+  <div class="card accent-2">
+    <h4>Unit (Vitest, no DB)</h4>
+    <ul>
+      <li class="check"><code>inputsFromSaved</code> on the frozen 036 fixture (extended in place in <code>tests/unit/scenarios/budget-forecast.test.ts</code>): carries the saved ceiling (incl. the 0 boundary); copies params per tool; <strong>drops extinct keys</strong>; <strong>defaults new tools</strong>; returned objects are copies; <strong>yearly billing round-trips unchanged</strong> (the only automated check of &ldquo;load restores the cadence&rdquo;); a <code>billing</code> value stranded on a non-claudeSeats key copies through but is provably cost-neutral; <code>saved.tools = {}</code> yields all-defaults with the saved ceiling.</li>
+      <li class="check"><code>tests/unit/scenarios/forecast-scenario-validators.test.ts</code> (colocated with the engine tests — no cross-test-file fixture imports; challenge finding): schema matrix — accepts a realistic inputs literal and a yearly-billing variant and <code>ceilingCents: 0</code>; rejects negative/fractional/over-cap ceilings, <code>premShare &gt; 1</code>, unknown <code>billing</code> values, <code>NaN</code>/<code>Infinity</code> <code>val</code>, &gt; 20 tool entries; strips unknown keys; rename-only update parse (params omitted). Plus the two type-only round-trip assignments (enforced by <code>pnpm typecheck</code>).</li>
+      <li class="check"><code>tests/unit/actions/forecast-scenarios-auth.test.ts</code> (precedent: <code>assignments-export.test.ts</code>): <code>requireAdmin → null</code> ⇒ list returns <code>[]</code>, all three mutations return <code>{ success: false, error: "Unauthorized" }</code>, DB never touched.</li>
+    </ul>
+  </div>
+  <div class="card accent-2">
+    <h4>Integration + browser</h4>
+    <ul>
+      <li class="check"><code>tests/integration/forecast-scenarios.test.ts</code> (real Neon DB, mocked <code>requireAdmin</code>, teardown deletes): seeds an active budget at <strong>FY ≥ 3000</strong> — deterministically the resolution winner under the §5 ordering contract even with the dev DB&rsquo;s real active budget present (challenge must-fix; assertions additionally scoped by the seeded <code>budgetId</code>). Flow: create → list (creator name, ISO dates) → update (rename + params, <strong>audit rows asserted</strong>: created/updated incl. the params snapshot, <code>budget-extensions</code> precedent) → rename-only (stored params unchanged) → duplicate-name rejection (case-insensitive, via the action) → <strong>direct case-variant insert asserting the expression index itself fires</strong> (proves migration 0026&rsquo;s SQL + the race backstop) → <strong>malformed-params row inserted directly is skipped by list</strong> (the safeParse-on-read rule gets coverage) → cap: <strong>bulk-seed 50 rows in one insert</strong>, then one action call asserts the friendly cap error (not 50 action calls ≈ 250 round trips; challenge finding) → delete (audit snapshot round-trips name + params) → list scoped to the seeded budget is empty.</li>
+      <li class="check"><strong>Manual</strong> Playwright pass against the dev server (agent session — the seeded agent user must be an admin; any stranded test scenario is cleaned up at the end): save a tuned custom plan → row appears with recomputed figures → tweak controls → load restores ceiling + cadence + levers exactly → preset tile click clears the Update offer → update overwrites → rename-only → delete with confirm → persistent card shows the empty state. Screenshots reviewed. Manual-only, consistent with 036/040 (no committed e2e file).</li>
+      <li class="check"><code>pnpm lint</code> zero warnings · <code>pnpm typecheck</code> · full unit suite green.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="manifest">9 · File manifest</h2>
+
+<table>
+  <thead><tr><th>File</th><th></th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/lib/db/schema.ts</code></td><td><span class="pill warn">edit</span></td><td><code>forecast_scenarios</code> table + relations block.</td></tr>
+    <tr><td><code>src/lib/db/migrations/0026_*.sql</code></td><td><span class="pill new">new</span></td><td>Generated additive migration (table + FKs + indexes).</td></tr>
+    <tr><td><code>src/lib/validators.ts</code></td><td><span class="pill warn">edit</span></td><td><code>toolParamsSchema</code>, <code>forecastInputsSchema</code>, create/update/delete scenario schemas.</td></tr>
+    <tr><td><code>src/actions/forecast-scenarios.ts</code></td><td><span class="pill new">new</span></td><td>List / create / update / delete server actions (+ deterministic active-budget resolution).</td></tr>
+    <tr><td><code>src/lib/scenarios/budget-forecast.ts</code></td><td><span class="pill warn">edit</span></td><td>Add pure <code>inputsFromSaved()</code>.</td></tr>
+    <tr><td><code>src/app/scenarios/budget-forecast/page.tsx</code></td><td><span class="pill warn">edit</span></td><td>Load saved scenarios alongside the dataset.</td></tr>
+    <tr><td><code>src/app/scenarios/budget-forecast/budget-forecast-client.tsx</code></td><td><span class="pill warn">edit</span></td><td>Saved-scenarios card, save/rename dialogs, delete confirm, active/loaded tracking, dataset re-base effect.</td></tr>
+    <tr><td><code>tests/unit/scenarios/budget-forecast.test.ts</code></td><td><span class="pill warn">edit</span></td><td><code>inputsFromSaved</code> coverage.</td></tr>
+    <tr><td><code>tests/unit/scenarios/forecast-scenario-validators.test.ts</code></td><td><span class="pill new">new</span></td><td>Schema accept/reject/strip matrix + type-level round trip.</td></tr>
+    <tr><td><code>tests/unit/actions/forecast-scenarios-auth.test.ts</code></td><td><span class="pill new">new</span></td><td>Auth-gating contract for all four actions.</td></tr>
+    <tr><td><code>tests/integration/forecast-scenarios.test.ts</code></td><td><span class="pill new">new</span></td><td>Real-DB CRUD round trip + audit + index + read-skip assertions.</td></tr>
+    <tr><td><code>CLAUDE.md</code></td><td><span class="pill warn">edit</span></td><td>&ldquo;Recent Changes&rdquo; line for 041.</td></tr>
+    <tr><td><code>specs/041-forecast-scenario-persistence/*</code></td><td><span class="pill new">new</span></td><td>This plan + running implementation notes.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="risks">10 · Risks &amp; decisions</h2>
+
+<table>
+  <thead><tr><th>Topic</th><th>Decision / mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Shared vs per-user scenarios</td><td><strong>Shared pool per budget, last-write-wins.</strong> The tool exists so budget owners can align on a plan; private drafts would fragment that. Mitigations: creator attribution surfaced in the list and delete confirm; full params snapshots in <code>change_history</code> on update and delete, so an overwritten plan is recoverable forensically. Flagged in the notes as the one interpretive call worth explicit user confirmation.</td></tr>
+    <tr><td>Stale params vs live dataset</td><td>Saved params are re-based on load (<code>inputsFromSaved</code>) and re-projected against live data — never stored results. Extinct tool keys dropped, new tools defaulted. The same helper re-bases surviving client state when the dataset prop refreshes mid-session (closes the hidden-tool hole <code>router.refresh()</code> would otherwise open).</td></tr>
+    <tr><td>jsonb rot</td><td>Zod <code>safeParse</code> on every read; non-conforming rows are skipped with a logged error instead of crashing the page (covered by an integration case). Strip semantics keep rows loadable across schema evolution; writes store <code>parsed.data</code>, keeping the stored shape canonical.</td></tr>
+    <tr><td>Duplicate names / races</td><td>App-level case-insensitive pre-check for a friendly message; <code>uniqueIndex(budget_id, lower(name))</code> as the DB backstop — and the backstop&rsquo;s 23505 is <strong>caught and mapped to the same friendly error</strong>, so the race path honours the <code>ActionResult</code> contract instead of surfacing a Next.js digest (challenge finding).</td></tr>
+    <tr><td>Unbounded growth</td><td>Cap of <strong>50 scenarios per budget</strong> with an explicit error. Pre-check only — two concurrent creates at 49 can land 51 rows; accepted as harmless (no DB backstop by design; the cap is a UX guardrail, not an invariant).</td></tr>
+    <tr><td>Active-budget race / split-brain</td><td>Saving resolves the active budget server-side at write time under the §5 ordering contract. If another admin activates a different budget mid-session, the save lands on the new active budget and the refreshed list shows it; the <em>charts</em> may keep rendering the old budget&rsquo;s cached dataset for up to 1h (the dataset cache is not tag-invalidated by budget activation — pre-existing). Accepted: budget activation is a rare, admin-driven event; a hard refresh resolves the split view. Documented rather than hidden.</td></tr>
+    <tr><td>Ceiling semantics on load</td><td>Loading a saved scenario restores its <em>saved</em> ceiling (full assumption set, exact string sync — no rounding drift). Preset tiles keep 040&rsquo;s reset-to-live-ceiling behaviour. The two affordances answer different questions (&ldquo;this plan as tuned&rdquo; vs &ldquo;this preset against the live budget&rdquo;).</td></tr>
+    <tr><td>Saved-row scoring</td><td>Rows are scored against <strong>their own saved ceiling</strong>, with the denominator made explicit in the row (&ldquo;vs saved $X&rdquo;) so the two Δ semantics on one page can&rsquo;t be misread (challenge finding). Scoring against the page&rsquo;s transient edited ceiling would make the list jitter.</td></tr>
+    <tr><td>Accidental shared-row overwrite</td><td>Three guards (challenge findings): preset-tile clicks clear <code>loadedSavedId</code> (no &ldquo;Update&rdquo; offer for preset params); the Update offer is derived from the live <code>savedScenarios</code> prop (a concurrently-deleted row withdraws the offer); the save dialog echoes exactly what will be saved and blocks an empty/cleared ceiling field.</td></tr>
+    <tr><td>Feedback affordance</td><td><code>StatusText</code>/<code>useInlineStatus</code>, not Sonner — toasts are deprecated in the Nothing design system (one legacy usage left app-wide). Card-header status + in-dialog status (two-channel house pattern).</td></tr>
+    <tr><td>Cache coherence</td><td>The scenario list is an uncached read on a dynamic page; mutations <code>revalidatePath</code>. The dataset loader&rsquo;s <code>unstable_cache</code> is untouched (scenario writes don&rsquo;t change live cost data).</td></tr>
+    <tr><td>Role &amp; sensitivity</td><td>Admin-only end to end (<code>requireAdmin</code> in every action; the layout already gates). Params contain no secrets — growth assumptions and a ceiling.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="accept">11 · Acceptance checklist</h2>
+<ul>
+  <li class="check">Migration <code>0026</code> applies cleanly (additive only); <code>db:generate</code> output reviewed (expression index emits correctly).</li>
+  <li class="check">Save: a tuned Custom plan (edited ceiling, yearly billing, tweaked levers) saves under a name; the row appears with recomputed year-end and Δ labelled &ldquo;vs saved $X&rdquo;, plus creator + updated caption.</li>
+  <li class="check">Load: selecting a saved scenario restores every lever, the saved ceiling (exactly), and the billing cadence; the row shows pressed; the &ldquo;Your plan&rdquo; comparison row carries the active treatment; editing any control flips to Custom but keeps the Update offer.</li>
+  <li class="check">Preset tile click while a saved scenario is loaded clears the Update offer (no one-click overwrite with preset params).</li>
+  <li class="check">Update: overwrites params and/or renames via the mode toggle; rename-only (pencil) leaves stored params untouched; duplicate names (case-insensitive) rejected with a friendly inline error — including the race path.</li>
+  <li class="check">Delete: AlertDialog confirm naming scenario + creator; pending-disabled action; the list refreshes; focus moves to the card heading; a loaded-then-deleted scenario leaves the working state intact.</li>
+  <li class="check">The saved card renders persistently with a mono empty state; two admins see the same shared list.</li>
+  <li class="check">No active budget → saving fails with a clear error; the page&rsquo;s existing empty state is unchanged.</li>
+  <li class="check">Unit + integration suites green (incl. audit, expression-index, and read-skip assertions); lint zero warnings; typecheck clean; Playwright pass recorded in the notes.</li>
+  <li class="check">036/040 behaviour untouched: presets, billing toggle, charts, tables, and all existing regression anchors unchanged.</li>
+</ul>
+
+<footer>
+  AI Developer Hub · spec/041-forecast-scenario-persistence · implementation plan · drafted &amp; challenged 2026-06-12 · companion: implementation-notes.html
+</footer>
+
+</main>
+</body>
+</html>
