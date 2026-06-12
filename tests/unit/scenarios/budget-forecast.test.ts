@@ -167,6 +167,55 @@ describe("toolCostAt", () => {
     // seats=8, prem=4, std=4 → 4*2000 + 4*10000 = 48000
     expect(toolCostAt(CLAUDE, p, 0)).toBe(48000);
   });
+
+  it("claudeSeats applies the yearly-billing factor (20% off)", () => {
+    const p: ToolParams = {
+      include: true,
+      model: "flat",
+      val: 0,
+      premShare: 0.25,
+      billing: "yearly",
+    };
+    // monthly 32000 × 0.8 = 25600
+    expect(toolCostAt(CLAUDE, p, 0)).toBe(25600);
+  });
+
+  it("claudeSeats billing 'monthly' and undefined are equivalent", () => {
+    const explicit: ToolParams = {
+      include: true,
+      model: "flat",
+      val: 0,
+      premShare: 0.25,
+      billing: "monthly",
+    };
+    expect(toolCostAt(CLAUDE, explicit, 0)).toBe(toolCostAt(CLAUDE, flat, 0));
+  });
+
+  it("yearly factor is applied inside the rounding, not after it", () => {
+    // stdPrice 2001 makes the discounted sum fractional:
+    // 6×2001×0.8 + 2×10000×0.8 = 25604.8 → round once → 25605.
+    // A round-then-discount implementation would return 25604.8.
+    const oddPriced: ForecastTool = { ...CLAUDE, stdPrice: 2001 };
+    const p: ToolParams = {
+      include: true,
+      model: "flat",
+      val: 0,
+      premShare: 0.25,
+      billing: "yearly",
+    };
+    expect(toolCostAt(oddPriced, p, 0)).toBe(25605);
+  });
+
+  it("billing has no effect on seat or metered tools", () => {
+    const p: ToolParams = {
+      include: true,
+      model: "flat",
+      val: 0,
+      billing: "yearly",
+    };
+    expect(toolCostAt(COPILOT, p, 2)).toBe(38000); // 20 × 1900, undiscounted
+    expect(toolCostAt(API, p, 0)).toBe(10000); // 10 × 1000, undiscounted
+  });
 });
 
 describe("currentMonthlyCost (k=0 display, uncapped)", () => {
@@ -186,6 +235,17 @@ describe("currentMonthlyCost (k=0 display, uncapped)", () => {
     const p: ToolParams = { include: true, model: "flat", val: 0 };
     expect(currentMonthlyCost(CLAUDE, p)).toBe(32000); // premShare0=0.25
     expect(currentMonthlyCost(CLAUDE, { ...p, premShare: 0.5 })).toBe(48000);
+  });
+
+  it("claudeSeats reflects the yearly-billing factor", () => {
+    const p: ToolParams = {
+      include: true,
+      model: "flat",
+      val: 0,
+      billing: "yearly",
+    };
+    expect(currentMonthlyCost(CLAUDE, p)).toBe(25600); // 32000 × 0.8
+    expect(currentMonthlyCost(CLAUDE, { ...p, premShare: 0.5 })).toBe(38400); // 48000 × 0.8
   });
 
   it("seat = seats0 * price", () => {
@@ -392,14 +452,14 @@ describe("inputsFromPreset / defaultInputs", () => {
   const ds = makeDataset();
 
   it("ceilingCents tracks the dataset's live ceiling", () => {
-    for (const key of ["conservative", "expected", "aggressive"] as const) {
+    for (const key of ["h2Gradual", "h2Plan", "h2Accelerated"] as const) {
       expect(inputsFromPreset(ds, key).ceilingCents).toBe(ds.liveCeilingCents);
     }
     expect(defaultInputs(ds).ceilingCents).toBe(ds.liveCeilingCents);
   });
 
   it("provides params for every dataset tool", () => {
-    const inputs = inputsFromPreset(ds, "expected");
+    const inputs = inputsFromPreset(ds, "h2Plan");
     for (const tool of ds.tools) {
       expect(inputs.tools[tool.key]).toBeDefined();
     }
@@ -407,7 +467,7 @@ describe("inputsFromPreset / defaultInputs", () => {
     const dsExtra = makeDataset({
       tools: [...ds.tools, { ...COPILOT, key: "mystery" }],
     });
-    const extra = inputsFromPreset(dsExtra, "conservative");
+    const extra = inputsFromPreset(dsExtra, "h2Gradual");
     expect(extra.tools.mystery).toEqual({
       include: true,
       model: "flat",
@@ -415,44 +475,78 @@ describe("inputsFromPreset / defaultInputs", () => {
     });
   });
 
-  it("defaultInputs is seeded from the Expected preset", () => {
-    expect(defaultInputs(ds)).toEqual(inputsFromPreset(ds, "expected"));
+  it("defaultInputs is seeded from the H2 Plan preset", () => {
+    expect(defaultInputs(ds)).toEqual(inputsFromPreset(ds, "h2Plan"));
   });
 
   it("the three presets are strictly ascending in yearEndCents", () => {
-    const conservative = projectForecast(
+    const gradual = projectForecast(
       ds,
-      inputsFromPreset(ds, "conservative"),
+      inputsFromPreset(ds, "h2Gradual"),
     ).yearEndCents;
-    const expected = projectForecast(
+    const plan = projectForecast(
       ds,
-      inputsFromPreset(ds, "expected"),
+      inputsFromPreset(ds, "h2Plan"),
     ).yearEndCents;
-    const aggressive = projectForecast(
+    const accelerated = projectForecast(
       ds,
-      inputsFromPreset(ds, "aggressive"),
+      inputsFromPreset(ds, "h2Accelerated"),
     ).yearEndCents;
 
     // Hand-computed anchors on this fixture (spentToDate 180000 + remaining):
-    //   conservative = 180000 + 200896 = 380896
-    //   expected     = 180000 + 307786 = 487786
-    //   aggressive   = 180000 + 494629 = 674629
-    expect(conservative).toBe(380896);
-    expect(expected).toBe(487786);
-    expect(aggressive).toBe(674629);
+    //   h2Gradual:     api 7500+5625+4219=17344 · claude (8+10k seats × 4800
+    //                  blended @35%) 86400+134400+182400=403200 · copilot flat
+    //                  38000×3=114000 → 180000+534544 = 714544
+    //   h2Plan:        api 6500+4225+2746=13471 · claude (8+15k × 5200 @40%)
+    //                  119600+197600+275600=592800 · copilot −1/period
+    //                  36100+34200+32300=102600 → 180000+708871 = 888871
+    //   h2Accelerated: api 5000+2500+1250=8750 · claude (8+20k × 5200 @40%)
+    //                  145600+249600+353600=748800 · copilot −2/period
+    //                  34200+30400+26600=91200 → 180000+848750 = 1028750
+    expect(gradual).toBe(714544);
+    expect(plan).toBe(888871);
+    expect(accelerated).toBe(1028750);
 
-    expect(conservative).toBeLessThan(expected);
-    expect(expected).toBeLessThan(aggressive);
+    expect(gradual).toBeLessThan(plan);
+    expect(plan).toBeLessThan(accelerated);
   });
 
-  it("FORECAST_PRESETS exposes the three named scenarios", () => {
+  it("FORECAST_PRESETS exposes the three H2 scenarios", () => {
     expect(Object.keys(FORECAST_PRESETS).sort()).toEqual([
-      "aggressive",
-      "conservative",
-      "expected",
+      "h2Accelerated",
+      "h2Gradual",
+      "h2Plan",
     ]);
-    expect(FORECAST_PRESETS.conservative.label).toBe("Conservative");
-    expect(FORECAST_PRESETS.expected.label).toBe("Expected");
-    expect(FORECAST_PRESETS.aggressive.label).toBe("Aggressive");
+    expect(FORECAST_PRESETS.h2Gradual.label).toBe("H2 Gradual");
+    expect(FORECAST_PRESETS.h2Plan.label).toBe("H2 Plan");
+    expect(FORECAST_PRESETS.h2Accelerated.label).toBe("H2 Accelerated");
+  });
+
+  it("stamps yearly billing onto claudeSeats tools only", () => {
+    const inputs = inputsFromPreset(ds, "h2Plan", "yearly");
+    expect(inputs.tools.claude.billing).toBe("yearly");
+    expect(inputs.tools.api.billing).toBeUndefined();
+    expect(inputs.tools.copilot.billing).toBeUndefined();
+  });
+
+  it("stamps nothing when billing is monthly or omitted", () => {
+    expect(inputsFromPreset(ds, "h2Plan", "monthly")).toEqual(
+      inputsFromPreset(ds, "h2Plan"),
+    );
+    expect(inputsFromPreset(ds, "h2Plan").tools.claude.billing).toBeUndefined();
+  });
+
+  it("yearly billing discounts exactly the claude line (h2Plan anchor)", () => {
+    const monthly = projectForecast(ds, inputsFromPreset(ds, "h2Plan"));
+    const yearly = projectForecast(
+      ds,
+      inputsFromPreset(ds, "h2Plan", "yearly"),
+    );
+    // api / copilot untouched; claude series × 0.8 exactly.
+    expect(yearly.perTool.api).toEqual(monthly.perTool.api);
+    expect(yearly.perTool.copilot).toEqual(monthly.perTool.copilot);
+    expect(yearly.perTool.claude).toEqual([0, 0, 0, 95680, 158080, 220480]);
+    // 180000 + 13471 + 474240 + 102600
+    expect(yearly.yearEndCents).toBe(770311);
   });
 });
