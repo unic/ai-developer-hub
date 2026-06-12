@@ -1,62 +1,77 @@
 /**
  * Authentication for the MCP server.
  *
- * The Hub uses shared bearer secrets for its machine-to-machine endpoints
- * (PROFILE_API_SECRET, CRON_SECRET, ...). The MCP server follows the same
- * convention via `MCP_SERVER_SECRET`, plugged into mcp-handler's
- * `withMcpAuth(handler, verifyMcpToken, { required: true })`.
+ * Two parallel credential types (038-mcp-v2):
  *
- * Dormant-by-default: when MCP_SERVER_SECRET is unset, every request is
- * rejected (verifyMcpToken returns undefined → 401) and a one-time warning is
- * logged, so the feature stays off until an operator provisions a secret.
+ * 1. Shared secret — `MCP_SERVER_SECRET`, the original machine-to-machine
+ *    convention (PROFILE_API_SECRET, CRON_SECRET, ...) for headless clients.
+ * 2. OAuth access tokens (`mcp_at_…`) issued by the embedded authorization
+ *    server, each bound to a Hub user; used by Claude Desktop / claude.ai /
+ *    Claude Code connectors.
+ *
+ * When MCP_SERVER_SECRET is unset the shared-secret path is dormant (one-time
+ * warning) but OAuth tokens still work — the server is enabled by either
+ * mechanism independently.
  */
 
-import { timingSafeEqual } from "node:crypto";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
-/** Constant-time string comparison that is safe for unequal lengths. */
-export function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  if (bufA.length !== bufB.length) {
-    // Still run a comparison to avoid leaking length via early return timing.
-    timingSafeEqual(bufA, bufA);
-    return false;
-  }
-  return timingSafeEqual(bufA, bufB);
-}
+import { ACCESS_TOKEN_PREFIX, verifyAccessToken } from "@/lib/oauth/store";
+import { MCP_SCOPE, safeEqual } from "@/lib/oauth/validate";
+
+// Re-exported for existing consumers/tests; implementation moved to
+// src/lib/oauth/validate.ts so the OAuth layer can use it without a cycle.
+export { safeEqual };
 
 let warnedMissingSecret = false;
 
 /**
- * Validate the bearer token presented by an MCP client against
- * MCP_SERVER_SECRET. Returns an AuthInfo on success or undefined on any
- * failure (missing secret, missing/invalid token), which mcp-handler maps to a
- * 401 response.
+ * Validate the bearer token presented by an MCP client. Checks the shared
+ * MCP_SERVER_SECRET first, then OAuth access tokens issued by the embedded
+ * authorization server. Returns an AuthInfo on success or undefined on any
+ * failure, which mcp-handler maps to a 401 response.
  */
-export function verifyMcpToken(
+export async function verifyMcpToken(
   _req: Request,
   bearerToken?: string,
-): AuthInfo | undefined {
+): Promise<AuthInfo | undefined> {
+  if (!bearerToken) return undefined;
+
   const secret = process.env.MCP_SERVER_SECRET;
+  if (!secret && !warnedMissingSecret) {
+    warnedMissingSecret = true;
+    console.warn(
+      "[mcp] MCP_SERVER_SECRET is not set — shared-secret MCP auth is disabled (OAuth tokens still work).",
+    );
+  }
 
-  if (!secret) {
-    if (!warnedMissingSecret) {
-      warnedMissingSecret = true;
-      console.warn(
-        "[mcp] MCP_SERVER_SECRET is not set — the MCP server is disabled and will reject all requests.",
-      );
+  if (secret && safeEqual(bearerToken, secret)) {
+    return {
+      token: bearerToken,
+      clientId: "mcp-shared-secret",
+      scopes: [MCP_SCOPE],
+      // The org-level secret is admin-equivalent by the spec-034 judgment
+      // (039): role is asserted explicitly — never reached via fallback.
+      extra: { role: "admin" },
+    };
+  }
+
+  if (bearerToken.startsWith(ACCESS_TOKEN_PREFIX)) {
+    const verified = await verifyAccessToken(bearerToken);
+    if (verified) {
+      return {
+        token: bearerToken,
+        clientId: verified.clientPublicId,
+        scopes: verified.scope.split(" "),
+        extra: {
+          userId: verified.userId,
+          email: verified.email,
+          name: verified.name,
+          role: verified.role,
+        },
+      };
     }
-    return undefined;
   }
 
-  if (!bearerToken || !safeEqual(bearerToken, secret)) {
-    return undefined;
-  }
-
-  return {
-    token: bearerToken,
-    clientId: "mcp-shared-secret",
-    scopes: [],
-  };
+  return undefined;
 }

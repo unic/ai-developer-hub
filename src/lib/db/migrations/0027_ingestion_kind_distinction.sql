@@ -1,13 +1,13 @@
--- Renumbered from 0023_perfect_runaways after main shipped 0023_white_gauntlet (#102).
+-- Renumbered twice: 0023_perfect_runaways → 0024_greedy_ken_ellis (after #102
+-- shipped 0023_white_gauntlet) → 0027_ingestion_kind_distinction (after main
+-- shipped 0024–0026 while this PR was open).
 --
 -- IMPORTANT — this migration is intentionally IDEMPOTENT. The original
 -- 0023_perfect_runaways was applied to the production database on 2026-06-03
--- directly from this feature branch, before the renumbering. Its journal row
--- carries the old hash, so the migrator treats this renamed file as a brand-new
+-- directly from this feature branch, before the renumbering. The journal knows
+-- nothing of that run, so the migrator treats this file as a brand-new
 -- migration and WILL re-run it on production. Every statement below therefore
--- tolerates the objects already existing. The journal `when` (1781090000000) is
--- deliberately set above 0023_white_gauntlet's (1781080218076) so databases that
--- already ran main's migrations still pick this one up.
+-- tolerates the objects already existing.
 DO $$ BEGIN
   CREATE TYPE "public"."ingestion_kind" AS ENUM('invoice', 'license_request', 'user_import', 'other');
 EXCEPTION WHEN duplicate_object THEN NULL;

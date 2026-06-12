@@ -20,13 +20,24 @@ import {
   updateBilledCostSchema,
   deleteBilledCostSchema,
 } from "@/lib/validators";
-import type { ActionResult, AnnualBudget, BudgetPeriod, BudgetWithCosts, PeriodSpendPoint, BudgetForecast } from "@/types";
+import type {
+  ActionResult,
+  AnnualBudget,
+  BudgetPeriod,
+  BudgetWithCosts,
+  PeriodSpendPoint,
+  BudgetForecast,
+} from "@/types";
 import { buildBudgetForecast } from "@/lib/forecast";
 import { getRunningCostsForPeriod } from "@/lib/budget-utils";
-import { recordCreation, recordUpdate, recordStatusChange } from "@/actions/history";
+import {
+  recordCreation,
+  recordUpdate,
+  recordStatusChange,
+} from "@/actions/history";
 
 export async function createBudget(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ id: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -89,7 +100,7 @@ export async function createBudget(
 function generatePeriods(
   year: number,
   type: "monthly" | "quarterly",
-  budgetId: number
+  budgetId: number,
 ) {
   const months = [
     "Jan",
@@ -159,7 +170,7 @@ function generatePeriods(
 }
 
 export async function updateBudgetAllocations(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -174,7 +185,7 @@ export async function updateBudgetAllocations(
   const budget = await db.query.annualBudgets.findFirst({
     where: and(
       eq(annualBudgets.id, budgetId),
-      eq(annualBudgets.status, "active")
+      eq(annualBudgets.status, "active"),
     ),
   });
   if (!budget) {
@@ -184,7 +195,7 @@ export async function updateBudgetAllocations(
   // FR-010: Validate sum does not exceed total
   const totalAllocated = allocations.reduce(
     (sum, a) => sum + a.plannedAmountCents,
-    0
+    0,
   );
   if (totalAllocated > budget.totalAmountCents) {
     return {
@@ -246,7 +257,7 @@ export async function archiveBudget(input: {
     input.id,
     Number(admin.id),
     existing.status,
-    "archived"
+    "archived",
   );
 
   revalidatePath("/budget");
@@ -259,6 +270,10 @@ export async function archiveBudget(input: {
 export async function getActiveBudget() {
   return db.query.annualBudgets.findFirst({
     where: eq(annualBudgets.status, "active"),
+    // Deterministic resolution contract (see getActiveBudgetId in
+    // lib/budget-utils.ts): the schema permits multiple active rows, and
+    // every consumer must agree on which one wins.
+    orderBy: (b, { desc }) => [desc(b.fiscalYear)],
     with: {
       periods: {
         orderBy: (p, { asc }) => [asc(p.periodIndex)],
@@ -299,7 +314,10 @@ export async function getBudgets(): Promise<
       .groupBy(budgetExtensions.budgetId),
   ]);
   const byBudget = new Map(
-    extensions.map((e) => [e.budgetId, { count: e.count, net: e.netCents ?? 0 }])
+    extensions.map((e) => [
+      e.budgetId,
+      { count: e.count, net: e.netCents ?? 0 },
+    ]),
   );
   return budgets.map((b) => ({
     ...b,
@@ -311,7 +329,7 @@ export async function getBudgets(): Promise<
 // US5: Expected spend calculation for a budget period (based on active license assignments)
 export async function getExpectedSpendForPeriod(
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<number> {
   const result = await db
     .select({
@@ -324,9 +342,9 @@ export async function getExpectedSpendForPeriod(
         lte(licenseAssignments.assignedAt, new Date(endDate)),
         or(
           isNull(licenseAssignments.revokedAt),
-          gte(licenseAssignments.revokedAt, new Date(startDate))
-        )
-      )
+          gte(licenseAssignments.revokedAt, new Date(startDate)),
+        ),
+      ),
     );
 
   return Number(result[0]?.total ?? 0);
@@ -345,7 +363,7 @@ async function requireActivePeriod(periodId: number) {
 
 // US6: Create a billed cost entry
 export async function createBilledCost(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ id: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -368,7 +386,13 @@ export async function createBilledCost(
 
   const [billedCost] = await db
     .insert(billedCosts)
-    .values({ periodId, amountCents, invoiceDate, description, vendorReference })
+    .values({
+      periodId,
+      amountCents,
+      invoiceDate,
+      description,
+      vendorReference,
+    })
     .returning({ id: billedCosts.id });
 
   await recordCreation("billed_cost", billedCost.id, Number(admin.id));
@@ -382,7 +406,7 @@ export async function createBilledCost(
 
 // US6: Update an existing billed cost entry
 export async function updateBilledCost(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -403,35 +427,63 @@ export async function updateBilledCost(
     return { success: false, error: "Billed cost not found" };
   }
   if (existing.period.budget.status === "archived") {
-    return { success: false, error: "Cannot modify costs on an archived budget" };
+    return {
+      success: false,
+      error: "Cannot modify costs on an archived budget",
+    };
   }
 
   // Build changes record for history
   const changes: Record<string, { old: unknown; new: unknown }> = {};
-  if (updates.amountCents !== undefined && updates.amountCents !== existing.amountCents) {
-    changes.amountCents = { old: existing.amountCents, new: updates.amountCents };
+  if (
+    updates.amountCents !== undefined &&
+    updates.amountCents !== existing.amountCents
+  ) {
+    changes.amountCents = {
+      old: existing.amountCents,
+      new: updates.amountCents,
+    };
   }
-  if (updates.invoiceDate !== undefined && updates.invoiceDate !== existing.invoiceDate) {
-    changes.invoiceDate = { old: existing.invoiceDate, new: updates.invoiceDate };
+  if (
+    updates.invoiceDate !== undefined &&
+    updates.invoiceDate !== existing.invoiceDate
+  ) {
+    changes.invoiceDate = {
+      old: existing.invoiceDate,
+      new: updates.invoiceDate,
+    };
   }
-  if (updates.description !== undefined && updates.description !== existing.description) {
-    changes.description = { old: existing.description, new: updates.description };
+  if (
+    updates.description !== undefined &&
+    updates.description !== existing.description
+  ) {
+    changes.description = {
+      old: existing.description,
+      new: updates.description,
+    };
   }
-  if (updates.vendorReference !== undefined && updates.vendorReference !== existing.vendorReference) {
-    changes.vendorReference = { old: existing.vendorReference, new: updates.vendorReference };
+  if (
+    updates.vendorReference !== undefined &&
+    updates.vendorReference !== existing.vendorReference
+  ) {
+    changes.vendorReference = {
+      old: existing.vendorReference,
+      new: updates.vendorReference,
+    };
   }
 
   // Filter out undefined values for the update
   const setValues: Record<string, unknown> = { updatedAt: new Date() };
-  if (updates.amountCents !== undefined) setValues.amountCents = updates.amountCents;
-  if (updates.invoiceDate !== undefined) setValues.invoiceDate = updates.invoiceDate;
-  if (updates.description !== undefined) setValues.description = updates.description;
-  if (updates.vendorReference !== undefined) setValues.vendorReference = updates.vendorReference;
+  if (updates.amountCents !== undefined)
+    setValues.amountCents = updates.amountCents;
+  if (updates.invoiceDate !== undefined)
+    setValues.invoiceDate = updates.invoiceDate;
+  if (updates.description !== undefined)
+    setValues.description = updates.description;
+  if (updates.vendorReference !== undefined)
+    setValues.vendorReference = updates.vendorReference;
 
-  await db
-    .update(billedCosts)
-    .set(setValues)
-    .where(eq(billedCosts.id, id));
+  await db.update(billedCosts).set(setValues).where(eq(billedCosts.id, id));
 
   if (Object.keys(changes).length > 0) {
     await recordUpdate("billed_cost", id, Number(admin.id), changes);
@@ -446,7 +498,7 @@ export async function updateBilledCost(
 
 // US6: Delete a billed cost entry
 export async function deleteBilledCost(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -467,7 +519,10 @@ export async function deleteBilledCost(
     return { success: false, error: "Billed cost not found" };
   }
   if (existing.period.budget.status === "archived") {
-    return { success: false, error: "Cannot delete costs on an archived budget" };
+    return {
+      success: false,
+      error: "Cannot delete costs on an archived budget",
+    };
   }
 
   // Record deletion with previous value snapshot
@@ -496,7 +551,7 @@ export async function deleteBilledCost(
 
 // US6: Load budget with computed cost data per period
 export async function getBudgetWithCosts(
-  budgetId: number
+  budgetId: number,
 ): Promise<BudgetWithCosts | null> {
   const budget = await db.query.annualBudgets.findFirst({
     where: eq(annualBudgets.id, budgetId),
@@ -523,11 +578,11 @@ export async function getBudgetWithCosts(
   // Batch: compute expected spend for all periods in a single query
   const overallStart = budget.periods.reduce(
     (min, p) => (p.startDate < min ? p.startDate : min),
-    budget.periods[0].startDate
+    budget.periods[0].startDate,
   );
   const overallEnd = budget.periods.reduce(
     (max, p) => (p.endDate > max ? p.endDate : max),
-    budget.periods[0].endDate
+    budget.periods[0].endDate,
   );
 
   // Fetch all assignments that overlap with the full budget date range
@@ -543,9 +598,9 @@ export async function getBudgetWithCosts(
         lte(licenseAssignments.assignedAt, new Date(overallEnd)),
         or(
           isNull(licenseAssignments.revokedAt),
-          gte(licenseAssignments.revokedAt, new Date(overallStart))
-        )
-      )
+          gte(licenseAssignments.revokedAt, new Date(overallStart)),
+        ),
+      ),
     );
 
   // Sum extension allocations per period for the "+€X from extension" sub-label
@@ -566,13 +621,13 @@ export async function getBudgetWithCosts(
       .filter(
         (a) =>
           a.assignedAt <= periodEnd &&
-          (a.revokedAt === null || a.revokedAt >= periodStart)
+          (a.revokedAt === null || a.revokedAt >= periodStart),
       )
       .reduce((total, a) => total + a.costAtAssignmentCents, 0);
 
     const billedTotalCents = period.billedCosts.reduce(
       (s, bc) => s + bc.amountCents,
-      0
+      0,
     );
 
     return {
@@ -600,7 +655,7 @@ export async function getBudgetWithCosts(
 
 // 005-rich-reports: Time-series spend data per period
 export async function getBilledCostsTimeSeries(
-  budgetId: number
+  budgetId: number,
 ): Promise<PeriodSpendPoint[]> {
   try {
     const budgetWithCosts = await getBudgetWithCosts(budgetId);
@@ -623,13 +678,16 @@ export async function getBilledCostsTimeSeries(
 // 005-rich-reports: Budget forecast using OLS linear regression.
 // Spec 028: Actual = billed + running Anthropic API costs (matches budget detail page).
 export async function getBudgetForecast(
-  budgetId: number
+  budgetId: number,
 ): Promise<ActionResult<BudgetForecast>> {
   const budget = await getBudgetWithCosts(budgetId);
   if (!budget) return { success: false, error: "Budget not found" };
   const today = new Date();
   const actualByPeriod = await fetchActualByPeriod(budget, today);
-  return { success: true, data: buildBudgetForecast(budget, actualByPeriod, today) };
+  return {
+    success: true,
+    data: buildBudgetForecast(budget, actualByPeriod, today),
+  };
 }
 
 /**
@@ -639,13 +697,13 @@ export async function getBudgetForecast(
  */
 export async function fetchActualByPeriod(
   budget: BudgetWithCosts,
-  today: Date = new Date()
+  today: Date = new Date(),
 ): Promise<Map<number, number>> {
   const pastOrCurrent = budget.periods.filter(
-    (p) => new Date(p.startDate) <= today
+    (p) => new Date(p.startDate) <= today,
   );
   const runningResults = await Promise.all(
-    pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id))
+    pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id)),
   );
   const actualByPeriod = new Map<number, number>();
   for (const p of budget.periods) {

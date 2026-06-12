@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>038 · MCP v2 — Implementation Plan</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1d212b; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #e8503a; --good: #4cc38a;
+    --warn: #e5b454; --bad: #e0556a; --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 32px 96px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 30px; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  h2 { font-size: 21px; margin: 48px 0 12px; }
+  h2 .no { color: var(--accent); font-family: var(--mono); font-size: 15px; margin-right: 10px; }
+  h3 { font-size: 16px; margin: 26px 0 8px; }
+  p { margin: 10px 0; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
+  pre code { background: none; border: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; }
+  th { text-align: left; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: 1px solid var(--border); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 9px 10px; vertical-align: top; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; }
+  .card h3 { margin-top: 0; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .verdict { border-left: 3px solid var(--accent); padding: 10px 16px; background: var(--panel); border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .challenge { border-left: 3px solid var(--warn); padding: 10px 16px; background: var(--panel); border-radius: 0 8px 8px 0; margin: 12px 0; }
+  .challenge .q { color: var(--warn); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Spec 038 · Implementation Plan</div>
+  <h1>MCP v2 — OAuth Connectivity &amp; Tool Expansion</h1>
+  <div class="meta">ai-developer-hub · 2026-06-11 · source: brainstorm.html · branch <code>038-mcp-oauth-and-tools</code></div>
+</header>
+
+<div class="verdict">
+<strong>Scope.</strong> (1) Embedded OAuth 2.1 authorization server so the Hub can be added as a Claude
+Desktop / claude.ai custom connector and via <code>claude mcp add --transport http</code> — DCR, PKCE&nbsp;S256,
+rotating refresh tokens, consent anchored on the existing NextAuth login; shared-secret auth retained for
+headless clients. (2) Seven new read-only MCP tools + three improvements to existing tools. No new write surface.
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="no">1</span>Data model — 3 new tables</h2>
+
+<pre><code>mcp_oauth_clients
+  id                serial PK
+  client_id         varchar(64)  unique, not null   -- "mcp_client_" + 24B base64url
+  client_name       varchar(255) not null
+  redirect_uris     jsonb        not null            -- string[]
+  created_at        timestamp    default now()
+  last_used_at      timestamp                        -- bumped on token issuance
+
+mcp_oauth_codes                                      -- authorization codes, 10 min TTL
+  id                serial PK
+  code_hash         varchar(64)  unique, not null    -- sha256 hex
+  client_id         integer      FK → mcp_oauth_clients, cascade
+  user_id           integer      FK → users, cascade
+  redirect_uri      text         not null
+  code_challenge    varchar(128) not null            -- PKCE S256 challenge
+  scope             varchar(255) not null
+  expires_at        timestamp    not null
+  consumed_at       timestamp                        -- single use
+  created_at        timestamp    default now()
+
+mcp_oauth_tokens                                     -- one row per access+refresh pair
+  id                 serial PK
+  family_id          varchar(36)  not null            -- uuid; refresh-rotation lineage
+  access_token_hash  varchar(64)  unique, not null
+  refresh_token_hash varchar(64)  unique, not null
+  client_id          integer      FK → mcp_oauth_clients, cascade
+  user_id            integer      FK → users, cascade
+  scope              varchar(255) not null
+  access_expires_at  timestamp    not null            -- now + 1 h
+  refresh_expires_at timestamp    not null            -- now + 60 d
+  revoked_at         timestamp                        -- set on rotation/revoke
+  last_used_at       timestamp
+  created_at         timestamp    default now()</code></pre>
+
+<ul>
+  <li>Raw tokens never stored — SHA-256 hex only (the <code>invite_tokens</code> pattern). Token formats:
+      <code>mcp_at_…</code> / <code>mcp_rt_…</code> / auth code <code>mcp_ac_…</code>, each 32 random bytes base64url.</li>
+  <li><strong>Rotation + reuse detection:</strong> a refresh grant marks the old row revoked and inserts a new row with the same
+      <code>family_id</code>. Presenting a refresh token that maps to a <em>revoked</em> row revokes the whole family
+      (stolen-token replay defense, RFC 9700 §4.14).</li>
+  <li>Expired rows are pruned opportunistically during issuance — no cron.</li>
+  <li>Migration via <code>pnpm db:generate</code>; journal <code>when</code> ordering verified (last entry 1781164840619, ascending).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2><span class="no">2</span>OAuth endpoints</h2>
+
+<table>
+  <tr><th>Route</th><th>File</th><th>Behavior</th></tr>
+  <tr><td><code>GET /.well-known/oauth-protected-resource[/api/mcp/mcp]</code></td><td><code>src/app/.well-known/oauth-protected-resource/[[...rest]]/route.ts</code></td><td>RFC 9728 doc: <code>resource</code> = origin + <code>/api/mcp/mcp</code>, <code>authorization_servers</code> = [origin]. Catch-all because Claude probes the path-suffixed variant first. CORS: <code>*</code> (metadata is public).</td></tr>
+  <tr><td><code>GET /.well-known/oauth-authorization-server</code></td><td><code>src/app/.well-known/oauth-authorization-server/route.ts</code></td><td>RFC 8414 doc: issuer = origin, endpoints below, <code>code_challenge_methods_supported: ["S256"]</code>, <code>grant_types: ["authorization_code","refresh_token"]</code>, <code>token_endpoint_auth_methods_supported: ["none"]</code>, <code>scopes_supported: ["mcp:read"]</code>.</td></tr>
+  <tr><td><code>POST /api/oauth/register</code></td><td><code>src/app/api/oauth/register/route.ts</code></td><td>RFC 7591 DCR. Accepts JSON; validates <code>redirect_uris</code> (https, or http loopback), public client only. Rate-limited via existing <code>rate-limit.ts</code> (per-IP). Returns <code>client_id</code> + echoed metadata.</td></tr>
+  <tr><td><code>GET /oauth/authorize</code></td><td><code>src/app/oauth/authorize/page.tsx</code></td><td>Server component behind normal NextAuth login (middleware redirects to <code>/login?callbackUrl=…</code>). Validates client, redirect URI (exact match; loopback ignores port per RFC 8252 §7.3), <code>response_type=code</code>, PKCE S256 presence. Invalid client/redirect → error page, <em>never</em> redirect. Valid → consent card (client name, user, scope). Approve (server action) → single-use code, 302 to <code>redirect_uri?code=…&amp;state=…</code>. Deny → <code>error=access_denied</code>. Silent re-approve when the user already holds a live grant for the same client. Agent accounts (<code>isAgent</code>) are refused.</td></tr>
+  <tr><td><code>POST /api/oauth/token</code></td><td><code>src/app/api/oauth/token/route.ts</code></td><td>Form-urlencoded. <code>authorization_code</code>: hash lookup, single-use, expiry, client + redirect_uri match, PKCE verifier check (constant-time) → access (1 h) + refresh (60 d). <code>refresh_token</code>: rotate within family, reuse ⇒ family revocation. RFC 6749 JSON errors (<code>invalid_grant</code> etc.). Rate-limited.</td></tr>
+</table>
+
+<h3>Supporting changes</h3>
+<ul>
+  <li><code>src/lib/oauth/</code> — <code>tokens.ts</code> (generate/hash/issue/rotate/verify), <code>clients.ts</code> (register/load),
+      <code>codes.ts</code> (issue/consume), <code>validate.ts</code> (redirect-URI + PKCE helpers), <code>metadata.ts</code> (RFC 8414/9728 docs from request origin — origin derived per-request so Vercel previews work).</li>
+  <li><code>verifyMcpToken</code> (<code>src/lib/mcp/auth.ts</code>) becomes async: shared-secret check first (unchanged semantics), else SHA-256 lookup in <code>mcp_oauth_tokens</code> joined to <code>users.status = 'active'</code> → <code>AuthInfo</code> with <code>scopes: ["mcp:read"]</code>, <code>extra: { userId, email }</code>. Bumps <code>last_used_at</code> (throttled).</li>
+  <li><code>middleware.ts</code> matcher: exclude <code>\.well-known</code> and <code>api/oauth</code>. <code>/oauth/authorize</code> stays matched (login redirect is the desired behavior).</li>
+  <li><code>src/lib/routes.ts</code>: <code>isBareLayoutPath()</code> = public paths ∪ <code>/oauth/authorize</code> so the consent screen renders without the sidebar shell (root layout currently keys off <code>isPublicPath</code> alone).</li>
+  <li><code>src/app/settings/connections/page.tsx</code> + <code>src/actions/oauth.ts</code> — list the signed-in user's active grants (client, created, last used, expiry) with revoke; nav entry in <code>settings-nav.tsx</code>.</li>
+  <li>Docs: extend <code>docs/mcp-server.md</code> with connect instructions for Claude Desktop / claude.ai / Claude Code.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2><span class="no">3</span>Tool expansion</h2>
+
+<p>All additions follow the established three-layer pattern: data assembly in <code>src/lib/mcp/data.ts</code>
+(reusing existing query helpers; <em>never</em> server actions that enforce a session), registration in
+<code>src/lib/mcp/tools.ts</code>, formatting via <code>usd()</code> in <code>format.ts</code>.</p>
+
+<table>
+  <tr><th>Tool</th><th>Inputs</th><th>Backed by</th></tr>
+  <tr><td><code>find_users</code></td><td><code>query</code> (min 2 chars), <code>limit?</code></td><td>ILIKE over <code>users.name/email</code>; returns id, name, email, role, circle, discipline, status.</td></tr>
+  <tr><td><code>list_claude_users</code></td><td><code>month?</code>, <code>limit?</code></td><td>per-user month aggregation over <code>anthropic_usage_metrics</code> (the <code>getUserList</code> query, lifted into a session-free helper if needed), sorted by spend.</td></tr>
+  <tr><td><code>get_claude_cost_dashboard</code></td><td><code>month?</code></td><td><code>getGlobalCostDashboard</code> internals: daily per-workspace stacks, 12-month history, pacing, top movers.</td></tr>
+  <tr><td><code>get_budget_report</code></td><td>—</td><td><code>getBudgetReportData</code> (spec 028): periods with billed+running actuals, per-tool breakdown, forecast.</td></tr>
+  <tr><td><code>list_license_assignments</code></td><td><code>email?</code>, <code>toolName?</code>, <code>status?</code>, <code>limit?</code></td><td>join assignments × users × tools × tiers; cost snapshot cents+USD.</td></tr>
+  <tr><td><code>list_invoices</code></td><td><code>month?</code>, <code>vendor?</code>, <code>linked?</code>, <code>limit?</code></td><td><code>invoices</code> + linked billed-cost period label. Excludes blob URLs.</td></tr>
+  <tr><td><code>get_copilot_analytics</code></td><td><code>since?</code>, <code>until?</code></td><td><code>getCopilotAnalyticsData</code> internals: daily series + language/editor breakdowns.</td></tr>
+</table>
+
+<p><strong>Improvements:</strong> <code>list_ai_tools</code> gains per-tool active-assignment counts and
+<code>maxLicenses</code> utilization; <code>get_user_cost_profile</code> returns up to 5 near-match candidates on
+email miss; every tool gets <code>annotations: { readOnlyHint: true }</code>.</p>
+
+<!-- ============================================================ -->
+<h2><span class="no">4</span>Self-challenge</h2>
+
+<div class="challenge"><span class="q">“Hand-rolling OAuth is how people get burned. Why not a library?”</span><br/>
+Surveyed the field: <code>node-oidc-provider</code> is Koa/Express-centric and fights Next.js route handlers +
+serverless cold starts; Auth.js v5 has no AS mode; <code>@modelcontextprotocol/sdk</code> ships only client-side
+auth helpers and an Express-based demo AS. The spec we must satisfy is narrow and fixed (one grant type + refresh,
+one scope, public clients, S256-only) and every security-sensitive primitive is delegated to platform crypto
+(<code>crypto.randomBytes</code>, <code>createHash</code>, <code>timingSafeEqual</code> — already used in this codebase).
+The dangerous corners are <em>policy</em> (redirect matching, single-use codes, rotation) and each is unit-tested.
+Accepting the risk consciously; the alternative dependencies are heavier than the feature.</div>
+
+<div class="challenge"><span class="q">“Is the consent screen + grants page scope creep for an internal tool?”</span><br/>
+The consent screen is the mechanism that binds a token to a user — without it DCR would mint tokens for whoever
+hits an endpoint, so it cannot be cut. The grants page <em>could</em> be cut, but shipping token issuance with no
+user-visible revocation is the kind of gap security review flags; it is one read + one update action over a table
+we already have. Kept, deliberately minimal (no admin view of others' grants in v2).</div>
+
+<div class="challenge"><span class="q">“Seven new tools — why not three?”</span><br/>
+Each tool is a thin mapping over a query that already exists and is already tested upstream; marginal cost is
+~30 lines + a unit test. The brainstorm already cut license-requests, ingestion, and the scenario calculators.
+If review pushes back, <code>list_invoices</code> and <code>get_copilot_analytics</code> (the two P2s) are the
+natural drop — flagged in implementation-notes as the contingency.</div>
+
+<div class="challenge"><span class="q">“Reusing server actions from the MCP layer crosses an auth boundary.”</span><br/>
+Correct, and the existing code already imports <code>getActiveBudget</code>/<code>getBudgetWithCosts</code> from
+<code>@/actions/budget</code> — those happen to be session-free helpers exported from an actions file. Rule for v2:
+only call functions that do not read the session; where a needed query lives inside a session-checking action
+(e.g. <code>getUserList</code>), lift the query into <code>src/lib/</code> and have both callers share it. Checked
+per-tool during implementation and recorded in implementation-notes.</div>
+
+<div class="challenge"><span class="q">“JWT access tokens would avoid a DB read per MCP call.”</span><br/>
+True and rejected: opaque+hashed gives instant revocation (the grants page and user-deactivation guarantees),
+and one indexed point lookup per tool call is noise for an internal admin tool. Stateless tokens would make
+“revoke” a lie until expiry.</div>
+
+<div class="challenge"><span class="q">“What breaks on Vercel previews?”</span><br/>
+Metadata derives issuer/origin from the incoming request (like <code>auth.ts</code> does for previews), so
+discovery URLs always match the host being hit. Preview deployments with Vercel protection enabled will block
+Claude's unauthenticated metadata probes — documented limitation; OAuth connect is for production (or unprotected
+previews), same constraint the profile API already has.</div>
+
+<!-- ============================================================ -->
+<h2><span class="no">5</span>Testing &amp; verification</h2>
+<ul>
+  <li><strong>Unit (Vitest, mocked DB)</strong> — redirect-URI matching incl. loopback ports; PKCE S256 verify; DCR validation;
+      metadata document shape; code consume single-use + expiry; token rotation + family-revocation on reuse;
+      <code>verifyMcpToken</code> shared-secret / OAuth / inactive-user paths; each new data function; tool registration inventory.</li>
+  <li><strong>Manual E2E</strong> — MCP Inspector (<code>npx @modelcontextprotocol/inspector</code>) against the dev server:
+      full DCR → authorize → token → tool-call loop; plus <code>claude mcp add</code> once deployed.</li>
+  <li><strong>Gates</strong> — <code>pnpm lint</code>, <code>pnpm typecheck</code>, <code>pnpm test</code>, <code>pnpm build</code>.</li>
+</ul>
+
+<h2><span class="no">6</span>Sequencing</h2>
+<table>
+  <tr><th>#</th><th>Step</th><th>Touches</th></tr>
+  <tr><td>1</td><td>Branch, schema + migration</td><td><code>schema.ts</code>, migrations</td></tr>
+  <tr><td>2</td><td><code>src/lib/oauth/*</code> core + unit tests</td><td>new module</td></tr>
+  <tr><td>3</td><td>Well-known + register + token routes</td><td><code>src/app/.well-known/*</code>, <code>src/app/api/oauth/*</code></td></tr>
+  <tr><td>4</td><td>Authorize page + consent action + bare layout + middleware matcher</td><td><code>src/app/oauth/*</code>, <code>routes.ts</code>, <code>layout.tsx</code>, <code>middleware.ts</code></td></tr>
+  <tr><td>5</td><td><code>verifyMcpToken</code> OAuth path</td><td><code>src/lib/mcp/auth.ts</code></td></tr>
+  <tr><td>6</td><td>New tools + improvements + tests</td><td><code>src/lib/mcp/data.ts</code>, <code>tools.ts</code></td></tr>
+  <tr><td>7</td><td>Settings connections page</td><td><code>src/app/settings/connections/*</code>, <code>src/actions/oauth.ts</code></td></tr>
+  <tr><td>8</td><td>Docs, /simplify, gates, PR</td><td><code>docs/mcp-server.md</code></td></tr>
+</table>
+
+<p class="muted">Running divergences/decisions are tracked in <code>implementation-notes.html</code> next to this file.</p>
+
+</div>
+</body>
+</html>

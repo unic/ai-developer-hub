@@ -21,7 +21,7 @@ import {
 // ---- Tool Actions ----
 
 export async function createTool(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ id: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -56,9 +56,7 @@ export async function createTool(
   return { success: true, data: { id: tool.id } };
 }
 
-export async function updateTool(
-  input: unknown
-): Promise<ActionResult<void>> {
+export async function updateTool(input: unknown): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -134,8 +132,8 @@ export async function archiveTool(input: {
     .where(
       and(
         eq(licenseAssignments.toolId, input.id),
-        eq(licenseAssignments.status, "active")
-      )
+        eq(licenseAssignments.status, "active"),
+      ),
     );
 
   if (activeCount.count > 0) {
@@ -155,7 +153,7 @@ export async function archiveTool(input: {
     input.id,
     Number(admin.id),
     existing.status,
-    "archived"
+    "archived",
   );
 
   revalidatePath("/tools");
@@ -165,7 +163,7 @@ export async function archiveTool(input: {
 // ---- Tier Actions ----
 
 export async function createTier(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ id: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -211,9 +209,7 @@ export async function createTier(
   return { success: true, data: { id: tier.id } };
 }
 
-export async function updateTier(
-  input: unknown
-): Promise<ActionResult<void>> {
+export async function updateTier(input: unknown): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -237,7 +233,7 @@ export async function updateTier(
     const duplicate = await db.query.accessTiers.findFirst({
       where: and(
         eq(accessTiers.toolId, existing.toolId),
-        eq(accessTiers.name, updates.name)
+        eq(accessTiers.name, updates.name),
       ),
     });
     if (duplicate) {
@@ -269,7 +265,10 @@ export async function updateTier(
     };
     values.monthlyCostCents = updates.monthlyCostCents;
   }
-  if (updates.isActive !== undefined && updates.isActive !== existing.isActive) {
+  if (
+    updates.isActive !== undefined &&
+    updates.isActive !== existing.isActive
+  ) {
     // If deactivating, check for active assignments
     if (!updates.isActive) {
       const [activeCount] = await db
@@ -278,8 +277,8 @@ export async function updateTier(
         .where(
           and(
             eq(licenseAssignments.tierId, id),
-            eq(licenseAssignments.status, "active")
-          )
+            eq(licenseAssignments.status, "active"),
+          ),
         );
       if (activeCount.count > 0) {
         return {
@@ -293,8 +292,38 @@ export async function updateTier(
   }
 
   if (Object.keys(changes).length > 0) {
-    await db.update(accessTiers).set(values).where(eq(accessTiers.id, id));
+    const newCostCents = changes.monthlyCostCents
+      ? updates.monthlyCostCents
+      : undefined;
+
+    await db.transaction(async (tx) => {
+      await tx.update(accessTiers).set(values).where(eq(accessTiers.id, id));
+
+      // Every spend aggregation (reports, dashboard, budget expected spend)
+      // sums license_assignments.cost_at_assignment_cents, so active
+      // assignments must follow the tier's new price or reports keep showing
+      // the old one. Revoked assignments keep their historical snapshot.
+      if (newCostCents !== undefined) {
+        await tx
+          .update(licenseAssignments)
+          .set({ costAtAssignmentCents: newCostCents, updatedAt: new Date() })
+          .where(
+            and(
+              eq(licenseAssignments.tierId, id),
+              eq(licenseAssignments.status, "active"),
+            ),
+          );
+      }
+    });
     await recordUpdate("access_tier", id, Number(admin.id), changes);
+
+    if (newCostCents !== undefined) {
+      revalidatePath("/");
+      revalidatePath("/assignments");
+      revalidatePath("/budget");
+      revalidatePath("/reports");
+      revalidatePath("/reports/budget");
+    }
   }
 
   revalidatePath(`/tools/${existing.toolId}`);
@@ -321,7 +350,7 @@ export async function getToolWithTiers(id: number) {
 }
 
 export async function getActiveAssignmentCountForTool(
-  toolId: number
+  toolId: number,
 ): Promise<number> {
   const [result] = await db
     .select({ count: count() })
@@ -329,14 +358,14 @@ export async function getActiveAssignmentCountForTool(
     .where(
       and(
         eq(licenseAssignments.toolId, toolId),
-        eq(licenseAssignments.status, "active")
-      )
+        eq(licenseAssignments.status, "active"),
+      ),
     );
   return result.count;
 }
 
 export async function getActiveAssignmentCountForTier(
-  tierId: number
+  tierId: number,
 ): Promise<number> {
   const [result] = await db
     .select({ count: count() })
@@ -344,8 +373,8 @@ export async function getActiveAssignmentCountForTier(
     .where(
       and(
         eq(licenseAssignments.tierId, tierId),
-        eq(licenseAssignments.status, "active")
-      )
+        eq(licenseAssignments.status, "active"),
+      ),
     );
   return result.count;
 }

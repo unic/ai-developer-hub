@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>039 · Role-Scoped MCP Tools — Implementation Notes</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1d212b; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #e8503a; --good: #4cc38a;
+    --warn: #e5b454; --bad: #e0556a; --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 32px 96px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 30px; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  h2 { font-size: 21px; margin: 44px 0 12px; }
+  p { margin: 10px 0; }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  .entry { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 14px 0; }
+  .entry h3 { margin: 0 0 6px; font-size: 15.5px; }
+  .tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); margin-right: 8px; vertical-align: 2px; }
+  .tag.decision { color: var(--good); border-color: var(--good); }
+  .tag.deviation { color: var(--bad); border-color: var(--bad); }
+  .tag.tradeoff { color: var(--warn); border-color: var(--warn); }
+  .tag.verify { color: #7aa7e8; border-color: #7aa7e8; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Spec 039 · Implementation Notes</div>
+  <h1>Role-Scoped MCP Tools — Running Notes</h1>
+  <div class="meta">Maintained during implementation · entries are append-ordered, newest last ·
+  tags: <span class="tag decision">decision</span><span class="tag deviation">deviation</span><span class="tag tradeoff">tradeoff</span><span class="tag verify">verification</span></div>
+</header>
+
+<h2>Entries</h2>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Closes 038's open question; parity target is the web UI</h3>
+  <p>The 038 notes flagged "should viewer-role tokens see org-wide per-user spend?" as an explicit open
+  question. Answered: no. The tool-to-class mapping was derived by auditing the App Router's existing role
+  gates rather than inventing a new policy — <code>/users</code> is <code>AuthGuard requiredRole="admin"</code>
+  (so <code>find_users</code> is admin-only), <code>/tools</code> is viewer-visible but skips the license-count
+  queries for non-admins (so <code>list_ai_tools</code> stays viewer-safe minus utilization), and every
+  Claude/Copilot/budget/report surface redirects non-admins (so all 11 org-wide tools are admin-only).</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Live role via the existing verification join — zero extra queries</h3>
+  <p><code>verifyAccessToken</code> already inner-joins <code>users</code> to enforce
+  <code>status='active'</code>; the role is one more projected column. No role-in-token, no caching layer, no
+  propagation machinery: a demotion applies to the demoted user's very next tool call. The unit suite pins
+  this with a same-handler, role-flipped-between-calls test.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Shared secret asserts <code>role: "admin"</code> explicitly; everything else defaults to viewer</h3>
+  <p><code>callerFromAuthInfo</code> grants admin only on the literal <code>extra.role === "admin"</code> —
+  missing AuthInfo, missing extra, unknown values, malformed identity fields all collapse to viewer with no
+  identity (fail-closed). The org secret is admin because <code>verifyMcpToken</code> says so, never via
+  fallback. This keeps spec 034's shared-secret behaviour byte-identical for org-wide tools.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag tradeoff">tradeoff</span>Static tool discovery; enforcement at invocation only</h3>
+  <p><code>createMcpHandler</code> registers tools in a callback with no request context, so all credentials
+  see the same 14 tools listed. Accepted: tool names leak no data, and the denial message names the required
+  role so assistants can explain the refusal. Mitigations for the "silent 15th tool" risk: the unit suite
+  derives its expected-tool list from the union of the three access-class lists, so an unclassified new tool
+  fails the registration test; and the 11 admin tools carry a "Requires an admin-role token." description
+  suffix so viewer-bound assistants stop calling them speculatively.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Refusal over silent substitution for self-scoped tools</h3>
+  <p>A viewer asking for someone else's email gets an explicit <code>isError</code> refusal, not their own
+  data relabeled — a silently-substituted answer would look like a wrong answer to the calling assistant.
+  <code>get_user_cost_profile.email</code> became optional (defaults to the token owner), which is also a
+  small UX win for admins. The shared secret has no owner, so its omitted-email case asks for an explicit
+  address — exactly how 034-era clients always called it.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag deviation">deviation</span>None of substance from plan.md</h3>
+  <p>The implementation landed as designed (plan §3–§5). Only naming nuance: the viewer-without-identity case
+  in <code>resolveSelfEmail</code> reuses <code>SELF_ONLY_MESSAGE</code> rather than a fourth constant —
+  a viewer credential with no bound email cannot be helped by passing one, and a dedicated message would
+  describe a state that shouldn't exist.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag verify">verification</span>Gates: 615/615 unit tests, clean typecheck, zero lint warnings</h3>
+  <ul>
+    <li><code>tests/unit/mcp/access.test.ts</code> (new, 23 tests): role parsing incl. least-privilege defaults,
+    full <code>resolveSelfEmail</code> matrix with case/whitespace variants, per-call (live-role) enforcement.</li>
+    <li><code>tests/unit/mcp/tools.test.ts</code> (extended to 55 tests): per-tool deny/serve matrix across
+    viewer / admin / shared-secret for all 11 admin tools (denial = shared message + data fn <em>not</em>
+    called), self-scope pinning incl. filter passthrough, catalog utilization flag, missing-authInfo fail-closed.</li>
+    <li><code>store.test.ts</code> / <code>auth.test.ts</code> / <code>data.test.ts</code> updated for the new
+    shapes; the viewer catalog test proves the count aggregate is skipped (only two queued selects consumed).</li>
+  </ul>
+</div>
+
+<div class="entry">
+  <h3><span class="tag verify">verification</span>Live probe (dev server, port 3001): propagation chain confirmed end-to-end</h3>
+  <p>The one thing unit tests can't see is whether <code>mcp-handler</code> actually delivers
+  <code>AuthInfo</code> into tool callbacks at runtime. Verified statically
+  (<code>withMcpAuth</code> sets <code>req.auth</code>; the transport passes <code>authInfo: req.auth</code>
+  into <code>handleRequest</code>) and live with the shared secret: <code>get_budget_status</code> returned
+  real budget JSON, <code>get_user_cost_profile</code> without an email returned the exact explicit-email
+  validation error, <code>list_ai_tools</code> included utilization, and a bogus <code>mcp_at_</code> token
+  got a clean 401 (OAuth lookup path live against the preview DB).</p>
+  <p class="muted">Not probed live: a real viewer-bound OAuth token. Minting one outside the OAuth flow means
+  inserting forged token hashes into the shared preview DB — declined by policy. Viewer behaviour rides the
+  same <code>extra.authInfo</code> channel just proven live and is pinned by the 55-test unit matrix; the
+  remaining risk is negligible. First real-world viewer connect via Claude Desktop will confirm.</p>
+</div>
+
+<div class="entry">
+  <h3><span class="tag decision">decision</span>Built on the 038 branch, not main</h3>
+  <p><code>039-mcp-role-scoping</code> branches from <code>038-mcp-oauth-and-tools</code> (PR #118 still open)
+  because every touched file is 038 code. The PR for this feature should target the 038 branch (stacked) or
+  wait for #118 to merge and then target main.</p>
+</div>
+
+</div>
+</body>
+</html>

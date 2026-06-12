@@ -15,6 +15,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import type { UserPreferences, IngestionDetails } from "@/types";
+import type { ForecastInputs } from "@/lib/scenarios/budget-forecast";
 import { relations, sql } from "drizzle-orm";
 
 // Enums
@@ -27,17 +28,14 @@ export const assignmentStatusEnum = pgEnum("assignment_status", [
 ]);
 export const budgetStatusEnum = pgEnum("budget_status", ["active", "archived"]);
 export const periodTypeEnum = pgEnum("period_type", ["monthly", "quarterly"]);
-export const budgetExtensionCategoryEnum = pgEnum(
-  "budget_extension_category",
-  [
-    "new_tool",
-    "scope_increase",
-    "seat_increase",
-    "vendor_price_increase",
-    "reallocation",
-    "other",
-  ]
-);
+export const budgetExtensionCategoryEnum = pgEnum("budget_extension_category", [
+  "new_tool",
+  "scope_increase",
+  "seat_increase",
+  "vendor_price_increase",
+  "reallocation",
+  "other",
+]);
 export const changeTypeEnum = pgEnum("change_type", [
   "created",
   "updated",
@@ -358,7 +356,7 @@ export const budgetExtensions = pgTable(
     index("budget_extensions_linked_tool_idx").on(table.linkedToolId),
     index("budget_extensions_created_by_idx").on(table.createdBy),
     check("budget_extensions_amount_non_zero", sql`${table.amountCents} <> 0`),
-  ]
+  ],
 );
 
 // Budget Extension Period Allocations — which periods absorbed an extension.
@@ -378,12 +376,9 @@ export const budgetExtensionPeriodAllocations = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("bepa_unique_ext_period").on(
-      table.extensionId,
-      table.periodId
-    ),
+    uniqueIndex("bepa_unique_ext_period").on(table.extensionId, table.periodId),
     index("bepa_period_idx").on(table.periodId),
-  ]
+  ],
 );
 
 // Change History
@@ -1009,6 +1004,86 @@ export const messageTemplates = pgTable(
   ],
 );
 
+// MCP OAuth (038-mcp-v2) — minimal embedded OAuth 2.1 authorization server so
+// Claude clients can connect to the MCP endpoint with per-user grants. Tokens
+// and authorization codes are stored as SHA-256 hashes only (invite_tokens
+// pattern); raw values exist client-side only.
+export const mcpOauthClients = pgTable(
+  "mcp_oauth_clients",
+  {
+    id: serial("id").primaryKey(),
+    clientId: varchar("client_id", { length: 64 }).notNull(),
+    clientName: varchar("client_name", { length: 255 }).notNull(),
+    redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  (table) => [
+    uniqueIndex("mcp_oauth_clients_client_id_idx").on(table.clientId),
+  ],
+);
+
+export const mcpOauthCodes = pgTable(
+  "mcp_oauth_codes",
+  {
+    id: serial("id").primaryKey(),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    // PKCE S256 challenge — base64url(sha256(verifier)), always 43 chars but
+    // sized generously.
+    codeChallenge: varchar("code_challenge", { length: 128 }).notNull(),
+    scope: varchar("scope", { length: 255 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mcp_oauth_codes_code_hash_idx").on(table.codeHash),
+    index("mcp_oauth_codes_user_id_idx").on(table.userId),
+  ],
+);
+
+export const mcpOauthTokens = pgTable(
+  "mcp_oauth_tokens",
+  {
+    id: serial("id").primaryKey(),
+    // Refresh-rotation lineage: rotation revokes the old row and inserts a new
+    // one with the same familyId. Replaying a revoked refresh token revokes
+    // the whole family (RFC 9700 §4.14 reuse detection).
+    familyId: varchar("family_id", { length: 36 }).notNull(),
+    accessTokenHash: varchar("access_token_hash", { length: 64 }).notNull(),
+    refreshTokenHash: varchar("refresh_token_hash", { length: 64 }).notNull(),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    scope: varchar("scope", { length: 255 }).notNull(),
+    accessExpiresAt: timestamp("access_expires_at").notNull(),
+    refreshExpiresAt: timestamp("refresh_expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("mcp_oauth_tokens_access_token_hash_idx").on(
+      table.accessTokenHash,
+    ),
+    uniqueIndex("mcp_oauth_tokens_refresh_token_hash_idx").on(
+      table.refreshTokenHash,
+    ),
+    index("mcp_oauth_tokens_user_id_idx").on(table.userId),
+    index("mcp_oauth_tokens_family_id_idx").on(table.familyId),
+  ],
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   licenseAssignments: many(licenseAssignments),
@@ -1101,7 +1176,7 @@ export const budgetExtensionsRelations = relations(
       references: [users.id],
     }),
     allocations: many(budgetExtensionPeriodAllocations),
-  })
+  }),
 );
 
 export const budgetExtensionPeriodAllocationsRelations = relations(
@@ -1115,7 +1190,7 @@ export const budgetExtensionPeriodAllocationsRelations = relations(
       fields: [budgetExtensionPeriodAllocations.periodId],
       references: [budgetPeriods.id],
     }),
-  })
+  }),
 );
 
 export const assignmentCommentsRelations = relations(
@@ -1324,6 +1399,53 @@ export const messageTemplatesRelations = relations(
     tier: one(accessTiers, {
       fields: [messageTemplates.tierId],
       references: [accessTiers.id],
+    }),
+  }),
+);
+
+// Forecast Scenarios (041-forecast-scenario-persistence)
+// Named, shared what-if parameter sets for the Budget / Cost Forecast
+// Simulation. Stores assumptions (ForecastInputs), never computed results —
+// scenarios are re-projected against live data on load.
+export const forecastScenarios = pgTable(
+  "forecast_scenarios",
+  {
+    id: serial("id").primaryKey(),
+    budgetId: integer("budget_id")
+      .notNull()
+      .references(() => annualBudgets.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    params: jsonb("params").$type<ForecastInputs>().notNull(),
+    // Attribution only — deleting a user must not destroy shared scenarios.
+    createdBy: integer("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("forecast_scenarios_budget_id_idx").on(table.budgetId),
+    index("forecast_scenarios_created_by_idx").on(table.createdBy),
+    // One name per budget, case-insensitive ("Plan B" ≡ "plan b"). This index
+    // is the single source of duplicate-name rejection — create/update map
+    // its violation (23505) to a friendly ActionResult error, race-free.
+    uniqueIndex("forecast_scenarios_budget_name_idx").on(
+      table.budgetId,
+      sql`lower(${table.name})`,
+    ),
+  ],
+);
+
+export const forecastScenariosRelations = relations(
+  forecastScenarios,
+  ({ one }) => ({
+    budget: one(annualBudgets, {
+      fields: [forecastScenarios.budgetId],
+      references: [annualBudgets.id],
+    }),
+    creator: one(users, {
+      fields: [forecastScenarios.createdBy],
+      references: [users.id],
     }),
   }),
 );

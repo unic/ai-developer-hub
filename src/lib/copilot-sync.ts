@@ -101,10 +101,23 @@ export async function syncBillingData(
         monthlyCostCents: costCents,
       });
     } else if (tier.monthlyCostCents !== costCents) {
-      await db
-        .update(accessTiers)
-        .set({ monthlyCostCents: costCents, updatedAt: new Date() })
-        .where(eq(accessTiers.id, tier.id));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(accessTiers)
+          .set({ monthlyCostCents: costCents, updatedAt: new Date() })
+          .where(eq(accessTiers.id, tier.id));
+        // Spend reports sum cost_at_assignment_cents, so active assignments
+        // must follow the new tier price. Revoked ones keep their snapshot.
+        await tx
+          .update(licenseAssignments)
+          .set({ costAtAssignmentCents: costCents, updatedAt: new Date() })
+          .where(
+            and(
+              eq(licenseAssignments.tierId, tier.id),
+              eq(licenseAssignments.status, "active"),
+            ),
+          );
+      });
     }
   }
 
@@ -458,4 +471,3 @@ export async function syncUsageMetrics(
 
   return { metricsProcessed: processed };
 }
-

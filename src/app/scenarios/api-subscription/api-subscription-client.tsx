@@ -361,6 +361,16 @@ export function ApiSubscriptionClient({
             </button>
           </div>
 
+          {/* Pricing reference — the seat fields default to monthly list
+              pricing; billed yearly each seat is cheaper. */}
+          <p className="mb-4 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            Seat prices are per seat, per month. The fields default to monthly
+            list pricing — <span className="text-ink">$25</span> Standard ·{" "}
+            <span className="text-ink">$125</span> Premium. Billed yearly, seats
+            are cheaper: <span className="text-ink">$20</span> Standard ·{" "}
+            <span className="text-ink">$100</span> Premium.
+          </p>
+
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
             <PriceField
               id="std-price"

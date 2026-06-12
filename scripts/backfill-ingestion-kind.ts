@@ -1,7 +1,7 @@
 /**
  * One-off backfill for the 034-ingestion-types-distinction expand/migrate step.
  *
- * The additive migration (0023) defaulted every existing ingestion_log row to
+ * The additive migration (0027_ingestion_kind_distinction) defaulted every existing ingestion_log row to
  * kind='invoice'. This script reclassifies the license-request rows that the
  * pre-034 code logged into the same table (via the invoice_number / form
  * overload) and populates the new `details`, `label`, `source_type` and

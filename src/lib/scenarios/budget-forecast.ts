@@ -16,6 +16,19 @@ import { olsRegression } from "@/lib/forecast";
 
 export type ToolKind = "metered" | "seat" | "claudeSeats";
 export type GrowthModel = "flat" | "linear" | "compound";
+export type ClaudeBilling = "monthly" | "yearly";
+
+/**
+ * Yearly-commit pricing for Claude seats: $25 → $20 Standard and $125 → $100
+ * Premium — exactly 20% off the monthly tier price, expressed as a factor so
+ * the toggle keeps tracking the live tier prices if they are ever edited.
+ */
+export const CLAUDE_YEARLY_FACTOR = 0.8;
+
+/** Effective price multiplier for a Claude seats billing cadence. */
+export function claudeBillingFactor(billing?: ClaudeBilling): number {
+  return billing === "yearly" ? CLAUDE_YEARLY_FACTOR : 1;
+}
 
 /** A tool's current state, assembled in budget-forecast-queries.ts. */
 export type ForecastTool = {
@@ -47,6 +60,8 @@ export type ToolParams = {
   burnCap?: number;
   /** claudeSeats: Premium fraction 0..1. */
   premShare?: number;
+  /** claudeSeats: billing cadence; undefined ≡ "monthly". */
+  billing?: ClaudeBilling;
 };
 
 export type ForecastInputs = {
@@ -135,7 +150,8 @@ export function toolCostAt(
     const prem = seats * share;
     const std = seats - prem;
     return Math.round(
-      std * (tool.stdPrice ?? 0) + prem * (tool.premPrice ?? 0),
+      (std * (tool.stdPrice ?? 0) + prem * (tool.premPrice ?? 0)) *
+        claudeBillingFactor(p.billing),
     );
   }
   const seats = seatsAt(tool.seats0, p.model, p.val, k);
@@ -147,14 +163,8 @@ export function currentMonthlyCost(tool: ForecastTool, p: ToolParams): number {
   if (tool.kind === "metered") {
     return Math.round(tool.seats0 * (tool.burn0 ?? 0));
   }
-  if (tool.kind === "claudeSeats") {
-    const share = p.premShare ?? tool.premShare0 ?? 0;
-    const prem = tool.seats0 * share;
-    return Math.round(
-      (tool.seats0 - prem) * (tool.stdPrice ?? 0) +
-        prem * (tool.premPrice ?? 0),
-    );
-  }
+  // claudeSeats at the anchor is exactly the k=0 projection (no cap involved).
+  if (tool.kind === "claudeSeats") return toolCostAt(tool, p, 0);
   return Math.round(tool.seats0 * (tool.price ?? 0));
 }
 
@@ -286,7 +296,19 @@ export function computeTrendBand(ds: ForecastDataset): TrendBand {
 
 /* ------------------------- named scenario presets ------------------------- */
 
-export type PresetKey = "conservative" | "expected" | "aggressive";
+/**
+ * The H2 2026 migration plan, at three speeds. The strategy in all three:
+ * sunset Claude Console API access (compound decline — decays toward, but
+ * never hits, zero: a few applications and a few users remain), ramp Claude
+ * seats hard at a high Premium share, let GitHub Copilot drift down very
+ * slowly or hold flat, and keep Cursor and Microsoft Copilot as-is.
+ *
+ * The API fade rates are tuned against the live ~42 active keys over the ~7
+ * remaining FY2026 periods: −15% ≈ 13–14 keys left, −25% ≈ 5–6 (the central
+ * plan — confirmed "a few applications and a few users" target), −50% ≈ 0.3.
+ * Per-key burn is held flat (burnPct 0, no cap) — the seat fade is the story.
+ */
+export type PresetKey = "h2Gradual" | "h2Plan" | "h2Accelerated";
 
 export type ForecastPreset = {
   label: string;
@@ -295,74 +317,90 @@ export type ForecastPreset = {
 };
 
 export const FORECAST_PRESETS: Record<PresetKey, ForecastPreset> = {
-  conservative: {
-    label: "Conservative",
-    tag: "Hold the line",
+  h2Gradual: {
+    label: "H2 Gradual",
+    tag: "Soft landing",
     tools: {
-      api: {
-        include: true,
-        model: "compound",
-        val: -2,
-        burnPct: 0,
-        burnCap: 9000,
-      },
-      claude: { include: true, model: "flat", val: 0, premShare: 0.29 },
-      copilot: { include: true, model: "linear", val: -4 },
-      cursor: { include: true, model: "flat", val: 0 },
-      mscopilot: { include: true, model: "flat", val: 0 },
-    },
-  },
-  expected: {
-    label: "Expected",
-    tag: "Steady adoption",
-    tools: {
-      api: {
-        include: true,
-        model: "linear",
-        val: 1,
-        burnPct: 3,
-        burnCap: 16000,
-      },
-      claude: { include: true, model: "linear", val: 2, premShare: 0.29 },
+      api: { include: true, model: "compound", val: -15, burnPct: 0 },
+      claude: { include: true, model: "linear", val: 10, premShare: 0.35 },
       copilot: { include: true, model: "flat", val: 0 },
       cursor: { include: true, model: "flat", val: 0 },
       mscopilot: { include: true, model: "flat", val: 0 },
     },
   },
-  aggressive: {
-    label: "Aggressive",
-    tag: "Org-wide rollout",
+  h2Plan: {
+    label: "H2 Plan",
+    tag: "Console sunset",
     tools: {
-      api: {
-        include: true,
-        model: "linear",
-        val: 4,
-        burnPct: 8,
-        burnCap: 22000,
-      },
-      claude: { include: true, model: "linear", val: 8, premShare: 0.3 },
-      copilot: { include: true, model: "flat", val: 0 },
-      cursor: { include: true, model: "linear", val: 2 },
+      api: { include: true, model: "compound", val: -25, burnPct: 0 },
+      claude: { include: true, model: "linear", val: 15, premShare: 0.4 },
+      copilot: { include: true, model: "linear", val: -1 },
+      cursor: { include: true, model: "flat", val: 0 },
+      mscopilot: { include: true, model: "flat", val: 0 },
+    },
+  },
+  h2Accelerated: {
+    label: "H2 Accelerated",
+    tag: "Hard cutover",
+    tools: {
+      api: { include: true, model: "compound", val: -50, burnPct: 0 },
+      claude: { include: true, model: "linear", val: 20, premShare: 0.4 },
+      copilot: { include: true, model: "linear", val: -2 },
+      cursor: { include: true, model: "flat", val: 0 },
       mscopilot: { include: true, model: "flat", val: 0 },
     },
   },
 };
 
-/** Build a full input set from a preset, scoped to the dataset's tools. */
+/**
+ * Build a full input set from a preset, scoped to the dataset's tools.
+ *
+ * Billing cadence is orthogonal to the presets (it's a procurement assumption,
+ * not a scenario lever) and is threaded in here so the client can keep the
+ * user's cadence when switching tiles. It is stamped onto claudeSeats-kind
+ * tools only when "yearly" — undefined ≡ monthly, so monthly inputs stay
+ * deep-equal to pristine preset inputs.
+ */
 export function inputsFromPreset(
   ds: ForecastDataset,
   key: PresetKey,
+  billing?: ClaudeBilling,
 ): ForecastInputs {
   const preset = FORECAST_PRESETS[key];
   const tools: Record<string, ToolParams> = {};
   for (const tool of ds.tools) {
     const p = preset.tools[tool.key];
-    tools[tool.key] = p ? { ...p } : { ...DEFAULT_PARAMS };
+    const params = p ? { ...p } : { ...DEFAULT_PARAMS };
+    if (tool.kind === "claudeSeats" && billing === "yearly") {
+      params.billing = "yearly";
+    }
+    tools[tool.key] = params;
   }
   return { ceilingCents: ds.liveCeilingCents, tools };
 }
 
-/** Default editable params for the "Custom" plan — seeded from Expected. */
+/** Default editable params for the "Custom" plan — seeded from H2 Plan. */
 export function defaultInputs(ds: ForecastDataset): ForecastInputs {
-  return inputsFromPreset(ds, "expected");
+  return inputsFromPreset(ds, "h2Plan");
+}
+
+/**
+ * Re-base a parameter set onto the current dataset (spec 041). Tools that no
+ * longer exist are dropped; tools that appeared since the params were captured
+ * get DEFAULT_PARAMS — so a stale saved scenario (or surviving client state
+ * after a dataset refresh) always yields a complete, renderable input set.
+ *
+ * Params are copied verbatim per tool — including the claudeSeats `billing`
+ * cadence, which is what makes "load restores the cadence" hold.
+ */
+export function inputsFromSaved(
+  ds: ForecastDataset,
+  saved: ForecastInputs,
+): ForecastInputs {
+  const tools: Record<string, ToolParams> = {};
+  for (const tool of ds.tools) {
+    const p = saved.tools[tool.key];
+    tools[tool.key] = p ? { ...p } : { ...DEFAULT_PARAMS };
+  }
+  return { ceilingCents: saved.ceilingCents, tools };
 }

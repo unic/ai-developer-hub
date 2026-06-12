@@ -173,8 +173,29 @@
     {
       "idx": 24,
       "version": "7",
-      "when": 1781090000000,
-      "tag": "0024_greedy_ken_ellis",
+      "when": 1781164840619,
+      "tag": "0024_resync_assignment_cost_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781171027885,
+      "tag": "0025_colorful_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781270007485,
+      "tag": "0026_nebulous_shadow_king",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1781286472992,
+      "tag": "0027_ingestion_kind_distinction",
       "breakpoints": true
     }
   ]
