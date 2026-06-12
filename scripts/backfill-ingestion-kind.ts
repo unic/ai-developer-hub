@@ -71,6 +71,7 @@ async function main() {
       amountCents: ingestionLog.amountCents,
       blobPathname: ingestionLog.blobPathname,
       linkedInvoiceId: ingestionLog.linkedInvoiceId,
+      details: ingestionLog.details,
     })
     .from(ingestionLog);
 
@@ -90,8 +91,12 @@ async function main() {
       kind = "license_request";
       sourceType = "ms_forms_license_request";
       // Pre-034 used outcome='filtered' to mean an idempotent dedup replay.
-      const deduped = row.outcome === "filtered";
-      if (deduped) {
+      // A prior --apply run already normalized that to success + details.deduped,
+      // so preserve the recorded flag — otherwise re-running would erase it.
+      const deduped =
+        row.outcome === "filtered" ||
+        (row.details?.kind === "license_request" && row.details.deduped);
+      if (row.outcome === "filtered") {
         outcome = "success"; // Q3: dedup is a successful, idempotent outcome.
         counts.normalizedDedup++;
       }

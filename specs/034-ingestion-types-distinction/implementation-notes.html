@@ -176,6 +176,40 @@
   <p><code>pnpm typecheck</code> clean · <code>pnpm lint</code> 0 warnings · <code>pnpm test</code> 404 pass.</p>
 </div>
 
+<div class="phase-divider">Finishing session — 2026-06-12</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Second renumber: migration is now <code>0027_ingestion_kind_distinction</code></h3>
+  <p class="where"><code>src/lib/db/migrations/0027_ingestion_kind_distinction.sql</code> · <code>meta/_journal.json</code> · <code>meta/0027_snapshot.json</code></p>
+  <p>While the PR was open, main shipped <code>0024_resync_assignment_cost_snapshots</code>, <code>0025_colorful_vector</code> and <code>0026_nebulous_shadow_king</code>, colliding with this branch's <code>0024_greedy_ken_ellis</code>. After merging <code>origin/main</code> (schema conflicts were clean unions: our ingestion columns/index + main's MCP OAuth tables and <code>forecast_scenarios</code>), the ingestion migration was regenerated from the merged schema via <code>drizzle-kit generate</code> and rewritten with the same <strong>idempotent</strong> statement forms as before — the original <code>0023</code> run is already live on production (2026-06-03), so the renamed file must tolerate every object already existing. Generated SQL was diffed against the old file: statement set identical.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Backfill idempotency bug found during verification — fixed</h3>
+  <p class="where"><code>scripts/backfill-ingestion-kind.ts</code></p>
+  <p>The dedup flag was derived only from <code>row.outcome === "filtered"</code> — but the first <code>--apply</code> rewrites that outcome to <code>success</code>, so a <em>second</em> run flipped <code>details.deduped</code> back to <code>false</code> and dropped the "(duplicate)" label suffix, contradicting the script's "safe to re-run" contract. Reproduced against a seeded local DB, then fixed by also preserving a previously recorded <code>details.deduped</code>. Re-verified: two consecutive <code>--apply</code> runs now converge.</p>
+</div>
+
+<div class="entry verify">
+  <h3><span class="kind verify">Verify</span>Migration + backfill executed against a disposable Postgres (resolves the "backfill not yet run" open item)</h3>
+  <p>Production-class Neon branching wasn't available in this environment, so verification ran against a throwaway Docker Postgres reached through Neon's <code>wsproxy</code> (same <code>@neondatabase/serverless</code> driver stack the app uses):</p>
+  <ul>
+    <li><strong>Fresh chain:</strong> all 28 migrations (<code>0000</code>–<code>0027</code>) applied cleanly via the Drizzle migrator.</li>
+    <li><strong>Production simulation:</strong> re-executed <code>0027</code>'s statements against the already-migrated DB — every statement skips gracefully (this is what production will do, since the original <code>0023</code> objects already exist there).</li>
+    <li><strong>Backfill:</strong> seeded pre-034-shaped rows (overloaded GUID <code>invoice_number</code>, <code>filtered</code> dedup, genuine invoices). Dry run classified 2/2/1 correctly; <code>--apply</code> produced correct kind/source/label/details/entity on every row; re-run is now a no-op.</li>
+  </ul>
+</div>
+
+<div class="entry verify">
+  <h3><span class="kind verify">Verify</span>Live write/read paths + browser pass</h3>
+  <p>Seven scratch integration tests exercised the real route handler and logger against the local DB: bearer rejection (401), fresh ingest (201, <code>kind=license_request</code>, label "Jane → Claude", polymorphic entity, <em>no</em> legacy column overload), dedup replay (200, <code>success + details.deduped</code>, "(duplicate)" label, single <code>license_requests</code> row), invalid-JSON and unknown-tool failure logging, the invoice shim's dual write, and <code>getIngestionHistory</code>'s kind-aware shape. A Playwright pass against <code>pnpm dev</code> (15/15 checks) confirmed the Settings → Ingestion table (kind pills, All/Invoice/License request sub-tabs, per-kind drill-through links, label search incl. legacy fallback) and the kind-aware dashboard activity feed.</p>
+</div>
+
+<div class="entry verify">
+  <h3><span class="kind verify">Verify</span>Gates green after merge + fixes</h3>
+  <p><code>pnpm typecheck</code> clean · <code>pnpm lint</code> 0 warnings · <code>pnpm test</code> 658 pass (suite grew on main).</p>
+</div>
+
 <footer>
   spec/034-ingestion-types-distinction · implementation-notes.html · started 2026-06-03 · append-only
 </footer>
