@@ -152,11 +152,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
 
   const toolSummary: ToolSummaryItem[] = tools.map((tool) => {
     const toolAssignments = activeAssignments.filter(
-      (a) => a.tool.id === tool.id
+      (a) => a.tool.id === tool.id,
     );
     const totalCost = toolAssignments.reduce(
       (s, a) => s + a.costAtAssignmentCents,
-      0
+      0,
     );
     return {
       id: tool.id,
@@ -171,7 +171,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
   const totalActiveTools = tools.filter((t) => t.status === "active").length;
   const totalMonthlySpend = activeAssignments.reduce(
     (s, a) => s + a.costAtAssignmentCents,
-    0
+    0,
   );
   const billedYtdCents = trendsData.reduce((s, p) => s + p.billedCents, 0);
   const budgetCeilingCents = activeBudget?.totalAmountCents ?? 0;
@@ -197,7 +197,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
   const previousActiveLicenses = priorMonthSnapshot.length;
   const previousExpectedMonthlyCents = priorMonthSnapshot.reduce(
     (s, a) => s + a.costAtAssignmentCents,
-    0
+    0,
   );
   const previousAssignmentsByTool: Record<number, number> = {};
   const previousSpendByTool: Record<number, number> = {};
@@ -267,10 +267,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
 
   if (budgetWithCosts && activeBudget) {
     const pastOrCurrent = budgetWithCosts.periods.filter(
-      (p) => new Date(p.startDate) <= today
+      (p) => new Date(p.startDate) <= today,
     );
     const runningResults = await Promise.all(
-      pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id))
+      pastOrCurrent.map((p) => getRunningCostsForPeriod(p.id)),
     );
     const runningByPeriod = new Map<number, number>();
     pastOrCurrent.forEach((p, i) => {
@@ -285,11 +285,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
           runningCostCents: running,
           actualCents: p.billedTotalCents + running,
         };
-      }
+      },
     );
 
     const current = periodsWithActual.find(
-      (p) => classifyPeriod(p, today) === "current"
+      (p) => classifyPeriod(p, today) === "current",
     );
     if (current) {
       const variancePct =
@@ -325,7 +325,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
     copilot: copilotResult,
     workspaceAlert: {
       topOverWorkspaceName: workspaceKpis.topOverWorkspaceName,
-      topOverWorkspaceUtilizationPct: workspaceKpis.topOverWorkspaceUtilizationPct,
+      topOverWorkspaceUtilizationPct:
+        workspaceKpis.topOverWorkspaceUtilizationPct,
       workspacesOverEightyCount: workspaceKpis.workspacesOverEightyCount,
       workspacesWithLimitCount: workspaceKpis.workspacesWithLimitCount,
     },
@@ -340,9 +341,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData | null
 // `getCopilotOverview` runs an admin guard internally and we already gated this
 // action on requireAdmin(). Treat any failure as "no copilot data" so the
 // dashboard still renders when the GitHub connection is down.
-async function safeCopilotAcceptance(): Promise<
-  AdminDashboardData["copilot"]
-> {
+async function safeCopilotAcceptance(): Promise<AdminDashboardData["copilot"]> {
   try {
     const result = await getCopilotOverview();
     if (!result.success) return null;
@@ -353,7 +352,7 @@ async function safeCopilotAcceptance(): Promise<
           ? Math.round(
               (result.data.totalAcceptances /
                 Math.max(1, result.data.totalSuggestions)) *
-                100
+                100,
             )
           : null,
       totalActiveUsers: result.data.totalActiveUsers,
@@ -369,7 +368,7 @@ async function safeCopilotAcceptance(): Promise<
 // ---------------------------------------------------------------------------
 
 export async function getRecentDashboardActivity(
-  limit = 8
+  limit = 8,
 ): Promise<DashboardActivityItem[]> {
   const admin = await requireAdmin();
   if (!admin) return [];
@@ -380,6 +379,9 @@ export async function getRecentDashboardActivity(
     db
       .select({
         id: ingestionLog.id,
+        kind: ingestionLog.kind,
+        label: ingestionLog.label,
+        details: ingestionLog.details,
         filename: ingestionLog.filename,
         vendor: ingestionLog.vendor,
         amountCents: ingestionLog.amountCents,
@@ -403,11 +405,13 @@ export async function getRecentDashboardActivity(
       .where(
         or(
           isNotNull(licenseAssignments.assignedAt),
-          isNotNull(licenseAssignments.revokedAt)
-        )
+          isNotNull(licenseAssignments.revokedAt),
+        ),
       )
       .orderBy(
-        desc(sql`GREATEST(${licenseAssignments.assignedAt}, COALESCE(${licenseAssignments.revokedAt}, '1970-01-01'))`)
+        desc(
+          sql`GREATEST(${licenseAssignments.assignedAt}, COALESCE(${licenseAssignments.revokedAt}, '1970-01-01'))`,
+        ),
       )
       .limit(halfLimit),
   ]);
@@ -416,19 +420,48 @@ export async function getRecentDashboardActivity(
 
   for (const row of ingestionRows) {
     const ts = row.createdAt.toISOString();
-    const title = row.vendor
-      ? `Invoice from ${row.vendor}`
-      : row.filename
-        ? `Invoice ${row.filename}`
-        : "Invoice ingested";
-    const detail =
-      row.outcome === "success"
-        ? row.amountCents !== null
-          ? `Added · ${formatCurrency(row.amountCents)}`
-          : "Added"
-        : row.outcome === "filtered"
-          ? "Filtered (duplicate)"
-          : "Failed";
+    const details = row.details;
+
+    let title: string;
+    let detail: string | null;
+
+    if (row.kind === "license_request") {
+      const d = details?.kind === "license_request" ? details : null;
+      const who = d?.requesterName ?? d?.requesterEmail ?? "Unknown";
+      title = `License request · ${who}`;
+      // A pre-034 dedup row may still carry outcome="filtered"; treat it the
+      // same as the new success + deduped representation.
+      const deduped = d?.deduped || row.outcome === "filtered";
+      detail =
+        row.outcome === "failed"
+          ? "Failed"
+          : deduped
+            ? "Duplicate (idempotent)"
+            : d?.toolName
+              ? `Requested ${d.toolName}${d.tierName ? ` · ${d.tierName}` : ""}`
+              : "Request received";
+    } else {
+      // invoice (and any legacy / "other" rows)
+      const vendor = details?.kind === "invoice" ? details.vendor : row.vendor;
+      const amountCents =
+        details?.kind === "invoice" ? details.amountCents : row.amountCents;
+      const filename =
+        details?.kind === "invoice" ? details.filename : row.filename;
+      title = vendor
+        ? `Invoice from ${vendor}`
+        : filename
+          ? `Invoice ${filename}`
+          : (row.label ?? "Invoice ingested");
+      detail =
+        row.outcome === "success"
+          ? amountCents != null
+            ? `Added · ${formatCurrency(amountCents)}`
+            : "Added"
+          : row.outcome === "filtered"
+            ? "Filtered (duplicate)"
+            : "Failed";
+    }
+
     const severity: DashboardActivityItem["severity"] =
       row.outcome === "success"
         ? "success"
@@ -534,51 +567,56 @@ export interface ViewerDashboardData {
 }
 
 export async function getViewerDashboardData(
-  userId: number
+  userId: number,
 ): Promise<ViewerDashboardData | null> {
   const session = await auth();
   if (!session?.user) return null;
   const callerId = Number(session.user.id);
   if (callerId !== userId && session.user.role !== "admin") return null;
 
-  const [profileData, assignmentRows, syncRow, toolCatalog] = await Promise.all([
-    fetchProfileDataInternal(userId),
-    db
-      .select({
-        id: licenseAssignments.id,
-        toolId: licenseAssignments.toolId,
-        toolName: aiTools.name,
-        vendor: aiTools.vendor,
-        tierName: accessTiers.name,
-        status: licenseAssignments.status,
-        costCents: licenseAssignments.costAtAssignmentCents,
-        assignedAt: licenseAssignments.assignedAt,
-        revokedAt: licenseAssignments.revokedAt,
-        apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
-      })
-      .from(licenseAssignments)
-      .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
-      .innerJoin(accessTiers, eq(licenseAssignments.tierId, accessTiers.id))
-      .where(eq(licenseAssignments.userId, userId))
-      .orderBy(
-        desc(sql`GREATEST(${licenseAssignments.assignedAt}, COALESCE(${licenseAssignments.revokedAt}, '1970-01-01'))`)
-      )
-      .limit(20),
-    db.query.anthropicSyncStatus.findFirst({
-      where: eq(anthropicSyncStatus.userId, userId),
-    }),
-    db
-      .select({ id: aiTools.id })
-      .from(aiTools)
-      .where(eq(aiTools.status, "active")),
-  ]);
+  const [profileData, assignmentRows, syncRow, toolCatalog] = await Promise.all(
+    [
+      fetchProfileDataInternal(userId),
+      db
+        .select({
+          id: licenseAssignments.id,
+          toolId: licenseAssignments.toolId,
+          toolName: aiTools.name,
+          vendor: aiTools.vendor,
+          tierName: accessTiers.name,
+          status: licenseAssignments.status,
+          costCents: licenseAssignments.costAtAssignmentCents,
+          assignedAt: licenseAssignments.assignedAt,
+          revokedAt: licenseAssignments.revokedAt,
+          apiKeyEncrypted: licenseAssignments.apiKeyEncrypted,
+        })
+        .from(licenseAssignments)
+        .innerJoin(aiTools, eq(licenseAssignments.toolId, aiTools.id))
+        .innerJoin(accessTiers, eq(licenseAssignments.tierId, accessTiers.id))
+        .where(eq(licenseAssignments.userId, userId))
+        .orderBy(
+          desc(
+            sql`GREATEST(${licenseAssignments.assignedAt}, COALESCE(${licenseAssignments.revokedAt}, '1970-01-01'))`,
+          ),
+        )
+        .limit(20),
+      db.query.anthropicSyncStatus.findFirst({
+        where: eq(anthropicSyncStatus.userId, userId),
+      }),
+      db
+        .select({ id: aiTools.id })
+        .from(aiTools)
+        .where(eq(aiTools.status, "active")),
+    ],
+  );
 
   const cost = profileData.costData;
   const userToolIds = new Set(
-    assignmentRows.filter((a) => a.status === "active").map((a) => a.toolId)
+    assignmentRows.filter((a) => a.status === "active").map((a) => a.toolId),
   );
-  const availableToolCount = toolCatalog.filter((t) => !userToolIds.has(t.id))
-    .length;
+  const availableToolCount = toolCatalog.filter(
+    (t) => !userToolIds.has(t.id),
+  ).length;
 
   const modelMap = new Map<
     string,
@@ -608,14 +646,8 @@ export async function getViewerDashboardData(
     }))
     .sort((a, b) => b.costCents - a.costCents);
 
-  const totalInputTokens = modelTotals.reduce(
-    (s, m) => s + m.inputTokens,
-    0
-  );
-  const totalOutputTokens = modelTotals.reduce(
-    (s, m) => s + m.outputTokens,
-    0
-  );
+  const totalInputTokens = modelTotals.reduce((s, m) => s + m.inputTokens, 0);
+  const totalOutputTokens = modelTotals.reduce((s, m) => s + m.outputTokens, 0);
 
   let cacheReadTokens = 0;
   let uncachedInputTokens = 0;
@@ -638,8 +670,8 @@ export async function getViewerDashboardData(
         and(
           eq(anthropicUsageMetrics.userId, userId),
           gte(anthropicUsageMetrics.date, formatDateOnly(monthStart)),
-          lte(anthropicUsageMetrics.date, formatDateOnly(monthEnd))
-        )
+          lte(anthropicUsageMetrics.date, formatDateOnly(monthEnd)),
+        ),
       );
 
     cacheReadTokens = Number(agg?.cacheRead ?? 0);
@@ -650,7 +682,7 @@ export async function getViewerDashboardData(
     const inputCostShare =
       totalInputTokens > 0 ? cacheReadTokens / totalInputTokens : 0;
     cacheSavingsCents = Math.round(
-      cost.monthlyTotalCents * inputCostShare * 0.9
+      cost.monthlyTotalCents * inputCostShare * 0.9,
     );
   }
 

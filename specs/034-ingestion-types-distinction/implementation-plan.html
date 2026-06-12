@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ingestion Types — Implementation Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400..900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --black: #000000;
+    --surface: #111111;
+    --surface-raised: #1a1a1a;
+    --border: #222222;
+    --border-visible: #333333;
+    --text-disabled: #666666;
+    --text-secondary: #999999;
+    --text-primary: #e8e8e8;
+    --text-display: #ffffff;
+    --accent: #d71921;
+    --accent-subtle: rgba(215,25,33,0.15);
+    --success: #4a9e5c;
+    --warning: #d4a843;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px;
+    --space-xl: 32px; --space-2xl: 48px; --space-3xl: 64px; --space-4xl: 96px;
+    --display: "Doto", "Space Mono", monospace;
+    --sans: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+    --mono: "Space Mono", "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--black); color: var(--text-primary); font-family: var(--sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { padding: var(--space-3xl) var(--space-lg) var(--space-4xl); }
+  main { max-width: 1080px; margin: 0 auto; }
+
+  /* ── type ── */
+  .label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); }
+  .label.dim { color: var(--text-disabled); }
+  h1 { font-family: var(--display); font-weight: 600; font-size: 56px; line-height: 1.0; letter-spacing: -0.02em; color: var(--text-display); margin: 0 0 var(--space-md); }
+  h2 { font-family: var(--sans); font-weight: 500; font-size: 24px; letter-spacing: -0.01em; color: var(--text-display); margin: var(--space-3xl) 0 var(--space-md); padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: var(--space-md); }
+  h2 .idx { font-family: var(--mono); font-size: 13px; color: var(--text-disabled); }
+  h3 { font-family: var(--sans); font-weight: 500; font-size: 17px; color: var(--text-display); margin: 0 0 var(--space-xs); }
+  h4 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); margin: var(--space-md) 0 var(--space-xs); }
+  p { margin: 0 0 var(--space-md); max-width: 80ch; }
+  a { color: var(--text-primary); text-decoration: none; border-bottom: 1px solid var(--border-visible); }
+  a:hover { color: var(--text-display); border-color: var(--text-secondary); }
+  code { font-family: var(--mono); font-size: 0.86em; color: var(--text-display); background: var(--surface-raised); padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; }
+  strong { color: var(--text-display); font-weight: 500; }
+  .lede { color: var(--text-secondary); font-size: 16px; max-width: 78ch; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--text-disabled); margin-top: var(--space-md); letter-spacing: 0.04em; }
+
+  /* ── code blocks ── */
+  pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: var(--space-md); overflow-x: auto; color: var(--text-secondary); margin: var(--space-md) 0; }
+  pre .kw { color: #8aa6c8; }
+  pre .str { color: var(--success); }
+  pre .com { color: var(--text-disabled); }
+  pre .em { color: var(--text-display); }
+  pre .red { color: var(--accent); }
+
+  /* ── surfaces ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: var(--space-lg); margin: var(--space-md) 0; }
+  .card.red { border-color: rgba(215,25,33,0.4); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--space-md); }
+  @media (max-width: 760px){ .grid-2,.grid-3{ grid-template-columns:1fr; } body{ padding: var(--space-xl) var(--space-md); } h1{ font-size: 40px; } }
+  .row { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+  .row.between { justify-content: space-between; }
+
+  /* ── badges / pills (border only, mono caps) ── */
+  .badge { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border-visible); color: var(--text-secondary); background: transparent; }
+  .badge.disp { color: var(--text-display); border-color: var(--text-secondary); }
+  .badge.good { color: var(--success); border-color: rgba(74,158,92,0.5); }
+  .badge.warn { color: var(--warning); border-color: rgba(212,168,67,0.5); }
+  .badge.red  { color: var(--accent); border-color: rgba(215,25,33,0.5); }
+
+  /* ── tables ── */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: var(--space-md) 0; }
+  th { font-family: var(--mono); font-size: 10.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); text-align: left; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--border-visible); }
+  td { padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-primary); }
+  td.mono, .mono-cell { font-family: var(--mono); font-size: 12.5px; color: var(--text-secondary); }
+  tr:hover td { background: rgba(255,255,255,0.012); }
+  .val-good { color: var(--success); } .val-warn { color: var(--warning); } .val-red { color: var(--accent); }
+
+  /* ── segmented bar (signature viz) ── */
+  .seg { display: inline-flex; gap: 3px; align-items: center; }
+  .seg i { width: 6px; height: 16px; background: var(--border); display: inline-block; }
+  .seg i.on { background: var(--text-display); }
+  .seg i.warn { background: var(--warning); }
+  .seg i.red { background: var(--accent); }
+  .gauge { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-sm) 0; }
+  .gauge .glabel { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); min-width: 168px; }
+  .gauge .gval { font-family: var(--mono); font-size: 12px; color: var(--text-display); }
+
+  /* ── lists ── */
+  ul { padding-left: 18px; margin: var(--space-sm) 0 var(--space-md); }
+  li { margin: 5px 0; }
+  li.pro::marker { content: "+ "; color: var(--success); }
+  li.con::marker { content: "− "; color: var(--accent); }
+  li.note::marker { content: "› "; color: var(--text-disabled); }
+
+  /* ── task rows ── */
+  .task { display: grid; grid-template-columns: 64px 1fr auto; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); align-items: baseline; }
+  .task:last-child { border-bottom: none; }
+  .task .tid { font-family: var(--mono); font-size: 12px; color: var(--text-disabled); }
+  .task .tbody { font-size: 14px; }
+  .task .tbody .f { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); display: block; margin-top: 2px; }
+  .task .tsize { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-disabled); }
+
+  /* ── callouts ── */
+  .callout { border: 1px solid var(--border-visible); border-left: 3px solid var(--text-secondary); background: var(--surface); padding: var(--space-md); border-radius: 8px; margin: var(--space-md) 0; font-size: 14px; }
+  .callout.red { border-left-color: var(--accent); }
+  .callout.good { border-left-color: var(--success); }
+  .callout .label { display: block; margin-bottom: 4px; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: var(--space-2xl) 0; }
+  footer { font-family: var(--mono); font-size: 11.5px; color: var(--text-disabled); margin-top: var(--space-4xl); padding-top: var(--space-lg); border-top: 1px solid var(--border); letter-spacing: 0.04em; line-height: 1.8; }
+
+  .dotgrid { background-image: radial-gradient(circle, var(--border-visible) 1px, transparent 1px); background-size: 16px 16px; }
+  .toc { columns: 2; column-gap: var(--space-xl); font-family: var(--mono); font-size: 12.5px; }
+  .toc a { display: block; padding: 3px 0; border: none; color: var(--text-secondary); }
+  .toc a:hover { color: var(--text-display); }
+  .toc .n { color: var(--text-disabled); margin-right: 8px; }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ════════════ HEADER ════════════ -->
+<header>
+  <div class="row" style="margin-bottom: var(--space-lg);">
+    <span class="badge disp">Implementation Plan</span>
+    <span class="badge">spec/034-ingestion-types-distinction</span>
+    <span class="badge warn">Ready to build</span>
+    <span class="badge">Nothing UI</span>
+  </div>
+  <div class="label dim" style="margin-bottom: var(--space-sm);">AI DEVELOPER HUB / DATA INTAKE</div>
+  <h1>Distinguishing<br/>Ingestion Types</h1>
+  <p class="lede">
+    Replace the overloaded single-shape <code>ingestion_log</code> with a discriminated, registry-driven model so
+    invoices, license requests, and every future intake type carry their own meaning — across the table, the activity
+    feed, and the settings surface. UI built in the Nothing design system.
+  </p>
+  <p class="meta">PLAN v1 · 2026-06-03 · T. STUDER · BRANCH claude/injection-types-distinction-Xcf9K · BUILDS ON proposal.html</p>
+</header>
+
+<div class="card dotgrid" style="background-color: var(--surface);">
+  <div class="label" style="margin-bottom: var(--space-sm);">CONTENTS</div>
+  <nav class="toc">
+    <a href="#decisions"><span class="n">00</span>Locked decisions</a>
+    <a href="#arch"><span class="n">01</span>Target architecture</a>
+    <a href="#model"><span class="n">02</span>Data model &amp; schema</a>
+    <a href="#registry"><span class="n">03</span>The type registry</a>
+    <a href="#writers"><span class="n">04</span>Write path</a>
+    <a href="#read"><span class="n">05</span>Read path</a>
+    <a href="#ui"><span class="n">06</span>UI — Nothing style</a>
+    <a href="#files"><span class="n">07</span>File-by-file map</a>
+    <a href="#tasks"><span class="n">08</span>Phased task list</a>
+    <a href="#test"><span class="n">09</span>Testing</a>
+    <a href="#safety"><span class="n">10</span>Migration safety</a>
+  </nav>
+</div>
+
+<!-- ════════════ DECISIONS ════════════ -->
+<h2 id="decisions"><span class="idx">00</span> Locked decisions</h2>
+<p>All five open questions from the proposal are resolved here with the recommended defaults, so the plan is unambiguous.</p>
+<table>
+  <thead><tr><th style="width:48px">Q</th><th>Decision</th><th style="width:140px">Consequence</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">Q1</td><td><strong>Sync stays separate.</strong> The <code>sync_events</code> framework (Copilot / Anthropic pulls) keeps its own Sync Status tab. The registry is built so it <em>could</em> fold in later, but we do not touch it now.</td><td><span class="badge">scope -1</span></td></tr>
+    <tr><td class="mono">Q2</td><td><strong>Filter + sub-tabs both.</strong> One list with a faceted <code>Kind</code> filter is the engine; the <em>All / Invoices / License requests</em> segmented control is a thin wrapper that sets that filter.</td><td><span class="badge">UI</span></td></tr>
+    <tr><td class="mono">Q3</td><td><strong>No new outcome enum.</strong> Idempotent replays record <code>outcome: "success"</code> + <code>details.deduped = true</code>. The <code>"filtered"</code> badge means one thing again (invoice passed-but-unlinked).</td><td><span class="badge">no enum churn</span></td></tr>
+    <tr><td class="mono">Q4</td><td><strong>User import out of scope.</strong> The <code>user_import</code> kind is reserved in the enum but not wired; bulk CSV import stays in <code>change_history</code> for now.</td><td><span class="badge">scope -1</span></td></tr>
+    <tr><td class="mono">Q5</td><td><strong>JSONB details.</strong> Type-specific fields live in <code>details</code> JSONB; we promote a field to a real column only if a query needs to index it (none do today).</td><td><span class="badge">schema</span></td></tr>
+  </tbody>
+</table>
+
+<!-- ════════════ ARCHITECTURE ════════════ -->
+<h2 id="arch"><span class="idx">01</span> Target architecture</h2>
+<div class="grid-2">
+  <div class="card">
+    <h4>Before</h4>
+    <pre><span class="com">invoice route ─┐
+license route ─┼─► ingestion_log</span>  <span class="red">(invoice-shaped)</span>
+               <span class="com">│      ▲ overloaded cols
+               ▼      │ invoice_number = formId
+        getIngestionHistory   linked_invoice_id = reqId
+               │
+               ▼
+   IngestionHistoryTable</span> <span class="red">(invoice columns)</span>
+        <span class="com">activity-timeline</span> <span class="red">("invoice")</span></pre>
+  </div>
+  <div class="card">
+    <h4>After</h4>
+    <pre><span class="com">invoice route ─┐  logIngestion({kind,…})
+license route ─┼─►</span> <span class="em">ingestion_log</span> <span class="com">(discriminated)
+               │   kind · source_type
+               │   details(jsonb) · entity ref
+               ▼
+        getIngestionHistory → {kind, details}
+               │
+               ▼</span>  reads <span class="em">INGESTION_TYPES</span> registry
+   <span class="com">IngestionHistoryTable</span> <span class="em">(per-kind cols)</span>
+        <span class="com">activity-timeline</span> <span class="em">(per-kind copy)</span></pre>
+  </div>
+</div>
+<p>Three load-bearing ideas: a <strong>discriminator</strong> (<code>kind</code>) on the row, a <strong>typed details payload</strong>
+(JSONB) for the long tail, and a <strong>registry</strong> that every UI surface reads so a new type never edits the table,
+the feed, or the query.</p>
+
+<!-- ════════════ DATA MODEL ════════════ -->
+<h2 id="model"><span class="idx">02</span> Data model &amp; schema</h2>
+
+<h4>New enums — src/lib/db/schema.ts</h4>
+<pre><span class="kw">export const</span> ingestionKindEnum = pgEnum(<span class="str">"ingestion_kind"</span>, [
+  <span class="str">"invoice"</span>, <span class="str">"license_request"</span>, <span class="str">"user_import"</span>, <span class="str">"other"</span>,
+]);
+<span class="kw">export const</span> ingestionSourceTypeEnum = pgEnum(<span class="str">"ingestion_source_type"</span>, [
+  <span class="str">"invoice_pdf"</span>, <span class="str">"ms_forms_license_request"</span>, <span class="str">"csv_user_import"</span>,
+]);
+<span class="com">// ingestionOutcomeEnum + ingestionChannelEnum unchanged.</span></pre>
+
+<h4>Generalised table (additive — legacy cols retained through P0–P3)</h4>
+<pre><span class="kw">export const</span> ingestionLog = pgTable(<span class="str">"ingestion_log"</span>, {
+  id:           serial(<span class="str">"id"</span>).primaryKey(),
+  <span class="em">kind:         ingestionKindEnum(<span class="str">"kind"</span>).notNull().default(<span class="str">"invoice"</span>),</span>
+  <span class="em">sourceType:   ingestionSourceTypeEnum(<span class="str">"source_type"</span>),</span>
+  outcome:      ingestionOutcomeEnum(<span class="str">"outcome"</span>).notNull(),
+  channel:      ingestionChannelEnum(<span class="str">"channel"</span>).notNull(),
+  <span class="em">label:        varchar(<span class="str">"label"</span>, { length: 500 }),</span>        <span class="com">// headline per row</span>
+  errorMessage: text(<span class="str">"error_message"</span>),
+  uploadedBy:   integer(<span class="str">"uploaded_by"</span>).references(() => users.id, { onDelete: <span class="str">"set null"</span> }),
+  createdAt:    timestamp(<span class="str">"created_at"</span>).notNull().defaultNow(),
+  <span class="em">entityType:   varchar(<span class="str">"entity_type"</span>, { length: 40 }),</span>      <span class="com">// polymorphic drill-through</span>
+  <span class="em">entityId:     integer(<span class="str">"entity_id"</span>),</span>                       <span class="com">// NO cross-type FK</span>
+  <span class="em">details:      jsonb(<span class="str">"details"</span>).$type&lt;IngestionDetails&gt;(),</span>
+  <span class="com">// DEPRECATED, dropped in P4:
+  // filename, vendor, invoiceNumber, invoiceDate, amountCents,
+  // blobPathname, linkedInvoiceId</span>
+}, (t) => [
+  index(<span class="str">"ingestion_log_kind_idx"</span>).on(t.kind),
+  index(<span class="str">"ingestion_log_created_idx"</span>).on(t.createdAt),
+]);</pre>
+
+<h4>Discriminated details type — src/types/ingestion.ts (new)</h4>
+<pre><span class="kw">export type</span> IngestionDetails =
+  | { kind: <span class="str">"invoice"</span>; vendor?: string|null; invoiceNumber?: string|null;
+      invoiceDate?: string|null; amountCents?: number|null; filename?: string|null;
+      blobPathname?: string|null; filterRuleName?: string|null }
+  | { kind: <span class="str">"license_request"</span>; formResponseId: string; requesterEmail: string;
+      requesterName: string; toolName?: string|null; tierName?: string|null; deduped: boolean }
+  | { kind: <span class="str">"user_import"</span>; rowCount: number; created: number; updated: number;
+      skipped: number; failed: number };</pre>
+
+<div class="callout red">
+  <span class="label">FIXES — THE LATENT BUG</span>
+  Dropping <code>linked_invoice_id</code> (a real FK to <code>invoices.id</code> that the license route was writing
+  <code>license_requests.id</code> into) removes both failure modes from the proposal: silent audit-insert rejection, and
+  the cross-wired "Download document" link. Drill-through becomes <code>(entity_type, entity_id)</code> resolved by the registry.
+</div>
+
+<!-- ════════════ REGISTRY ════════════ -->
+<h2 id="registry"><span class="idx">03</span> The type registry</h2>
+<p>One module, the single source of per-kind behaviour. Every surface imports it; nothing else branches on <code>kind</code> ad hoc.</p>
+<pre><span class="com">// src/lib/ingestion/registry.ts</span>
+<span class="kw">import</span> { FileText, UserPlus, Upload, Inbox } <span class="kw">from</span> <span class="str">"lucide-react"</span>;
+
+<span class="kw">export interface</span> IngestionTypeDef {
+  label: string;                 <span class="com">// "Invoice"</span>
+  icon: LucideIcon;              <span class="com">// monoline, inherits text colour</span>
+  <span class="comment">/** one-line headline from details */</span>
+  summary: (d: IngestionDetails) => string;
+  <span class="comment">/** drill-through href or null */</span>
+  drillThrough: (r: IngestionLogRow) => string | null;
+  drillLabel: string;
+  <span class="comment">/** which extra columns this kind contributes to "All" */</span>
+  columns: IngestionColumnId[];
+}
+
+<span class="kw">export const</span> INGESTION_TYPES: Record&lt;IngestionKind, IngestionTypeDef&gt; = {
+  invoice: {
+    label: <span class="str">"Invoice"</span>, icon: FileText,
+    summary: (d) => d.kind===<span class="str">"invoice"</span> ? `${d.vendor ?? <span class="str">"Unknown"</span>} · ${fmt(d.amountCents)}` : <span class="str">""</span>,
+    drillThrough: (r) => r.entityType===<span class="str">"invoice"</span> &amp;&amp; r.entityId ? `/api/invoices/${r.entityId}/pdf` : null,
+    drillLabel: <span class="str">"Download document"</span>,
+    columns: [<span class="str">"vendor"</span>, <span class="str">"amount"</span>, <span class="str">"invoiceDate"</span>],
+  },
+  license_request: {
+    label: <span class="str">"License request"</span>, icon: UserPlus,
+    summary: (d) => d.kind===<span class="str">"license_request"</span> ? `${d.requesterName} → ${d.toolName ?? <span class="str">"?"</span>}` : <span class="str">""</span>,
+    drillThrough: (r) => r.entityType===<span class="str">"license_request"</span> &amp;&amp; r.entityId ? `/requests/${r.entityId}` : null,
+    drillLabel: <span class="str">"Open request"</span>,
+    columns: [<span class="str">"requester"</span>, <span class="str">"tool"</span>, <span class="str">"tier"</span>],
+  },
+  user_import: { <span class="com">/* reserved — Q4, not wired */</span> label: <span class="str">"User import"</span>, icon: Upload, /* … */ },
+  other:       { label: <span class="str">"Other"</span>, icon: Inbox, summary: () => <span class="str">""</span>, drillThrough: () => null, drillLabel: <span class="str">""</span>, columns: [] },
+};</pre>
+
+<!-- ════════════ WRITE PATH ════════════ -->
+<h2 id="writers"><span class="idx">04</span> Write path</h2>
+<p>The invoice-typed <code>logIngestionAttempt</code> becomes a discriminated <code>logIngestion</code>. Old signature kept as a thin deprecated shim during the phase window so nothing breaks mid-migration.</p>
+<pre><span class="com">// src/lib/ingestion-logger.ts</span>
+<span class="kw">export async function</span> logIngestion(p: {
+  kind: IngestionKind;
+  sourceType?: IngestionSourceType;
+  outcome: IngestionOutcome;
+  channel: IngestionChannel;
+  details: IngestionDetails;
+  entity?: { type: string; id: number } | null;
+  errorMessage?: string | null;
+  uploadedBy?: number | null;
+}) {
+  <span class="kw">await</span> db.insert(ingestionLog).values({
+    kind: p.kind, sourceType: p.sourceType ?? null,
+    outcome: p.outcome, channel: p.channel,
+    label: buildLabel(p.kind, p.details),      <span class="com">// registry-derived headline</span>
+    details: p.details,
+    entityType: p.entity?.type ?? null, entityId: p.entity?.id ?? null,
+    errorMessage: p.errorMessage ?? null, uploadedBy: p.uploadedBy ?? null,
+  });
+}</pre>
+<div class="grid-2">
+  <div class="card"><h4>/api/invoices/ingest + actions/invoices.ts</h4>
+    <ul>
+      <li class="note"><code>saveInvoice</code> / <code>saveBulkInvoices</code> call <code>logIngestion({ kind:"invoice", sourceType:"invoice_pdf", details:{kind:"invoice", vendor, invoiceNumber, …}, entity:{type:"invoice", id} })</code>.</li>
+      <li class="note"><code>"filtered"</code> stays its true invoice meaning.</li>
+    </ul>
+  </div>
+  <div class="card"><h4>/api/license-requests/ingest</h4>
+    <ul>
+      <li class="con">Stop writing <code>linked_invoice_id</code>.</li>
+      <li class="con">Stop using <code>outcome:"filtered"</code> for dedup.</li>
+      <li class="pro">Write <code>kind:"license_request"</code>, <code>entity:{type:"license_request", id:requestId}</code>, <code>outcome:"success"</code> + <code>details.deduped</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════ READ PATH ════════════ -->
+<h2 id="read"><span class="idx">05</span> Read path</h2>
+<pre><span class="com">// src/actions/ingestion-log.ts</span>
+<span class="kw">export interface</span> IngestionLogRow {
+  id: number; kind: IngestionKind; sourceType: IngestionSourceType | null;
+  outcome: IngestionOutcome; channel: IngestionChannel;
+  label: string | null; errorMessage: string | null;
+  entityType: string | null; entityId: number | null;
+  details: IngestionDetails | null;
+  uploaderName: string | null; createdAt: string;
+}
+<span class="com">// getIngestionHistory: select the new columns; the cross-type users
+// leftJoin stays. Optional `kind?` arg → WHERE kind = … for server-side
+// sub-tab fetches (Q2). Default limit 500, ordered createdAt DESC.</span></pre>
+
+<!-- ════════════ UI ════════════ -->
+<h2 id="ui"><span class="idx">06</span> UI — Nothing style</h2>
+<p>All new UI uses the in-repo Nothing primitives (<code>Card</code>, <code>Table</code>, <code>Badge</code>, <code>Button</code>,
+<code>SegmentedBar</code>, <code>StatusText</code>, <code>LoadingState</code>) and tokens from <code>globals.css</code>. Monochrome
+canvas; the single red interrupt (<code>--destructive #d71921</code>) is reserved for <em>failed</em> ingestions only.</p>
+
+<div class="card">
+  <div class="label" style="margin-bottom: var(--space-md);">SETTINGS / INGESTION — WIREFRAME</div>
+  <pre style="background: var(--black); border-color: var(--border-visible);"><span class="com">┌──────────────────────────────────────────────────────────────────────┐</span>
+<span class="com">│</span> <span class="em">INGESTION</span>                                    [ ALL ][ INVOICES ][ LICENSE ] <span class="com">│</span>
+<span class="com">│ ──────────────────────────────────────────────────────────────────── │
+│  KIND        STATUS    SUMMARY                  CHANNEL  WHEN      ›    │
+│  ●INVOICE    [SUCCESS]  Anthropic · CHF 1,240    BULK     2h       ↓   │
+│  ●LICENSE    [SUCCESS]  J. Doe → Copilot Biz     API      3h       →   │
+│  ●LICENSE    [SUCCESS]  K. Li → Cursor  (dup)    API      3h       →   │
+│  ●INVOICE    [FILTERED] Internal credit note     MANUAL   1d       ↓   │
+│  ●INVOICE    </span><span class="red">[FAILED]</span><span class="com">   Parse error · acme.pdf     API      1d       ⓘ   │
+└──────────────────────────────────────────────────────────────────────┘</span></pre>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>Hierarchy (3-layer rule)</h4>
+    <ul>
+      <li class="note"><strong>Primary</strong> — the <code>SUMMARY</code> cell (registry <code>summary()</code>), Space Grotesk.</li>
+      <li class="note"><strong>Secondary</strong> — <code>KIND</code> pill + <code>STATUS</code> badge.</li>
+      <li class="note"><strong>Tertiary</strong> — channel, timestamp, drill icon in Space Mono caps, pushed right.</li>
+    </ul>
+    <h4>Component mapping</h4>
+    <table style="margin-top:4px;">
+      <tr><td class="mono-cell">Kind pill</td><td><code>&lt;Badge variant="default"&gt;</code> + Lucide icon</td></tr>
+      <tr><td class="mono-cell">Status</td><td><code>&lt;OutcomeBadge&gt;</code> → success/secondary/destructive</td></tr>
+      <tr><td class="mono-cell">Sub-tabs</td><td><code>&lt;ToggleGroup&gt;</code> / segmented, sets <code>kind</code> filter</td></tr>
+      <tr><td class="mono-cell">Drill</td><td><code>&lt;Button variant="ghost" size="icon"&gt;</code> from registry</td></tr>
+      <tr><td class="mono-cell">Loading</td><td><code>&lt;LoadingState label="LOADING"&gt;</code> (no skeletons)</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Nothing rules enforced</h4>
+    <ul>
+      <li class="pro">Red <em>only</em> on <code>FAILED</code> rows — the one interrupt per screen.</li>
+      <li class="pro">Status colour on the <strong>value/badge text</strong>, never a row background. No zebra striping.</li>
+      <li class="pro">Labels (<code>KIND</code>, <code>CHANNEL</code>, <code>STATUS</code>) Space Mono ALL CAPS, tracked.</li>
+      <li class="con">No shadows, no gradients, flat 1px borders, 14px card radius / pill buttons.</li>
+      <li class="con">No toasts for the filter actions — inline <code>StatusText</code> where feedback is needed.</li>
+    </ul>
+    <h4>Activity timeline copy (per kind)</h4>
+    <ul>
+      <li class="note">invoice → <em>"{vendor} invoice ingested · {amount}"</em></li>
+      <li class="note">license_request → <em>"License request · {requester} → {tool}"</em></li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="label">DOC NOTE</span>
+  This plan document is itself rendered in the Nothing system (Doto display, Space Grotesk body, Space Mono labels;
+  OLED-black instrument-panel mode; segmented-bar effort gauges below) as a working reference for the build.
+</div>
+
+<!-- ════════════ FILE MAP ════════════ -->
+<h2 id="files"><span class="idx">07</span> File-by-file map</h2>
+<table>
+  <thead><tr><th>File</th><th>Action</th><th>Phase</th></tr></thead>
+  <tbody>
+    <tr><td class="mono-cell">src/lib/db/schema.ts</td><td>add 2 enums; add cols to <code>ingestion_log</code>; later drop legacy cols</td><td class="mono">P0 / P4</td></tr>
+    <tr><td class="mono-cell">src/types/ingestion.ts <span class="badge">new</span></td><td><code>IngestionDetails</code> union + kind/source/outcome/channel types</td><td class="mono">P0</td></tr>
+    <tr><td class="mono-cell">drizzle migration (generated)</td><td>additive SQL (P0); backfill SQL (P1); destructive drop (P4)</td><td class="mono">P0/P1/P4</td></tr>
+    <tr><td class="mono-cell">scripts/backfill-ingestion-kind.ts <span class="badge">new</span></td><td>one-shot classify + populate <code>kind</code>/<code>details</code>/<code>entity</code></td><td class="mono">P1</td></tr>
+    <tr><td class="mono-cell">src/lib/ingestion-logger.ts</td><td><code>logIngestion()</code> + deprecated shim</td><td class="mono">P2</td></tr>
+    <tr><td class="mono-cell">src/lib/ingestion/registry.ts <span class="badge">new</span></td><td><code>INGESTION_TYPES</code> + <code>buildLabel()</code></td><td class="mono">P2/P3</td></tr>
+    <tr><td class="mono-cell">src/app/api/invoices/ingest/route.ts</td><td>call <code>logIngestion({kind:"invoice"…})</code></td><td class="mono">P2</td></tr>
+    <tr><td class="mono-cell">src/actions/invoices.ts</td><td><code>saveInvoice</code>/<code>saveBulkInvoices</code> → new logger</td><td class="mono">P2</td></tr>
+    <tr><td class="mono-cell">src/app/api/license-requests/ingest/route.ts</td><td>kind+entity+deduped; drop FK abuse</td><td class="mono">P2</td></tr>
+    <tr><td class="mono-cell">src/actions/ingestion-log.ts</td><td>return <code>kind</code>+<code>details</code>; optional <code>kind</code> arg</td><td class="mono">P3</td></tr>
+    <tr><td class="mono-cell">src/app/settings/ingestion/ingestion-history-table.tsx</td><td>registry-driven columns, Kind facet, sub-tabs</td><td class="mono">P3</td></tr>
+    <tr><td class="mono-cell">src/app/settings/ingestion/page.tsx</td><td>pass kind through; headings</td><td class="mono">P3</td></tr>
+    <tr><td class="mono-cell">src/components/dashboard/admin/activity-timeline.tsx</td><td>per-kind copy + icon via registry</td><td class="mono">P3</td></tr>
+  </tbody>
+</table>
+
+<!-- ════════════ TASKS ════════════ -->
+<h2 id="tasks"><span class="idx">08</span> Phased task list</h2>
+
+<div class="card">
+  <div class="label" style="margin-bottom: var(--space-md);">RELATIVE EFFORT PER PHASE</div>
+  <div class="gauge"><span class="glabel">P0 SCHEMA ADDITIVE</span>
+    <span class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="gval">S</span></div>
+  <div class="gauge"><span class="glabel">P1 BACKFILL</span>
+    <span class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="warn"></i><i></i><i></i><i></i><i></i><i></i></span><span class="gval">M</span></div>
+  <div class="gauge"><span class="glabel">P2 WRITERS</span>
+    <span class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="gval">M</span></div>
+  <div class="gauge"><span class="glabel">P3 READ + UI</span>
+    <span class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="gval">L</span></div>
+  <div class="gauge"><span class="glabel">P4 DROP LEGACY</span>
+    <span class="seg"><i class="on"></i><i class="on"></i><i class="red"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="gval">S · DESTRUCTIVE</span></div>
+</div>
+
+<h3 style="margin-top: var(--space-xl);">P0 · Schema additive <span class="badge good">no behaviour change</span></h3>
+<div class="task"><span class="tid">T-001</span><div class="tbody">Add <code>ingestionKindEnum</code> + <code>ingestionSourceTypeEnum</code>.<span class="f">src/lib/db/schema.ts</span></div><span class="tsize">S</span></div>
+<div class="task"><span class="tid">T-002</span><div class="tbody">Add columns <code>kind</code> (default <code>'invoice'</code>), <code>source_type</code>, <code>label</code>, <code>entity_type</code>, <code>entity_id</code>, <code>details</code> + two indexes.<span class="f">src/lib/db/schema.ts</span></div><span class="tsize">S</span></div>
+<div class="task"><span class="tid">T-003</span><div class="tbody">Add <code>IngestionDetails</code> union + shared kind/source/outcome/channel types.<span class="f">src/types/ingestion.ts</span></div><span class="tsize">S</span></div>
+<div class="task"><span class="tid">T-004</span><div class="tbody"><code>pnpm db:generate</code> → review additive migration (drizzle-migration-reviewer) → apply on a Neon branch.<span class="f">migration</span></div><span class="tsize">S</span></div>
+
+<h3 style="margin-top: var(--space-xl);">P1 · Backfill</h3>
+<div class="task"><span class="tid">T-010</span><div class="tbody">One-shot script: rows with invoice fields → <code>kind='invoice'</code>, copy into <code>details</code>, set <code>entity=('invoice', linked_invoice_id)</code>.<span class="f">scripts/backfill-ingestion-kind.ts</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-011</span><div class="tbody">Classify license-request rows (those whose <code>linked_invoice_id</code> resolves to a <code>license_requests</code> id / null invoice + API channel + form-id shaped <code>invoice_number</code>) → <code>kind='license_request'</code>, build <code>details</code>, set <code>entity=('license_request', id)</code>, normalise dedup rows to <code>success + deduped</code>.<span class="f">script</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-012</span><div class="tbody">Dry-run report (counts per kind, unclassifiable rows → <code>other</code>); verify on Neon branch before prod.<span class="f">script</span></div><span class="tsize">S</span></div>
+
+<h3 style="margin-top: var(--space-xl);">P2 · Write path</h3>
+<div class="task"><span class="tid">T-020</span><div class="tbody"><code>logIngestion()</code> discriminated API + <code>buildLabel()</code>; keep <code>logIngestionAttempt</code> as deprecated shim.<span class="f">src/lib/ingestion-logger.ts</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-021</span><div class="tbody">Invoice ingest route + <code>saveInvoice</code>/<code>saveBulkInvoices</code> → new logger with <code>kind:"invoice"</code>, entity ref.<span class="f">api/invoices/ingest · actions/invoices.ts</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-022</span><div class="tbody">License route → <code>kind:"license_request"</code>, <code>entity:("license_request",id)</code>, <code>success+deduped</code>; remove <code>linked_invoice_id</code> + <code>filtered</code> abuse.<span class="f">api/license-requests/ingest</span></div><span class="tsize">M</span></div>
+
+<h3 style="margin-top: var(--space-xl);">P3 · Read path + UI <span class="badge">Nothing</span></h3>
+<div class="task"><span class="tid">T-030</span><div class="tbody"><code>getIngestionHistory</code> returns <code>kind</code>+<code>details</code>+entity; optional <code>kind</code> filter arg.<span class="f">src/actions/ingestion-log.ts</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-031</span><div class="tbody">Build <code>INGESTION_TYPES</code> registry (summary, drill-through, icon, columns).<span class="f">src/lib/ingestion/registry.ts</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-032</span><div class="tbody">Rebuild history table: Kind pill column, registry summary, faceted Kind filter, All/Invoices/License sub-tabs, registry drill button. Nothing primitives only.<span class="f">ingestion-history-table.tsx</span></div><span class="tsize">L</span></div>
+<div class="task"><span class="tid">T-033</span><div class="tbody">Activity timeline → per-kind copy + icon + severity via registry.<span class="f">activity-timeline.tsx</span></div><span class="tsize">M</span></div>
+<div class="task"><span class="tid">T-034</span><div class="tbody">Page headings/empty-state copy generalised ("Data ingested via …" → kind-aware).<span class="f">settings/ingestion/page.tsx</span></div><span class="tsize">S</span></div>
+
+<h3 style="margin-top: var(--space-xl);">P4 · Drop legacy <span class="badge red">destructive · own migration</span></h3>
+<div class="task"><span class="tid">T-040</span><div class="tbody">After soak: drop <code>filename, vendor, invoice_number, invoice_date, amount_cents, blob_pathname, linked_invoice_id</code>. Remove shim. Separate reviewed migration, Neon branch first.<span class="f">schema.ts · migration</span></div><span class="tsize">S</span></div>
+
+<!-- ════════════ TESTING ════════════ -->
+<h2 id="test"><span class="idx">09</span> Testing</h2>
+<div class="grid-3">
+  <div class="card"><h4>Unit (Vitest)</h4><ul>
+    <li class="note">registry <code>summary()</code> / <code>drillThrough()</code> per kind</li>
+    <li class="note"><code>buildLabel()</code> for each details variant</li>
+    <li class="note"><code>logIngestion</code> maps fields correctly</li>
+  </ul></div>
+  <div class="card"><h4>Integration (real DB)</h4><ul>
+    <li class="note">invoice ingest → row with <code>kind='invoice'</code>, entity set</li>
+    <li class="note">license ingest (new + replay) → <code>success</code>, <code>deduped</code> flips, no FK write</li>
+    <li class="note">backfill script idempotent; correct counts</li>
+  </ul></div>
+  <div class="card"><h4>E2E + a11y (Playwright)</h4><ul>
+    <li class="note">sub-tabs filter the table</li>
+    <li class="note">invoice row downloads PDF; license row opens <code>/requests/:id</code></li>
+    <li class="note">FAILED row is the only red; contrast holds dark+light</li>
+  </ul></div>
+</div>
+<p class="mono-cell">Gates: <code>pnpm lint</code> (zero warnings) · <code>pnpm typecheck</code> · <code>pnpm test</code> · <code>pnpm test:integration</code> · <code>pnpm test:e2e</code>.</p>
+
+<!-- ════════════ SAFETY ════════════ -->
+<h2 id="safety"><span class="idx">10</span> Migration safety</h2>
+<div class="callout good">
+  <span class="label">EXPAND → MIGRATE → CONTRACT</span>
+  P0 adds nullable/defaulted columns (safe to deploy alone). P1 backfills idempotently. P2/P3 switch writers then readers
+  while legacy columns still exist — full rollback to any prior phase is non-destructive. Only P4 drops columns, gated behind
+  a soak window and its own reviewed migration.
+</div>
+<ul>
+  <li class="note">Every schema step: <code>pnpm db:generate</code> → drizzle-migration-reviewer → <strong>Neon branch first</strong>, never straight to prod.</li>
+  <li class="note">No data loss: legacy invoice columns are copied into <code>details</code> before being dropped; audit history preserved.</li>
+  <li class="note">Rollback: revert app to a phase, legacy columns are still populated by the shim through P3.</li>
+  <li class="note">Out of scope (unchanged): <code>sync_events</code>, OCR/filter logic, license approval workflow, bulk user import.</li>
+</ul>
+
+<footer>
+  SPEC/034-INGESTION-TYPES-DISTINCTION · IMPLEMENTATION-PLAN.HTML · v1 · 2026-06-03<br/>
+  NOTHING DESIGN SYSTEM · DARK / INSTRUMENT-PANEL · DOTO + SPACE GROTESK + SPACE MONO<br/>
+  RESOLVES Q1–Q5 WITH DEFAULTS · BUILDS ON PROPOSAL.HTML · NEXT: /speckit.tasks
+</footer>
+
+</main>
+</body>
+</html>

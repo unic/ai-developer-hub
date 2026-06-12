@@ -5,16 +5,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import {
-  licenseRequests,
-  aiTools,
-  accessTiers,
-  users,
-} from "@/lib/db/schema";
+import { licenseRequests, aiTools, accessTiers, users } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireBearerSecret } from "@/lib/auth-helpers";
 import { licenseRequestIngestSchema } from "@/lib/validators";
-import { logIngestionAttempt } from "@/lib/ingestion-logger";
+import { logIngestion } from "@/lib/ingestion-logger";
 import { postLicenseRequestCard } from "@/lib/teams/graph";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +28,10 @@ function hubBaseUrl(): string {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = requireBearerSecret(request, "LICENSE_REQUEST_INGEST_SECRET");
+  const authError = requireBearerSecret(
+    request,
+    "LICENSE_REQUEST_INGEST_SECRET",
+  );
   if (authError) return authError;
 
   // Body size cap — pre-read on Content-Length, post-read fallback.
@@ -59,10 +57,12 @@ export async function POST(request: NextRequest) {
     }
     payload = JSON.parse(text);
   } catch {
-    await logIngestionAttempt({
+    await logIngestion({
+      sourceType: "ms_forms_license_request",
       outcome: "failed",
-      errorMessage: "Invalid JSON body",
       channel: "api",
+      errorMessage: "Invalid JSON body",
+      details: { kind: "license_request", deduped: false },
     });
     return NextResponse.json(
       { success: false, error: "Invalid JSON body" },
@@ -73,11 +73,15 @@ export async function POST(request: NextRequest) {
   const parsed = licenseRequestIngestSchema.safeParse(payload);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const error = issue ? `${issue.path.join(".")}: ${issue.message}` : "Invalid payload";
-    await logIngestionAttempt({
+    const error = issue
+      ? `${issue.path.join(".")}: ${issue.message}`
+      : "Invalid payload";
+    await logIngestion({
+      sourceType: "ms_forms_license_request",
       outcome: "failed",
-      errorMessage: error,
       channel: "api",
+      errorMessage: error,
+      details: { kind: "license_request", deduped: false },
     });
     return NextResponse.json({ success: false, error }, { status: 400 });
   }
@@ -118,7 +122,11 @@ export async function POST(request: NextRequest) {
     toolName = tool[0].name;
   } else {
     // Refine guard already enforces this — defensive
-    return jsonError("toolId or toolName is required", 400, input.formResponseId);
+    return jsonError(
+      "toolId or toolName is required",
+      400,
+      input.formResponseId,
+    );
   }
 
   // Resolve tier (optional).
@@ -188,14 +196,24 @@ export async function POST(request: NextRequest) {
     });
     if (!existing) {
       console.error("license-requests ingest insert error:", err);
-      await logIngestionAttempt({
+      await logIngestion({
+        sourceType: "ms_forms_license_request",
         outcome: "failed",
-        errorMessage: "Database insert failed",
         channel: "api",
-        invoiceNumber: input.formResponseId,
+        errorMessage: "Database insert failed",
+        details: {
+          kind: "license_request",
+          formResponseId: input.formResponseId,
+          requesterEmail: input.requesterEmail,
+          requesterName: input.requesterName,
+          deduped: false,
+        },
       });
       return NextResponse.json(
-        { success: false, error: "An unexpected error occurred. Please try again." },
+        {
+          success: false,
+          error: "An unexpected error occurred. Please try again.",
+        },
         { status: 500 },
       );
     }
@@ -223,14 +241,22 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  await logIngestionAttempt({
-    outcome: deduped ? "filtered" : "success",
-    errorMessage: deduped ? "Duplicate form response (idempotent)" : null,
+  // 034: a dedup replay is a successful, idempotent outcome — recorded as
+  // `success` with details.deduped, not the invoice-only "filtered" outcome.
+  await logIngestion({
+    sourceType: "ms_forms_license_request",
+    outcome: "success",
     channel: "api",
-    // Repurpose invoiceNumber for the form response key. This is a known
-    // pragmatic overload of the ingestion_log schema — see implementation-notes.
-    invoiceNumber: input.formResponseId,
-    linkedInvoiceId: requestId,
+    entity: { type: "license_request", id: requestId },
+    details: {
+      kind: "license_request",
+      formResponseId: input.formResponseId,
+      requesterEmail: input.requesterEmail,
+      requesterName: input.requesterName,
+      toolName,
+      tierName,
+      deduped,
+    },
   });
 
   return NextResponse.json(
@@ -244,11 +270,16 @@ export async function POST(request: NextRequest) {
 
 function jsonError(error: string, status: number, formResponseId?: string) {
   // Fire-and-forget log — don't block the response on logger failures.
-  void logIngestionAttempt({
+  void logIngestion({
+    sourceType: "ms_forms_license_request",
     outcome: "failed",
-    errorMessage: error,
     channel: "api",
-    invoiceNumber: formResponseId ?? null,
+    errorMessage: error,
+    details: {
+      kind: "license_request",
+      formResponseId: formResponseId ?? null,
+      deduped: false,
+    },
   }).catch(() => undefined);
   return NextResponse.json({ success: false, error }, { status });
 }

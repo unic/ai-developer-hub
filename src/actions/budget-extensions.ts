@@ -52,8 +52,9 @@ function resolveAllocations(
 
     case "distribute_remaining": {
       // "Remaining" = periods whose endDate >= effectiveDate. Falls back to
-      // all periods if effectiveDate is before every period's end (i.e.
-      // backdated extensions covering the full year).
+      // all periods if effectiveDate is after every period's end (a late-dated
+      // extension landing past the final period — backdated extensions already
+      // match every period via the filter).
       const remaining = periods.filter((p) => p.endDate >= effectiveDate);
       const target = remaining.length > 0 ? remaining : periods;
       if (target.length === 0) {

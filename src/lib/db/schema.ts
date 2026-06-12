@@ -14,7 +14,7 @@ import {
   jsonb,
   check,
 } from "drizzle-orm/pg-core";
-import type { UserPreferences } from "@/types";
+import type { UserPreferences, IngestionDetails } from "@/types";
 import type { ForecastInputs } from "@/lib/scenarios/budget-forecast";
 import { relations, sql } from "drizzle-orm";
 
@@ -91,6 +91,20 @@ export const ingestionChannelEnum = pgEnum("ingestion_channel", [
   "manual",
   "api",
   "bulk",
+]);
+
+// Ingestion type discriminator (034-ingestion-types-distinction)
+export const ingestionKindEnum = pgEnum("ingestion_kind", [
+  "invoice",
+  "license_request",
+  "user_import",
+  "other",
+]);
+
+export const ingestionSourceTypeEnum = pgEnum("ingestion_source_type", [
+  "invoice_pdf",
+  "ms_forms_license_request",
+  "csv_user_import",
 ]);
 
 // Sync framework enums (019-invoice-automations)
@@ -726,34 +740,58 @@ export const syncEvents = pgTable(
   ],
 );
 
-// Ingestion Log (023-ingestion-history)
+// Ingestion Log (023-ingestion-history; discriminated in 034-ingestion-types-distinction)
 export const ingestionLog = pgTable(
   "ingestion_log",
   {
     id: serial("id").primaryKey(),
+
+    // ── Discriminator (034) ──
+    // `kind` classifies what was ingested; `sourceType` records the origin.
+    // Defaulted to "invoice" so the additive migration backfills cleanly.
+    kind: ingestionKindEnum("kind").notNull().default("invoice"),
+    sourceType: ingestionSourceTypeEnum("source_type"),
+
+    // ── Shared across every kind ──
+    outcome: ingestionOutcomeEnum("outcome").notNull(),
+    channel: ingestionChannelEnum("channel").notNull(),
+    label: varchar("label", { length: 500 }),
+    errorMessage: text("error_message"),
+    uploadedBy: integer("uploaded_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+
+    // ── Polymorphic drill-through (034) ──
+    // Replaces the unsafe cross-type FK that linked_invoice_id had become.
+    // Intentionally NOT a DB-level foreign key: entityId may reference
+    // invoices, license_requests, etc. depending on `kind`.
+    entityType: varchar("entity_type", { length: 40 }),
+    entityId: integer("entity_id"),
+
+    // ── Type-specific payload (034) ──
+    details: jsonb("details").$type<IngestionDetails>(),
+
+    // ── DEPRECATED (034) ──
+    // Retained through the expand/migrate phases; dropped in the contract
+    // migration (P4) once all readers consume `details` / entity ref.
     filename: varchar("filename", { length: 500 }),
     vendor: varchar("vendor", { length: 255 }),
     invoiceNumber: varchar("invoice_number", { length: 255 }),
     invoiceDate: date("invoice_date"),
     amountCents: integer("amount_cents"),
-    outcome: ingestionOutcomeEnum("outcome").notNull(),
-    errorMessage: text("error_message"),
-    channel: ingestionChannelEnum("channel").notNull(),
     blobPathname: text("blob_pathname"),
     linkedInvoiceId: integer("linked_invoice_id").references(
       () => invoices.id,
       { onDelete: "set null" },
     ),
-    uploadedBy: integer("uploaded_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("ingestion_log_outcome_idx").on(table.outcome),
     index("ingestion_log_created_at_idx").on(table.createdAt),
     index("ingestion_log_vendor_idx").on(table.vendor),
     index("ingestion_log_channel_idx").on(table.channel),
+    index("ingestion_log_kind_idx").on(table.kind),
   ],
 );
 

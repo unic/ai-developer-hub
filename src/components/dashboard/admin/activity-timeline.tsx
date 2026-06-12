@@ -32,9 +32,7 @@ export function ActivityTimeline({ activity }: ActivityTimelineProps) {
     <Card>
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
-        <CardDescription>
-          Invoice ingestions and assignment changes
-        </CardDescription>
+        <CardDescription>Ingestions and assignment changes</CardDescription>
       </CardHeader>
       <CardContent>
         <Timeline items={items} />

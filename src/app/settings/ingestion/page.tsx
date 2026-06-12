@@ -21,10 +21,12 @@ export default async function IngestionSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-medium tracking-tight text-ink">Ingestion</h2>
+        <h2 className="text-3xl font-medium tracking-tight text-ink">
+          Ingestion
+        </h2>
         <p className="text-muted-foreground">
-          Manage filter rules and view the history of all ingested billing
-          documents.
+          Manage filter rules and view the history of every ingestion — invoices
+          and license requests.
         </p>
       </div>
       {filtersResult.success ? (

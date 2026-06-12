@@ -210,6 +210,14 @@ export const budgetExtensionAllocationSchema = z.discriminatedUnion("mode", [
   }),
 ]);
 
+/**
+ * Postgres INTEGER (32-bit) max ≈ $21.4M. Cap individual extensions at $20M so
+ * a budget total can fit a few of them without overflowing the column. Shared
+ * with the dialog's client-side parser (extension-form.ts) so the UI can never
+ * accept a value the server rejects — and vice versa.
+ */
+export const MAX_EXTENSION_CENTS = 2_000_000_000;
+
 export const createBudgetExtensionSchema = z.object({
   budgetId: z.number().int().positive(),
   // Non-zero — positive extension or negative reduction. The DB has a
@@ -217,7 +225,10 @@ export const createBudgetExtensionSchema = z.object({
   amountCents: z
     .number()
     .int()
-    .refine((n) => n !== 0, { message: "Amount must be non-zero" }),
+    .refine((n) => n !== 0, { message: "Amount must be non-zero" })
+    .refine((n) => Math.abs(n) <= MAX_EXTENSION_CENTS, {
+      message: "Amount exceeds the maximum supported value",
+    }),
   reason: z.string().trim().min(3).max(120),
   description: z.string().trim().max(2000).optional(),
   category: budgetExtensionCategorySchema,

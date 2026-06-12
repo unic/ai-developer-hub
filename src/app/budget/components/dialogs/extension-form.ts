@@ -1,5 +1,8 @@
 import { formatDateOnly } from "@/lib/utils";
+import { MAX_EXTENSION_CENTS } from "@/lib/validators";
 import type { BudgetExtensionCategory } from "@/types";
+
+export { MAX_EXTENSION_CENTS };
 
 export type AllocationMode =
   | "unallocated"
@@ -34,12 +37,6 @@ export function makeEmptyExtensionForm(): ExtensionFormState {
     singlePeriodId: "",
   };
 }
-
-/**
- * Postgres INTEGER (32-bit) max ≈ $21.4M. Cap individual extensions at $20M
- * so a budget total can fit a few of them without overflowing the column.
- */
-export const MAX_EXTENSION_CENTS = 2_000_000_000;
 
 /**
  * Parse the amount field with the SAME rules the submit path uses, so the
