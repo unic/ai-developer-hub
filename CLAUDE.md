@@ -115,6 +115,7 @@ pnpm lighthouse        # Lighthouse CI
 - Server Components by default — `"use client"` only when client interactivity needed
 
 ## Recent Changes
+- 041-forecast-scenario-persistence: Saved Forecast Scenarios — persist named `ForecastInputs` parameter sets for the Budget / Cost Forecast Simulation (new `forecast_scenarios` table, migration 0026; CRUD server actions with audit snapshots; save/load/rename/delete UI with StatusText feedback); scenarios are shared per active budget and re-projected against live data on load
 - 040-h2-forecast-presets: Replaced the Budget / Cost Forecast presets with three H2 2026 migration scenarios (Console API fade-out, Claude seat ramp at 35–40% Premium) and added a Monthly/Yearly Claude billing toggle (yearly = 20% off the live tier prices); engine + client + unit tests only, no schema/loader changes
 - 039-mcp-role-scoping: Added TypeScript 5.9.3 (strict mode), Node.js LTS + Next.js 15.5.12 (App Router), `mcp-handler` 1.1.0, `@modelcontextprotocol/sdk` (via mcp-handler), Drizzle ORM 0.45.1, Zod 4.3.6
 - 036-budget-forecast-simulation: Added the Budget / Cost Forecast Simulation scenario (`/scenarios/budget-forecast`) — a pure projection engine + Recharts burn-up UI (Nothing design), read-only over existing budget/cost tables

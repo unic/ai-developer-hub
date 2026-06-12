@@ -6,6 +6,7 @@ import {
   projectForecast,
   computeTrendBand,
   inputsFromPreset,
+  inputsFromSaved,
   defaultInputs,
   FORECAST_PRESETS,
   type ForecastDataset,
@@ -548,5 +549,136 @@ describe("inputsFromPreset / defaultInputs", () => {
     expect(yearly.perTool.claude).toEqual([0, 0, 0, 95680, 158080, 220480]);
     // 180000 + 17344 + 474240 + 102600
     expect(yearly.yearEndCents).toBe(774184);
+  });
+});
+
+describe("inputsFromSaved (spec 041)", () => {
+  const ds = makeDataset();
+
+  /** A representative saved parameter set: edited ceiling, tuned levers. */
+  const SAVED: ForecastInputs = {
+    ceilingCents: 260000,
+    tools: {
+      api: {
+        include: true,
+        model: "compound",
+        val: -25,
+        burnPct: 5,
+        burnCap: 800,
+      },
+      copilot: { include: false, model: "flat", val: 0 },
+      claude: {
+        include: true,
+        model: "linear",
+        val: 15,
+        premShare: 0.4,
+        billing: "yearly",
+      },
+    },
+  };
+
+  it("carries the saved ceiling, including the 0 boundary", () => {
+    expect(inputsFromSaved(ds, SAVED).ceilingCents).toBe(260000);
+    expect(
+      inputsFromSaved(ds, { ...SAVED, ceilingCents: 0 }).ceilingCents,
+    ).toBe(0);
+  });
+
+  it("copies params per tool, preserving every lever", () => {
+    const rebased = inputsFromSaved(ds, SAVED);
+    expect(rebased.tools.api).toEqual(SAVED.tools.api);
+    expect(rebased.tools.copilot).toEqual(SAVED.tools.copilot);
+    expect(rebased.tools.claude).toEqual(SAVED.tools.claude);
+  });
+
+  it("preserves the yearly billing cadence through the rebase", () => {
+    // This copy is what makes "load restores the cadence" true — the client
+    // derives the toggle from the claudeSeats tool's params.
+    expect(inputsFromSaved(ds, SAVED).tools.claude.billing).toBe("yearly");
+  });
+
+  it("drops tool keys that no longer exist in the dataset", () => {
+    const withGhost: ForecastInputs = {
+      ...SAVED,
+      tools: {
+        ...SAVED.tools,
+        ghost: { include: true, model: "linear", val: 99 },
+      },
+    };
+    const rebased = inputsFromSaved(ds, withGhost);
+    expect(rebased.tools.ghost).toBeUndefined();
+    expect(Object.keys(rebased.tools).sort()).toEqual([
+      "api",
+      "claude",
+      "copilot",
+    ]);
+  });
+
+  it("defaults tools the dataset gained since the save", () => {
+    const partial: ForecastInputs = {
+      ceilingCents: 260000,
+      tools: { api: SAVED.tools.api },
+    };
+    const rebased = inputsFromSaved(ds, partial);
+    // copilot/claude were absent from the save → DEFAULT_PARAMS.
+    expect(rebased.tools.copilot).toEqual({
+      include: true,
+      model: "flat",
+      val: 0,
+    });
+    expect(rebased.tools.claude).toEqual({
+      include: true,
+      model: "flat",
+      val: 0,
+    });
+  });
+
+  it("an empty saved tools record yields all-defaults with the saved ceiling", () => {
+    const rebased = inputsFromSaved(ds, { ceilingCents: 123400, tools: {} });
+    expect(rebased.ceilingCents).toBe(123400);
+    for (const tool of ds.tools) {
+      expect(rebased.tools[tool.key]).toEqual({
+        include: true,
+        model: "flat",
+        val: 0,
+      });
+    }
+  });
+
+  it("returns copies — mutating the result never mutates the saved params", () => {
+    const rebased = inputsFromSaved(ds, SAVED);
+    rebased.tools.api.val = 999;
+    rebased.tools.claude.billing = undefined;
+    expect(SAVED.tools.api.val).toBe(-25);
+    expect(SAVED.tools.claude.billing).toBe("yearly");
+  });
+
+  it("a billing value stranded on a non-claudeSeats key copies through but is cost-neutral", () => {
+    // e.g. the claude tool's key was reused by a seat-kind tool after a reseed:
+    // the engine ignores `billing` on seat/metered kinds (pinned above), so the
+    // stranded value must not change a single figure.
+    const stranded: ForecastInputs = {
+      ceilingCents: 500000,
+      tools: {
+        api: { include: true, model: "flat", val: 0, burnPct: 0 },
+        copilot: {
+          include: true,
+          model: "flat",
+          val: 0,
+          billing: "yearly",
+        },
+        claude: { include: true, model: "flat", val: 0, premShare: 0.25 },
+      },
+    };
+    const without = projectForecast(ds, {
+      ...stranded,
+      tools: {
+        ...stranded.tools,
+        copilot: { include: true, model: "flat", val: 0 },
+      },
+    });
+    const withStranded = projectForecast(ds, inputsFromSaved(ds, stranded));
+    expect(withStranded.perTool.copilot).toEqual(without.perTool.copilot);
+    expect(withStranded.yearEndCents).toBe(without.yearEndCents);
   });
 });

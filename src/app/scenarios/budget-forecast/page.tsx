@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { loadBudgetForecastDataset } from "@/actions/scenarios";
+import { listForecastScenarios } from "@/actions/forecast-scenarios";
 import { BudgetForecastClient } from "./budget-forecast-client";
 
 export const metadata: Metadata = {
@@ -10,7 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default async function BudgetForecastScenarioPage() {
-  const dataset = await loadBudgetForecastDataset();
+  const [dataset, savedScenarios] = await Promise.all([
+    loadBudgetForecastDataset(),
+    listForecastScenarios(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -36,7 +40,10 @@ export default async function BudgetForecastScenarioPage() {
       {dataset.periods.length === 0 ? (
         <EmptyState />
       ) : (
-        <BudgetForecastClient dataset={dataset} />
+        <BudgetForecastClient
+          dataset={dataset}
+          savedScenarios={savedScenarios}
+        />
       )}
     </div>
   );
