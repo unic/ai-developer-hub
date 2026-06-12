@@ -494,17 +494,17 @@ describe("inputsFromPreset / defaultInputs", () => {
     ).yearEndCents;
 
     // Hand-computed anchors on this fixture (spentToDate 180000 + remaining):
-    //   h2Gradual:     api 7500+5625+4219=17344 · claude (8+10k seats × 4800
-    //                  blended @35%) 86400+134400+182400=403200 · copilot flat
-    //                  38000×3=114000 → 180000+534544 = 714544
-    //   h2Plan:        api 6500+4225+2746=13471 · claude (8+15k × 5200 @40%)
-    //                  119600+197600+275600=592800 · copilot −1/period
-    //                  36100+34200+32300=102600 → 180000+708871 = 888871
-    //   h2Accelerated: api 5000+2500+1250=8750 · claude (8+20k × 5200 @40%)
-    //                  145600+249600+353600=748800 · copilot −2/period
+    //   h2Gradual:     api −15%: 8500+7225+6141=21866 · claude (8+10k seats ×
+    //                  4800 blended @35%) 86400+134400+182400=403200 · copilot
+    //                  flat 38000×3=114000 → 180000+539066 = 719066
+    //   h2Plan:        api −25%: 7500+5625+4219=17344 · claude (8+15k × 5200
+    //                  @40%) 119600+197600+275600=592800 · copilot −1/period
+    //                  36100+34200+32300=102600 → 180000+712744 = 892744
+    //   h2Accelerated: api −50%: 5000+2500+1250=8750 · claude (8+20k × 5200
+    //                  @40%) 145600+249600+353600=748800 · copilot −2/period
     //                  34200+30400+26600=91200 → 180000+848750 = 1028750
-    expect(gradual).toBe(714544);
-    expect(plan).toBe(888871);
+    expect(gradual).toBe(719066);
+    expect(plan).toBe(892744);
     expect(accelerated).toBe(1028750);
 
     expect(gradual).toBeLessThan(plan);
@@ -546,7 +546,7 @@ describe("inputsFromPreset / defaultInputs", () => {
     expect(yearly.perTool.api).toEqual(monthly.perTool.api);
     expect(yearly.perTool.copilot).toEqual(monthly.perTool.copilot);
     expect(yearly.perTool.claude).toEqual([0, 0, 0, 95680, 158080, 220480]);
-    // 180000 + 13471 + 474240 + 102600
-    expect(yearly.yearEndCents).toBe(770311);
+    // 180000 + 17344 + 474240 + 102600
+    expect(yearly.yearEndCents).toBe(774184);
   });
 });

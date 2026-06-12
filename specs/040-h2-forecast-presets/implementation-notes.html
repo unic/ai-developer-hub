@@ -60,8 +60,8 @@
   <h3>"Replace the three presets with the H2 prediction in a similar manner" → three H2 speed variants <span class="tag dd">interpretation</span></h3>
   <p>The request names one H2 prediction but asks to replace all three presets "in a similar manner". <b>Decision:</b>
     keep the slow / central / fast triad the UI is built around (tiles, ghost lines, comparison rows), but make all
-    three variants of the <b>same H2 migration plan</b> at different speeds: <b>H2 Gradual</b> (API −25%/period,
-    Claude +10/period @ 35% Premium, Copilot flat), <b>H2 Plan</b> (API −35%, Claude +15 @ 40%, Copilot −1/period —
+    three variants of the <b>same H2 migration plan</b> at different speeds: <b>H2 Gradual</b> (API −15%/period,
+    Claude +10/period @ 35% Premium, Copilot flat), <b>H2 Plan</b> (API −25%, Claude +15 @ 40%, Copilot −1/period —
     the central prediction and new default), <b>H2 Accelerated</b> (API −50%, Claude +20 @ 40%, Copilot −2/period).
     Cursor and MS Copilot stay flat in all three. The user's stated ranges (10–20 seats/period, 35–40% Premium,
     "maybe 40 would be good") map onto the three variants directly, with 40% on the central plan.</p>
@@ -71,10 +71,12 @@
   <h3>API fade-out encoded as compound decline <span class="tag dd">presets</span></h3>
   <p>"Fade out very fast, down to almost zero seats, maybe only having a few applications and a few users" — a compound
     negative rate decays toward zero but never reaches it, matching "a few remain". From the live 42 active API keys
-    over the ~7 remaining FY2026 periods: −25% → ≈ 5–6 keys, −35% → ≈ 2 keys, −50% → ≈ 0.3 keys at year-end. Per-key
-    burn is held flat (burn growth 0%, no cap): the seat fade is the story, and surviving applications are assumed to
-    burn today's average. A linear "−N keys/period" alternative hits exactly zero and then clamps — rejected because
-    the brief explicitly keeps a residue of apps/users.</p>
+    over the ~7 remaining FY2026 periods: −15% → ≈ 13–14 keys, −25% → ≈ 5–6 keys, −50% → ≈ 0.3 keys at year-end.
+    Per-key burn is held flat (burn growth 0%, no cap): the seat fade is the story, and surviving applications are
+    assumed to burn today's average. A linear "−N keys/period" alternative hits exactly zero and then clamps —
+    rejected because the brief explicitly keeps a residue of apps/users. (Originally drafted as −25/−35/−50 with the
+    central plan at ≈ 2 keys; re-tuned to −15/−25/−50 after the user confirmed ≈ 5 remaining keys is the realistic
+    target — see resolved questions below.)</p>
 </div>
 
 <div class="entry dd">
@@ -161,20 +163,20 @@
 </div>
 
 <!-- ========================================================= -->
-<h2>Open questions <span class="ts">(for review)</span></h2>
+<h2>Open questions <span class="ts">(resolved 2026-06-12)</span></h2>
 
-<div class="entry oq">
-  <h3>Exact fade percentages <span class="tag oq">confirm</span></h3>
-  <p>−25 / −35 / −50%/period are tuned so the central plan lands ≈ 2 API keys at FY-end from today's 42 ("a few
-    applications and a few users"). If "a few" should mean ~5+, the central plan should use −25 to −30%. The values are
-    one-line preset edits.</p>
+<div class="entry to">
+  <h3>Exact fade percentages <span class="tag to">resolved — re-tuned</span></h3>
+  <p>Originally −25 / −35 / −50%/period, landing the central plan at ≈ 2 API keys at FY-end. <b>User: "5 is more
+    realistic."</b> Re-tuned to <b>−15 / −25 / −50</b>: the central plan now lands ≈ 5–6 keys (42 × 0.75⁷ ≈ 5.6),
+    the gradual variant ≈ 13–14, the hard cutover unchanged. Unit-test anchors recomputed by hand
+    (719 066 / 892 744 / 1 028 750 monthly; 774 184 h2Plan yearly) — strict ascending ordering still holds.</p>
 </div>
 
-<div class="entry oq">
-  <h3>Should any preset default to yearly billing? <span class="tag oq">confirm</span></h3>
-  <p>All presets default to <b>monthly</b> (today's reality); yearly is a user-flipped toggle that persists across
-    preset switches. If the H2 plan's intent is to commit annually from the start, the default could flip to yearly —
-    one-line change.</p>
+<div class="entry to">
+  <h3>Should any preset default to yearly billing? <span class="tag to">resolved — no change</span></h3>
+  <p><b>User: monthly is OK.</b> All presets keep the monthly default (today's reality); yearly remains a user-flipped
+    toggle that persists across preset switches. Shipped as built.</p>
 </div>
 
 <!-- ========================================================= -->

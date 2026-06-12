@@ -304,7 +304,8 @@ export function computeTrendBand(ds: ForecastDataset): TrendBand {
  * slowly or hold flat, and keep Cursor and Microsoft Copilot as-is.
  *
  * The API fade rates are tuned against the live ~42 active keys over the ~7
- * remaining FY2026 periods: −25% ≈ 5–6 keys left, −35% ≈ 2, −50% ≈ 0.3.
+ * remaining FY2026 periods: −15% ≈ 13–14 keys left, −25% ≈ 5–6 (the central
+ * plan — confirmed "a few applications and a few users" target), −50% ≈ 0.3.
  * Per-key burn is held flat (burnPct 0, no cap) — the seat fade is the story.
  */
 export type PresetKey = "h2Gradual" | "h2Plan" | "h2Accelerated";
@@ -320,7 +321,7 @@ export const FORECAST_PRESETS: Record<PresetKey, ForecastPreset> = {
     label: "H2 Gradual",
     tag: "Soft landing",
     tools: {
-      api: { include: true, model: "compound", val: -25, burnPct: 0 },
+      api: { include: true, model: "compound", val: -15, burnPct: 0 },
       claude: { include: true, model: "linear", val: 10, premShare: 0.35 },
       copilot: { include: true, model: "flat", val: 0 },
       cursor: { include: true, model: "flat", val: 0 },
@@ -331,7 +332,7 @@ export const FORECAST_PRESETS: Record<PresetKey, ForecastPreset> = {
     label: "H2 Plan",
     tag: "Console sunset",
     tools: {
-      api: { include: true, model: "compound", val: -35, burnPct: 0 },
+      api: { include: true, model: "compound", val: -25, burnPct: 0 },
       claude: { include: true, model: "linear", val: 15, premShare: 0.4 },
       copilot: { include: true, model: "linear", val: -1 },
       cursor: { include: true, model: "flat", val: 0 },
