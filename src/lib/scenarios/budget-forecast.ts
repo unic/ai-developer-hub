@@ -25,6 +25,11 @@ export type ClaudeBilling = "monthly" | "yearly";
  */
 export const CLAUDE_YEARLY_FACTOR = 0.8;
 
+/** Effective price multiplier for a Claude seats billing cadence. */
+export function claudeBillingFactor(billing?: ClaudeBilling): number {
+  return billing === "yearly" ? CLAUDE_YEARLY_FACTOR : 1;
+}
+
 /** A tool's current state, assembled in budget-forecast-queries.ts. */
 export type ForecastTool = {
   key: string;
@@ -144,9 +149,9 @@ export function toolCostAt(
     const share = p.premShare ?? tool.premShare0 ?? 0;
     const prem = seats * share;
     const std = seats - prem;
-    const factor = p.billing === "yearly" ? CLAUDE_YEARLY_FACTOR : 1;
     return Math.round(
-      (std * (tool.stdPrice ?? 0) + prem * (tool.premPrice ?? 0)) * factor,
+      (std * (tool.stdPrice ?? 0) + prem * (tool.premPrice ?? 0)) *
+        claudeBillingFactor(p.billing),
     );
   }
   const seats = seatsAt(tool.seats0, p.model, p.val, k);
@@ -158,16 +163,8 @@ export function currentMonthlyCost(tool: ForecastTool, p: ToolParams): number {
   if (tool.kind === "metered") {
     return Math.round(tool.seats0 * (tool.burn0 ?? 0));
   }
-  if (tool.kind === "claudeSeats") {
-    const share = p.premShare ?? tool.premShare0 ?? 0;
-    const prem = tool.seats0 * share;
-    const factor = p.billing === "yearly" ? CLAUDE_YEARLY_FACTOR : 1;
-    return Math.round(
-      ((tool.seats0 - prem) * (tool.stdPrice ?? 0) +
-        prem * (tool.premPrice ?? 0)) *
-        factor,
-    );
-  }
+  // claudeSeats at the anchor is exactly the k=0 projection (no cap involved).
+  if (tool.kind === "claudeSeats") return toolCostAt(tool, p, 0);
   return Math.round(tool.seats0 * (tool.price ?? 0));
 }
 

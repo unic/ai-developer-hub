@@ -46,6 +46,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { formatAxisUSDk, formatUSD0 } from "@/lib/chart-format";
 import {
   CLAUDE_YEARLY_FACTOR,
+  claudeBillingFactor,
   computeTrendBand,
   currentMonthlyCost,
   defaultInputs,
@@ -119,13 +120,12 @@ export function BudgetForecastClient({
   // Claude billing cadence is a procurement assumption, not a scenario lever —
   // it lives on the claudeSeats-kind tool's params (undefined ≡ monthly) and is
   // threaded through preset application *and* scoring so it survives tile
-  // switches and every comparison stays like-for-like.
-  const claudeBilling = useMemo<ClaudeBilling>(() => {
-    const claudeTool = dataset.tools.find((t) => t.kind === "claudeSeats");
-    return claudeTool
-      ? (inputs.tools[claudeTool.key]?.billing ?? "monthly")
-      : "monthly";
-  }, [dataset.tools, inputs.tools]);
+  // switches and every comparison stays like-for-like. A primitive, so the
+  // presetInputs memo below only invalidates when the cadence actually flips.
+  const claudeSeatsTool = dataset.tools.find((t) => t.kind === "claudeSeats");
+  const claudeBilling: ClaudeBilling =
+    (claudeSeatsTool && inputs.tools[claudeSeatsTool.key]?.billing) ??
+    "monthly";
 
   // The three named presets, computed once per dataset — drives the scenario
   // tiles, the comparison table, and the ghost cumulative lines.
@@ -960,7 +960,9 @@ export function BudgetForecastClient({
         combined actual; the forecast is modelled per tool from the controls
         above
         {claudeBilling === "yearly"
-          ? " · Claude seats priced at the yearly-billing rate (20% off the monthly tier prices)"
+          ? ` · Claude seats priced at the yearly-billing rate (${Math.round(
+              (1 - CLAUDE_YEARLY_FACTOR) * 100,
+            )}% off the monthly tier prices)`
           : ""}{" "}
         · assembled {dataset.generatedAt.slice(0, 16).replace("T", " ")} UTC
       </p>
@@ -1215,10 +1217,8 @@ function ToolControl({
                 onChange={(v) => onChange({ premShare: v / 100 })}
               />
               <BillingToggle
-                toolLabel={tool.label}
+                tool={tool}
                 billing={params.billing ?? "monthly"}
-                stdPrice={tool.stdPrice ?? 0}
-                premPrice={tool.premPrice ?? 0}
                 onChange={(billing) => onChange({ billing })}
               />
             </>
@@ -1243,25 +1243,21 @@ function ToolControl({
  * annual-commit discount is visible without leaving the row.
  */
 function BillingToggle({
-  toolLabel,
+  tool,
   billing,
-  stdPrice,
-  premPrice,
   onChange,
 }: {
-  toolLabel: string;
+  tool: ForecastTool;
   billing: ClaudeBilling;
-  stdPrice: number;
-  premPrice: number;
   onChange: (billing: ClaudeBilling) => void;
 }) {
-  const factor = billing === "yearly" ? CLAUDE_YEARLY_FACTOR : 1;
+  const factor = claudeBillingFactor(billing);
   return (
     <div>
       <ControlLabel>Billing</ControlLabel>
       <div
         role="group"
-        aria-label={`Billing cadence for ${toolLabel}`}
+        aria-label={`Billing cadence for ${tool.label}`}
         className="mt-2 inline-flex w-full overflow-hidden rounded-[6px] border border-input"
       >
         <ToggleButton
@@ -1278,8 +1274,8 @@ function BillingToggle({
         </ToggleButton>
       </div>
       <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wide text-faint">
-        {formatUSD0(Math.round(stdPrice * factor))} std ·{" "}
-        {formatUSD0(Math.round(premPrice * factor))} prem / seat / mo
+        {formatUSD0((tool.stdPrice ?? 0) * factor)} std ·{" "}
+        {formatUSD0((tool.premPrice ?? 0) * factor)} prem / seat / mo
       </p>
     </div>
   );

@@ -178,6 +178,33 @@
 </div>
 
 <!-- ========================================================= -->
+<h2>Simplify pass <span class="ts">(4 parallel cleanup reviews → fixes applied)</span></h2>
+
+<div class="entry to">
+  <h3>6 fixes applied, 2 findings deliberately skipped <span class="tag to">post-implementation</span></h3>
+  <ul>
+    <li><b>Applied:</b> <code>currentMonthlyCost</code>'s claudeSeats branch now delegates to
+      <code>toolCostAt(tool, p, 0)</code> — the blend + factor math previously existed twice and had to be edited in
+      lockstep (this feature proved the cost). The metered branch stays custom (deliberately uncapped for display).</li>
+    <li><b>Applied:</b> the cadence→factor mapping (<code>billing === "yearly" ? 0.8 : 1</code>, pasted in three
+      places) is centralized as the exported <code>claudeBillingFactor()</code> helper.</li>
+    <li><b>Applied:</b> dropped a redundant <code>Math.round</code> before <code>formatUSD0</code> (the formatter
+      already renders whole dollars); <code>claudeBilling</code> demoted from <code>useMemo</code> to a plain derived
+      const (primitive value — downstream memos compare by value either way); <code>BillingToggle</code> takes the
+      <code>tool</code> whole instead of three projected props; the footnote computes its discount percentage from
+      <code>CLAUDE_YEARLY_FACTOR</code> instead of hardcoding "20%".</li>
+    <li><b>Skipped:</b> extracting <code>ToggleButton</code> to a shared module — page-local duplication between the
+      two scenario clients is the established convention (<code>Kpi</code> and <code>ControlLabel</code> are already
+      duplicated verbatim between the same files); extract when a third consumer appears.</li>
+    <li><b>Skipped:</b> a per-tool billing carry (<code>inputsFromPreset(ds, key, prevInputs)</code>) for a
+      hypothetical second claudeSeats tool — the loader can only construct one, and the simpler signature is
+      test-locked.</li>
+    <li>An efficiency reviewer confirmed the memo graph is sound: the primitive cadence value firewalls the expensive
+      preset re-projections from per-keystroke <code>inputs.tools</code> churn.</li>
+  </ul>
+</div>
+
+<!-- ========================================================= -->
 <h2>Verification <span class="ts">(what was checked)</span></h2>
 
 <div class="entry to">
