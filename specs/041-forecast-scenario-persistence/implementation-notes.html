@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Saved Forecast Scenarios (041)</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --bg-elev: #11141b;
+        --bg-card: #161a24;
+        --border: #232938;
+        --border-strong: #2f3850;
+        --fg: #e7ebf3;
+        --fg-muted: #9aa3b5;
+        --fg-dim: #6b7488;
+        --accent: #f0a072;
+        --accent-2: #7dd3fc;
+        --good: #86efac;
+        --warn: #fcd34d;
+        --bad: #fca5a5;
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        line-height: 1.55;
+      }
+      body {
+        padding: 48px 24px 96px;
+      }
+      main {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 30px;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 20px;
+        margin: 44px 0 4px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 15px;
+        margin: 22px 0 4px;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+        background: var(--bg-elev);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+      }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 15.5px;
+        max-width: 80ch;
+      }
+      .meta {
+        color: var(--fg-dim);
+        font-size: 13px;
+        margin-top: 8px;
+        font-family: var(--mono);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-family: var(--mono);
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        color: var(--fg-muted);
+        background: var(--bg-elev);
+      }
+      .entry {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px 20px;
+        margin: 14px 0;
+      }
+      .entry.dd {
+        border-left: 3px solid var(--accent-2);
+      }
+      .entry.dev {
+        border-left: 3px solid var(--warn);
+      }
+      .entry.to {
+        border-left: 3px solid var(--accent);
+      }
+      .entry.oq {
+        border-left: 3px solid var(--bad);
+      }
+      .entry h3 {
+        margin-top: 0;
+      }
+      .tag {
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding: 2px 7px;
+        border-radius: 3px;
+        vertical-align: middle;
+        margin-left: 8px;
+      }
+      .tag.dd {
+        color: var(--accent-2);
+        border: 1px solid rgba(125, 211, 252, 0.3);
+      }
+      .tag.dev {
+        color: var(--warn);
+        border: 1px solid rgba(252, 211, 77, 0.3);
+      }
+      .tag.to {
+        color: var(--accent);
+        border: 1px solid rgba(240, 160, 114, 0.3);
+      }
+      .tag.oq {
+        color: var(--bad);
+        border: 1px solid rgba(252, 165, 165, 0.3);
+      }
+      .entry p {
+        font-size: 13.5px;
+        color: var(--fg-muted);
+      }
+      .entry b {
+        color: var(--fg);
+      }
+      ul {
+        padding-left: 20px;
+        margin: 6px 0 10px;
+      }
+      li {
+        margin: 3px 0;
+        font-size: 13.5px;
+        color: var(--fg-muted);
+      }
+      .ts {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--fg-dim);
+      }
+      footer {
+        color: var(--fg-dim);
+        font-size: 12.5px;
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div style="margin-bottom: 14px">
+          <span class="badge">Implementation notes</span>
+          <span class="badge">spec/041-forecast-scenario-persistence</span>
+          <span class="badge">running log</span>
+        </div>
+        <h1>Implementation notes — Saved Forecast Scenarios</h1>
+        <p class="lede">
+          A running record of where the build diverges from or interprets the
+          request: design decisions on ambiguous points, intentional deviations,
+          tradeoffs considered, and open questions for review. Entries are
+          appended as work proceeds.
+        </p>
+        <p class="meta">
+          Started 2026-06-12 · branch
+          <code>041-forecast-scenario-persistence</code> · companion:
+          <a href="./implementation-plan.html">implementation-plan.html</a>
+        </p>
+      </header>
+
+      <!-- ========================================================= -->
+      <h2>
+        Design decisions <span class="ts">(ambiguous spots, choices made)</span>
+      </h2>
+
+      <div class="entry dd">
+        <h3>
+          "Persistence of scenarios" → shared, budget-scoped, named parameter
+          sets <span class="tag dd">interpretation</span>
+        </h3>
+        <p>
+          The request says only "implement the persistence of scenarios". Three
+          readings were possible: (a) persist the user's
+          <i>current working state</i> (auto-save, like a draft), (b) per-user
+          private saved scenarios, (c) shared named scenarios.
+          <b>Decision: (c)</b> — it is what spec 036 explicitly deferred ("Save
+          &amp; name scenarios — needs a <code>forecast_scenarios</code> table
+          (JSON params + label + budget_id)"), and the calculator is a
+          team-alignment tool for admins: a saved plan everyone can open beats a
+          private draft. <code>created_by</code> records attribution.
+          Auto-saving working state (a) was rejected as silent magic; explicit
+          save/load matches the rest of the app.
+        </p>
+      </div>
+
+      <div class="entry dd">
+        <h3>
+          Assumptions are stored, results are recomputed
+          <span class="tag dd">semantics</span>
+        </h3>
+        <p>
+          A saved scenario stores the <code>ForecastInputs</code> parameter set
+          (edited ceiling + per-tool levers incl. billing cadence) — never
+          year-end figures. On load, params are re-based onto the current
+          dataset (<code>inputsFromSaved</code>: extinct tool keys dropped, new
+          tools defaulted) and re-projected against live data, exactly like a
+          preset. The saved-list rows show <i>recomputed</i> year-end / Δ so the
+          list answers "what would this plan mean today", not "what did it mean
+          when saved".
+        </p>
+      </div>
+
+      <div class="entry dd">
+        <h3>
+          Load restores the saved ceiling; preset tiles keep resetting it
+          <span class="tag dd">ux</span>
+        </h3>
+        <p>
+          040 established a deliberate asymmetry: clicking a preset tile resets
+          the edited ceiling to the live one but keeps the billing cadence.
+          Saved scenarios get the opposite:
+          <b
+            >loading restores the full assumption set, including the saved
+            ceiling and cadence</b
+          >
+          — the user saved a complete what-if and expects it back verbatim. The
+          two affordances answer different questions ("this preset against the
+          live budget" vs "this plan as I tuned it"), so the asymmetry is
+          intentional, not accidental. Saved rows are likewise scored against
+          <b>their own saved ceiling</b>, not the page's transient edited one.
+        </p>
+      </div>
+
+      <div class="entry dd">
+        <h3>List card, not extra tiles <span class="tag dd">ux</span></h3>
+        <p>
+          Saved scenarios render as a card of rows between the preset tiles and
+          the Assumptions panel, not as additional tiles in the preset grid: the
+          tile grid is a fixed comparison frame (3 presets + Custom), a tile is
+          a single <code>&lt;button&gt;</code> and cannot legally nest a delete
+          button, and a grid doesn't scale to N saved entries. The card is
+          hidden when empty (the "Save scenario" button in the Assumptions
+          header is the discovery point).
+        </p>
+      </div>
+
+      <div class="entry dd">
+        <h3>
+          Validate on write AND on read; strip semantics, not strict
+          <span class="tag dd">robustness</span>
+        </h3>
+        <p>
+          The jsonb column is an open contract. Writes
+          <code>safeParse</code> and store <code>parsed.data</code> (canonical);
+          reads re-validate each row and skip non-conforming ones with a
+          <code>console.error</code> instead of crashing the page.
+          <b>Revised in the challenge pass:</b> plain <code>z.object</code> (Zod
+          default strip semantics — the only style used in
+          <code>validators.ts</code>) instead of <code>.strict()</code>: unknown
+          keys are dropped, keeping rows loadable across schema evolution, where
+          strict would turn drift into save failures and skipped rows.
+          <code>.finite()</code> was also dropped — Zod 4's
+          <code>z.number()</code> already rejects NaN/Infinity by default (the
+          original rationale was stale). Bounds are generous modelling limits
+          (ceiling ≤ $1B, |growth| ≤ 100k, ≤ 20 tool entries), not business
+          rules.
+        </p>
+      </div>
+
+      <div class="entry dd">
+        <h3>Uncached list read <span class="tag dd">caching</span></h3>
+        <p>
+          The dataset loader stays behind <code>unstable_cache</code> (1h TTL) —
+          scenario writes don't change cost data. The scenario list itself is a
+          plain uncached select on an already-dynamic page: freshness matters
+          after every save/delete, the query is one indexed select, and skipping
+          the cache avoids tag-invalidation choreography. Mutations
+          <code>revalidatePath("/scenarios/budget-forecast")</code> + client
+          <code>router.refresh()</code>.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>
+        Deviations
+        <span class="ts">(intentional departures from the request)</span>
+      </h2>
+
+      <div class="entry dev">
+        <h3>None yet <span class="tag dev">placeholder</span></h3>
+        <p>
+          No intentional departures from the request so far; this section will
+          be updated if any arise during implementation.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>Tradeoffs <span class="ts">(alternatives weighed)</span></h2>
+
+      <div class="entry to">
+        <h3>
+          jsonb params vs normalized columns <span class="tag to">schema</span>
+        </h3>
+        <p>
+          A normalized design (one row per tool per scenario, typed columns per
+          lever) would give SQL-queryable levers — but nothing queries levers
+          server-side; the engine consumes the whole
+          <code>ForecastInputs</code> object, the shape already proved it
+          evolves (040 added <code>billing</code> without a migration), and
+          036's own sketch said "JSON params". jsonb + Zod-at-the-boundary gets
+          evolution for free; the cost (no per-lever SQL) buys nothing we need.
+          Type safety is kept via
+          <code>$type&lt;ForecastInputs&gt;()</code> (type-only import, no
+          runtime cycle).
+        </p>
+      </div>
+
+      <div class="entry to">
+        <h3>
+          Budget-scoped vs global scenarios <span class="tag to">schema</span>
+        </h3>
+        <p>
+          Global scenarios (no FK) would survive fiscal-year rollover — but a
+          plan tuned against FY2026's ceiling, periods, and seat counts is
+          meaningless against FY2027 without review, and the list would accrete
+          forever. Scoping to <code>budget_id</code> (cascade) keeps the list
+          relevant and gives natural lifecycle cleanup; old-year scenarios stay
+          in the table for audit until their budget is deleted. The save action
+          resolves the active budget server-side — a client-supplied budget id
+          was rejected as an unnecessary trust surface.
+        </p>
+      </div>
+
+      <div class="entry to">
+        <h3>
+          Update-in-place vs save-as-copy semantics
+          <span class="tag to">ux</span>
+        </h3>
+        <p>
+          The dialog offers both: "Update '&lt;name&gt;'" (when a saved scenario
+          was loaded this session — tracked by a <code>loadedSavedId</code> that
+          survives the active-tile flipping to Custom on first edit) and "Save
+          as new". Pure copy-on-save was rejected (name collisions, list
+          litter); silent update-only was rejected (no way to fork a variant).
+          No version history — update overwrites; the audit trail records the
+          event, not a restorable diff.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>
+        Challenge pass
+        <span class="ts">(5-lens adversarial plan review → revisions)</span>
+      </h2>
+
+      <div class="entry to">
+        <h3>
+          Plan challenged before implementation; 1 unanimous must-fix + 10
+          adopted should-fixes <span class="tag to">process</span>
+        </h3>
+        <p>
+          Five parallel adversarial reviewers (conventions / correctness / UX /
+          tests / spec-fidelity) verified every factual claim against the repo —
+          almost all held (migration numbering, audit conventions,
+          StatusText-not-Sonner, the <code>$type</code> precedent, the
+          expression-index SQL emitted by the installed drizzle-kit 0.31.9, the
+          JSON-round-trip safety of <code>undefined ≡ monthly</code>) — and
+          found real holes, all folded into the plan:
+        </p>
+        <ul>
+          <li>
+            <b>Must-fix (found independently by 4 of 5 lenses):</b> the actions
+            resolved "the active budget" via an unordered
+            <code>findFirst</code> — nondeterministic when the schema's
+            permitted multiple-active state occurs, and fatal to the planned
+            integration test (seeding a second active budget could route test
+            writes onto the REAL dev budget). <b>Fix:</b> a documented
+            resolution contract — <code>status='active'</code> ordered by
+            <code>fiscal_year DESC</code>, <code>LIMIT 1</code> — plus FY ≥ 3000
+            test seeding and budget-scoped assertions.
+          </li>
+          <li>
+            <b>Audit gap:</b> <code>recordUpdate</code> early-returns on an
+            empty diff, so a params-only update would have recorded nothing.
+            Fix: updates always record a full params snapshot
+            (<code>old</code>/<code>new</code> objects), which also makes
+            teammate overwrites recoverable — answering the
+            shared-pool/last-write-wins concern.
+          </li>
+          <li>
+            <b>Race honesty:</b> the unique-index "backstop" would have surfaced
+            as a raw Next.js digest error; create and update now catch PG 23505
+            and return the same friendly duplicate-name
+            <code>ActionResult</code>.
+          </li>
+          <li>
+            <b>State-model holes:</b> <code>saved:&lt;id&gt;</code> left the
+            comparison table with no active row (fix:
+            <code>saved:*</code> activates "Your plan");
+            <code>loadedSavedId</code> surviving a preset-tile click enabled a
+            one-click overwrite of a shared row with preset params (fix: tile
+            clicks clear it); the Update offer could go stale after a concurrent
+            delete (fix: derived live from the
+            <code>savedScenarios</code> prop).
+          </li>
+          <li>
+            <b>Newly-reachable bug:</b> <code>router.refresh()</code> (this
+            page's first) can deliver a changed dataset under surviving client
+            state — a new tool key would be engine-projected at defaults yet
+            hidden from the controls. Fix: re-base surviving inputs through
+            <code>inputsFromSaved(dataset, prev)</code> on dataset change.
+          </li>
+          <li>
+            <b>Silent $0 ceiling:</b> clearing the ceiling field then saving
+            would persist <code>ceilingCents: 0</code>; the save dialog now
+            echoes exactly what will be saved and blocks an empty ceiling field.
+          </li>
+          <li>
+            <b>UX conventions:</b> the two-commit-button dialog footer had no
+            precedent anywhere in the app — replaced with the house
+            single-primary pattern + an in-dialog mode toggle; the
+            hidden-when-empty card contradicted the plan's own acceptance
+            wording and created a focus/status dead end — now persistent with a
+            mono empty state; a11y spec added (aria-pressed load buttons,
+            labelled icon buttons, list semantics, focus-to-heading after
+            delete) that is deliberately better than the precedent it cites
+            (ingestion's icon buttons are unlabelled).
+          </li>
+          <li>
+            <b>Missing affordance:</b> rename-without-resaving-params didn't
+            exist (and load-then-rename would have silently rewritten stored
+            params via re-basing). Fix: <code>params</code> optional in the
+            update schema + a pencil rename dialog per row.
+          </li>
+          <li>
+            <b>Test feasibility:</b> the 50-cap test as 50 action calls ≈ 250
+            serialized Neon round trips (brushing the 30s timeout) → bulk-seed
+            50 rows + one action call; the validator test couldn't import the
+            module-local <code>makeDataset</code> fixture → colocated with
+            inline fixtures; added the missing coverage the plan's own text
+            demanded: safeParse-on-read skipping, auth gating, audit-row
+            assertions, and a direct case-variant insert proving the expression
+            index itself fires.
+          </li>
+          <li>
+            <b>Two Δ semantics on one page:</b> saved rows score against their
+            own saved ceiling while everything else scores against the edited
+            one — now labelled explicitly ("vs saved $X") instead of relying on
+            a caption.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>Simplify pass <span class="ts">(4 parallel cleanup reviews → fixes applied)</span></h2>
+
+      <div class="entry to">
+        <h3>7 fixes applied — one exposed a real latent bug — 4 findings deliberately skipped <span class="tag to">post-implementation</span></h3>
+        <ul>
+          <li>
+            <b>Applied — and it caught a bug:</b> the case-insensitive
+            <code>nameTaken</code> pre-check was redundant with the
+            unique-index catch (both produced the identical friendly error), so
+            it was deleted (~30 lines + one Neon round trip per save/rename;
+            the index permits same-row case-variant renames naturally).
+            Removing it made the integration suite exercise the catch path for
+            the first time — which <b>failed</b>: drizzle 0.45 wraps driver
+            errors (<code>DrizzleQueryError</code> with the Postgres error on
+            <code>.cause</code>), so the top-level <code>code === "23505"</code>
+            check never matched. The detector now walks the cause chain, and
+            both the integration test and a live-browser probe confirm the
+            duplicate error renders. The pre-check had been silently masking
+            this the whole time.
+          </li>
+          <li>
+            <b>Applied:</b> the bespoke <code>resolveActiveBudgetId</code> was
+            one of two competing definitions of "the active budget" on the same
+            page (<code>getActiveBudget()</code> in <code>budget.ts</code> is
+            an unordered <code>findFirst</code> that could disagree under the
+            multi-active state). The deterministic rule (highest fiscal year
+            wins) now lives once in <code>lib/budget-utils.ts</code> as
+            <code>getActiveBudgetId()</code>, and <code>getActiveBudget()</code>
+            gained the same ordering — the chart and the scenario list can no
+            longer resolve different budgets.
+          </li>
+          <li>
+            <b>Applied:</b> the hand-rolled delete-snapshot audit insert was
+            the third copy of the <code>deleteBilledCost</code> pattern —
+            extracted as <code>recordDeletion()</code> in
+            <code>actions/history.ts</code> beside
+            <code>recordCreation</code>/<code>recordUpdate</code> (this feature
+            migrates; the two legacy sites are a follow-up). The delete also
+            folds its fetch into <code>delete().returning()</code> — one fewer
+            round trip and no fetch/delete TOCTOU window.
+          </li>
+          <li>
+            <b>Applied:</b> three per-dialog <code>useInlineStatus</code>
+            instances collapsed to one shared <code>dialogStatus</code> (the
+            dialogs are mutually exclusive; each opener already clears);
+            <code>renameTarget</code>/<code>deleteTarget</code> hold the whole
+            <code>SavedForecastScenario</code> instead of re-picked field
+            subsets; dead validator exports removed; a <b>key-set equality</b>
+            type assertion added beside the assignability round trip —
+            assignability alone cannot catch a forgotten <i>optional</i> lever
+            (exactly how <code>billing</code> arrived in 040), key-set equality
+            fails <code>pnpm typecheck</code> if <code>ToolParams</code> gains
+            a field the schema doesn't know.
+          </li>
+          <li>
+            <b>Skipped:</b> folding the active-budget subquery into the list
+            select (saves one ~30 ms round trip on an admin page at the cost of
+            raw-SQL readability); removing the
+            <code>revalidatePath</code>+<code>router.refresh()</code> double
+            refresh (matches the established house pattern, e.g.
+            budget-detail); a shared <code>validationFailure()</code> helper
+            for the <code>fieldErrors</code> boilerplate (16 copies codebase-
+            wide — a repo-wide cleanup, not a 041 obligation); migrating the
+            two legacy delete-audit sites to <code>recordDeletion</code> (out
+            of this PR's scope, noted as follow-up).
+          </li>
+          <li>
+            All suites re-run green after the pass: 648 unit · 36 integration ·
+            typecheck · lint clean · browser probe of the now-live catch path.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>Review pass <span class="ts">(PR #122 — single cycle)</span></h2>
+
+      <div class="entry to">
+        <h3>GitHub Copilot Code Review — 4 inline comments, 3 fixed, 1 refuted with docs <span class="tag to">copilot</span></h3>
+        <ul>
+          <li>
+            <b>Tie-break inconsistency in <code>budget-utils.ts</code> (2
+            comments — both legitimate):</b> <code>findActivePeriodForDate</code>
+            and <code>findPeriodForDate</code> still broke ties between
+            multiple active budgets by <code>createdAt</code>, while this PR's
+            new contract is "highest fiscal year wins". <b>Fixed</b>: both now
+            order by <code>fiscal_year DESC</code>, matching
+            <code>getActiveBudgetId()</code>.
+          </li>
+          <li>
+            <b>Integration FY collision window:</b> the 999-value random range
+            on a unique column could flake on parallel/retried runs.
+            <b>Fixed</b>: widened to 900k values (999,000–1,898,999), still
+            strictly above every other suite's range.
+          </li>
+          <li>
+            <b><code>startTransition(async …)</code> / <code>isPending</code>
+            concern — refuted for React 19, half-adopted anyway:</b> per the
+            current React docs, <code>isPending</code> "switches to true at the
+            first call to startTransition, and stays true until all Actions
+            complete", so the disabled buttons cover the whole server round
+            trip and double-submission cannot occur (and the identical pattern
+            is the house precedent in <code>ingestion-filters-section.tsx</code>).
+            The documented React 19 caveat about post-<code>await</code> state
+            updates is real, so those are now wrapped in an inner
+            <code>startTransition</code> per the docs' recommended shape.
+          </li>
+        </ul>
+        <p>
+          All suites re-run green after the fixes (648 unit · 36 integration ·
+          typecheck · lint). Replies posted in-thread on each comment.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>Open questions <span class="ts">(for review)</span></h2>
+
+      <div class="entry oq">
+        <h3>
+          Shared pool + last-write-wins
+          <span class="tag oq">needs your nod</span>
+        </h3>
+        <p>
+          Any admin can overwrite or delete any other admin's scenario;
+          concurrent edits are last-write-wins with no conflict detection. The
+          challenge panel flagged this as the one interpretive decision that
+          genuinely deserves explicit sign-off. Mitigations shipped: creator
+          attribution in the list and delete confirm; full params snapshots in
+          <code>change_history</code> on update and delete (overwrites are
+          forensically recoverable); the accidental-overwrite guards above. If
+          you want optimistic concurrency (reject when
+          <code>updatedAt</code> changed underneath) or private-by-default
+          scenarios, both fit the schema without migration — say the word.
+        </p>
+      </div>
+
+      <div class="entry oq">
+        <h3>
+          Cap of 50 scenarios per budget <span class="tag oq">limit</span>
+        </h3>
+        <p>
+          Chosen to keep the list a working set rather than an archive, with an
+          explicit "delete one first" error at the cap. If you expect heavier
+          use (e.g. scripted scenario generation), say so and the cap moves or
+          goes.
+        </p>
+      </div>
+
+      <div class="entry oq">
+        <h3>
+          Case-insensitive name uniqueness <span class="tag oq">naming</span>
+        </h3>
+        <p>
+          "Plan B" and "plan b" are treated as the same name (app pre-check +
+          <code>lower(name)</code> unique index). Friendlier for a shared pool,
+          but if you want exact-case distinctness, the index drops to a plain
+          <code>(budget_id, name)</code> unique.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>Migration review <span class="ts">(drizzle-migration-reviewer agent)</span></h2>
+
+      <div class="entry to">
+        <h3>One change requested, applied before the migration was committed <span class="tag to">schema</span></h3>
+        <p>
+          The reviewer verified the migration is purely additive, the FK
+          semantics match siblings, the expression unique index emits correct
+          SQL with <code>"isExpression": true</code> in the snapshot (so future
+          generates round-trip it), the journal/snapshot chain is intact, and
+          the type-only import creates no runtime cycle. <b>One blocking item:</b>
+          <code>created_by</code> had no index on the referencing column (the
+          repo's FK-index rule; sibling precedent was split). Fixed by
+          regenerating migration 0026 with
+          <code>forecast_scenarios_created_by_idx</code> while it was still
+          uncommitted. The reviewer also flagged the <code>db:push</code>
+          blind spot for expression indexes — this table must go through
+          <code>generate</code>/<code>migrate</code>, noted in the plan.
+        </p>
+      </div>
+
+      <!-- ========================================================= -->
+      <h2>Verification <span class="ts">(what was checked)</span></h2>
+
+      <div class="entry to">
+        <h3>Status <span class="tag to">green</span></h3>
+        <ul>
+          <li>
+            <b>Unit tests</b>: 648/648 pass (<code>pnpm test</code>; 623 before
+            this feature, 25 new) — <code>inputsFromSaved</code> merge matrix
+            incl. the yearly-billing round-trip and the stranded-billing
+            cost-neutrality proof; the validator accept/reject/strip matrix +
+            the type-level round trip (enforced via <code>pnpm typecheck</code>);
+            auth gating (list → <code>[]</code>, mutations →
+            <code>Unauthorized</code>, DB untouched).
+          </li>
+          <li>
+            <b>Integration</b> (real Neon dev DB): 11/11 — create lands on the
+            seeded budget under the deterministic resolution contract;
+            audit rows asserted for created/updated (incl. full params
+            snapshots) and the delete previousValue round trip; rename-only
+            leaves params untouched; case-insensitive duplicate rejected via
+            the action <i>and</i> via a direct insert (the expression index
+            itself fires); a deliberately-malformed jsonb row is skipped by the
+            read path; the 50-cap error (bulk-seeded, one action call). First
+            full-suite run exposed a real isolation bug: <code>invoice-sync</code>
+            seeds active budgets at FY ≈ 20k–30k, above the plan's FY 3000 —
+            the suite now seeds FY ≥ 999,000 and documents that it must own the
+            highest fiscal year in the run.
+          </li>
+          <li><b>Lint</b>: source clean, zero warnings. <b>Typecheck</b>: clean.</li>
+          <li>
+            <b>Browser (Playwright, dev server + minted agent session, live
+            data)</b>: 27/27 checks — persistent card with mono empty state;
+            save dialog echoes <code>CEILING $50,000 · CLAUDE BILLING YEARLY ·
+            5 OF 5 TOOLS INCLUDED</code>; saved row shows recomputed year-end,
+            &ldquo;+$44,538 vs saved $50,000&rdquo;, and the
+            <code>Nighthawk Agent · 2026-06-12</code> caption; reset → load
+            restores the $50,000 ceiling, the yearly cadence, and presses the
+            row; the &ldquo;Your plan&rdquo; comparison row takes the active
+            ink-bar; control edits flip to Custom but keep the
+            <code>Update &ldquo;name&rdquo;</code> offer; a preset tile click
+            clears it; rename-only leaves the stored ceiling intact on reload;
+            case-variant duplicate shows the inline dialog error; delete
+            confirm names scenario + creator; deleting the last row restores
+            the empty state. Full-page screenshots reviewed. (Two initial
+            script failures were probe races — a non-waiting visibility check
+            caught the dialog mid-<code>SAVING…</code> — re-probed green.)
+          </li>
+          <li>
+            <b>Process note</b>: <code>pnpm format</code> repo-wide fails on
+            pre-existing malformed HTML in old spec folders (030, 038) and
+            reformats ~800 files of pre-existing drift — deliberately not
+            applied beyond this feature's files (which the format-on-edit hook
+            already keeps canonical).
+          </li>
+        </ul>
+      </div>
+
+      <footer>
+        AI Developer Hub · spec/041-forecast-scenario-persistence ·
+        implementation notes · running log started 2026-06-12
+      </footer>
+    </main>
+  </body>
+</html>

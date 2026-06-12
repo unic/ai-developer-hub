@@ -383,3 +383,24 @@ export function inputsFromPreset(
 export function defaultInputs(ds: ForecastDataset): ForecastInputs {
   return inputsFromPreset(ds, "h2Plan");
 }
+
+/**
+ * Re-base a parameter set onto the current dataset (spec 041). Tools that no
+ * longer exist are dropped; tools that appeared since the params were captured
+ * get DEFAULT_PARAMS — so a stale saved scenario (or surviving client state
+ * after a dataset refresh) always yields a complete, renderable input set.
+ *
+ * Params are copied verbatim per tool — including the claudeSeats `billing`
+ * cadence, which is what makes "load restores the cadence" hold.
+ */
+export function inputsFromSaved(
+  ds: ForecastDataset,
+  saved: ForecastInputs,
+): ForecastInputs {
+  const tools: Record<string, ToolParams> = {};
+  for (const tool of ds.tools) {
+    const p = saved.tools[tool.key];
+    tools[tool.key] = p ? { ...p } : { ...DEFAULT_PARAMS };
+  }
+  return { ceilingCents: saved.ceilingCents, tools };
+}

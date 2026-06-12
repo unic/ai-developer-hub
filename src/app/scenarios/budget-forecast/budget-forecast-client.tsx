@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Bookmark, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import {
   Area,
   Bar,
@@ -17,12 +18,33 @@ import {
 } from "recharts";
 
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   Table,
   TableBody,
@@ -52,6 +74,7 @@ import {
   defaultInputs,
   FORECAST_PRESETS,
   inputsFromPreset,
+  inputsFromSaved,
   projectForecast,
   type ClaudeBilling,
   type ForecastDataset,
@@ -62,8 +85,14 @@ import {
   type ScenarioResult,
   type ToolParams,
 } from "@/lib/scenarios/budget-forecast";
+import {
+  createForecastScenario,
+  deleteForecastScenario,
+  updateForecastScenario,
+  type SavedForecastScenario,
+} from "@/actions/forecast-scenarios";
 
-type ActiveScenario = PresetKey | "custom";
+type ActiveScenario = PresetKey | "custom" | `saved:${number}`;
 
 // Greyscale per-tool series tokens (chart-1..5), assigned in dataset tool order
 // so the stacked-bar forecast and the per-tool table stay visually consistent.
@@ -99,9 +128,12 @@ function pct(part: number, whole: number): number | null {
 
 export function BudgetForecastClient({
   dataset,
+  savedScenarios,
 }: {
   dataset: ForecastDataset;
+  savedScenarios: SavedForecastScenario[];
 }) {
+  const router = useRouter();
   const [inputs, setInputs] = useState<ForecastInputs>(() =>
     defaultInputs(dataset),
   );
@@ -111,6 +143,23 @@ export function BudgetForecastClient({
   const [ceilingDollars, setCeilingDollars] = useState(
     String(Math.round(dataset.liveCeilingCents / 100)),
   );
+  // The saved scenario the user started from this session. Survives control
+  // edits (which flip `active` to "custom") so the save dialog can keep
+  // offering "Update"; cleared by Reset and by preset-tile clicks (a preset is
+  // a new starting point, not a refinement of the loaded scenario).
+  const [loadedSavedId, setLoadedSavedId] = useState<number | null>(null);
+
+  // Mutations land via router.refresh(), so client state survives a dataset
+  // prop change (the loader's 1h cache can expire mid-session). Re-base the
+  // surviving inputs onto the fresh dataset: a tool key the dataset gained
+  // would otherwise be projected at defaults by the engine while the controls
+  // hide it (`if (!p) return null`).
+  const datasetStamp = useRef(dataset.generatedAt);
+  useEffect(() => {
+    if (datasetStamp.current === dataset.generatedAt) return;
+    datasetStamp.current = dataset.generatedAt;
+    setInputs((prev) => inputsFromSaved(dataset, prev));
+  }, [dataset]);
 
   const plan = useMemo(
     () => projectForecast(dataset, inputs),
@@ -164,6 +213,142 @@ export function BudgetForecastClient({
     return map;
   }, [dataset.tools]);
 
+  /* ------------------------ saved scenarios (spec 041) --------------------- */
+
+  // The loaded scenario is derived from the live prop, not cached at load time
+  // — if another admin renamed or deleted it, the Update offer follows suit.
+  const loadedScenario = useMemo(
+    () => savedScenarios.find((s) => s.id === loadedSavedId) ?? null,
+    [savedScenarios, loadedSavedId],
+  );
+
+  // Each saved row shows its params re-projected against the CURRENT dataset,
+  // scored against its own saved ceiling ("what would this plan mean today").
+  const savedComputed = useMemo(
+    () =>
+      savedScenarios.map((scenario) => ({
+        scenario,
+        result: projectForecast(
+          dataset,
+          inputsFromSaved(dataset, scenario.params),
+        ),
+      })),
+    [savedScenarios, dataset],
+  );
+
+  const [isPending, startTransition] = useTransition();
+  // Two-channel feedback (house pattern): one dialog status for errors while
+  // an overlay is open (the three dialogs are mutually exclusive, so they
+  // share it; each opener clears it), card-header status for success after
+  // the overlay closes.
+  const cardStatus = useInlineStatus();
+  const dialogStatus = useInlineStatus();
+
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveMode, setSaveMode] = useState<"update" | "new">("new");
+  const [saveName, setSaveName] = useState("");
+  const [renameTarget, setRenameTarget] =
+    useState<SavedForecastScenario | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [deleteTarget, setDeleteTarget] =
+    useState<SavedForecastScenario | null>(null);
+
+  // Focus lands here after a delete — the trigger row is gone by then.
+  const savedHeadingRef = useRef<HTMLParagraphElement>(null);
+
+  function loadScenario(s: SavedForecastScenario) {
+    setInputs(inputsFromSaved(dataset, s.params));
+    // Exact string (no rounding) so a fractional saved ceiling round-trips.
+    setCeilingDollars(String(s.params.ceilingCents / 100));
+    setActive(`saved:${s.id}`);
+    setLoadedSavedId(s.id);
+  }
+
+  function openSaveDialog() {
+    dialogStatus.clear();
+    setSaveMode(loadedScenario ? "update" : "new");
+    setSaveName(loadedScenario ? loadedScenario.name : "");
+    setSaveOpen(true);
+  }
+
+  function submitSave() {
+    const name = saveName.trim();
+    if (!name) return;
+    startTransition(async () => {
+      const result =
+        saveMode === "update" && loadedScenario
+          ? await updateForecastScenario({
+              id: loadedScenario.id,
+              name,
+              params: inputs,
+            })
+          : await createForecastScenario({ name, params: inputs });
+      if (result.success) {
+        // React 19 caveat: state updates after an await need their own
+        // startTransition to stay part of the Transition (isPending already
+        // spans the whole async Action either way).
+        startTransition(() => {
+          setSaveOpen(false);
+          // The current inputs now match the saved row — mark it loaded/active.
+          setLoadedSavedId(result.data.id);
+          setActive(`saved:${result.data.id}`);
+          cardStatus.ok("SAVED");
+          router.refresh();
+        });
+      } else {
+        dialogStatus.error(result.error);
+      }
+    });
+  }
+
+  function openRenameDialog(s: SavedForecastScenario) {
+    dialogStatus.clear();
+    setRenameTarget(s);
+    setRenameName(s.name);
+  }
+
+  function submitRename() {
+    const target = renameTarget;
+    const name = renameName.trim();
+    if (!target || !name) return;
+    startTransition(async () => {
+      // params omitted — rename-only, stored assumptions untouched.
+      const result = await updateForecastScenario({ id: target.id, name });
+      if (result.success) {
+        startTransition(() => {
+          setRenameTarget(null);
+          cardStatus.ok("RENAMED");
+          router.refresh();
+        });
+      } else {
+        dialogStatus.error(result.error);
+      }
+    });
+  }
+
+  function confirmDelete() {
+    const target = deleteTarget;
+    if (!target) return;
+    startTransition(async () => {
+      const result = await deleteForecastScenario(target.id);
+      if (result.success) {
+        startTransition(() => {
+          setDeleteTarget(null);
+          if (loadedSavedId === target.id) {
+            // The record is gone but the user's working state stays.
+            setLoadedSavedId(null);
+            if (active === `saved:${target.id}`) setActive("custom");
+          }
+          cardStatus.ok("DELETED");
+          router.refresh();
+        });
+        savedHeadingRef.current?.focus();
+      } else {
+        dialogStatus.error(result.error);
+      }
+    });
+  }
+
   /* ---------------------------- mutation helpers --------------------------- */
 
   function applyPreset(key: PresetKey) {
@@ -174,6 +359,9 @@ export function BudgetForecastClient({
     setInputs(next);
     setCeilingDollars(String(Math.round(next.ceilingCents / 100)));
     setActive(key);
+    // A preset is a new starting point — withdraw the "Update" offer so one
+    // click can't overwrite a shared scenario with preset params.
+    setLoadedSavedId(null);
   }
 
   function patchTool(key: string, patch: Partial<ToolParams>) {
@@ -204,6 +392,7 @@ export function BudgetForecastClient({
     setInputs(next);
     setCeilingDollars(String(Math.round(next.ceilingCents / 100)));
     setActive("h2Plan");
+    setLoadedSavedId(null);
   }
 
   /* ------------------------------- derived UI ------------------------------ */
@@ -447,6 +636,104 @@ export function BudgetForecastClient({
         />
       </div>
 
+      {/* 2b — SAVED SCENARIOS (spec 041) */}
+      <Card>
+        <CardContent className="p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p
+              ref={savedHeadingRef}
+              tabIndex={-1}
+              className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground outline-none"
+            >
+              Saved scenarios
+            </p>
+            <StatusText status={cardStatus.status} />
+          </div>
+          {savedComputed.length === 0 ? (
+            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-faint">
+              [ No saved scenarios — save your current plan ]
+            </p>
+          ) : (
+            <ul className="max-h-72 divide-y divide-border overflow-y-auto">
+              {savedComputed.map(({ scenario, result }) => {
+                const isLoaded = active === `saved:${scenario.id}`;
+                // Scored against the scenario's OWN saved ceiling (a saved row
+                // is a self-contained what-if), with the denominator labelled
+                // — the rest of the page scores against the edited ceiling.
+                const d = result.yearEndCents - scenario.params.ceilingCents;
+                const rowOver = d > 0;
+                return (
+                  <li
+                    key={scenario.id}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => loadScenario(scenario)}
+                      aria-pressed={isLoaded}
+                      className={cn(
+                        "relative flex min-w-0 flex-1 items-center py-0.5 pl-2 text-left text-sm font-medium transition-colors",
+                        isLoaded
+                          ? "text-ink"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {isLoaded ? (
+                        <span
+                          className="absolute bottom-1 left-0 top-1 w-0.5 bg-ink"
+                          aria-hidden
+                        />
+                      ) : null}
+                      <span className="truncate">{scenario.name}</span>
+                    </button>
+                    <span className="font-mono text-sm tabular-nums text-ink">
+                      {formatUSD0(result.yearEndCents)}
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-xs tabular-nums",
+                        rowOver ? "text-destructive" : "text-success",
+                      )}
+                    >
+                      {rowOver ? "+" : "−"}
+                      {formatUSD0(Math.abs(d))} vs saved{" "}
+                      {formatUSD0(scenario.params.ceilingCents)}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-faint">
+                      {scenario.creatorName ?? "Unknown"} ·{" "}
+                      {scenario.updatedAt.slice(0, 10)}
+                    </span>
+                    <span className="flex shrink-0 items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        aria-label={`Rename scenario ${scenario.name}`}
+                        onClick={() => openRenameDialog(scenario)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive"
+                        aria-label={`Delete scenario ${scenario.name}`}
+                        onClick={() => {
+                          dialogStatus.clear();
+                          setDeleteTarget(scenario);
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
       {/* 3 — CONTROLS PANEL */}
       <Card>
         <CardContent className="p-5">
@@ -454,13 +741,22 @@ export function BudgetForecastClient({
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
               Assumptions
             </span>
-            <button
-              type="button"
-              onClick={reset}
-              className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <RotateCcw className="size-3" aria-hidden /> Reset to H2 Plan
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={openSaveDialog}
+                className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Bookmark className="size-3" aria-hidden /> Save scenario
+              </button>
+              <button
+                type="button"
+                onClick={reset}
+                className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <RotateCcw className="size-3" aria-hidden /> Reset to H2 Plan
+              </button>
+            </div>
           </div>
 
           {/* Budget ceiling */}
@@ -802,7 +1098,12 @@ export function BudgetForecastClient({
                   const driver = row.result.topDriverKey
                     ? toolByKey[row.result.topDriverKey]?.label
                     : null;
-                  const isActiveRow = active === row.id;
+                  // A loaded saved scenario IS the "Your plan" row (the chart
+                  // line and these figures are its numbers), so saved:* keeps
+                  // the table's one-active-row invariant via the custom row.
+                  const isActiveRow =
+                    active === row.id ||
+                    (row.id === "custom" && active.startsWith("saved:"));
                   return (
                     <TableRow
                       key={row.id}
@@ -966,6 +1267,168 @@ export function BudgetForecastClient({
           : ""}{" "}
         · assembled {dataset.generatedAt.slice(0, 16).replace("T", " ")} UTC
       </p>
+
+      {/* 10 — SAVE / RENAME / DELETE DIALOGS (spec 041) */}
+      <Dialog
+        open={saveOpen}
+        onOpenChange={(open) => {
+          if (!isPending) setSaveOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save scenario</DialogTitle>
+            <DialogDescription>
+              Persist the current assumption set for the FY {dataset.fiscalYear}{" "}
+              budget — shared with all admins.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {loadedScenario ? (
+              <div>
+                <ControlLabel>Mode</ControlLabel>
+                <div
+                  role="group"
+                  aria-label="Save mode"
+                  className="mt-2 inline-flex w-full overflow-hidden rounded-[6px] border border-input"
+                >
+                  <ToggleButton
+                    active={saveMode === "update"}
+                    onClick={() => {
+                      if (saveMode !== "update") {
+                        setSaveMode("update");
+                        setSaveName(loadedScenario.name);
+                      }
+                    }}
+                  >
+                    <span className="block truncate">
+                      Update &ldquo;{loadedScenario.name}&rdquo;
+                    </span>
+                  </ToggleButton>
+                  <ToggleButton
+                    active={saveMode === "new"}
+                    onClick={() => saveMode !== "new" && setSaveMode("new")}
+                  >
+                    Save as new
+                  </ToggleButton>
+                </div>
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="scenario-name">Name</Label>
+              <Input
+                id="scenario-name"
+                placeholder="e.g., Console sunset + yearly commit"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                maxLength={60}
+              />
+            </div>
+            {/* Echo exactly what will be saved — a cleared ceiling field or a
+                forgotten yearly toggle is visible before committing. */}
+            <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+              Ceiling {formatUSD0(inputs.ceilingCents)} · Claude billing{" "}
+              {claudeBilling} · {includedTools.length} of {dataset.tools.length}{" "}
+              tools included
+            </p>
+          </div>
+          <DialogFooter className="items-center">
+            <StatusText status={dialogStatus.status} className="mr-auto" />
+            <Button
+              variant="outline"
+              onClick={() => setSaveOpen(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitSave}
+              disabled={
+                isPending || !saveName.trim() || ceilingDollars.trim() === ""
+              }
+            >
+              {isPending
+                ? "Saving..."
+                : saveMode === "update" && loadedScenario
+                  ? "Update"
+                  : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !isPending) setRenameTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Rename scenario &ldquo;{renameTarget?.name}&rdquo;
+            </DialogTitle>
+            <DialogDescription>
+              Stored assumptions stay untouched — only the name changes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="scenario-rename">Name</Label>
+            <Input
+              id="scenario-rename"
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              maxLength={60}
+            />
+          </div>
+          <DialogFooter className="items-center">
+            <StatusText status={dialogStatus.status} className="mr-auto" />
+            <Button
+              variant="outline"
+              onClick={() => setRenameTarget(null)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitRename}
+              disabled={isPending || !renameName.trim()}
+            >
+              {isPending ? "Saving..." : "Rename"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete scenario &ldquo;{deleteTarget?.name}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Saved by {deleteTarget?.creatorName ?? "Unknown"} and shared with
+              all admins. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="items-center">
+            <StatusText status={dialogStatus.status} className="mr-auto" />
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isPending}
+            >
+              {isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

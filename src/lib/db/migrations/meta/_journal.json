@@ -183,6 +183,13 @@
       "when": 1781171027885,
       "tag": "0025_colorful_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781270007485,
+      "tag": "0026_nebulous_shadow_king",
+      "breakpoints": true
     }
   ]
 }

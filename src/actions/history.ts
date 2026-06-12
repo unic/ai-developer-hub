@@ -9,7 +9,7 @@ export async function recordCreation(
   entityType: string,
   entityId: number,
   changedBy: number,
-  txClient?: Pick<typeof db, "insert">
+  txClient?: Pick<typeof db, "insert">,
 ) {
   await (txClient ?? db).insert(changeHistory).values({
     entityType,
@@ -24,7 +24,7 @@ export async function recordUpdate(
   entityId: number,
   changedBy: number,
   changes: Record<string, { old: unknown; new: unknown }>,
-  txClient?: Pick<typeof db, "insert">
+  txClient?: Pick<typeof db, "insert">,
 ) {
   const entries = Object.entries(changes);
   if (entries.length === 0) return;
@@ -38,8 +38,28 @@ export async function recordUpdate(
       previousValue: JSON.stringify(values.old),
       newValue: JSON.stringify(values.new),
       changedBy,
-    }))
+    })),
   );
+}
+
+/**
+ * Record a deletion with a previous-value snapshot so the audit trail can
+ * reconstruct what was removed (the deleteBilledCost pattern).
+ */
+export async function recordDeletion(
+  entityType: string,
+  entityId: number,
+  changedBy: number,
+  previousValue: unknown,
+  txClient?: Pick<typeof db, "insert">,
+) {
+  await (txClient ?? db).insert(changeHistory).values({
+    entityType,
+    entityId,
+    changeType: "deleted",
+    previousValue: JSON.stringify(previousValue),
+    changedBy,
+  });
 }
 
 export async function recordStatusChange(
@@ -47,7 +67,7 @@ export async function recordStatusChange(
   entityId: number,
   changedBy: number,
   previousStatus: string,
-  newStatus: string
+  newStatus: string,
 ) {
   await db.insert(changeHistory).values({
     entityType,
@@ -64,15 +84,13 @@ export async function getEntityHistory(
   entityType: string,
   entityId: number,
   limit = 50,
-  offset = 0
-): Promise<
-  ActionResult<{ records: ChangeHistoryRecord[]; total: number }>
-> {
+  offset = 0,
+): Promise<ActionResult<{ records: ChangeHistoryRecord[]; total: number }>> {
   const [records, [totalRow]] = await Promise.all([
     db.query.changeHistory.findMany({
       where: and(
         eq(changeHistory.entityType, entityType),
-        eq(changeHistory.entityId, entityId)
+        eq(changeHistory.entityId, entityId),
       ),
       orderBy: desc(changeHistory.createdAt),
       limit,
@@ -84,8 +102,8 @@ export async function getEntityHistory(
       .where(
         and(
           eq(changeHistory.entityType, entityType),
-          eq(changeHistory.entityId, entityId)
-        )
+          eq(changeHistory.entityId, entityId),
+        ),
       ),
   ]);
 

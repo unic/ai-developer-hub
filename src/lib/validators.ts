@@ -65,7 +65,9 @@ export const bulkImportUserSchema = z.object({
 const apiKeyField = z
   .string()
   .max(500)
-  .refine((val) => val === "" || val.trim().length > 0, { message: "API key cannot be blank" })
+  .refine((val) => val === "" || val.trim().length > 0, {
+    message: "API key cannot be blank",
+  })
   .transform((val) => (val === "" ? val : val.trim()))
   .optional();
 
@@ -95,7 +97,7 @@ export const budgetAllocationSchema = z.object({
         .number()
         .int()
         .min(0, "Amount must be non-negative"),
-    })
+    }),
   ),
 });
 
@@ -109,12 +111,19 @@ export const bulkImportAssignmentRowSchema = z.object({
   assignedAt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format")
-    .refine((value) => {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return false;
-      const [y, m, d] = value.split("-").map(Number);
-      return date.getUTCFullYear() === y && date.getUTCMonth() + 1 === m && date.getUTCDate() === d;
-    }, { message: "Invalid calendar date" }),
+    .refine(
+      (value) => {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return false;
+        const [y, m, d] = value.split("-").map(Number);
+        return (
+          date.getUTCFullYear() === y &&
+          date.getUTCMonth() + 1 === m &&
+          date.getUTCDate() === d
+        );
+      },
+      { message: "Invalid calendar date" },
+    ),
 });
 
 // Update assignment (in-place edit)
@@ -129,14 +138,19 @@ export const updateAssignmentSchema = z.object({
 // Assignment comment
 export const assignmentCommentSchema = z.object({
   assignmentId: z.number().int().positive(),
-  body: z.string().min(1, "Comment is required").max(2000, "Comment must be 2000 characters or less"),
+  body: z
+    .string()
+    .min(1, "Comment is required")
+    .max(2000, "Comment must be 2000 characters or less"),
 });
 
 // Billed cost (create)
 export const billedCostSchema = z.object({
   periodId: z.number().int().positive(),
   amountCents: z.number().int().positive("Amount must be positive"),
-  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format"),
+  invoiceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format"),
   description: z.string().min(1, "Description is required").max(500),
   vendorReference: z.string().max(255).optional(),
 });
@@ -145,7 +159,10 @@ export const billedCostSchema = z.object({
 export const updateBilledCostSchema = z.object({
   id: z.number().int().positive(),
   amountCents: z.number().int().positive("Amount must be positive").optional(),
-  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format").optional(),
+  invoiceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD format")
+    .optional(),
   description: z.string().min(1).max(500).optional(),
   vendorReference: z.string().max(255).optional().nullable(),
 });
@@ -187,7 +204,7 @@ export const budgetExtensionAllocationSchema = z.discriminatedUnion("mode", [
         z.object({
           periodId: z.number().int().positive(),
           amountCents: z.number().int(),
-        })
+        }),
       )
       .min(1),
   }),
@@ -215,7 +232,7 @@ export const createBudgetExtensionSchema = z.object({
         const d = new Date(`${s}T00:00:00Z`);
         return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
       },
-      { message: "Date does not exist on the calendar" }
+      { message: "Date does not exist on the calendar" },
     ),
   allocation: budgetExtensionAllocationSchema,
 });
@@ -292,7 +309,9 @@ export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
 export type AssignmentCommentInput = z.infer<typeof assignmentCommentSchema>;
 export type BilledCostInput = z.infer<typeof billedCostSchema>;
 export type UpdateBilledCostInput = z.infer<typeof updateBilledCostSchema>;
-export type BulkImportAssignmentRowInput = z.infer<typeof bulkImportAssignmentRowSchema>;
+export type BulkImportAssignmentRowInput = z.infer<
+  typeof bulkImportAssignmentRowSchema
+>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 // Invoice (create + extraction result)
@@ -311,7 +330,10 @@ export const createInvoiceSchema = z.object({
         d.getUTCDate() === day
       );
     }, "Invalid calendar date"),
-  amountCents: z.number().int().positive("Amount must be a positive integer (cents)"),
+  amountCents: z
+    .number()
+    .int()
+    .positive("Amount must be a positive integer (cents)"),
   vendor: z.string().max(255).optional(),
   blobUrl: z.string().url(),
   blobPathname: z.string().min(1),
@@ -331,7 +353,9 @@ export const invoiceExtractionResultSchema = z.object({
 });
 
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
-export type InvoiceExtractionResult = z.infer<typeof invoiceExtractionResultSchema>;
+export type InvoiceExtractionResult = z.infer<
+  typeof invoiceExtractionResultSchema
+>;
 
 // Invoice sync schemas
 export const syncOptionsSchema = z.object({
@@ -383,7 +407,11 @@ const calendarDateSchema = z
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return false;
     const [y, m, d] = value.split("-").map(Number);
-    return date.getUTCFullYear() === y && date.getUTCMonth() + 1 === m && date.getUTCDate() === d;
+    return (
+      date.getUTCFullYear() === y &&
+      date.getUTCMonth() + 1 === m &&
+      date.getUTCDate() === d
+    );
   }, "Invalid calendar date");
 
 export const copilotDateRangeSchema = z.object({
@@ -430,7 +458,7 @@ export const invoiceNumberFilterValueSchema = z.object({
           return false;
         }
       },
-      { message: "Invalid regular expression pattern" }
+      { message: "Invalid regular expression pattern" },
     ),
 });
 
@@ -449,7 +477,7 @@ export const createIngestionFilterSchema = z
       if (data.field === "invoice_number") return "pattern" in data.value;
       return false;
     },
-    { message: "Value shape must match the selected field type" }
+    { message: "Value shape must match the selected field type" },
   );
 
 export const updateIngestionFilterSchema = z
@@ -475,7 +503,7 @@ export const updateIngestionFilterSchema = z
     {
       message:
         "When updating value, field must be provided and value shape must match the field type",
-    }
+    },
   );
 
 export const deleteIngestionFilterSchema = z.object({
@@ -499,30 +527,36 @@ export type UpdateIngestionFilterInput = z.infer<
 // Microsoft Form is submitted. PA sends tool / tier by NAME (what the form
 // shows the requester) and the Hub resolves to IDs — Form display values
 // don't change as often as DB IDs, so name-matching is the more stable contract.
-export const licenseRequestIngestSchema = z.object({
-  formResponseId: z.string().min(1).max(255),
-  requesterEmail: z.string().email(),
-  requesterName: z.string().min(1).max(255),
-  // Tool / tier — accept name or id. ID takes precedence when both supplied.
-  toolId: z.number().int().positive().optional(),
-  toolName: z.string().min(1).max(255).optional(),
-  tierId: z.number().int().positive().optional(),
-  tierName: z.string().min(1).max(255).optional(),
-  // Variable per tier; raw form payload, keyed by Form question identifier.
-  formPayload: z.record(z.string(), z.unknown()),
-  // Teams context — PA must forward these from the existing channel-post +
-  // create-chat actions so the Hub can post threaded replies + group-chat
-  // updates via Microsoft Graph.
-  teamsTeamId: z.string().min(1),
-  teamsChannelId: z.string().min(1),
-  teamsParentMessageId: z.string().min(1),
-  teamsChatId: z.string().min(1),
-}).refine(
-  (d) => d.toolId !== undefined || (d.toolName !== undefined && d.toolName.length > 0),
-  { message: "toolId or toolName is required", path: ["toolName"] },
-);
+export const licenseRequestIngestSchema = z
+  .object({
+    formResponseId: z.string().min(1).max(255),
+    requesterEmail: z.string().email(),
+    requesterName: z.string().min(1).max(255),
+    // Tool / tier — accept name or id. ID takes precedence when both supplied.
+    toolId: z.number().int().positive().optional(),
+    toolName: z.string().min(1).max(255).optional(),
+    tierId: z.number().int().positive().optional(),
+    tierName: z.string().min(1).max(255).optional(),
+    // Variable per tier; raw form payload, keyed by Form question identifier.
+    formPayload: z.record(z.string(), z.unknown()),
+    // Teams context — PA must forward these from the existing channel-post +
+    // create-chat actions so the Hub can post threaded replies + group-chat
+    // updates via Microsoft Graph.
+    teamsTeamId: z.string().min(1),
+    teamsChannelId: z.string().min(1),
+    teamsParentMessageId: z.string().min(1),
+    teamsChatId: z.string().min(1),
+  })
+  .refine(
+    (d) =>
+      d.toolId !== undefined ||
+      (d.toolName !== undefined && d.toolName.length > 0),
+    { message: "toolId or toolName is required", path: ["toolName"] },
+  );
 
-export type LicenseRequestIngestInput = z.infer<typeof licenseRequestIngestSchema>;
+export type LicenseRequestIngestInput = z.infer<
+  typeof licenseRequestIngestSchema
+>;
 
 export const messageTemplateSchema = z.object({
   toolId: z.number().int().positive(),
@@ -559,3 +593,47 @@ export const cancelRequestSchema = z.object({
   requestId: z.number().int().positive(),
 });
 export type CancelRequestInput = z.infer<typeof cancelRequestSchema>;
+
+// Forecast Scenarios — spec 041-forecast-scenario-persistence
+//
+// Boundary schemas for the forecast_scenarios jsonb params column. Plain
+// z.object (strip semantics): unknown keys are dropped rather than rejected,
+// so rows stay loadable across schema evolution; writes store parsed.data,
+// keeping the stored shape canonical. Zod 4's z.number() rejects NaN/Infinity
+// by default, so nothing non-finite can reach the projection engine's math.
+// Bounds are generous modelling limits, not business rules.
+export const toolParamsSchema = z.object({
+  include: z.boolean(),
+  model: z.enum(["flat", "linear", "compound"]),
+  val: z.number().min(-100_000).max(100_000),
+  burnPct: z.number().min(-100).max(100_000).optional(),
+  burnCap: z.number().int().min(0).max(100_000_000).optional(),
+  premShare: z.number().min(0).max(1).optional(),
+  billing: z.enum(["monthly", "yearly"]).optional(),
+});
+
+export const forecastInputsSchema = z
+  .object({
+    // ≤ $1B; 0 is accepted (the save dialog guards the accidental-empty path).
+    ceilingCents: z.number().int().min(0).max(100_000_000_000),
+    tools: z.record(z.string().min(1).max(40), toolParamsSchema),
+  })
+  .refine((v) => Object.keys(v.tools).length <= 20, {
+    message: "Too many tool entries",
+  });
+
+const forecastScenarioNameSchema = z.string().trim().min(1).max(60);
+
+export const createForecastScenarioSchema = z.object({
+  name: forecastScenarioNameSchema,
+  params: forecastInputsSchema,
+});
+export const updateForecastScenarioSchema = z.object({
+  id: z.number().int().positive(),
+  name: forecastScenarioNameSchema,
+  // Omitted = rename-only; stored params stay untouched.
+  params: forecastInputsSchema.optional(),
+});
+export const deleteForecastScenarioSchema = z.object({
+  id: z.number().int().positive(),
+});
