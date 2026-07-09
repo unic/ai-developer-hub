@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockups v2 — License Requests: profile+role mapping &amp; copy-paste snippets</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-elev: #11141b;
+    --bg-card: #161a24;
+    --border: #232938;
+    --fg: #e7ebf3;
+    --fg-muted: #9aa3b5;
+    --fg-dim: #6b7488;
+    --accent: #7dd3fc;
+    --accent-2: #a78bfa;
+    --good: #86efac;
+    --warn: #fcd34d;
+    --bad: #fca5a5;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+
+    /* app-screen (Nothing design) tokens */
+    --app-bg: #f4f4f2;
+    --app-card: #ffffff;
+    --app-border: #e3e3de;
+    --app-ink: #16160f;
+    --app-muted: #74746c;
+    --app-dim: #a3a39a;
+    --app-red: #d71921;
+    --app-amber: #b45309;
+    --app-amber-bg: #fef3e2;
+    --app-green: #15803d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+  body { padding: 48px 24px 96px; }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 { font-size: 20px; margin: 56px 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h2 .secno { color: var(--fg-dim); font-family: var(--mono); font-size: 14px; margin-right: 10px; }
+  p { margin: 0 0 10px; max-width: 76ch; }
+  a { color: var(--accent); }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+  pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; line-height: 1.5; margin: 0; }
+  pre code { background: none; border: none; padding: 0; }
+  .lede { color: var(--fg-muted); font-size: 15px; max-width: 76ch; }
+  .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+  .rationale { color: var(--fg-muted); font-size: 14px; margin: 6px 0 18px; }
+  ul { padding-left: 20px; margin: 6px 0 10px; }
+  li { margin: 3px 0; }
+  table.doc { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 12px 0 18px; }
+  table.doc th, table.doc td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  table.doc th { background: var(--bg-elev); font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); font-weight: 600; }
+  .tag { display: inline-block; font-size: 10.5px; font-family: var(--mono); padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-muted); background: var(--bg-elev); text-transform: uppercase; letter-spacing: 0.06em; }
+  .tag.auto { color: var(--good); }
+  .tag.decide { color: var(--warn); }
+  .tag.removed { color: var(--bad); }
+  .callout { border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--bg-card); border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 14px; }
+  .callout.warn { border-left-color: var(--warn); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+  .grid2 .cell-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-dim); margin: 0 0 6px; }
+
+  /* annotation pins + legend */
+  .pin { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 999px; background: var(--accent); color: #08121a; font-family: var(--mono); font-size: 11px; font-weight: 700; vertical-align: 2px; margin: 0 2px; }
+  .legend { list-style: none; padding: 0; margin: 14px 0 0; font-size: 13.5px; color: var(--fg-muted); }
+  .legend li { display: flex; gap: 10px; margin: 6px 0; max-width: 86ch; }
+  .legend .pin { flex: none; margin-top: 2px; }
+
+  /* ============ app-screen mockup chrome (Nothing design, light) ============ */
+  .screen { background: var(--app-bg); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin: 18px 0 8px; color: var(--app-ink); font-size: 14px; overflow-x: auto; }
+  .screen, .screen * { line-height: 1.5; }
+  .screen .inner { min-width: 620px; max-width: 860px; margin: 0 auto; }
+  .screen.narrow .inner { max-width: 660px; }
+  .s-mono { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; }
+  .s-back { font-size: 13px; color: var(--app-muted); margin-bottom: 10px; }
+  .s-h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 2px; display: flex; align-items: center; gap: 12px; }
+  .s-sub { color: var(--app-muted); font-size: 13px; margin-bottom: 20px; }
+  .s-card { background: var(--app-card); border: 1px solid var(--app-border); border-radius: 14px; padding: 20px 22px; margin: 14px 0; }
+  .s-card h4 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+  .s-card .s-cardsub { color: var(--app-muted); font-size: 12.5px; margin: 0 0 14px; }
+  .s-badge { display: inline-block; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em; border: 1px solid var(--app-border); border-radius: 999px; padding: 2.5px 10px; color: var(--app-muted); background: var(--app-card); font-weight: 500; }
+  .s-badge.red { color: var(--app-red); border-color: color-mix(in srgb, var(--app-red) 35%, white); }
+  .s-badge.amber { color: var(--app-amber); border-color: #ecd1ab; background: var(--app-amber-bg); }
+  .s-badge.green { color: var(--app-green); border-color: #bfe3cb; }
+  .s-badge.ink { color: var(--app-ink); border-color: #c9c9c2; }
+  .s-btn { display: inline-block; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; border-radius: 999px; padding: 9px 20px; border: 1px solid transparent; font-weight: 600; }
+  .s-btn.primary { background: var(--app-ink); color: #fff; }
+  .s-btn.ghost { color: var(--app-muted); background: none; }
+  .s-btn.outline { border-color: #c9c9c2; color: var(--app-ink); background: var(--app-card); }
+  .s-btn.disabled { background: #d8d8d2; color: #8f8f88; }
+  .s-btn.small { padding: 5px 13px; font-size: 10px; }
+  .s-dl { display: grid; grid-template-columns: 190px 1fr; row-gap: 9px; column-gap: 16px; font-size: 13.5px; }
+  .s-dl dt { color: var(--app-muted); margin: 0; overflow-wrap: anywhere; }
+  .s-dl dd { margin: 0; }
+  .s-select { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #c9c9c2; border-radius: 10px; padding: 6px 12px; background: var(--app-card); font-size: 13px; }
+  .s-select .chev { color: var(--app-dim); font-size: 10px; }
+  .s-hr { border: none; border-top: 1px solid var(--app-border); margin: 16px 0; }
+  .s-note { font-size: 12px; color: var(--app-muted); }
+  .s-footerbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--app-card); border: 1px solid var(--app-border); border-radius: 14px; padding: 14px 20px; margin-top: 16px; }
+  .s-actions { display: flex; gap: 10px; align-items: center; }
+
+  /* queue table */
+  table.s-table { width: 100%; border-collapse: collapse; background: var(--app-card); border: 1px solid var(--app-border); border-radius: 14px; overflow: hidden; font-size: 13px; }
+  table.s-table th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--app-muted); font-weight: 500; text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--app-border); background: #fbfbf9; }
+  table.s-table td { padding: 13px 14px; border-bottom: 1px solid var(--app-border); vertical-align: middle; }
+  table.s-table tr:last-child td { border-bottom: none; }
+  .s-name { font-weight: 600; }
+  .s-email { color: var(--app-muted); font-size: 12px; }
+  .s-rowid { font-family: var(--mono); font-size: 11.5px; color: var(--app-muted); }
+
+  /* derived-tool block */
+  .s-derived { border: 1px solid var(--app-border); border-radius: 12px; padding: 14px 16px; background: #fbfbf9; margin-top: 6px; }
+  .s-derived .row1 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .s-derived .toolname { font-size: 15px; font-weight: 700; }
+  .s-derived .rule { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--app-dim); margin-top: 7px; }
+  .s-derived.amber { background: var(--app-amber-bg); border-color: #ecd1ab; }
+
+  /* dialogs */
+  .s-dialog { background: var(--app-card); border: 1px solid var(--app-border); border-radius: 16px; padding: 22px 24px; max-width: 660px; margin: 0 auto; box-shadow: 0 18px 40px rgba(20,20,10,0.10); }
+  .s-dialog h3 { margin: 0 0 2px; font-size: 17px; }
+  .s-dialog .s-dialogsub { color: var(--app-muted); font-size: 12.5px; margin-bottom: 16px; }
+  .s-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 720px) { .s-editor { grid-template-columns: 1fr; } }
+  .s-pane { border: 1px solid var(--app-border); border-radius: 10px; background: #fbfbf9; padding: 12px 14px; font-size: 12.5px; min-height: 150px; }
+  .s-pane .pane-label { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--app-dim); margin-bottom: 8px; }
+  .s-pane.src { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
+  .s-var { background: #ecebe6; border-radius: 4px; padding: 0 3px; }
+  .s-snippet { border: 1px solid var(--app-border); border-radius: 12px; background: #fbfbf9; padding: 16px 18px; font-size: 13.5px; position: relative; }
+  .s-snippet .copybtn { position: absolute; top: 12px; right: 12px; }
+  .s-msg-meta { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--app-dim); margin-bottom: 8px; }
+  .s-quote { border-left: 3px solid var(--app-ink); padding-left: 14px; }
+
+  footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Mockups v2 — profile+role mapping &amp; copy-paste messages</h1>
+  <p class="lede">
+    Revision of the spec 032 license-request workflow after the direction changes of 2026-07-09:
+    the ingest API no longer names a tool — it sends the requester's <strong>role</strong> and <strong>profile</strong>, and the Hub derives the tool from
+    the <a href="https://unicag.sharepoint.com/sites/M-AIIMPACT/SitePages/AI-Tooling-Guide.aspx">AI Tooling Guide</a> rules;
+    the Microsoft Graph / Teams integration is <strong>postponed</strong> — every outbound message becomes a copy-paste-ready snippet;
+    unknown requesters are <strong>auto-created</strong> as Hub users; and <strong>approving creates the assignment</strong> (with API key capture for key-based tools) — the separate Complete step is retired.
+    Layout mockups for review, not pixel-perfect specs; visual polish follows the app's existing Nothing design at build time.
+  </p>
+  <p class="meta">2026-07-09 · branch: worktree-request-workflow · companion to mockups.html (v1) · author: Claude (Fable 5)</p>
+</header>
+
+<h2><span class="secno">00</span>The mapping rules (from the AI Tooling Guide)</h2>
+<p class="rationale">
+  The Microsoft Form now always sends <code>role</code> ∈ development | conception | business and
+  <code>profile</code> ∈ <em>empty</em> (= baseline) | maxed | indie. The Hub owns this table — seeded from the guide, editable in Settings (§05), never hardcoded.
+</p>
+<table class="doc">
+  <thead><tr><th>Role</th><th>Profile</th><th>Derived tool</th><th>Default tier</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>development</td><td><em>(empty — baseline)</em></td><td>GitHub Copilot</td><td>Business</td><td><span class="tag auto">auto</span></td></tr>
+    <tr><td>conception</td><td><em>(empty — baseline)</em></td><td>Microsoft Copilot</td><td>—</td><td><span class="tag auto">auto</span></td></tr>
+    <tr><td>business</td><td><em>(empty — baseline)</em></td><td>Microsoft Copilot</td><td>—</td><td><span class="tag auto">auto</span></td></tr>
+    <tr><td>any</td><td>maxed</td><td>Claude</td><td>Team Standard</td><td><span class="tag auto">auto</span> — approver may switch to Premium</td></tr>
+    <tr><td>any</td><td>indie</td><td>—</td><td>—</td><td><span class="tag decide">needs decision</span> — approver picks (Cursor Business, Claude API Plan, other)</td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>Decisions baked into these mockups:</strong> the tool/tier decision is always the approver's;
+  Maxed defaults to <em>Standard</em>; Boost is retired (not in the table); the derived tool is a <em>proposal</em> —
+  the approver can override any row's result on the request itself before approving.
+</div>
+<div class="callout">
+  <strong>New in this iteration (2nd + 3rd review round):</strong>
+  <em>approving creates the license assignment</em> in one action — you provision in the vendor UI <em>first</em>, then Approve records the result; the separate Complete step is retired (§06);
+  unknown requesters are auto-created as Hub users <em>at approval</em> (viewer, no invite) — never from rejected requests (§03, §06);
+  API-key tools require the key at approval, stored encrypted, woven into the copyable message (§06);
+  <em>justification is a first-class field</em> (§01, §03).
+  Status flow simplifies to <code>pending_review → approved | rejected | cancelled</code>.
+</div>
+
+<h2><span class="secno">01</span>Ingest contract — before / after</h2>
+<p class="rationale">
+  <code>POST /api/license-requests/ingest</code> keeps its bearer auth, idempotency, and Teams thread IDs.
+  The tool fields go away <span class="tag removed">removed</span>; role + profile come in as first-class fields.
+  Form answers arrive as <code>formPayload</code> with <em>labeled questions</em> (Power Automate maps question text, not field-ID hashes — kills the hash-key display problem at the root).
+</p>
+<div class="grid2">
+  <div>
+    <p class="cell-label">Before (v1)</p>
+    <pre><code>{
+  "formResponseId": "23",
+  "requesterEmail": "tobias.studer@unic.com",
+  "requesterName": "Tobias Studer",
+  "requestedToolId": 1,        // or toolName
+  "requestedTierId": null,     // or tierName
+  "formPayload": {
+    "r1db16149c3c…": "Development",
+    "r7496b9d7fc9…": "Expert / Agentic…",
+    …19 empty hash keys…
+  },
+  "teamsTeamId": "…", "teamsChannelId": "…",
+  "teamsParentMessageId": "…", "teamsChatId": "…"
+}</code></pre>
+  </div>
+  <div>
+    <p class="cell-label">After (v2)</p>
+    <pre><code>{
+  "formResponseId": "24",
+  "requesterEmail": "jane.doe@unic.com",
+  "requesterName": "Jane Doe",
+  "role": "development",       // development|conception|business
+  "profile": "maxed",          // "" (baseline) | maxed | indie
+  "justification": "Agentic multi-file…",  // profile-specific form field
+  "formPayload": {
+    "Which role describes you?": "Development",
+    "Which profile do you need?": "Maxed",
+    "Anything else?": ""
+  },
+  "teamsTeamId": "…", "teamsChannelId": "…",
+  "teamsParentMessageId": "…", "teamsChatId": "…"
+}</code></pre>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>Validation: unknown <code>role</code>/<code>profile</code> values → 422 with the allowed values in the error body, logged to ingestion history as failed (same pattern as the unknown-tool 422 today).</li>
+  <li><span class="pin">2</span>The Hub resolves the mapping <em>at ingest time</em> and stores both the inputs (<code>role</code>, <code>profile</code>) and the derived result (<code>derived_tool_id</code>, nullable for indie) — so later mapping edits don't silently rewrite history.</li>
+  <li><span class="pin">3</span>Existing rows (REQ-001) keep working: <code>role</code>/<code>profile</code> are nullable, old requests display their stored tool as before.</li>
+  <li><span class="pin">4</span><strong>Unknown requesters:</strong> ingest still only email-matches (unchanged) — the user is created <em>at approval</em>, not here, so rejected or cancelled requests never leave orphan users behind (§06). Until then the request carries name + email as plain fields.</li>
+  <li><span class="pin">5</span><strong>Justification is first-class.</strong> The Form has separate justification fields per profile (one for maxed add-ons, a separate one for indie); Power Automate maps the profile-appropriate field into the single <code>justification</code> property. Ingest requires it when <code>profile</code> is set, rejects with 422 when missing.</li>
+</ul>
+
+<h2><span class="secno">02</span>Queue — derived tool &amp; needs-decision at a glance</h2>
+<p class="rationale">The Tool/Tier column becomes the <em>derived</em> tool. Role + profile get their own column. An unresolved indie request must be visible from the queue.</p>
+<div class="screen">
+  <div class="inner">
+    <div class="s-h1">License requests</div>
+    <div class="s-sub">Review and action license requests routed from Microsoft Forms via Power Automate. Any admin can claim any request — first to act wins.</div>
+    <table class="s-table">
+      <thead>
+        <tr><th>ID</th><th>Requester</th><th>Role / Profile <span class="pin">1</span></th><th>Tool <span class="pin">2</span></th><th>Status</th><th>Decided by</th><th>Age</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="s-rowid">REQ-003</td>
+          <td><div class="s-name">Jane Doe</div><div class="s-email">jane.doe@unic.com</div></td>
+          <td><span class="s-badge ink">Development</span> <span class="s-badge">Maxed</span></td>
+          <td>Claude <span class="s-note">· Team Standard</span></td>
+          <td><span class="s-badge red">Pending review</span></td>
+          <td>—</td>
+          <td class="s-note">2 h</td>
+        </tr>
+        <tr>
+          <td class="s-rowid">REQ-002</td>
+          <td><div class="s-name">Max Muster</div><div class="s-email">max.muster@unic.com</div></td>
+          <td><span class="s-badge ink">Business</span> <span class="s-badge">Indie</span></td>
+          <td><span class="s-badge amber">Needs decision</span> <span class="pin">3</span></td>
+          <td><span class="s-badge red">Pending review</span></td>
+          <td>—</td>
+          <td class="s-note">1 d</td>
+        </tr>
+        <tr>
+          <td class="s-rowid">REQ-001</td>
+          <td><div class="s-name">Tobias Studer</div><div class="s-email">tobias.studer@unic.com</div></td>
+          <td><span class="s-note">—</span></td>
+          <td>GitHub Copilot</td>
+          <td><span class="s-badge">Approved</span></td>
+          <td>Tobias Studer</td>
+          <td class="s-note">2 mo</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>New column: role (solid badge) + profile (outline badge). Baseline requests show only the role badge. Pre-v2 rows (REQ-001) show “—”.</li>
+  <li><span class="pin">2</span>Column renamed from “Tool / Tier” to the derived tool + default tier. Faceted filter for tool stays.</li>
+  <li><span class="pin">3</span>Indie requests show the amber <em>needs decision</em> badge until an approver picks a tool. Also fix while here: the search box (bug — filters nothing today).</li>
+</ul>
+
+<h2><span class="secno">03</span>Request detail — pending review (maxed example)</h2>
+<p class="rationale">
+  The Request card leads with the derived tool (the decision at hand), then the mapped inputs, then the labeled form answers.
+  Empty answers are hidden behind a count. The broken hash-label grid is gone.
+</p>
+<div class="screen">
+  <div class="inner">
+    <div class="s-back s-mono">← Back to requests</div>
+    <div class="s-h1">Request REQ-003 <span class="s-badge red">Pending review</span></div>
+    <div class="s-sub">Submitted 2026-07-09 08:41 · 2 hours ago</div>
+
+    <div class="s-card">
+      <h4>Requester</h4>
+      <p class="s-cardsub">&nbsp;</p>
+      <dl class="s-dl">
+        <dt>Name</dt><dd>Jane Doe</dd>
+        <dt>Email</dt><dd>jane.doe@unic.com</dd>
+        <dt>Hub user</dt><dd>Matched (user #57) <span class="pin">6</span></dd>
+        <dt>Active assignments</dt><dd>GitHub Copilot · Business · since 2026-03-02 <span class="pin">7</span></dd>
+      </dl>
+    </div>
+
+    <div class="s-card">
+      <h4>Request</h4>
+      <p class="s-cardsub">Role + profile from the Form; the Hub proposes the tool. <span class="pin">1</span></p>
+      <dl class="s-dl">
+        <dt>Role</dt><dd><span class="s-badge ink">Development</span></dd>
+        <dt>Profile</dt><dd><span class="s-badge">Maxed</span></dd>
+        <dt>Justification</dt><dd>Agentic multi-file refactors across our monorepo; Copilot credits exhausted 3 months running. <span class="pin">8</span></dd>
+      </dl>
+      <div class="s-derived">
+        <div class="row1">
+          <span class="toolname">Claude</span>
+          <span class="s-select">Tier: Team Standard <span class="chev">▾</span></span> <span class="pin">2</span>
+          <span class="s-btn ghost small">Change tool</span> <span class="pin">3</span>
+        </div>
+        <div class="rule">Derived · maxed → Claude · AI Tooling Guide mapping · add-on to existing Copilot Business</div>
+      </div>
+      <hr class="s-hr" />
+      <dl class="s-dl">
+        <dt>Which profile do you need?</dt><dd>Maxed</dd>
+        <dt>How often will you use it?</dt><dd>Daily</dd>
+      </dl>
+      <p class="s-note" style="margin-top:12px;">2 empty answers hidden · <span class="s-mono" style="font-size:10px;">Show all</span> <span class="pin">4</span></p>
+    </div>
+
+    <div class="s-card">
+      <h4>Messages</h4>
+      <p class="s-cardsub">Copy-paste log — nothing is posted automatically. <span class="pin">5</span></p>
+      <p class="s-note">No messages yet. Approving creates the first one.</p>
+    </div>
+
+    <div class="s-footerbar">
+      <span class="s-note">Any admin can act on this request. First-write-wins.</span>
+      <div class="s-actions">
+        <span class="s-btn ghost">Cancel request</span>
+        <span class="s-btn outline">Reject</span>
+        <span class="s-btn primary">Approve</span>
+      </div>
+    </div>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>“Requested vs granted” stays two facts: the derived proposal is stored on the request; the granted tool/tier is written into the assignment created at approval — nothing overwrites the request's own fields (fixes the audit wart).</li>
+  <li><span class="pin">2</span>Tier select, default <strong>Team Standard</strong> per your decision; Premium in the dropdown. Only shown for tools with tiers.</li>
+  <li><span class="pin">3</span>“Change tool” opens the same tool select as the indie case (§04) — every derivation is overridable before approval; an override is recorded in the audit trail (“derived Claude, approved as X by Tobias”).</li>
+  <li><span class="pin">4</span>Labeled questions from the new payload render as a clean definition list, long answers as paragraphs; empty answers collapsed behind a count. Legacy hash-key payloads (REQ-001) render the same way minus labels, with wrapping fixed.</li>
+  <li><span class="pin">5</span>Card renamed from “Sent messages” — copy semantics, see §06.</li>
+  <li><span class="pin">6</span>Unknown requesters show <span class="s-badge amber" style="vertical-align:1px;">No Hub user yet</span> here instead, with the note “created on approval · viewer · no invite” — see §06 for where that happens. Ingest never creates users, so rejected requests leave no trace in /users.</li>
+  <li><span class="pin">7</span>The requester's existing <em>active</em> assignments give the approver the add-on context the guide requires (“one tool per profile — combining needs justification”). Jane already has baseline Copilot; this request is a Maxed add-on, which her justification addresses.</li>
+  <li><span class="pin">8</span>Justification is first-class: its own column, required at ingest whenever <code>profile</code> is set (§01 pin 5), shown with the mapped inputs — not buried in the form answers.</li>
+</ul>
+
+<h2><span class="secno">04</span>Derived-tool block — indie (needs decision)</h2>
+<p class="rationale">Indie has no deterministic mapping by design (“discussed with AI Enabler”). The block goes amber and Approve stays disabled until a tool is picked.</p>
+<div class="screen narrow">
+  <div class="inner">
+    <div class="s-card" style="margin:0;">
+      <h4>Request</h4>
+      <p class="s-cardsub">Role + profile from the Form; the Hub proposes the tool.</p>
+      <dl class="s-dl">
+        <dt>Role</dt><dd><span class="s-badge ink">Business</span></dd>
+        <dt>Profile</dt><dd><span class="s-badge">Indie</span></dd>
+      </dl>
+      <div class="s-derived amber">
+        <div class="row1">
+          <span class="s-badge amber">Needs decision</span>
+          <span class="s-select">Select tool… <span class="chev">▾</span></span> <span class="pin">1</span>
+        </div>
+        <div class="rule">Indie → no default mapping · pick per AI Tooling Guide (Cursor Business, Claude API Plan, other)</div>
+      </div>
+      <div class="s-footerbar" style="margin-top:16px;">
+        <span class="s-note">Pick a tool to enable approval. <span class="pin">2</span></span>
+        <div class="s-actions">
+          <span class="s-btn outline">Reject</span>
+          <span class="s-btn disabled">Approve</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>The select lists all active Hub tools; Cursor and Claude Console (API plan) surface first as the guide's named indie options.</li>
+  <li><span class="pin">2</span>Reject and Cancel stay available without a tool decision — only Approve requires one (the approval template needs <code>{{tool.name}}</code>).</li>
+</ul>
+
+<h2><span class="secno">05</span>Settings → Tool mapping</h2>
+<p class="rationale">New tab next to License templates. Seeded from the guide's table; editable because the guide moves (Boost was retired mid-June). One row per role+profile pair.</p>
+<div class="screen">
+  <div class="inner">
+    <div class="s-h1">Tool mapping</div>
+    <div class="s-sub">How role + profile from the request form resolve to a proposed tool. Approvers can always override on the request itself.</div>
+    <table class="s-table">
+      <thead><tr><th>Role</th><th>Profile</th><th>Derived tool</th><th>Default tier</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><span class="s-badge ink">Development</span></td><td><span class="s-badge">Baseline</span></td><td>GitHub Copilot</td><td>Business</td><td class="s-mono" style="font-size:10px; color:var(--app-muted); text-align:right;">Edit</td></tr>
+        <tr><td><span class="s-badge ink">Conception</span></td><td><span class="s-badge">Baseline</span></td><td>Microsoft Copilot</td><td>—</td><td class="s-mono" style="font-size:10px; color:var(--app-muted); text-align:right;">Edit</td></tr>
+        <tr><td><span class="s-badge ink">Business</span></td><td><span class="s-badge">Baseline</span></td><td>Microsoft Copilot</td><td>—</td><td class="s-mono" style="font-size:10px; color:var(--app-muted); text-align:right;">Edit</td></tr>
+        <tr><td><span class="s-badge ink">Any</span></td><td><span class="s-badge">Maxed</span></td><td>Claude</td><td>Team Standard</td><td class="s-mono" style="font-size:10px; color:var(--app-muted); text-align:right;">Edit</td></tr>
+        <tr><td><span class="s-badge ink">Any</span></td><td><span class="s-badge">Indie</span></td><td><span class="s-badge amber">Needs decision</span></td><td>—</td><td class="s-mono" style="font-size:10px; color:var(--app-muted); text-align:right;">Edit</td></tr>
+      </tbody>
+    </table>
+    <p class="s-note" style="margin-top:12px;">Source: <span class="s-mono" style="font-size:10px;">AI Tooling Guide · updated 2026-06-15</span>. “Any” rows apply when no role-specific row matches. <span class="pin">1</span></p>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>Resolution order: exact (role, profile) row → (any, profile) row → needs decision. Edit opens a small dialog (tool select, tier select, or “needs decision”). Deleting a row falls back to needs-decision — nothing ever hard-fails at ingest.</li>
+</ul>
+
+<h2><span class="secno">06</span>Approve dialog — assignment + message in one action</h2>
+<p class="rationale">
+  Approving now does what Approve + Complete used to: it records the granted tool/tier, <strong>creates the license assignment</strong>, and renders the copy-paste message — one dialog, two steps.
+  Shown for the richest case: REQ-002 (indie, resolved to <em>Claude Console</em>, an API-key tool). Seat-based tools skip the key field.
+</p>
+<div class="screen narrow">
+  <div class="inner">
+    <div class="s-dialog">
+      <h3>Approve REQ-002 <span class="s-note" style="font-weight:400;">· Step 1 of 2 — Assignment</span></h3>
+      <p class="s-dialogsub">Approving creates this assignment. <span class="pin">1</span></p>
+      <dl class="s-dl" style="grid-template-columns:150px 1fr;">
+        <dt>Tool</dt><dd>Claude Console <span class="s-note">· picked for this indie request (§04)</span></dd>
+        <dt>Tier</dt><dd><span class="s-select">API Plan <span class="chev">▾</span></span></dd>
+        <dt>Assigned date</dt><dd><span class="s-select">2026-07-09 <span class="chev">▾</span></span></dd>
+        <dt>Hub user</dt><dd><span class="s-note">Will be created: Max Muster · viewer · no invite <span class="pin">8</span></span></dd>
+        <dt>API key <span class="pin">2</span></dt>
+        <dd>
+          <div class="s-pane src" style="min-height:38px; padding:9px 12px;">sk-ant-api03-xK9…rT2A</div>
+          <div class="s-note" style="margin-top:5px;">Required for this tool. Stored encrypted on the assignment; included in the message below.</div>
+        </dd>
+      </dl>
+      <div class="s-footerbar" style="margin-top:14px;">
+        <span class="s-note">Creates a license_assignments row linked to this request.</span>
+        <div class="s-actions">
+          <span class="s-btn ghost">Cancel</span>
+          <span class="s-btn primary">Continue</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:18px;"></div>
+
+    <div class="s-dialog">
+      <h3>Approve REQ-002 <span class="s-note" style="font-weight:400;">· Step 2 of 2 — Message</span></h3>
+      <p class="s-dialogsub">Review the message, then approve. You'll copy it into Teams yourself. <span class="pin">3</span></p>
+      <div class="s-editor">
+        <div class="s-pane src"><div class="pane-label">Template · Claude Console / approval</div>Hi <span class="s-var">{{requester.firstName}}</span> 👋,
+Your request for <b>**<span class="s-var">{{tool.name}}</span>**</b> is approved and your access is set up.
+Your API key: `<span class="s-var">{{licenseCode}}</span>` <span class="pin">4</span>
+Track the request here: <span class="s-var">{{requestUrl}}</span>
+— <span class="s-var">{{approver.firstName}}</span></div>
+        <div class="s-pane"><div class="pane-label">Preview · what you'll paste</div>Hi Max 👋,<br/>Your request for <strong>Claude Console</strong> is approved and your access is set up.<br/>Your API key: <code>sk-ant-api03-xK9…rT2A</code><br/>Track the request here: https://…/requests/2<br/>— Tobias</div>
+      </div>
+      <div class="s-footerbar" style="margin-top:14px;">
+        <span class="s-note">Nothing is sent automatically. <span class="pin">5</span></span>
+        <div class="s-actions">
+          <span class="s-btn ghost">Back</span>
+          <span class="s-btn primary">Approve &amp; create assignment</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:18px;"></div>
+
+    <div class="s-dialog">
+      <h3>Approved ✓</h3>
+      <p class="s-dialogsub">Assignment #214 created · <span class="s-mono" style="font-size:10px;">View assignment</span>. Paste the message into the request's Teams thread and the group chat. <span class="pin">6</span></p>
+      <div class="s-snippet">
+        <span class="s-btn outline small copybtn">Copy message</span>
+        Hi Max 👋,<br/>
+        Your request for <strong>Claude Console</strong> is approved and your access is set up.<br/>
+        Your API key: <code>sk-ant-api03-xK9…rT2A</code><br/>
+        Track the request here: https://…/requests/2<br/>
+        — Tobias
+      </div>
+      <div class="s-footerbar" style="margin-top:14px; border:none; padding:0;">
+        <span class="s-note">Also available anytime from the Messages card on the request. <span class="pin">7</span></span>
+        <div class="s-actions"><span class="s-btn primary">Done</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>Step 1 carries what the retired Complete dialog used to collect: tier (prefilled from the mapping default), assigned date (today), and the credential when the tool needs one. <strong>Precondition: you've already provisioned in the vendor UI</strong> — Approve records the result; the message truthfully says “your access is set up”. The duplicate-active-assignment guard runs here — if the user already has this tool active, the dialog says so and links the existing assignment instead of stacking a second one.</li>
+  <li><span class="pin">2</span>The key field appears only for API-key tools (an <code>ai_tools</code> flag; Claude Console today). Seat tools — GitHub Copilot, Microsoft Copilot, Claude Team, Cursor — go straight from tier/date to Continue. Key is encrypted with the existing <code>encryptApiKey()</code> before storage, exactly like manual assignments.</li>
+  <li><span class="pin">3</span>Reject keeps its free-text note, which also becomes a copyable snippet (today it vanishes into a no-op Graph call). The Complete dialog and the <code>completed</code> status are retired — approval is the terminal happy path.</li>
+  <li><span class="pin">4</span><code>{{licenseCode}}</code> is now bound at approval (v1 bound it at completion). The variable sidebar marks it “just bound”. Templates without it still work — the key is then only in the Hub.</li>
+  <li><span class="pin">5</span>Copy copies the <em>markdown</em> flavor (Teams renders bold/code from markdown-ish paste); preview stays WYSIWYG via the existing <code>markdownToTeamsHtml</code> renderer.</li>
+  <li><span class="pin">6</span>Assignment creation + status transition + message save happen in one transaction with the same first-write-wins guard; if another admin won the race, this state shows their name instead.</li>
+  <li><span class="pin">7</span>Conscious call: the snippet contains the API key in plain text — you are the delivery channel now. The <em>stored</em> copy masks the key; see §07 pin 3.</li>
+  <li><span class="pin">8</span>For unknown requesters, <em>this transaction</em> creates the user (name + email from the request, discipline from role, Hub role viewer, no invite email) together with the assignment — one atomic step. Reject and Cancel never create users.</li>
+</ul>
+
+<h2><span class="secno">07</span>Messages card — the copy-paste log</h2>
+<p class="rationale">The audit card keeps every rendered message and stays copyable forever — the paper trail for “what did we tell the requester”.</p>
+<div class="screen narrow">
+  <div class="inner">
+    <div class="s-card" style="margin:0;">
+      <h4>Messages</h4>
+      <p class="s-cardsub">Copy-paste log — nothing is posted automatically (Teams integration postponed). <span class="pin">1</span></p>
+      <div class="s-quote">
+        <div class="s-msg-meta">Approval · Tobias Studer · 2026-07-09 11:02 · <span style="color:var(--app-green);">Copied ✓</span> <span class="pin">2</span></div>
+        <div style="font-size:13.5px;">Hi Max 👋, Your request for <strong>Claude Console</strong> is approved and your access is set up.<br/>Your API key: <code>sk-ant-•••••••</code> <span class="s-mono" style="font-size:9px; color:var(--app-dim);">Reveal</span> <span class="pin">3</span><br/>Track the request here: https://…/requests/2 — Tobias</div>
+        <div style="margin-top:8px;"><span class="s-btn outline small">Copy message</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<ul class="legend">
+  <li><span class="pin">1</span>Wording change only where it lied: “Audit log of what the Hub posted to the Teams channel + group chat” → the copy above. <code>graph.ts</code>, the <code>teams_*</code> columns, and the adaptive-card path stay in the codebase, dormant, for the future stack.</li>
+  <li><span class="pin">2</span>Optional nicety: remember copied-at client-side per message (no schema change) so you can see at a glance which messages you already pasted.</li>
+  <li><span class="pin">3</span>The <em>stored</em> message masks the API key at rest — the plaintext key lives only in the encrypted assignment column. “Reveal” / “Copy message” decrypt on demand (admin-only, as with manual assignments today), so the audit log doesn't become a second, unencrypted copy of every key.</li>
+</ul>
+
+<h2><span class="secno">08</span>Out of scope, migration &amp; open questions</h2>
+<ul>
+  <li><strong>Dormant, not deleted:</strong> Microsoft Graph helper, retry logic, adaptive card, <code>teams_*</code> columns — kept for the future stack migration; all UI references to auto-posting removed.</li>
+  <li><strong>Retired:</strong> the Complete dialog and the <code>completed</code> status — approval now creates the assignment (§06). The enum value and <code>completion_message_md</code> stay in the schema for history; the UI treats <code>approved</code> (with assignment) and legacy <code>completed</code> as equivalent terminal happy states. The queue's default facet becomes <em>pending review only</em> (approved is terminal now), and the stats row drops “approved — awaiting procurement”.</li>
+  <li><strong>Migration — REQ-001:</strong> approved under v1 semantics, so it has <em>no</em> assignment. Legacy <code>approved</code> rows without an <code>assignment_id</code> show one action: “Record assignment” — step 1 of the approve dialog alone (tier, date, key), no re-approval, no message required.</li>
+  <li><strong>Also in this round (from the audit, not mocked):</strong> seed default approval templates per tool (incl. an API-key variant for Claude Console); queue search fix; sidebar pending-count badge; integration tests for ingest + actions.</li>
+  <li><strong>Decided (3rd round):</strong> provision-first approval (vendor UI before Approve — the message never lies about access being ready); user creation at approval only, viewer, <em>no invite</em> (invite later via the existing flow if ever needed); justification first-class, required at ingest when a profile is set, sourced from profile-specific Form fields mapped by Power Automate; the detail page shows the requester's existing active assignments as add-on review context (§03).</li>
+  <li><strong>To verify during implementation:</strong> the <code>discipline</code> enum accommodates development/conception/business for auto-created users; GitHub Copilot member sync treats request-created users (no GitHub username) as unmatched rather than erroring.</li>
+</ul>
+
+<footer>
+  mockups-v2.html · review artifact for the 032 revision · approve, annotate, or reject sections before implementation starts
+</footer>
+
+</main>
+</body>
+</html>

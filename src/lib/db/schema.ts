@@ -142,6 +142,13 @@ export const messageTemplateKindEnum = pgEnum("message_template_kind", [
   "approval",
   "completion",
 ]);
+// Request profile vocabulary (032-v2). Deliberately separate from
+// user_profile: that enum carries the retired "boost" and lacks "baseline".
+export const licenseRequestProfileEnum = pgEnum("license_request_profile", [
+  "baseline",
+  "maxed",
+  "indie",
+]);
 
 // Users
 export const users = pgTable(
@@ -208,6 +215,9 @@ export const aiTools = pgTable(
     description: text("description"),
     maxLicenses: integer("max_licenses"),
     status: toolStatusEnum("status").notNull().default("active"),
+    // Assignments for this tool carry a credential (e.g. Claude Console API
+    // keys). Drives the required key field in the request approval dialog.
+    requiresApiKey: boolean("requires_api_key").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -892,9 +902,16 @@ export const licenseRequests = pgTable(
     requesterUserId: integer("requester_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    requestedToolId: integer("requested_tool_id")
-      .notNull()
-      .references(() => aiTools.id, { onDelete: "restrict" }),
+    // 032-v2: role + profile from the Form; the Hub derives the tool via
+    // tool_mappings. Null on rows ingested under the v1 tool-name contract.
+    requesterRole: userDisciplineEnum("requester_role"),
+    requesterProfile: licenseRequestProfileEnum("requester_profile"),
+    justification: text("justification"),
+    // Nullable since 032-v2: indie requests have no derived tool until an
+    // approver picks one ("needs decision").
+    requestedToolId: integer("requested_tool_id").references(() => aiTools.id, {
+      onDelete: "restrict",
+    }),
     requestedTierId: integer("requested_tier_id").references(
       () => accessTiers.id,
       { onDelete: "set null" },
@@ -966,6 +983,37 @@ export const messageTemplates = pgTable(
     uniqueIndex("message_templates_tool_tier_kind_idx")
       .on(table.toolId, table.tierId, table.kind)
       .where(sql`${table.tierId} IS NOT NULL`),
+  ],
+);
+
+// Tool Mappings (032-v2) — how (role, profile) from the request form resolves
+// to a proposed tool. Seeded from the AI Tooling Guide, editable in Settings.
+// role NULL = applies to any role. toolId NULL = "needs decision" (indie).
+export const toolMappings = pgTable(
+  "tool_mappings",
+  {
+    id: serial("id").primaryKey(),
+    role: userDisciplineEnum("role"),
+    profile: licenseRequestProfileEnum("profile").notNull(),
+    toolId: integer("tool_id").references(() => aiTools.id, {
+      onDelete: "cascade",
+    }),
+    defaultTierId: integer("default_tier_id").references(() => accessTiers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("tool_mappings_tool_id_idx").on(table.toolId),
+    // Same NULL-distinctness handling as message_templates above: one row per
+    // (role, profile) and one any-role row per profile.
+    uniqueIndex("tool_mappings_role_profile_idx")
+      .on(table.role, table.profile)
+      .where(sql`${table.role} IS NOT NULL`),
+    uniqueIndex("tool_mappings_any_profile_idx")
+      .on(table.profile)
+      .where(sql`${table.role} IS NULL`),
   ],
 );
 
@@ -1367,6 +1415,17 @@ export const messageTemplatesRelations = relations(
     }),
   }),
 );
+
+export const toolMappingsRelations = relations(toolMappings, ({ one }) => ({
+  tool: one(aiTools, {
+    fields: [toolMappings.toolId],
+    references: [aiTools.id],
+  }),
+  defaultTier: one(accessTiers, {
+    fields: [toolMappings.defaultTierId],
+    references: [accessTiers.id],
+  }),
+}));
 
 // Forecast Scenarios (041-forecast-scenario-persistence)
 // Named, shared what-if parameter sets for the Budget / Cost Forecast

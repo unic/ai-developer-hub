@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AuthGuard } from "@/components/auth-guard";
 import { auth } from "@/lib/auth";
 import { getRequestContext } from "@/actions/license-requests";
-import { findTemplate } from "@/lib/license-requests/templates";
+import { listApprovalTemplates } from "@/lib/license-requests/templates";
 import { RequestDetailClient } from "./request-detail-client";
 
 export default async function RequestDetailPage({
@@ -17,26 +17,23 @@ export default async function RequestDetailPage({
   const ctx = await getRequestContext(id);
   if (!ctx) notFound();
 
-  // Current admin's identity — passed to dialogs so {{approver.firstName}}
-  // / {{approver.name}} template variables resolve in messages sent to Teams.
+  // Current admin's identity — passed to the approve dialog so
+  // {{approver.firstName}} / {{approver.name}} template variables resolve.
   const session = await auth();
   const adminName = session?.user?.name ?? "Admin";
   const adminFirstName = adminName.split(/\s+/)[0] ?? adminName;
 
-  // Pre-fetch the right templates so the action modals open with content
-  // already loaded (vs. paying a roundtrip on every click).
-  const [approvalTemplate, completionTemplate] = await Promise.all([
-    findTemplate(ctx.detail.requestedToolId, ctx.detail.requestedTierId, "approval"),
-    findTemplate(ctx.detail.requestedToolId, ctx.detail.requestedTierId, "completion"),
-  ]);
+  // All approval templates — the admin can switch the tool in the dialog
+  // (override / indie pick), so the client resolves per selection.
+  const approvalTemplates = await listApprovalTemplates();
 
   return (
     <AuthGuard requiredRole="admin">
       <RequestDetailClient
         detail={ctx.detail}
-        tiers={ctx.tiers}
-        approvalTemplate={approvalTemplate}
-        completionTemplate={completionTemplate}
+        tools={ctx.tools}
+        activeAssignments={ctx.activeAssignments}
+        approvalTemplates={approvalTemplates}
         approver={{ name: adminName, firstName: adminFirstName }}
       />
     </AuthGuard>

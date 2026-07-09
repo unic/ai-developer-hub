@@ -74,4 +74,15 @@ describe("renderTemplate", () => {
     const out = renderTemplate("Hi {{ requester.firstName }}", ctx);
     expect(out.rendered).toBe("Hi Anna");
   });
+
+  // 032-v2 masking contract: the approve dialog renders the template WITHOUT
+  // binding licenseCode, so the token must survive rendering literally — the
+  // stored message never contains the key (resolved on demand from the
+  // encrypted assignment by getRequestMessage).
+  it("leaves {{licenseCode}} literal when licenseCode is not bound", () => {
+    const localCtx: TemplateContext = { ...ctx, licenseCode: undefined };
+    const out = renderTemplate("Key: `{{licenseCode}}`", localCtx);
+    expect(out.rendered).toBe("Key: `{{licenseCode}}`");
+    expect(out.missingVariables).toContain("licenseCode");
+  });
 });

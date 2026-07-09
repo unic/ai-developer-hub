@@ -216,6 +216,88 @@ uniqueIndex("message_templates_tool_tier_kind_idx")
   <p>typecheck / lint / 359 tests still all green on the merged code.</p>
 </div>
 
+<div class="phase-divider">032-v2 (2026-07-09) — profile+role mapping &amp; copy-paste snippets · author: Claude (Fable 5)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Separate <code>license_request_profile</code> enum instead of reusing <code>user_profile</code></h3>
+  <p class="where"><code>src/lib/db/schema.ts</code> · migration <code>0029_curly_strong_guy.sql</code></p>
+  <p>The existing <code>user_profile</code> enum (spec 032-user-disciplines) carries the retired <code>boost</code> value and lacks <code>baseline</code>. Requests get their own three-value enum (<code>baseline | maxed | indie</code>) so the retired vocabulary never leaks into new rows and "baseline" is expressible. <code>requester_role</code> reuses <code>user_discipline</code> (<code>developer | conception | business</code>) — same taxonomy, and it feeds user auto-creation directly. The Form's "development" is normalized to <code>developer</code> at ingest.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Migration 0029 applied cleanly — the stale-branch warning from the May merge notes no longer applies</h3>
+  <p class="where"><code>pnpm db:migrate</code> against Neon branch <code>wt/automation-workflow</code></p>
+  <p>The v1 notes flagged that this worktree's Neon branch still had the pre-renumbering <code>0021_wakeful_speed</code> applied and would need a reset. In practice the branch is current through 0028 (later feature work evidently reset it), and 0029 (new enum, 3 nullable columns, <code>requested_tool_id</code> DROP NOT NULL, <code>ai_tools.requires_api_key</code>, <code>tool_mappings</code> table with the same partial-unique-index NULL handling as <code>message_templates</code>) applied without incident.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Seeds are idempotent and name-resolved; existing rows always win</h3>
+  <p class="where"><code>scripts/seed-tool-mappings.ts</code>, <code>scripts/seed-message-templates.ts</code></p>
+  <p>Both scripts skip any (role, profile) mapping or tool-default approval template that already exists, so Settings edits survive re-runs. Tools/tiers resolve by name against live data (real names: Claude tier is <em>"Standard Seat"</em>, not "Team Standard" as the guide phrases it; Microsoft Copilot's only tier is <em>"Standard"</em>). The long-deferred template seed from the v1 open questions ships here with two variants: seat tools get no key line; <code>requires_api_key</code> tools (Claude Console) get a <code>{{licenseCode}}</code> line. GitHub Copilot's existing hand-written approval template was detected and left untouched.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Ingest keeps the v1 tool-name path alive as a legacy branch</h3>
+  <p class="where"><code>src/lib/validators.ts</code> (licenseRequestIngestSchema), <code>src/app/api/license-requests/ingest/route.ts</code></p>
+  <p>The v2 contract (role + profile + justification) and the v1 contract (toolId/toolName) coexist: when <code>role</code> is present the mapping path runs and the legacy tool fields are ignored; when absent, the v1 resolution runs unchanged. An un-updated Power Automate flow keeps working during the switchover. <code>justification</code> is required (422) whenever profile is maxed/indie. The fire-and-forget Graph card post was removed from the route — first Graph caller to go.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Mapping resolved at ingest and stored on the row; resolution helper split pure/DB</h3>
+  <p class="where"><code>src/lib/license-requests/mapping.ts</code></p>
+  <p><code>pickMapping()</code> is a pure function over candidate rows (exact (role, profile) → any-role row → null) so it unit-tests without a DB; <code>resolveMapping()</code> wraps it with the one-query lookup. The derived tool/tier are stored on the request at ingest — later mapping edits never rewrite existing requests. The Form's "development" normalizes to the <code>user_discipline</code> value "developer".</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Approval transaction: user auto-creation + assignment + status in one commit, race-safe</h3>
+  <p class="where"><code>src/actions/license-requests.ts</code> (approveRequest, ensureRequesterUser, createAssignmentInTx)</p>
+  <p><code>approveRequest()</code> absorbed the retired <code>completeRequest()</code>'s transaction wholesale (duplicate-active-assignment guard, <code>encryptApiKey()</code>, first-write-wins with the RACE_LOST rollback sentinel) and adds <code>ensureRequesterUser()</code>: unknown requesters get a viewer user (discipline from role, profile for maxed/indie, <code>randomBytes(32).toString("hex")</code> as the never-matching password hash — same pattern as <code>src/actions/users.ts:53</code>) inside the same transaction, so losing the first-write-wins race also rolls back the created user. An email-uniqueness race is absorbed via <code>onConflictDoNothing</code> + re-read. <code>cancelRequest</code> tightened to pending-only (approved is terminal now). <code>recordAssignment()</code> covers legacy v1-approved rows (REQ-001), guarded on <code>status='approved' AND assignment_id IS NULL</code>.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Stored messages keep <code>{{licenseCode}}</code> unresolved; decrypt on demand</h3>
+  <p class="where"><code>getRequestMessage()</code> in <code>src/actions/license-requests.ts</code>, approval-dialog.tsx, request-detail-client.tsx (MessageBlock)</p>
+  <p>The approve dialog renders the template with every variable bound <em>except</em> <code>licenseCode</code> — the token stays literal in <code>approval_message_md</code>, so the audit log never holds a second, unencrypted copy of the key. Preview and the post-approval snippet resolve it client-side (the admin just typed it); the Messages card masks it (<code>••••••••••••</code>) and Reveal/Copy call <code>getRequestMessage(reveal: true)</code> which decrypts from the assignment's <code>api_key_encrypted</code> (admin-gated). Caveat documented in the dialog: hand-pasting the key into the editor stores it as typed.</p>
+</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Queue search bug did not reproduce headless — deferred to live-browser verification</h3>
+  <p class="where"><code>src/components/data-table.tsx</code></p>
+  <p>The July audit reported the global search filtering nothing (verified twice with Playwright keystrokes). Reproducing the exact table options against <code>@tanstack/table-core</code> headless filters correctly, so the defect is not in the option wiring the audit blamed. Rather than land a speculative fix, the Phase-8 browser pass retests it against the running app. What did land: <code>defaultSelected</code> support on faceted filters (queue defaults to pending-only now that approved is terminal).</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Graph module marked dormant, not deleted; both dead "recent form keys" helpers removed</h3>
+  <p class="where"><code>src/lib/teams/graph.ts</code> (header), <code>src/lib/license-requests/templates.ts</code>, <code>src/actions/license-templates.ts</code></p>
+  <p>Zero runtime callers of <code>postChannelReply</code>/<code>postChatMessage</code>/<code>postLicenseRequestCard</code> remain (grep-verified); the module keeps its retry/token logic for the future stack migration, with a DORMANT header note. <code>markdownToTeamsHtml</code> stays load-bearing for all previews. The two never-called "recent form keys" helpers (duplicate implementations flagged in the audit) are gone; <code>listApprovalTemplates()</code> replaces the per-request template prefetch since the approve dialog can now switch tools client-side.</p>
+</div>
+
+<div class="phase-divider">032-v2 — Browser verification (2026-07-09)</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>The audit's "search filters nothing" bug root-caused — it was never in DataTable</h3>
+  <p class="where"><code>src/actions/license-requests.ts</code> (mapRow → toDate)</p>
+  <p>Live-browser verification found it: <code>listLicenseRequests</code> uses raw <code>db.execute()</code>, which returns timestamps as <em>strings</em>; <code>mapRow</code> merely cast them to <code>Date</code>. The queue's age column does <code>createdAt.getTime()</code> in its accessor — any forced row-model evaluation (typing in search, or the new default status filter, even during SSR) threw <code>createdAt.getTime is not a function</code> and killed the render, which read as "search does nothing". v1 never noticed because nothing evaluated accessors and date-fns happily formats strings. Fix: a real <code>toDate()</code> conversion in <code>mapRow</code> (and for <code>activeAssignments.assignedAt</code>). Verified: garbage input → 0 rows + [no results]; "Nova" → 1 row. The shared DataTable needed no change beyond the new <code>defaultSelected</code> option.</p>
+</div>
+
+<div class="entry deviation">
+  <h3><span class="kind deviation">Deviation</span>Dialogs must stay mounted through the status flip</h3>
+  <p class="where"><code>request-detail-client.tsx</code></p>
+  <p>Caught live: <code>approveRequest</code>'s <code>revalidatePath</code> re-renders the detail page mid-flow, <code>status</code> flips to approved, and the original <code>{isPending && &lt;ApprovalDialog/&gt;}</code> gate unmounted the dialog before the success/snippet state could show. All three dialogs now render unconditionally (they're controlled by <code>open</code>); only the action-bar buttons are status-gated.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Full E2E pass: 24/24 checks green</h3>
+  <p class="where">scratchpad verify-032-v2.js · screenshots v2-*.png · dev server on :3001</p>
+  <p>Verified against the running app with an agent session: v2 ingest for maxed (→ Claude · Standard Seat derived) and indie (→ needs decision, justification required, 400 without it); queue with role/profile badges, needs-decision badge, pending-only default facet, working search, sidebar pending-count badge; maxed detail (no-Hub-user-yet state, first-class justification, derived-tool block, empty answers hidden); two-step approve on a seat tool (no key field, "Hub user will be created" note) through to the copy-ready snippet with assignment link; post-approve state (requester matched to the auto-created viewer user, Messages copy-paste log); indie approve gating (Continue disabled until a tool is picked; API-key field appears when Claude Console is selected); tool-mapping settings with the five seeded rows; legacy REQ-001 (label overlap fixed, 19 empty hash answers collapsed, "Record assignment" offered). Test rows, the auto-created user, and assignment #379 were cleaned up afterwards — the DB holds only REQ-001 again. <code>LICENSE_REQUEST_INGEST_SECRET</code> (dev value) was added to the worktree's <code>.env.local</code>.</p>
+</div>
+
+<div class="entry decision">
+  <h3><span class="kind decision">Decision</span>Neon "first query after a pause fails" fixed with pool idle timeout</h3>
+  <p class="where"><code>src/lib/db/index.ts</code></p>
+  <p>Throughout implementation, first-query-after-idle calls through <code>@neondatabase/serverless</code> sporadically failed (ErrorEvent), and during user testing the request detail page errored the same way. Root cause: the app pins <code>max: 1</code> pooled websocket with no idle timeout; Neon's proxy closes idle sockets after a few minutes without a close event reaching the client, so the pool hands out a dead connection and the next query throws. Fix: <code>idleTimeoutMillis: 30_000</code> (retire idle sockets well before the proxy does) + <code>connectionTimeoutMillis: 10_000</code>. Separate, rarer connect-timeout bursts from one-off scripts appear to be plain network episodes to the Neon EU endpoint (both DNS orders measured clean when healthy) — retry absorbs those.</p>
+</div>
+
 <footer>
   Appended to as implementation progresses. Each entry tagged Decision / Deviation / Tradeoff / Open.
 </footer>

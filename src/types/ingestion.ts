@@ -43,8 +43,12 @@ export interface LicenseRequestIngestionDetails {
   formResponseId?: string | null;
   requesterEmail?: string | null;
   requesterName?: string | null;
+  /** Derived tool (032-v2) or requested tool (v1); null = needs decision. */
   toolName?: string | null;
   tierName?: string | null;
+  /** v2 contract inputs; null on legacy v1 rows. */
+  role?: string | null;
+  profile?: string | null;
   /** True when this was an idempotent replay of an already-seen form response. */
   deduped: boolean;
 }

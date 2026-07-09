@@ -1,5 +1,12 @@
 // Microsoft Graph posts for license-request workflow (spec 032-automation-workflow).
 //
+// DORMANT since 032-v2 (2026-07): the Teams integration is postponed — the
+// workflow hands the admin copy-paste snippets instead (see CopySnippetButton
+// and getRequestMessage). No runtime callers remain except the
+// markdownToTeamsHtml re-export below, which stays load-bearing for previews.
+// Retained, with the teams_* columns and IT-112678 notes, for the future
+// stack migration where Teams posting gets built properly.
+//
 // Mirrors the conventions of webhook.ts:
 //   - retry/backoff with jitter on 412/429/502/504, max 3 attempts, Retry-After honored
 //   - throws a custom error class with a `retriable` boolean
