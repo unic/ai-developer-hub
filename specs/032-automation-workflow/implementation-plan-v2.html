@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Implementation Plan v2 — License Requests: profile+role mapping &amp; copy-paste snippets</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg-elev: #11141b; --bg-card: #161a24; --border: #232938;
+    --fg: #e7ebf3; --fg-muted: #9aa3b5; --fg-dim: #6b7488;
+    --accent: #7dd3fc; --accent-2: #a78bfa; --good: #86efac; --warn: #fcd34d; --bad: #fca5a5;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); line-height: 1.55; }
+  body { padding: 48px 24px 96px; }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 48px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h2 .phase { color: var(--fg-dim); font-family: var(--mono); font-size: 13px; margin-right: 10px; }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  p { margin: 0 0 10px; max-width: 78ch; }
+  a { color: var(--accent); }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-elev); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+  pre { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; border: none; padding: 0; }
+  .lede { color: var(--fg-muted); font-size: 15px; max-width: 78ch; }
+  .meta { color: var(--fg-dim); font-size: 13px; margin-top: 8px; font-family: var(--mono); }
+  ul, ol { padding-left: 20px; margin: 6px 0 10px; }
+  li { margin: 4px 0; max-width: 82ch; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 12px 0 18px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--bg-elev); font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); font-weight: 600; }
+  .callout { border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--bg-card); border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 14px; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.good { border-left-color: var(--good); }
+  .file { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+  .new { color: var(--good); font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; background: var(--bg-elev); }
+  .mod { color: var(--warn); font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; background: var(--bg-elev); }
+  .del { color: var(--bad); font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; background: var(--bg-elev); }
+  footer { color: var(--fg-dim); font-size: 12.5px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Implementation plan v2</h1>
+  <p class="lede">
+    Executes the direction locked in <a href="./mockups-v2.html">mockups-v2.html</a>: the ingest API receives
+    <strong>role + profile</strong> and the Hub derives the tool from an editable mapping; Teams/Graph posting is postponed in favor of
+    <strong>copy-paste snippets</strong>; <strong>approval creates the assignment</strong> (provision-first, Complete retired);
+    unknown requesters are <strong>auto-created at approval</strong>; justification is first-class.
+    Also fixes the two confirmed bugs from the July audit (form-payload rendering, queue search) and pays the deferred test debt.
+  </p>
+  <p class="meta">2026-07-09 · branch: worktree-request-workflow · estimate ~4–5 dev days · no external dependencies (IT-112678 no longer on the critical path)</p>
+</header>
+
+<h2><span class="phase">Verified</span>Code facts this plan builds on</h2>
+<ul>
+  <li><code>user_discipline</code> enum already exists: <code>developer | conception | business</code> (schema.ts:50). The Form sends <code>development</code> — ingest normalizes <code>development → developer</code>.</li>
+  <li><code>user_profile</code> enum already exists: <code>boost | maxed | indie</code> (schema.ts:45) — contains retired <code>boost</code> and lacks <code>baseline</code>, so requests get their own enum instead of reusing it.</li>
+  <li><code>users.passwordHash</code> is NOT NULL (schema.ts:153); <span class="file">src/actions/users.ts:53</span> already establishes the pattern for login-less users: <code>randomBytes(32).toString("hex")</code> — never matches a bcrypt compare.</li>
+  <li><code>license_requests.requested_tool_id</code> is NOT NULL (schema.ts:895-897) — must become nullable for indie/needs-decision.</li>
+  <li><code>ai_tools</code> has no API-key flag (schema.ts:202-218) — new boolean needed.</li>
+  <li><code>completeRequest()</code> already holds the assignment-creation transaction (duplicate-active guard, <code>encryptApiKey()</code>, first-write-wins, rollback) — it moves into <code>approveRequest()</code> rather than being rewritten.</li>
+  <li>Current migration head: 0028. This feature ships migration 0029.</li>
+</ul>
+
+<h2><span class="phase">Phase 1</span>Schema &amp; migration 0029</h2>
+<h3><span class="mod">MOD</span> <span class="file">src/lib/db/schema.ts</span></h3>
+<pre><code>// new enum — request profile (user_profile has retired "boost", no "baseline")
+export const licenseRequestProfileEnum = pgEnum("license_request_profile", [
+  "baseline", "maxed", "indie",
+]);
+
+// license_requests — 3 new columns, 1 loosened constraint
+requesterRole: userDisciplineEnum("requester_role"),            // null = legacy row
+requesterProfile: licenseRequestProfileEnum("requester_profile"), // null = legacy row
+justification: text("justification"),                            // required at ingest when profile != baseline
+requestedToolId: integer("requested_tool_id")                    // now NULLABLE (indie = needs decision)
+  .references(() => aiTools.id, { onDelete: "restrict" }),
+
+// ai_tools — new flag
+requiresApiKey: boolean("requires_api_key").notNull().default(false),
+
+// new table — tool_mappings
+export const toolMappings = pgTable("tool_mappings", {
+  id: serial("id").primaryKey(),
+  role: userDisciplineEnum("role"),               // null = any role
+  profile: licenseRequestProfileEnum("profile").notNull(),
+  toolId: integer("tool_id").references(() => aiTools.id, { onDelete: "cascade" }), // null = needs decision
+  defaultTierId: integer("default_tier_id").references(() => accessTiers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  // same partial-unique trick as message_templates (NULL-distinct semantics)
+  uniqueIndex("tool_mappings_role_profile_idx").on(t.role, t.profile).where(sql`role IS NOT NULL`),
+  uniqueIndex("tool_mappings_any_profile_idx").on(t.profile).where(sql`role IS NULL`),
+]);</code></pre>
+<ul>
+  <li>Run <code>pnpm db:generate</code> → <span class="file">0029_*.sql</span>; review with the drizzle-migration-reviewer agent (dropping NOT NULL is safe; new columns nullable; new table additive).</li>
+  <li><span class="new">NEW</span> <span class="file">scripts/seed-tool-mappings.ts</span> — idempotent upsert of the 5 guide rows (developer/baseline→GitHub Copilot·Business, conception/baseline→Microsoft Copilot, business/baseline→Microsoft Copilot, any/maxed→Claude·Team Standard, any/indie→needs decision) + sets <code>requiresApiKey = true</code> on Claude Console. Resolves tools/tiers by name, warns and skips when absent.</li>
+  <li><span class="new">NEW</span> <span class="file">scripts/seed-message-templates.ts</span> — the long-deferred template seed: one approval default per active tool; Claude Console variant includes the <code>{{licenseCode}}</code> line; seat-tool variants do not. Idempotent (skip when a tool-default approval template exists).</li>
+</ul>
+
+<h2><span class="phase">Phase 2</span>Ingest contract v2</h2>
+<h3><span class="mod">MOD</span> <span class="file">src/lib/validators.ts</span></h3>
+<pre><code>role: z.enum(["development", "conception", "business"]),   // Form vocabulary; normalized to user_discipline at ingest
+profile: z.union([z.literal(""), z.literal("maxed"), z.literal("indie")]).default(""), // "" = baseline
+justification: z.string().max(4000).optional(),
+// toolId/toolName/tierId/tierName stay OPTIONAL and are ignored when role is present
+// (transition safety: an un-updated PA flow keeps working via the legacy path)
+.superRefine(...)  // profile !== "" && !justification?.trim() → issue on ["justification"]</code></pre>
+<h3><span class="mod">MOD</span> <span class="file">src/app/api/license-requests/ingest/route.ts</span></h3>
+<ul>
+  <li><span class="new">NEW</span> <span class="file">src/lib/license-requests/mapping.ts</span> — <code>normalizeRole("development") → "developer"</code>; <code>resolveMapping(role, profile)</code>: exact (role, profile) row → (NULL role, profile) row → <code>null</code> (needs decision). Pure resolution over one query; unit-tested.</li>
+  <li>Route: when <code>role</code> present → normalize, resolve mapping, store <code>requesterRole/requesterProfile/justification</code> + <code>requestedToolId/requestedTierId</code> from the mapping (both null for indie). When absent → legacy tool/toolName path unchanged. Unknown enum value → 422 listing allowed values; missing justification with profile → 422 (both logged to ingestion history as <code>failed</code>, existing pattern).</li>
+  <li><span class="del">CUT</span> the fire-and-forget <code>postLicenseRequestCard()</code> call — first UI reference to Graph removed (module stays, §6).</li>
+  <li>Idempotency, bearer auth, 64KB cap, ingestion logging: unchanged.</li>
+</ul>
+
+<h2><span class="phase">Phase 3</span>Approve = assignment + user + message (one transaction)</h2>
+<h3><span class="mod">MOD</span> <span class="file">src/actions/license-requests.ts</span></h3>
+<pre><code>approveRequestSchema = {
+  requestId, bodyMd,
+  toolId,                       // required — derived value or override or indie pick
+  tierId?,                      // optional (tools without tiers)
+  assignedAt,                   // YYYY-MM-DD, default today client-side
+  licenseCode?,                 // required iff tool.requiresApiKey (superRefine needs tool lookup → validate in action)
+}</code></pre>
+<ol>
+  <li><code>requireAdmin()</code>, Zod parse, load request + tool; <code>licenseCode</code> required when <code>tool.requiresApiKey</code>.</li>
+  <li>Single <code>db.transaction()</code>:
+    <ul>
+      <li>If <code>requesterUserId</code> is null → insert user (name/email from request, <code>discipline = requesterRole ?? "developer"</code>, <code>profile</code> from request when maxed/indie, role <code>viewer</code>, <code>passwordHash = randomBytes(32).toString("hex")</code>, no invite) and backfill <code>requester_user_id</code>. Handle the email-exists race with <code>onConflictDoNothing</code> + re-select.</li>
+      <li>Duplicate-active-assignment guard (existing logic, moved from completeRequest).</li>
+      <li>Insert <code>license_assignments</code> (tool, tier, user, <code>assignedAt</code>, <code>apiKeyEncrypted = encryptApiKey(licenseCode)</code> when provided).</li>
+      <li>First-write-wins <code>UPDATE … SET status='approved', decided_by, decided_at, approval_message_md, assignment_id WHERE id=? AND status='pending_review'</code>; 0 rows → throw <code>RACE_LOST</code> → rollback (assignment + any created user roll back too), return “already actioned by X”.</li>
+    </ul>
+  </li>
+  <li><strong>Message storage masks the key:</strong> <code>bodyMd</code> is stored with the literal <code>{{licenseCode}}</code> token unresolved. Rendering for preview/copy resolves it on demand from the decrypted assignment (admin-only server action <code>getRequestMessage(requestId, { reveal })</code>). If the admin hand-pastes a key into the editor, it is stored as typed — documented in the dialog hint.</li>
+  <li><span class="del">CUT</span> all <code>postToTeamsSafe</code> calls from approve/reject (function deleted; graph.ts untouched).</li>
+  <li><span class="new">NEW</span> <code>recordAssignment()</code> — legacy migration action for <code>approved</code> rows with <code>assignment_id IS NULL</code> (REQ-001): step-1 fields only, guarded by <code>status='approved' AND assignment_id IS NULL</code>, no message, no re-approval.</li>
+  <li><code>completeRequest()</code> <span class="del">DELETED</span>; <code>rejectRequest</code>/<code>cancelRequest</code> unchanged except Teams-call removal. <code>completed</code> enum value + <code>completion_message_md</code> stay for history; detail page renders legacy completed rows read-only as today.</li>
+</ol>
+
+<h2><span class="phase">Phase 4</span>UI — queue, detail, dialogs</h2>
+<ul>
+  <li><span class="mod">MOD</span> <span class="file">src/app/requests/requests-table.tsx</span> — Role/Profile column (badges, “—” for legacy), Tool column shows derived tool or amber “Needs decision”, default status facet <strong>pending_review only</strong>, stats row drops “approved — awaiting procurement”.</li>
+  <li><span class="mod">MOD</span> <span class="file">src/app/requests/[id]/request-detail-client.tsx</span> —
+    requester card gains “No Hub user yet — created on approval” state + <strong>Active assignments</strong> row (new query in page.tsx);
+    Request card: role/profile/justification rows, derived-tool block (tier select defaulting from mapping, “Change tool” override, amber needs-decision variant with Approve disabled until picked);
+    form answers: hide empty values behind a count, fix the label overflow (<code>min-w-0</code> + <code>break-all</code> on the 160px <code>&lt;dt&gt;</code> grid) so legacy hash-key rows render sanely;
+    “Sent messages” → “Messages” card with per-message Copy button + masked key with Reveal.</li>
+  <li><span class="mod">MOD</span> <span class="file">src/app/requests/[id]/approval-dialog.tsx</span> — two steps: (1) tool/tier/date/API-key + “Hub user will be created” note + duplicate-guard feedback; (2) template editor with <code>{{licenseCode}}</code> bound, footer “Nothing is sent automatically”; success state with snippet + Copy + assignment link.</li>
+  <li><span class="del">DEL</span> <span class="file">src/app/requests/[id]/completion-dialog.tsx</span> — replaced by the above; a slim <span class="new">NEW</span> <span class="file">record-assignment-dialog.tsx</span> covers the legacy path.</li>
+  <li><span class="mod">MOD</span> <span class="file">rejection-dialog.tsx</span> — success state shows the note as a copyable snippet.</li>
+  <li><span class="new">NEW</span> <span class="file">src/components/copy-snippet.tsx</span> — markdown-flavor clipboard copy + “Copied ✓” state; reused by approve/reject dialogs and the Messages card.</li>
+  <li><span class="new">NEW</span> <span class="file">src/app/settings/tool-mapping/</span> — page + table + edit dialog (role, profile, tool select or “needs decision”, default tier); server actions in <span class="new">NEW</span> <span class="file">src/actions/tool-mappings.ts</span>; tab added to settings-nav. Delete → falls back to needs-decision (documented inline).</li>
+  <li><span class="mod">MOD</span> <span class="file">src/components/app-sidebar.tsx</span> — pending-count badge on Requests (count of <code>pending_review</code>, server-rendered).</li>
+</ul>
+
+<h2><span class="phase">Phase 5</span>Bug fixes from the audit</h2>
+<ul>
+  <li><strong>Queue search filters nothing</strong> — root-cause in <span class="file">src/components/data-table.tsx</span> global-filter path (RequestsTable passes no <code>searchKey</code>; suspect TanStack's default <code>getColumnCanGlobalFilter</code> rejecting non-string first-row values). Fix in the shared component with explicit <code>globalFilterFn: "includesString"</code> + <code>getColumnCanGlobalFilter</code>, verify on /requests <em>and</em> one other global-filter consumer; unit-test the wiring.</li>
+  <li><strong>Form-payload overflow</strong> — covered in Phase 4 (min-w-0/break-all + empty-row collapsing); applies to legacy hash payloads too.</li>
+  <li>Dead code: remove the two uncalled “recent form keys” helpers (<span class="file">lib/license-requests/templates.ts:57-72</span>, <span class="file">actions/license-templates.ts:144-162</span>) or wire one into the template editor's variable sidebar — decide at implementation, default remove.</li>
+</ul>
+
+<h2><span class="phase">Phase 6</span>Dormant Teams path</h2>
+<ul>
+  <li><span class="file">src/lib/teams/graph.ts</span>, adaptive card, <code>teams_*</code> columns, retry logic: <strong>kept, dormant</strong> — no caller remains after Phases 2–3. Add a file-header comment: “No runtime callers since spec 032-v2 (2026-07); retained for the future stack migration.”</li>
+  <li><span class="file">markdown.ts</span> (<code>markdownToTeamsHtml</code>) stays load-bearing — it renders every preview and the Messages card.</li>
+  <li>Ingest keeps requiring/storing <code>teams*</code> IDs (PA still sends them; they become useful again post-migration).</li>
+</ul>
+
+<h2><span class="phase">Phase 7</span>Tests</h2>
+<table>
+  <thead><tr><th>Suite</th><th>Covers</th></tr></thead>
+  <tbody>
+    <tr><td><span class="file">tests/unit/license-requests/mapping.test.ts</span> <span class="new">NEW</span></td><td>normalizeRole; resolveMapping precedence (exact → any-role → null); unknown values.</td></tr>
+    <tr><td><span class="file">tests/unit/license-requests/render-template.test.ts</span> <span class="mod">MOD</span></td><td>+ licenseCode masking/resolution round-trip.</td></tr>
+    <tr><td><span class="file">tests/integration/api/license-requests/ingest.test.ts</span> <span class="new">NEW</span> (deferred since v1)</td><td>bearer auth; idempotency; v2 payload happy path incl. mapping; 422s (bad role/profile, missing justification); legacy tool-name path still accepted.</td></tr>
+    <tr><td><span class="file">tests/integration/actions/license-requests.test.ts</span> <span class="new">NEW</span> (deferred since v1)</td><td>approve transaction: user auto-creation (and its rollback on race), assignment + encryption, duplicate-active guard, first-write-wins under concurrency, requiresApiKey enforcement, recordAssignment legacy path, reject/cancel.</td></tr>
+    <tr><td><span class="file">tests/unit/components/data-table-search.test.ts</span> <span class="new">NEW</span></td><td>global filter actually filters.</td></tr>
+  </tbody>
+</table>
+<p>DB work runs against the worktree's Neon branch (reset from current main first — the stale-0021 state flagged in v1 notes still applies). CI: <code>pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration</code>.</p>
+
+<h2><span class="phase">Phase 8</span>Rollout</h2>
+<ol>
+  <li>Migrate + seed (mappings, templates) — seeds run before the PA flow switches.</li>
+  <li>Update the PA flow: map role/profile/justification from the updated Form; drop the tool fields (legacy path keeps an un-updated flow alive during the switch).</li>
+  <li>Run <code>recordAssignment</code> on REQ-001 (or leave it — the action makes it self-service).</li>
+  <li>Smoke: submit the updated Form end-to-end → verify ingest 201, queue render, approve with copy snippet, assignment row, /users entry for an unknown requester.</li>
+</ol>
+
+<h2><span class="phase">Done when</span>Definition of done</h2>
+<ol>
+  <li>A Form submission with (development, maxed, justification) creates a request showing role/profile/justification and derived tool <em>Claude · Team Standard</em>; (business, indie) shows amber needs-decision with Approve disabled until a tool is picked.</li>
+  <li>Approving as an unknown requester creates — atomically — a viewer user (no invite), an assignment (encrypted key when the tool requires one), and a copy-ready message whose stored form masks the key; the duplicate-active guard and first-write-wins conflict messages still hold under concurrent approval.</li>
+  <li>Reject produces a copyable snippet; no code path calls Microsoft Graph anymore; the Messages card never claims anything was posted.</li>
+  <li>The mapping table is editable under Settings and ingest resolves through it; deleting a row degrades to needs-decision, never an ingest failure.</li>
+  <li>REQ-001 renders correctly (wrapped labels, hidden empties) and offers “Record assignment”.</li>
+  <li>Queue search filters rows; sidebar shows the pending count; default facet is pending-only.</li>
+  <li>CI green: lint, typecheck, unit, integration.</li>
+</ol>
+
+<footer>
+  implementation-plan-v2.html · supersedes the Graph/Teams phases of implementation-plan.html · mockups: mockups-v2.html
+</footer>
+
+</main>
+</body>
+</html>

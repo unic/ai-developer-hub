@@ -14,6 +14,7 @@ const adminTabs = [
   { label: "Sync Status", href: "/settings/sync" },
   { label: "Ingestion", href: "/settings/ingestion" },
   { label: "License Templates", href: "/settings/license-templates" },
+  { label: "Tool Mapping", href: "/settings/tool-mapping" },
   { label: "API Preview", href: "/settings/api-preview" },
 ];
 

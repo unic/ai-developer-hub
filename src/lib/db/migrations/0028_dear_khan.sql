@@ -1,0 +1,1 @@
+DROP TABLE "anthropic_alert_state" CASCADE;

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { messageTemplates, aiTools, accessTiers } from "@/lib/db/schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { messageTemplateSchema } from "@/lib/validators";
@@ -138,25 +138,3 @@ export async function listToolsWithTiers(): Promise<ToolWithTiers[]> {
   return Array.from(map.values());
 }
 
-/** Returns the union of form_payload top-level keys observed across the
- * most recent N license_requests for a given tool. Powers the variable
- * picker in the template editor. */
-export async function recentFormKeysForTool(
-  toolId: number,
-  limit = 30,
-): Promise<string[]> {
-  // Run a raw aggregation — cheaper than fetching N JSONB blobs and unpacking
-  // in JS, especially as the history grows.
-  const result = await db.execute(sql`
-    SELECT DISTINCT key
-    FROM (
-      SELECT jsonb_object_keys(form_payload) AS key
-      FROM license_requests
-      WHERE requested_tool_id = ${toolId}
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-    ) sub
-    ORDER BY key
-  `);
-  return (result.rows as { key: string }[]).map((r) => r.key);
-}

@@ -1,16 +1,33 @@
-// POST /api/license-requests/ingest — spec 032-automation-workflow Phase 2.
+// POST /api/license-requests/ingest — spec 032-automation-workflow Phase 2,
+// reworked for the v2 contract (032-v2).
 //
 // Bearer-secret-protected ingest endpoint that Power Automate calls when a
 // Microsoft Form is submitted. Idempotent on formResponseId.
+//
+// v2: the payload carries role + profile (+ justification) and the Hub derives
+// the tool via tool_mappings. The v1 tool/toolName path stays accepted (when
+// `role` is absent) so an un-updated PA flow keeps working during switchover.
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { licenseRequests, aiTools, accessTiers, users } from "@/lib/db/schema";
+import {
+  licenseRequests,
+  aiTools,
+  accessTiers,
+  users,
+  toolMappings,
+} from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireBearerSecret } from "@/lib/auth-helpers";
 import { licenseRequestIngestSchema } from "@/lib/validators";
 import { logIngestion } from "@/lib/ingestion-logger";
-import { postLicenseRequestCard } from "@/lib/teams/graph";
+import {
+  normalizeRole,
+  normalizeProfile,
+  pickMapping,
+  type RequesterRole,
+  type RequesterProfile,
+} from "@/lib/license-requests/mapping";
 
 export const dynamic = "force-dynamic";
 
@@ -88,10 +105,50 @@ export async function POST(request: NextRequest) {
 
   const input = parsed.data;
 
-  // Resolve tool — by ID if provided, else by case-insensitive name.
-  let toolId: number;
-  let toolName: string;
-  if (input.toolId !== undefined) {
+  // v2 path: derive the tool from (role, profile) via tool_mappings.
+  // Legacy path (no role): resolve tool by id/name as under the v1 contract.
+  let toolId: number | null = null;
+  let toolName: string | null = null;
+  let tierId: number | null = null;
+  let tierName: string | null = null;
+  let requesterRole: RequesterRole | null = null;
+  let requesterProfile: RequesterProfile | null = null;
+
+  if (input.role !== undefined) {
+    requesterRole = normalizeRole(input.role);
+    requesterProfile = normalizeProfile(input.profile);
+    const candidateRows = await db
+      .select({
+        role: toolMappings.role,
+        profile: toolMappings.profile,
+        toolId: toolMappings.toolId,
+        defaultTierId: toolMappings.defaultTierId,
+      })
+      .from(toolMappings)
+      .where(eq(toolMappings.profile, requesterProfile));
+    const mapping = pickMapping(candidateRows, requesterRole, requesterProfile);
+    if (mapping?.toolId != null) {
+      const tool = await db.query.aiTools.findFirst({
+        where: eq(aiTools.id, mapping.toolId),
+        columns: { id: true, name: true },
+      });
+      if (tool) {
+        toolId = tool.id;
+        toolName = tool.name;
+      }
+      if (mapping.defaultTierId != null) {
+        const tier = await db.query.accessTiers.findFirst({
+          where: eq(accessTiers.id, mapping.defaultTierId),
+          columns: { id: true, name: true, toolId: true },
+        });
+        if (tier && tier.toolId === toolId) {
+          tierId = tier.id;
+          tierName = tier.name;
+        }
+      }
+    }
+    // No mapping row / toolId NULL (indie) → both stay null: "needs decision".
+  } else if (input.toolId !== undefined) {
     const tool = await db.query.aiTools.findFirst({
       where: eq(aiTools.id, input.toolId),
       columns: { id: true, name: true },
@@ -121,44 +178,44 @@ export async function POST(request: NextRequest) {
     toolId = tool[0].id;
     toolName = tool[0].name;
   } else {
-    // Refine guard already enforces this — defensive
+    // superRefine guard already enforces this — defensive
     return jsonError(
-      "toolId or toolName is required",
+      "role (v2) or toolId/toolName (legacy) is required",
       400,
       input.formResponseId,
     );
   }
 
-  // Resolve tier (optional).
-  let tierId: number | null = null;
-  let tierName: string | null = null;
-  if (input.tierId !== undefined) {
-    const tier = await db.query.accessTiers.findFirst({
-      where: eq(accessTiers.id, input.tierId),
-      columns: { id: true, name: true, toolId: true },
-    });
-    if (!tier || tier.toolId !== toolId) {
-      return jsonError(
-        `Tier not found for tool (tierId=${input.tierId})`,
-        422,
-        input.formResponseId,
-      );
+  // Legacy tier resolution (v1 contract only).
+  if (input.role === undefined && toolId !== null) {
+    if (input.tierId !== undefined) {
+      const tier = await db.query.accessTiers.findFirst({
+        where: eq(accessTiers.id, input.tierId),
+        columns: { id: true, name: true, toolId: true },
+      });
+      if (!tier || tier.toolId !== toolId) {
+        return jsonError(
+          `Tier not found for tool (tierId=${input.tierId})`,
+          422,
+          input.formResponseId,
+        );
+      }
+      tierId = tier.id;
+      tierName = tier.name;
+    } else if (input.tierName) {
+      const tier = await db
+        .select({ id: accessTiers.id, name: accessTiers.name })
+        .from(accessTiers)
+        .where(
+          sql`lower(${accessTiers.name}) = lower(${input.tierName}) and ${accessTiers.toolId} = ${toolId}`,
+        )
+        .limit(1);
+      if (tier.length > 0) {
+        tierId = tier[0].id;
+        tierName = tier[0].name;
+      }
+      // If not found, leave nullable — admin can pick at approve time
     }
-    tierId = tier.id;
-    tierName = tier.name;
-  } else if (input.tierName) {
-    const tier = await db
-      .select({ id: accessTiers.id, name: accessTiers.name })
-      .from(accessTiers)
-      .where(
-        sql`lower(${accessTiers.name}) = lower(${input.tierName}) and ${accessTiers.toolId} = ${toolId}`,
-      )
-      .limit(1);
-    if (tier.length > 0) {
-      tierId = tier[0].id;
-      tierName = tier[0].name;
-    }
-    // If not found, leave nullable — admin can pick at approve time
   }
 
   // Optional requester match by email.
@@ -178,6 +235,9 @@ export async function POST(request: NextRequest) {
         requesterEmail: input.requesterEmail.toLowerCase(),
         requesterName: input.requesterName,
         requesterUserId: matchedUser?.id ?? null,
+        requesterRole,
+        requesterProfile,
+        justification: input.justification?.trim() || null,
         requestedToolId: toolId,
         requestedTierId: tierId,
         formPayload: input.formPayload,
@@ -223,23 +283,8 @@ export async function POST(request: NextRequest) {
 
   const hubUrl = `${hubBaseUrl()}/requests/${requestId}`;
 
-  // Fire-and-forget Graph card post. We don't await this for the response —
-  // the request row is the source of truth; the Teams reply is a nice-to-have.
-  // When Graph isn't configured, postLicenseRequestCard logs and returns.
-  if (!deduped) {
-    void postLicenseRequestCard({
-      teamId: input.teamsTeamId,
-      channelId: input.teamsChannelId,
-      parentMessageId: input.teamsParentMessageId,
-      requestId,
-      requesterName: input.requesterName,
-      toolName,
-      tierName,
-      hubUrl,
-    }).catch((err) => {
-      console.error("[license-requests] Graph card post failed:", err);
-    });
-  }
+  // 032-v2: no outbound Teams call — the Graph path is dormant. The approver
+  // copies the rendered message into Teams from the Hub UI.
 
   // 034: a dedup replay is a successful, idempotent outcome — recorded as
   // `success` with details.deduped, not the invoice-only "filtered" outcome.
@@ -255,6 +300,8 @@ export async function POST(request: NextRequest) {
       requesterName: input.requesterName,
       toolName,
       tierName,
+      role: requesterRole,
+      profile: requesterProfile,
       deduped,
     },
   });

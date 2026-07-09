@@ -18,6 +18,21 @@ const STATUS_LABELS: Record<LicenseRequestRow["status"], string> = {
   cancelled: "Cancelled",
 };
 
+const ROLE_LABELS: Record<NonNullable<LicenseRequestRow["requesterRole"]>, string> = {
+  developer: "Development",
+  conception: "Conception",
+  business: "Business",
+};
+
+const PROFILE_LABELS: Record<
+  NonNullable<LicenseRequestRow["requesterProfile"]>,
+  string
+> = {
+  baseline: "Baseline",
+  maxed: "Maxed",
+  indie: "Indie",
+};
+
 function statusBadge(status: LicenseRequestRow["status"]) {
   const variantMap: Record<LicenseRequestRow["status"], "default" | "secondary" | "destructive" | "outline"> = {
     pending_review: "default",
@@ -55,19 +70,55 @@ export function RequestsTable({ data }: { data: LicenseRequestRow[] }) {
         ),
       },
       {
-        id: "tool",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Tool / tier" />,
-        accessorFn: (row) => row.requestedToolName,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <span>{row.original.requestedToolName}</span>
-            {row.original.requestedTierName && (
-              <Badge variant="outline" className="text-[11px]">
-                {row.original.requestedTierName}
-              </Badge>
-            )}
-          </div>
+        id: "roleProfile",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Role / profile" />
         ),
+        accessorFn: (row) =>
+          [
+            row.requesterRole ? ROLE_LABELS[row.requesterRole] : null,
+            row.requesterProfile ? PROFILE_LABELS[row.requesterProfile] : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        cell: ({ row }) =>
+          row.original.requesterRole ? (
+            <div className="flex flex-wrap items-center gap-1">
+              <Badge variant="secondary" className="text-[11px]">
+                {ROLE_LABELS[row.original.requesterRole]}
+              </Badge>
+              {row.original.requesterProfile && (
+                <Badge variant="outline" className="text-[11px]">
+                  {PROFILE_LABELS[row.original.requesterProfile]}
+                </Badge>
+              )}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: "tool",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Tool" />,
+        accessorFn: (row) => row.requestedToolName ?? "",
+        cell: ({ row }) =>
+          row.original.requestedToolName ? (
+            <div className="flex items-center gap-2">
+              <span>{row.original.requestedToolName}</span>
+              {row.original.requestedTierName && (
+                <Badge variant="outline" className="text-[11px]">
+                  {row.original.requestedTierName}
+                </Badge>
+              )}
+            </div>
+          ) : (
+            <Badge
+              variant="outline"
+              className="border-amber-400 text-[11px] text-amber-700 dark:text-amber-400"
+            >
+              Needs decision
+            </Badge>
+          ),
       },
       {
         accessorKey: "status",
@@ -125,6 +176,9 @@ export function RequestsTable({ data }: { data: LicenseRequestRow[] }) {
           columnId: "status",
           title: "Status",
           options: statusOptions,
+          // 032-v2: approved is terminal (assignment created at approval), so
+          // the default working set is the pending queue only.
+          defaultSelected: ["pending_review"],
         },
       ]}
     />

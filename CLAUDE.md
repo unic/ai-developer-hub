@@ -1,6 +1,6 @@
 # AI Developer Hub Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-02
+Compiled from all feature plans in `specs/`. Last updated: 2026-03-02
 
 ## Active Technologies
 - TypeScript 5.x (strict mode), Node.js LTS + Next.js 15 (App Router), Tailwind CSS v4, shadcn/ui (new-york style), React Hook Form, Zod, TanStack Table v8, Recharts, Lucide React (001-ai-tool-budget-tracker)

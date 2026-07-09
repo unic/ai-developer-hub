@@ -53,6 +53,11 @@ interface FacetedFilterConfig {
   columnId: string;
   title: string;
   options: { label: string; value: string }[];
+  /** Pre-select these values when the table mounts (user can still clear).
+   * Applied via lazy state init, so it only takes effect on the FIRST render
+   * — `facetedFilters` must be available and stable at mount. Later changes
+   * to this prop are deliberately ignored to never clobber user edits. */
+  defaultSelected?: string[];
 }
 
 interface DataTableProps<TData, TValue> {
@@ -71,7 +76,11 @@ export function DataTable<TData, TValue>({
   facetedFilters,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
+    (facetedFilters ?? [])
+      .filter((f) => f.defaultSelected && f.defaultSelected.length > 0)
+      .map((f) => ({ id: f.columnId, value: f.defaultSelected! })),
+  );
   const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
 

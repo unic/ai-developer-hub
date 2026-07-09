@@ -50,23 +50,23 @@ export async function findTemplate(
   return fallback?.bodyMd ?? candidates[0].bodyMd;
 }
 
-/** Convenience used by the template editor: list the form_payload keys
- * seen across the most recent N requests for a tool. Lets the editor's
- * variable picker surface the *available* `{{form.*}}` keys instead of
- * making the user guess. */
-export async function recentFormPayloadKeys(
-  toolId: number,
-  limit = 30,
-): Promise<string[]> {
-  const rows = await db.query.licenseRequests.findMany({
-    where: (lr, { eq: e }) => e(lr.requestedToolId, toolId),
-    columns: { formPayload: true },
-    orderBy: (lr, { desc }) => [desc(lr.createdAt)],
-    limit,
-  });
-  const keys = new Set<string>();
-  for (const row of rows) {
-    for (const k of Object.keys(row.formPayload ?? {})) keys.add(k);
-  }
-  return Array.from(keys).sort();
+export interface ApprovalTemplateRow {
+  toolId: number;
+  tierId: number | null;
+  bodyMd: string;
+}
+
+/** All approval templates in one list (032-v2). The approve dialog lets the
+ * admin switch the tool (override / indie pick), so the client resolves
+ * override(tool, tier) → default(tool) → empty over this small set instead of
+ * paying a roundtrip per selection change. */
+export async function listApprovalTemplates(): Promise<ApprovalTemplateRow[]> {
+  return db
+    .select({
+      toolId: messageTemplates.toolId,
+      tierId: messageTemplates.tierId,
+      bodyMd: messageTemplates.bodyMd,
+    })
+    .from(messageTemplates)
+    .where(eq(messageTemplates.kind, "approval"));
 }

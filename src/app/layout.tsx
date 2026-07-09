@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "@/components/session-provider";
 import { getActiveAlerts } from "@/actions/alerts";
+import { countPendingLicenseRequests } from "@/actions/license-requests";
 import { AlertBanner } from "@/components/alert-banner";
 import "./globals.css";
 
@@ -48,9 +49,12 @@ export default async function RootLayout({
   const pathname = (headerStore.get("x-pathname") ?? "/").split("?")[0];
   const showSidebar = !isBareLayoutPath(pathname);
   const session = showSidebar ? await auth() : null;
-  const alerts = showSidebar && session?.user?.role === "admin"
-    ? await getActiveAlerts().catch(() => null)
-    : null;
+  const isAdmin = showSidebar && session?.user?.role === "admin";
+  const alerts = isAdmin ? await getActiveAlerts().catch(() => null) : null;
+  // 032-v2: pending license requests → badge on the Requests nav item.
+  const pendingRequestsCount = isAdmin
+    ? await countPendingLicenseRequests().catch(() => 0)
+    : 0;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -69,6 +73,7 @@ export default async function RootLayout({
                 <AppSidebar
                   userName={session?.user?.name ?? null}
                   userRole={session?.user?.role ?? null}
+                  pendingRequestsCount={pendingRequestsCount}
                 />
                 <div className="flex min-w-0 flex-col">
                   <AlertBanner alerts={alerts} />

@@ -97,7 +97,7 @@ where `runningCostCents` comes from `getRunningCostsForPeriod(periodId)` (live A
 
 ## Next steps if this direction is approved
 
-1. Run `/speckit.specify` to formalize the requirements into `spec.md`.
+1. Formalize the requirements into a `spec.md`.
 2. Decide on the per-tool budget question above.
-3. `/speckit.plan` to scope migrations (likely zero or one column added) and the new server actions.
-4. `/speckit.tasks` to generate the implementation list — expected to be a single PR since the deletion-of-tabs work is trivial and the Budget tab reuses existing aggregations.
+3. Write a `plan.md` to scope migrations (likely zero or one column added) and the new server actions.
+4. Break the plan into an implementation task list — expected to be a single PR since the deletion-of-tabs work is trivial and the Budget tab reuses existing aggregations.

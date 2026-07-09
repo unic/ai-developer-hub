@@ -543,31 +543,83 @@ export const licenseRequestIngestSchema = z
     formResponseId: z.string().min(1).max(255),
     requesterEmail: z.string().email(),
     requesterName: z.string().min(1).max(255),
-    // Tool / tier — accept name or id. ID takes precedence when both supplied.
+    // v2 contract (032-v2): the Form sends role + profile; the Hub derives the
+    // tool via the tool_mappings table. Empty profile = baseline. Matching is
+    // case-insensitive — the Form's answer options are Title Case
+    // ("Development", "Maxed") and PA forwards them verbatim.
+    role: z
+      .preprocess(
+        (v) => (typeof v === "string" ? v.trim().toLowerCase() : v),
+        z.enum(["development", "conception", "business"]),
+      )
+      .optional(),
+    profile: z
+      .preprocess(
+        (v) => (typeof v === "string" ? v.trim().toLowerCase() : v),
+        z.union([z.literal(""), z.literal("maxed"), z.literal("indie")]),
+      )
+      .optional(),
+    justification: z.string().max(4000).optional(),
+    // Legacy v1 contract — tool/tier by name or id. Accepted only when `role`
+    // is absent, so an un-updated Power Automate flow keeps working during the
+    // switchover. Ignored when `role` is present.
     toolId: z.number().int().positive().optional(),
     toolName: z.string().min(1).max(255).optional(),
     tierId: z.number().int().positive().optional(),
     tierName: z.string().min(1).max(255).optional(),
-    // Variable per tier; raw form payload, keyed by Form question identifier.
+    // Raw form payload. v2: keyed by question label (PA maps question text);
+    // v1 legacy rows carry MS Forms field-ID hashes.
     formPayload: z.record(z.string(), z.unknown()),
-    // Teams context — PA must forward these from the existing channel-post +
-    // create-chat actions so the Hub can post threaded replies + group-chat
-    // updates via Microsoft Graph.
+    // Teams context — stored for the future stack's Teams integration; the
+    // Hub does not post anything itself (Graph path dormant since 032-v2).
     teamsTeamId: z.string().min(1),
     teamsChannelId: z.string().min(1),
     teamsParentMessageId: z.string().min(1),
     teamsChatId: z.string().min(1),
   })
-  .refine(
-    (d) =>
-      d.toolId !== undefined ||
-      (d.toolName !== undefined && d.toolName.length > 0),
-    { message: "toolId or toolName is required", path: ["toolName"] },
-  );
+  .superRefine((d, ctx) => {
+    if (d.role === undefined && d.toolId === undefined && !d.toolName) {
+      ctx.addIssue({
+        code: "custom",
+        message: "role (v2) or toolId/toolName (legacy) is required",
+        path: ["role"],
+      });
+    }
+    // Justification is a v2-contract rule — only enforce it when the caller
+    // is actually on the v2 branch (role present). A partially updated legacy
+    // caller sending a stray profile must not start failing.
+    if (
+      d.role !== undefined &&
+      (d.profile === "maxed" || d.profile === "indie")
+    ) {
+      if (!d.justification || d.justification.trim().length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: `justification is required when profile is "${d.profile}"`,
+          path: ["justification"],
+        });
+      }
+    }
+  });
 
 export type LicenseRequestIngestInput = z.infer<
   typeof licenseRequestIngestSchema
 >;
+
+// 032-v2: (role, profile) → tool mapping rows. role null = any role;
+// toolId null = "needs decision" (approver picks on the request).
+export const toolMappingSchema = z
+  .object({
+    role: z.enum(["developer", "conception", "business"]).nullable(),
+    profile: z.enum(["baseline", "maxed", "indie"]),
+    toolId: z.number().int().positive().nullable(),
+    defaultTierId: z.number().int().positive().nullable(),
+  })
+  .refine((d) => d.toolId !== null || d.defaultTierId === null, {
+    message: "A default tier needs a tool",
+    path: ["defaultTierId"],
+  });
+export type ToolMappingInput = z.infer<typeof toolMappingSchema>;
 
 export const messageTemplateSchema = z.object({
   toolId: z.number().int().positive(),
@@ -579,26 +631,37 @@ export const messageTemplateSchema = z.object({
 
 export type MessageTemplateInput = z.infer<typeof messageTemplateSchema>;
 
+// 032-v2: approving creates the assignment (provision-first — the admin has
+// already done the vendor-side work). toolId is the derived tool, an override,
+// or the indie pick; licenseCode is enforced server-side for requires_api_key
+// tools (needs a tool lookup, so not expressible here).
 export const approveRequestSchema = z.object({
   requestId: z.number().int().positive(),
+  toolId: z.number().int().positive(),
+  tierId: z.number().int().positive(),
+  assignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date YYYY-MM-DD"),
+  licenseCode: z.string().min(1).max(700).optional(),
   bodyMd: z.string().min(1).max(8000),
 });
 export type ApproveRequestInput = z.infer<typeof approveRequestSchema>;
+
+// 032-v2: legacy migration path — attach the missing assignment to a request
+// approved under v1 semantics (status approved, assignment_id NULL). No
+// message, no re-approval.
+export const recordAssignmentSchema = z.object({
+  requestId: z.number().int().positive(),
+  toolId: z.number().int().positive(),
+  tierId: z.number().int().positive(),
+  assignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date YYYY-MM-DD"),
+  licenseCode: z.string().min(1).max(700).optional(),
+});
+export type RecordAssignmentInput = z.infer<typeof recordAssignmentSchema>;
 
 export const rejectRequestSchema = z.object({
   requestId: z.number().int().positive(),
   decisionNote: z.string().min(1).max(2000),
 });
 export type RejectRequestInput = z.infer<typeof rejectRequestSchema>;
-
-export const completeRequestSchema = z.object({
-  requestId: z.number().int().positive(),
-  tierId: z.number().int().positive(),
-  licenseCode: z.string().min(1).max(700).optional(),
-  assignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date YYYY-MM-DD"),
-  bodyMd: z.string().min(1).max(8000),
-});
-export type CompleteRequestInput = z.infer<typeof completeRequestSchema>;
 
 export const cancelRequestSchema = z.object({
   requestId: z.number().int().positive(),

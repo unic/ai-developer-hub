@@ -70,15 +70,21 @@ function NavLinks({
   items,
   pathname,
   onNavigate,
+  pendingRequestsCount,
 }: {
   items: NavItem[];
   pathname: string;
   onNavigate?: () => void;
+  pendingRequestsCount?: number;
 }) {
   return (
     <nav className="flex flex-col gap-0.5">
       {items.map((item) => {
         const active = isItemActive(pathname, item.href);
+        const badgeCount =
+          item.href === "/requests" && pendingRequestsCount
+            ? pendingRequestsCount
+            : null;
         return (
           <Link
             key={item.href}
@@ -99,6 +105,14 @@ function NavLinks({
               />
             ) : null}
             {item.title}
+            {badgeCount !== null ? (
+              <span
+                className="ml-2 inline-flex min-w-[18px] items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] leading-none text-destructive-foreground"
+                aria-label={`${badgeCount} pending`}
+              >
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </span>
+            ) : null}
           </Link>
         );
       })}
@@ -146,9 +160,12 @@ function Footer({
 export function AppSidebar({
   userName,
   userRole,
+  pendingRequestsCount,
 }: {
   userName: string | null;
   userRole: string | null;
+  /** Open license requests — shown as a badge on the Requests nav item. */
+  pendingRequestsCount?: number;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -166,7 +183,11 @@ export function AppSidebar({
         </div>
         {isAuthenticated ? (
           <>
-            <NavLinks items={items} pathname={pathname} />
+            <NavLinks
+              items={items}
+              pathname={pathname}
+              pendingRequestsCount={pendingRequestsCount}
+            />
             <Footer userName={userName} userRole={userRole} />
           </>
         ) : (
@@ -223,6 +244,7 @@ export function AppSidebar({
                   items={items}
                   pathname={pathname}
                   onNavigate={() => setMobileOpen(false)}
+                  pendingRequestsCount={pendingRequestsCount}
                 />
                 <Footer userName={userName} userRole={userRole} />
               </>
