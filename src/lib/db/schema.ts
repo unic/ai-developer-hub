@@ -881,41 +881,6 @@ export const anthropicOrgConfig = pgTable(
   (table) => [check("anthropic_org_config_id_check", sql`${table.id} = 1`)],
 );
 
-// Anthropic Alert State — idempotency ledger for Teams alert posts.
-// One row per (workspace_id, billing_month). Thresholds fire exactly once per
-// workspace per month: nullable timestamps go non-null on first cross.
-// Forecast tracking is edge-triggered via the boolean + change-timestamp pair.
-// Uses the same nullable-workspaceId + two-partial-unique-indexes pattern as
-// anthropic_workspace_costs to handle the default workspace cleanly.
-export const anthropicAlertState = pgTable(
-  "anthropic_alert_state",
-  {
-    id: serial("id").primaryKey(),
-    workspaceId: varchar("workspace_id", { length: 100 }),
-    billingMonth: varchar("billing_month", { length: 7 }).notNull(),
-    threshold80FiredAt: timestamp("threshold_80_fired_at"),
-    threshold100FiredAt: timestamp("threshold_100_fired_at"),
-    threshold120FiredAt: timestamp("threshold_120_fired_at"),
-    forecastAtRisk: boolean("forecast_at_risk").notNull().default(false),
-    forecastChangedAt: timestamp("forecast_changed_at"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (table) => [
-    uniqueIndex("anthropic_alert_state_workspace_month_idx")
-      .on(table.workspaceId, table.billingMonth)
-      .where(sql`${table.workspaceId} IS NOT NULL`),
-    uniqueIndex("anthropic_alert_state_default_month_idx")
-      .on(table.billingMonth)
-      .where(sql`${table.workspaceId} IS NULL`),
-    index("anthropic_alert_state_month_idx").on(table.billingMonth),
-    check(
-      "anthropic_alert_state_billing_month_format",
-      sql`${table.billingMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
-    ),
-  ],
-);
-
 // License Requests (032-automation-workflow)
 export const licenseRequests = pgTable(
   "license_requests",

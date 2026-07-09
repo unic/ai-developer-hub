@@ -16,7 +16,6 @@ import {
   getDaysInMonth,
   parseISO,
   startOfMonth,
-  subDays,
   subMonths,
 } from "date-fns";
 import { formatUtcDateOnly, getCurrentMonth, projectMonthEnd } from "@/lib/utils";
@@ -30,9 +29,6 @@ import type {
   SyncStatus,
   WorkspaceListItem,
 } from "@/types";
-
-/** workspaceId → (YYYY-MM-DD date → cost in cents) for the requested lookback. */
-export type CostHistoryByWorkspace = Map<string | null, Map<string, number>>;
 
 const STALE_MINUTES = 70;
 const SYNC_SENTINEL_USER_ID = 0;
@@ -382,39 +378,4 @@ export async function loadWorkspaceList(): Promise<WorkspaceListItem[]> {
       todayEstimate: estimates.get(workspaceId) ?? null,
     };
   });
-}
-
-// ---------------------------------------------------------------------------
-// loadCostHistory — one query, fanned out by workspace_id in JS.
-// Replaces N separate per-workspace queries from forecastWorkspaceMonth.
-// ---------------------------------------------------------------------------
-
-export async function loadCostHistory(
-  today: Date,
-  lookbackDays: number,
-): Promise<CostHistoryByWorkspace> {
-  const start = format(subDays(today, lookbackDays - 1), "yyyy-MM-dd");
-  const end = format(today, "yyyy-MM-dd");
-
-  const rows = await db.execute<{
-    workspace_id: string | null;
-    date: string;
-    cost_cents: number;
-  }>(sql`
-    SELECT workspace_id, date::text AS date, cost_cents
-    FROM anthropic_workspace_costs
-    WHERE date >= ${start}::date AND date <= ${end}::date
-    ORDER BY workspace_id, date ASC
-  `);
-
-  const byWorkspace: CostHistoryByWorkspace = new Map();
-  for (const r of rows.rows) {
-    let inner = byWorkspace.get(r.workspace_id);
-    if (!inner) {
-      inner = new Map();
-      byWorkspace.set(r.workspace_id, inner);
-    }
-    inner.set(r.date, Number(r.cost_cents));
-  }
-  return byWorkspace;
 }

@@ -81,14 +81,6 @@ const envSchema = z.object({
     .string()
     .min(16, "MCP_SERVER_SECRET must be at least 16 characters")
     .optional(),
-
-  // Microsoft Teams — Workflows incoming webhook for Claude spend alerts.
-  // If unset, the post-sync evaluator is a no-op. This is the feature kill switch.
-  // The URL itself is the secret (HMAC-signed Logic Apps trigger) — never log it.
-  TEAMS_WEBHOOK_URL: z.string().url().optional(),
-  // Base URL used to build deep-link buttons in posted cards. Defaults to
-  // NEXTAUTH_URL when unset.
-  TEAMS_DASHBOARD_BASE_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
