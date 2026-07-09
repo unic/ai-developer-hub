@@ -80,5 +80,5 @@ What's **not** changing: the add/edit/delete billed-cost dialogs, allocation sav
 ## Next steps
 
 - Land [`detail-mock.html`](detail-mock.html) (sibling task) and review the visual treatment against the live page.
-- Run `/speckit.specify` to formalise this into a `spec.md` once direction is approved.
+- Formalise this into a `spec.md` once direction is approved.
 - Single PR is realistic: route move + redesign together, since the detail-client refactor touches both.
