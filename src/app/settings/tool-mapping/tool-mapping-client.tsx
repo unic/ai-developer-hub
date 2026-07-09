@@ -108,21 +108,26 @@ export function ToolMappingClient({
   async function handleSave() {
     if (!editor) return;
     setSaving(true);
-    const result = await upsertToolMapping({
-      role: editor.role === ANY_ROLE ? null : editor.role,
-      profile: editor.profile,
-      toolId: editor.toolId === NEEDS_DECISION ? null : Number(editor.toolId),
-      defaultTierId:
-        editor.toolId === NEEDS_DECISION || editor.defaultTierId === NO_TIER
-          ? null
-          : Number(editor.defaultTierId),
-    });
-    setSaving(false);
-    if (result.success) {
-      setEditor(null);
-      router.refresh();
-    } else {
-      status.error(result.error);
+    try {
+      const result = await upsertToolMapping({
+        role: editor.role === ANY_ROLE ? null : editor.role,
+        profile: editor.profile,
+        toolId: editor.toolId === NEEDS_DECISION ? null : Number(editor.toolId),
+        defaultTierId:
+          editor.toolId === NEEDS_DECISION || editor.defaultTierId === NO_TIER
+            ? null
+            : Number(editor.defaultTierId),
+      });
+      if (result.success) {
+        setEditor(null);
+        router.refresh();
+      } else {
+        status.error(result.error);
+      }
+    } catch {
+      status.error("Saving failed — check your connection and try again.");
+    } finally {
+      setSaving(false);
     }
   }
 

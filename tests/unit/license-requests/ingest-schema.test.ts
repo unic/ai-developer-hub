@@ -54,4 +54,13 @@ describe("licenseRequestIngestSchema — case-insensitive role/profile", () => {
       expect(result.error.issues[0]?.path).toContain("justification");
     }
   });
+
+  it("does not require justification on the legacy branch (profile without role)", () => {
+    // A partially updated caller may send a stray profile alongside the v1
+    // tool fields — the v2 justification rule must not apply.
+    const result = licenseRequestIngestSchema.safeParse(
+      payload({ toolName: "GitHub Copilot", profile: "maxed" }),
+    );
+    expect(result.success).toBe(true);
+  });
 });

@@ -585,7 +585,13 @@ export const licenseRequestIngestSchema = z
         path: ["role"],
       });
     }
-    if (d.profile === "maxed" || d.profile === "indie") {
+    // Justification is a v2-contract rule — only enforce it when the caller
+    // is actually on the v2 branch (role present). A partially updated legacy
+    // caller sending a stray profile must not start failing.
+    if (
+      d.role !== undefined &&
+      (d.profile === "maxed" || d.profile === "indie")
+    ) {
       if (!d.justification || d.justification.trim().length === 0) {
         ctx.addIssue({
           code: "custom",

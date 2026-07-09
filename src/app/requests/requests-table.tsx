@@ -75,9 +75,12 @@ export function RequestsTable({ data }: { data: LicenseRequestRow[] }) {
           <DataTableColumnHeader column={column} title="Role / profile" />
         ),
         accessorFn: (row) =>
-          row.requesterRole
-            ? `${ROLE_LABELS[row.requesterRole]} ${row.requesterProfile ? PROFILE_LABELS[row.requesterProfile] : ""}`
-            : "",
+          [
+            row.requesterRole ? ROLE_LABELS[row.requesterRole] : null,
+            row.requesterProfile ? PROFILE_LABELS[row.requesterProfile] : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
         cell: ({ row }) =>
           row.original.requesterRole ? (
             <div className="flex flex-wrap items-center gap-1">

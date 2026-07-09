@@ -53,7 +53,10 @@ interface FacetedFilterConfig {
   columnId: string;
   title: string;
   options: { label: string; value: string }[];
-  /** Pre-select these values when the table mounts (user can still clear). */
+  /** Pre-select these values when the table mounts (user can still clear).
+   * Applied via lazy state init, so it only takes effect on the FIRST render
+   * — `facetedFilters` must be available and stable at mount. Later changes
+   * to this prop are deliberately ignored to never clobber user edits. */
   defaultSelected?: string[];
 }
 
