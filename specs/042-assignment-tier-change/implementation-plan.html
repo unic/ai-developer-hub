@@ -315,20 +315,27 @@
         (<code>src/actions/license-requests.ts:274-278</code>).
       </div>
 
-      <div class="callout">
-        <strong>Live bug found in the blast radius — a failed approval leaks a
-        Hub user.</strong> <code>ensureRequesterUser</code> inserts the requester
-        (<code>license-requests.ts:343</code>) and
-        <code>createAssignmentInTx</code>&rsquo;s duplicate-seat refusal is then
-        returned <em>out of</em> the transaction callback
-        (<code>:351</code>). In Drizzle a returned value <strong>commits</strong>
-        — only a <code>throw</code> rolls back, which is why the race guard at
-        <code>:371</code> throws <code>RACE_LOST</code>. So every time an admin
-        hit the blocker above for a requester who was not yet a Hub user, a
-        viewer account was silently created and left behind, while the request
-        stayed <code>pending_review</code>. This violates 032-v2&rsquo;s stated
-        rule that users are created at approval and never from failed ones.
-        Fixed here (§<a href="#requests">5</a>).
+      <div class="callout info">
+        <strong>A latent transaction hazard, corrected.</strong> In Drizzle a
+        value returned from the transaction callback <strong>commits</strong> —
+        only a <code>throw</code> rolls back, which is why the race guard at
+        <code>license-requests.ts:371</code> throws <code>RACE_LOST</code>. The
+        duplicate-seat refusal was <em>returned</em>, so on the face of it any
+        writes already made in that transaction would have been committed
+        alongside a failed approval.
+        <br /><br />
+        <strong>It was not actually reachable</strong>, and an earlier draft of
+        this plan wrongly claimed it leaked a Hub user. Traced properly:
+        <code>ensureRequesterUser</code> (<code>:283-295</code>) inserts a user
+        only when no row with that e-mail exists, and a brand-new user cannot
+        already hold an active assignment — so the duplicate-seat refusal can
+        never co-occur with a user insert. In the original code that refusal was
+        the only in-transaction error return, so nothing was ever orphaned.
+        <br /><br />
+        The discipline still has to change, because this spec <em>adds</em>
+        in-transaction rejections that come after a real write (a retier that
+        then loses the request-status race). Every in-transaction rejection now
+        throws (§<a href="#requests">5</a>) — hardening, not a bug fix.
       </div>
 
       <h2 id="toc">Contents</h2>
@@ -374,7 +381,7 @@
             map.
           </li>
           <li class="note">
-            <strong>Two live bugs fixed:</strong> the leaked Hub user above, and
+            <strong>One live bug fixed</strong> (plus the transaction hardening above):
             the unguarded tier <code>&lt;Select&gt;</code> on
             <code>/assignments/[id]</code> that lets an admin &ldquo;change&rdquo;
             a Copilot seat the next cron silently reverts
@@ -467,7 +474,7 @@
           <tr>
             <td><code>createAssignmentInTx</code><br /><span class="meta">license-requests.ts:266-278</span></td>
             <td>Refuses outright when an active assignment exists.</td>
-            <td><span class="pill warn">blocks the use case</span> and leaks a Hub user while doing it.</td>
+            <td><span class="pill warn">blocks the use case</span> and its only advice — revoke first — routes the admin into the worst of the three paths.</td>
           </tr>
         </tbody>
       </table>
@@ -743,11 +750,11 @@
         <thead><tr><th>mode</th><th>Existing active assignment</th><th>Outcome</th></tr></thead>
         <tbody>
           <tr><td><code>create</code></td><td>no</td><td>Insert, as today.</td></tr>
-          <tr><td><code>create</code></td><td>yes</td><td>Today&rsquo;s error — but now <strong>thrown</strong>, so the auto-created user rolls back (live-bug fix).</td></tr>
+          <tr><td><code>create</code></td><td>yes</td><td>Today&rsquo;s error, with updated advice (retier instead of revoke) — and now <strong>thrown</strong>, so the transaction rolls back.</td></tr>
           <tr><td><code>change_tier</code></td><td>yes, manual</td><td><span class="pill new">new</span> retier via <code>buildTierChange</code>; link <code>assignment_id</code>; approve.</td></tr>
           <tr><td><code>change_tier</code></td><td>yes, same tier</td><td>No-op on the row, but <strong>still approve and link</strong>.</td></tr>
           <tr><td><code>change_tier</code></td><td>no</td><td><strong>Throw</strong> to roll back: &ldquo;No active assignment to retier.&rdquo;</td></tr>
-          <tr><td><code>link_existing</code></td><td>yes</td><td><span class="pill new">new</span> mutate nothing; link <code>assignment_id</code>; approve. The answer for Copilot (§<a href="#sync">6</a>) and for the stuck legacy path.</td></tr>
+          <tr><td><code>link_existing</code></td><td>yes</td><td><span class="pill new">new</span> mutate nothing; link <code>assignment_id</code>; approve. The answer for Copilot (§<a href="#sync">6</a>).</td></tr>
         </tbody>
       </table>
 
@@ -894,7 +901,7 @@
           </tr>
           <tr>
             <td><code>app/requests/[id]/record-assignment-dialog.tsx</code></td>
-            <td>Route the legacy v1 path through <code>link_existing</code> so an already-provisioned seat can finally be linked.</td>
+            <td>Link an already-provisioned seat via the dedicated <code>linkExistingAssignment</code> action — <strong>not</strong> <code>approveRequest</code>, whose status guards are mutually exclusive with this dialog's. See the deviation note in implementation-notes.html.</td>
           </tr>
         </tbody>
       </table>
@@ -953,7 +960,7 @@
           instruction would have collided with the suite that already owns that
           window.
         </li>
-        <li class="check">Approval round trip: <code>change_tier</code> retiers in place, preserves <code>id</code>/<code>assigned_at</code>/API key, links the request; failed <code>create</code> leaves <strong>no orphan user</strong>.</li>
+        <li class="check">Approval round trip: <code>change_tier</code> retiers in place, preserves <code>id</code>/<code>assigned_at</code>/API key, links the request; a failed <code>create</code> commits nothing at all.</li>
         <li class="check">Seeds its own tool/tiers/user — <code>seed.ts</code> creates only an admin.</li>
       </ul>
 
@@ -978,7 +985,7 @@
           <tr><td><code>src/actions/history.ts</code></td><td>read helper for an entity&rsquo;s field timeline (tier history)</td></tr>
           <tr><td><code>src/app/assignments/[id]/page.tsx</code> · <code>assignment-detail-client.tsx</code></td><td>pass <code>source</code>; gate; tier timeline; disclosure copy</td></tr>
           <tr><td><code>src/app/users/[id]/user-detail-client.tsx</code></td><td>Change-tier link per active row</td></tr>
-          <tr><td><code>src/app/requests/[id]/approval-dialog.tsx</code> · <code>record-assignment-dialog.tsx</code></td><td>mode-aware approval; legacy path via <code>link_existing</code></td></tr>
+          <tr><td><code>src/app/requests/[id]/approval-dialog.tsx</code> · <code>record-assignment-dialog.tsx</code></td><td>mode-aware approval; legacy path via <code>linkExistingAssignment</code></td></tr>
           <tr><td><code>tests/unit/actions/assignment-tier-change.test.ts</code></td><td><span class="pill new">new</span> incl. the double-count property test</td></tr>
           <tr><td><code>tests/integration/actions/assignment-tier-change.test.ts</code></td><td><span class="pill new">new</span></td></tr>
         </tbody>
@@ -991,7 +998,7 @@
         <tbody>
           <tr><td>D-A</td><td>In-place mutation — on the honest grounds in §3, not the false &ldquo;strictly worse&rdquo; claim of v1. Accepts closed-period restatement and MoM blindness.</td></tr>
           <tr><td>D-B</td><td>Tier changes refused for Copilot-sync-<em>managed</em> assignments by <strong>tool</strong>, not by <code>source</code> — because sync takes over manual rows too.</td></tr>
-          <tr><td>D-C</td><td>Three approval modes as a discriminated union. <code>link_existing</code> is what gives Copilot an approvable outcome and unsticks the legacy path.</td></tr>
+          <tr><td>D-C</td><td>Three approval modes as a discriminated union. <code>link_existing</code> is what gives Copilot an approvable outcome. The legacy v1 path needed its own <code>linkExistingAssignment</code> action instead — <code>approveRequest</code> requires <code>pending_review</code> while those rows are already <code>approved</code>.</td></tr>
           <tr><td>D-D</td><td>No <code>maxLicenses</code> check — seat count unchanged; explicit because Copilot is at 63/63.</td></tr>
           <tr><td>D-E</td><td>No migration. <code>change_history</code> is the tier timeline.</td></tr>
           <tr><td>D-F</td><td>Tier-change history written <em>inside</em> the transaction — the stricter of the repo&rsquo;s two conventions, chosen because the audit trail is an acceptance criterion.</td></tr>
@@ -1034,7 +1041,7 @@
       <h2 id="accept">11 · Acceptance checklist</h2>
       <ul>
         <li class="check">A request from someone who already holds the tool can be approved — as a tier change (manual) or a linked existing seat (sync-managed) — without revoking anything.</li>
-        <li class="check">A failed approval leaves <strong>no orphan Hub user</strong> (live-bug fix, regression-tested).</li>
+        <li class="check">A failed approval commits <strong>nothing</strong> — no partial retier, no orphan user (regression-tested).</li>
         <li class="check">A sync-managed assignment offers no tier edit on <em>any</em> surface, including the detail page (live-bug fix).</li>
         <li class="check">After a tier change: one active row, same <code>id</code>, same <code>assigned_at</code>, comments and API key intact, timeline entry visible.</li>
         <li class="check">A concurrent revoke during a tier change yields the refresh error, never a retiered revoked row.</li>

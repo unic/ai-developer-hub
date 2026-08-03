@@ -346,6 +346,7 @@ export function RequestDetailClient({
         onOpenChange={setApproveOpen}
         detail={detail}
         tools={tools}
+        activeAssignments={activeAssignments}
         approvalTemplates={approvalTemplates}
         approver={approver}
         onSuccess={() => router.refresh()}
@@ -361,6 +362,7 @@ export function RequestDetailClient({
         onOpenChange={setRecordOpen}
         detail={detail}
         tools={tools}
+        activeAssignments={activeAssignments}
         onSuccess={() => router.refresh()}
       />
     </div>

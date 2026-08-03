@@ -34,6 +34,7 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
+  ArrowRightLeft,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -87,6 +88,11 @@ interface Assignment {
   revokedAt: Date | null;
   tool: { id: number; name: string; status: string };
   tier: { id: number; name: string };
+  // getUserAssignments returns the full row, so this is always present even
+  // though older call sites never needed it. Used only to hide "Change tier"
+  // on rows Copilot sync manages (spec 042) — the assignment detail page it
+  // links to is the tool-based source of truth for that gate.
+  source: string;
 }
 
 interface GitHubProfileData {
@@ -576,6 +582,16 @@ export function UserDetailClient({
                     >
                       {a.status}
                     </Badge>
+                    {isAdmin &&
+                      a.status === "active" &&
+                      a.source !== "copilot-sync" && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/assignments/${a.id}`}>
+                            <ArrowRightLeft className="mr-1 size-3" />
+                            Change tier
+                          </Link>
+                        </Button>
+                      )}
                     {isAdmin && a.status === "active" && (
                       <Button
                         size="sm"

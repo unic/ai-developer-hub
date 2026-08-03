@@ -527,17 +527,42 @@
       </table>
 
       <div class="card accent">
-        <h4>Live bug the panel surfaced, beyond the plan&rsquo;s scope</h4>
+        <h4>
+          Correction — the &ldquo;leaked Hub user&rdquo; was not real
+        </h4>
         <p>
-          Because a returned error commits, and
-          <code>ensureRequesterUser</code> runs <em>before</em>
-          <code>createAssignmentInTx</code>, <strong>today&rsquo;s
-          &ldquo;Requester already has an active assignment&rdquo; refusal leaks a
-          Hub user</strong> whenever the requester was not yet in the Hub — a
-          viewer account created and abandoned while the request stays
-          <code>pending_review</code>. That is the exact error path this spec was
-          opened to fix, so the leak is squarely in the blast radius. Fixed by the
-          throw-not-return revision; regression-tested.
+          Working from the panel&rsquo;s finding that a returned error commits, and
+          that <code>ensureRequesterUser</code> runs <em>before</em>
+          <code>createAssignmentInTx</code>, both the panel and plan v2 concluded
+          that the &ldquo;Requester already has an active assignment&rdquo;
+          refusal had been <strong>leaking an abandoned viewer account</strong> —
+          and that it was doing so on the exact error path this spec was opened to
+          fix. It was reported to the user in those terms.
+        </p>
+        <p>
+          <strong>That was wrong.</strong> Traced properly during implementation:
+          <code>ensureRequesterUser</code>
+          (<code>license-requests.ts:283-295</code>) inserts a user only when no
+          row with that e-mail exists — it early-returns on
+          <code>requesterUserId</code>, then on an e-mail match. A user who has
+          just been inserted cannot already hold an active assignment, because
+          assignments reference users. So the duplicate-seat refusal and a user
+          insert are <strong>mutually exclusive</strong>, and since that refusal
+          was the only in-transaction error return in the original code, nothing
+          was ever orphaned.
+        </p>
+        <p>
+          The throw-not-return revision is kept, and is still required — but as
+          <em>hardening</em>, not a bug fix. This spec adds in-transaction
+          rejections that <em>can</em> follow a real write (a retier that then
+          loses the request-status race), and for those a returned error would
+          commit a partial change. Corrected in plan §5 and reported to the user.
+        </p>
+        <p class="meta">
+          Worth recording as a process note: a confident, well-cited finding from
+          an adversarial reviewer still needs its <em>reachability</em> checked,
+          not just its mechanism. The mechanism here was real; the path to it was
+          not.
         </p>
       </div>
 
@@ -685,7 +710,154 @@
       </p>
 
       <h2 id="implementation">Implementation log</h2>
-      <p class="meta">In progress.</p>
+
+      <p class="meta">
+        Core logic written directly; UI wiring and the mocked-action tests
+        delegated to three parallel Sonnet agents on non-overlapping file sets.
+      </p>
+
+      <h4>What landed</h4>
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Change</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>lib/assignments/tier-change.ts</code> <span class="pill new">new</span></td>
+            <td>
+              Pure tier-change semantics: <code>buildTierChange</code>,
+              <code>tierCostDeltaCents</code>, <code>SYNC_MANAGED_TIER_ERROR</code>.
+              No db, no <code>"use server"</code> — which is also what forced it out
+              of <code>actions/assignments.ts</code>: a
+              <code>"use server"</code> module may only export async functions, so
+              pure helpers cannot live there.
+            </td>
+          </tr>
+          <tr>
+            <td><code>lib/assignments/sync-authority.ts</code> <span class="pill new">new</span></td>
+            <td>
+              <code>isSyncManagedTool</code> / <code>getSyncManagedToolId</code> —
+              the tool-based gate. Returns false when no active connection has
+              <code>copilot_sync_enabled</code>, since nothing would overwrite a
+              manual change then.
+            </td>
+          </tr>
+          <tr>
+            <td><code>lib/assignments/revalidate.ts</code> <span class="pill new">new</span></td>
+            <td>Shared cost-surface revalidation, applied to every field of <code>updateAssignment</code>, not only the tier.</td>
+          </tr>
+          <tr>
+            <td><code>lib/budget-utils.ts</code></td>
+            <td>
+              <code>overlapsPeriod</code> + <code>sumExpectedSpendCents</code>
+              extracted from <code>getBudgetWithCosts</code> so the double-count
+              property is unit-testable in CI.
+            </td>
+          </tr>
+          <tr>
+            <td><code>actions/license-requests.ts</code></td>
+            <td>
+              Three approval modes; <code>ApprovalError</code> throw discipline;
+              <code>loadToolAndTier</code> gains <code>isActive</code> and a
+              <code>requireApiKey</code> parameter;
+              <code>loadTargetAssignmentInTx</code> resolves the user
+              <em>from the assignment</em> so no mode can create one;
+              <code>ActiveAssignmentSummary</code> gains
+              <code>toolId</code>/<code>tierId</code>/<code>tierCostCents</code>/<code>syncManaged</code>
+              and now matches by e-mail as well as id.
+            </td>
+          </tr>
+          <tr>
+            <td><code>actions/budget.ts</code></td>
+            <td>Dead <code>getExpectedSpendForPeriod</code> deleted; per-period sum delegated to the shared helper.</td>
+          </tr>
+          <tr>
+            <td><code>actions/history.ts</code></td>
+            <td><code>getAssignmentTierHistory</code> — resolves the log's tier IDs to names and joins the actor.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Deviation — the legacy path needed its own action</h4>
+      <div class="card accent">
+        <p>
+          Plan v2 said the legacy <code>recordAssignment</code> dead end would be
+          unstuck by <code>approveRequest</code>&rsquo;s new
+          <code>link_existing</code> mode. <strong>It cannot be.</strong> The
+          delegated agent found this and stopped rather than wiring a call that
+          would always fail — correctly.
+        </p>
+        <p>
+          <code>RecordAssignmentDialog</code> only opens for
+          <code>status === "approved"</code> rows
+          (<code>isLegacyApproved</code>), while <code>approveRequest</code>
+          rejects anything not <code>pending_review</code>. The two guards are
+          mutually exclusive, so every such call would have returned
+          <em>Cannot approve a request in status &ldquo;approved&rdquo;</em>.
+        </p>
+        <p>
+          Resolved with a dedicated <code>linkExistingAssignment</code> action
+          guarded on <code>status='approved' AND assignment_id IS NULL</code>,
+          reusing <code>loadTargetAssignmentInTx</code> for the ownership and
+          active checks and mutating nothing on the seat. The plan&rsquo;s §7 row
+          and D-C were corrected to match.
+        </p>
+      </div>
+
+      <h4>Deviation — user-detail gating is source-based</h4>
+      <p>
+        The &ldquo;Change tier&rdquo; affordance on the user detail page hides
+        itself on <code>source === 'copilot-sync'</code> rather than via the
+        tool-based <code>isSyncManagedTool</code>, because the server component
+        feeding that card was outside the delegated agent&rsquo;s file scope.
+        Cosmetic only: the mutation stays protected server-side by the tool-based
+        check, and the link lands on a page whose tier control is correctly
+        disabled. Worth tidying if that page is touched again.
+      </p>
+
+      <h4>Verification</h4>
+      <ul>
+        <li class="note"><code>pnpm typecheck</code> — clean.</li>
+        <li class="note">
+          <code>pnpm test</code> — <strong>658 passed, 53 files</strong> (baseline
+          629; +29 from this spec's two new suites). No pre-existing test needed
+          weakening.
+        </li>
+        <li class="note">eslint — clean on every changed file.</li>
+        <li class="note">
+          <code>tests/integration/actions/license-requests.test.ts</code>: its six
+          existing <code>approveRequest</code> calls had to gain
+          <code>mode: "create"</code> — the discriminated union makes the
+          discriminator mandatory, and because the action takes
+          <code>input: unknown</code> <strong>typecheck would not have caught
+          this</strong>; the calls would simply have failed validation at
+          runtime. Four 042 cases added (retier round trip, link round trip,
+          create still refused, retier onto another user&rsquo;s seat refused).
+        </li>
+        <li class="note">
+          Integration suite not executed — this worktree has no
+          <code>.env.local</code>, so there is no database to run it against. It
+          is also not run by CI. <strong>Outstanding.</strong>
+        </li>
+        <li class="note">Playwright browser pass — <strong>outstanding</strong>, same reason.</li>
+      </ul>
+
+      <h2 id="open">Open before merge</h2>
+      <ul>
+        <li class="con">
+          <strong>Confirm the costing decision (D-A).</strong> The upgrade month
+          bills entirely at the new tier, and closed periods restate. Both
+          questions put to the user went unanswered; this is a real accounting
+          choice, not an obvious default.
+        </li>
+        <li class="con">
+          <strong>Run the integration suite and the browser pass</strong> against
+          a database branch.
+        </li>
+        <li class="con">
+          <code>/simplify</code> pass, then PR with the Copilot reviewer.
+        </li>
+      </ul>
     </main>
   </body>
 </html>

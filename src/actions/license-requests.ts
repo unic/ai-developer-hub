@@ -16,6 +16,7 @@ import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import {
   approveRequestSchema,
   recordAssignmentSchema,
+  linkExistingAssignmentSchema,
   rejectRequestSchema,
   cancelRequestSchema,
 } from "@/lib/validators";
@@ -184,16 +185,19 @@ const RACE_LOST = Symbol("race-lost");
 /**
  * A rejection raised from INSIDE an approval transaction.
  *
- * 042 — this class exists to fix a live bug. In Drizzle, returning a value from
- * the transaction callback COMMITS; only a throw rolls back (which is why the
- * race guards throw RACE_LOST). The duplicate-seat refusal was *returned*, so
- * every "Requester already has an active assignment" rejection committed the
- * requester user that ensureRequesterUser had just inserted — leaving an
- * abandoned viewer account behind while the request stayed pending_review, in
- * direct violation of 032-v2's "users are created at approval, never from
- * rejected requests".
+ * 042 — in Drizzle, returning a value from the transaction callback COMMITS;
+ * only a throw rolls back, which is why the race guards throw RACE_LOST. The
+ * duplicate-seat refusal used to be *returned*.
  *
- * Every in-transaction rejection must therefore throw this, never return.
+ * That was harmless in practice: ensureRequesterUser inserts a user only when no
+ * row with that e-mail exists, and a freshly inserted user cannot already hold an
+ * active assignment — so the refusal and an insert were mutually exclusive, and
+ * it was the only in-transaction error return.
+ *
+ * It stops being harmless here, because this file now rejects in places that CAN
+ * follow a real write (a retier that then loses the request-status race). So the
+ * rule is absolute rather than incidental: every in-transaction rejection throws
+ * this, never returns.
  */
 class ApprovalError extends Error {}
 
@@ -709,6 +713,102 @@ export async function recordAssignment(
   revalidatePath(`/requests/${requestId}`);
   revalidatePath("/assignments");
   revalidatePath("/users");
+  return {
+    success: true,
+    data: { requestId, assignmentId: result.assignmentId },
+  };
+}
+
+/**
+ * 042: link an already-existing seat to a v1-approved request.
+ *
+ * The gap this closes: `recordAssignment` can only CREATE, so a legacy approved
+ * request whose requester already holds the tool was permanently stuck — the
+ * create path hits the duplicate-seat guard, and `approveRequest`'s new
+ * `link_existing` mode cannot help because it requires
+ * `status='pending_review'` while these rows are already `'approved'`. The two
+ * guards are mutually exclusive, so the legacy path needs its own linker.
+ *
+ * Mutates nothing on the assignment — it only fills in the missing link.
+ */
+export async function linkExistingAssignment(
+  input: unknown,
+): Promise<ActionResult<{ requestId: number; assignmentId: number }>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const parsed = linkExistingAssignmentSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Validation failed",
+    };
+  }
+  const { requestId, assignmentId } = parsed.data;
+
+  const req = await db.query.licenseRequests.findFirst({
+    where: eq(licenseRequests.id, requestId),
+    columns: {
+      id: true,
+      status: true,
+      assignmentId: true,
+      requesterUserId: true,
+      requesterEmail: true,
+      requesterName: true,
+      requesterRole: true,
+      requesterProfile: true,
+    },
+  });
+  if (!req) return { success: false, error: "Request not found" };
+  if (req.status !== "approved" || req.assignmentId !== null) {
+    return {
+      success: false,
+      error: "Only approved requests without an assignment can link one.",
+    };
+  }
+
+  const result = await db
+    .transaction(async (tx) => {
+      // Same ownership/active checks as a retier — never creates a user.
+      const target = await loadTargetAssignmentInTx(tx, req, assignmentId);
+
+      const updated = await tx
+        .update(licenseRequests)
+        .set({
+          assignmentId: target.id,
+          requesterUserId: target.userId,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(licenseRequests.id, requestId),
+            eq(licenseRequests.status, "approved"),
+            sql`${licenseRequests.assignmentId} IS NULL`,
+          ),
+        )
+        .returning({ id: licenseRequests.id });
+      if (updated.length === 0) throw RACE_LOST;
+
+      return { assignmentId: target.id };
+    })
+    .catch((err) => {
+      if (err === RACE_LOST) return null;
+      if (err instanceof ApprovalError) return { error: err.message };
+      throw err;
+    });
+
+  if (result === null) {
+    return {
+      success: false,
+      error:
+        "This request was actioned by another admin while you were entering details. Refresh to see the latest state.",
+    };
+  }
+  if ("error" in result) return { success: false, error: result.error };
+
+  revalidatePath("/requests");
+  revalidatePath(`/requests/${requestId}`);
+  revalidatePath("/assignments");
   return {
     success: true,
     data: { requestId, assignmentId: result.assignmentId },

@@ -26,14 +26,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { recordAssignment } from "@/actions/license-requests";
-import type { LicenseRequestDetail, ToolOption } from "@/actions/license-requests";
+import {
+  recordAssignment,
+  linkExistingAssignment,
+} from "@/actions/license-requests";
+import type {
+  ActiveAssignmentSummary,
+  LicenseRequestDetail,
+  ToolOption,
+} from "@/actions/license-requests";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   detail: LicenseRequestDetail;
   tools: ToolOption[];
+  /** 042 — the requester's existing active assignments. recordAssignment
+   * shares createAssignmentInTx's duplicate-seat guard with approveRequest's
+   * `create` mode, so a match here means Save will fail; surfaced up front
+   * rather than left to a failed round trip. */
+  activeAssignments: ActiveAssignmentSummary[];
   onSuccess: () => void;
 }
 
@@ -42,6 +54,7 @@ export function RecordAssignmentDialog({
   onOpenChange,
   detail,
   tools,
+  activeAssignments,
   onSuccess,
 }: Props) {
   const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
@@ -64,6 +77,18 @@ export function RecordAssignmentDialog({
   const selectedTool = tools.find((t) => t.id === toolId) ?? null;
   const needsKey = selectedTool?.requiresApiKey ?? false;
 
+  // 042 — recordAssignment can only CREATE, and it shares createAssignmentInTx's
+  // duplicate-seat guard, so a match here would fail Save. approveRequest's
+  // link_existing mode cannot help either: it requires
+  // status='pending_review', while this dialog only opens for status='approved'
+  // rows (isLegacyApproved) — the guards are mutually exclusive. Hence the
+  // dedicated linkExistingAssignment action, which fills in the missing link and
+  // touches nothing on the seat.
+  const activeMatch =
+    toolId !== null
+      ? (activeAssignments.find((a) => a.toolId === toolId) ?? null)
+      : null;
+
   function handleToolChange(value: string) {
     const id = Number.parseInt(value, 10);
     setToolId(id);
@@ -76,6 +101,23 @@ export function RecordAssignmentDialog({
   }
 
   function handleSave() {
+    // The seat already exists — link it instead of creating a duplicate.
+    if (activeMatch) {
+      startTransition(async () => {
+        const result = await linkExistingAssignment({
+          requestId: detail.id,
+          assignmentId: activeMatch.id,
+        });
+        if (result.success) {
+          onOpenChange(false);
+          onSuccess();
+        } else {
+          status.error(result.error);
+        }
+      });
+      return;
+    }
+
     if (toolId === null || tierId === null) {
       status.error("Select a tool and tier");
       return;
@@ -126,6 +168,18 @@ export function RecordAssignmentDialog({
               </SelectContent>
             </Select>
           </div>
+          {activeMatch && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+              {detail.requesterName} already has an active{" "}
+              <strong>{activeMatch.toolName}</strong> assignment at{" "}
+              <strong>{activeMatch.tierName}</strong> (assignment #
+              {activeMatch.id}, since{" "}
+              {format(activeMatch.assignedAt, "yyyy-MM-dd")}). This request will
+              be <strong>linked to that seat</strong> — nothing on it changes,
+              and no second assignment is created. The tier and date fields below
+              do not apply.
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Tier</label>
             <Select
@@ -173,8 +227,18 @@ export function RecordAssignmentDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={pending || toolId === null || tierId === null}>
-            {pending ? "Saving…" : "Record assignment"}
+          <Button
+            onClick={handleSave}
+            // Linking needs no tool/tier pick — the seat already has both.
+            disabled={
+              pending || (!activeMatch && (toolId === null || tierId === null))
+            }
+          >
+            {pending
+              ? "Saving…"
+              : activeMatch
+                ? "Link existing seat"
+                : "Record assignment"}
           </Button>
         </DialogFooter>
       </DialogContent>

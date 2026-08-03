@@ -61,7 +61,10 @@ async function seedRequest(
       teamsChatId: "ch",
       ...overrides,
     })
-    .returning({ id: licenseRequests.id, requesterEmail: licenseRequests.requesterEmail });
+    .returning({
+      id: licenseRequests.id,
+      requesterEmail: licenseRequests.requesterEmail,
+    });
   createdRequestIds.push(row.id);
   createdUserEmails.push(row.requesterEmail);
   return row;
@@ -130,6 +133,7 @@ describe("approveRequest (032-v2)", () => {
   it("creates user + assignment + approved status in one action", async () => {
     const req = await seedRequest();
     const result = await approveRequest({
+      mode: "create" as const,
       requestId: req.id,
       toolId: seatToolId,
       tierId: seatTierId,
@@ -170,6 +174,7 @@ describe("approveRequest (032-v2)", () => {
     createdUserEmails.push(email);
     const first = await seedRequest({ requesterEmail: email });
     const firstResult = await approveRequest({
+      mode: "create" as const,
       requestId: first.id,
       toolId: seatToolId,
       tierId: seatTierId,
@@ -180,6 +185,7 @@ describe("approveRequest (032-v2)", () => {
 
     const second = await seedRequest({ requesterEmail: email });
     const secondResult = await approveRequest({
+      mode: "create" as const,
       requestId: second.id,
       toolId: seatToolId,
       tierId: seatTierId,
@@ -201,6 +207,7 @@ describe("approveRequest (032-v2)", () => {
     const req = await seedRequest();
     const attempt = () =>
       approveRequest({
+        mode: "create" as const,
         requestId: req.id,
         toolId: seatToolId,
         tierId: seatTierId,
@@ -236,6 +243,7 @@ describe("approveRequest (032-v2)", () => {
     });
 
     const withoutKey = await approveRequest({
+      mode: "create" as const,
       requestId: req.id,
       toolId: keyToolId,
       tierId: keyTierId,
@@ -245,6 +253,7 @@ describe("approveRequest (032-v2)", () => {
     expect(withoutKey.success).toBe(false);
 
     const withKey = await approveRequest({
+      mode: "create" as const,
       requestId: req.id,
       toolId: keyToolId,
       tierId: keyTierId,
@@ -291,6 +300,187 @@ describe("approveRequest (032-v2)", () => {
     if (revealed.success) {
       expect(revealed.data.bodyMd).toContain("sk-test-abc123");
     }
+  });
+});
+
+/**
+ * Spec 042 — "the requester already holds this tool" is a normal outcome now,
+ * not an error. These run against the real DB because the thing worth proving is
+ * that the row is mutated IN PLACE: same id, same assigned_at, key intact, one
+ * active row. A mocked test can assert the call shape but not the end state.
+ *
+ * Note: the double-counting property that motivates in-place mutation is pinned
+ * by tests/unit/assignment-tier-change.test.ts, NOT here — the integration job
+ * is commented out in CI (.github/workflows/ci.yml), so it cannot gate a merge.
+ */
+describe("approveRequest tier changes (042)", () => {
+  /** Approve a fresh request as a create, returning the seat it made. */
+  async function seedActiveSeat(email: string, tierId = seatTierId) {
+    const req = await seedRequest({ requesterEmail: email });
+    const result = await approveRequest({
+      mode: "create" as const,
+      requestId: req.id,
+      toolId: seatToolId,
+      tierId,
+      assignedAt: "2026-07-09",
+      bodyMd: "initial",
+    });
+    if (!result.success) throw new Error(`seed failed: ${result.error}`);
+    return result.data.assignmentId;
+  }
+
+  /** A second tier on the seat tool, or null when the tool has only one. */
+  async function otherTierId(): Promise<number | null> {
+    const tiers = await db
+      .select({ id: accessTiers.id })
+      .from(accessTiers)
+      .where(and(eq(accessTiers.toolId, seatToolId), eq(accessTiers.isActive, true)));
+    return tiers.find((t) => t.id !== seatTierId)?.id ?? null;
+  }
+
+  it("retiers the existing seat in place, preserving id and assigned_at", async () => {
+    const target = await otherTierId();
+    if (target === null) {
+      console.warn("Seat tool has only one active tier — skipping");
+      return;
+    }
+    const email = `${RUN_TAG}-retier@test.local`;
+    createdUserEmails.push(email);
+    const assignmentId = await seedActiveSeat(email);
+
+    const before = await db.query.licenseAssignments.findFirst({
+      where: eq(licenseAssignments.id, assignmentId),
+    });
+
+    const second = await seedRequest({ requesterEmail: email });
+    const result = await approveRequest({
+      mode: "change_tier" as const,
+      requestId: second.id,
+      assignmentId,
+      toolId: seatToolId,
+      tierId: target,
+      bodyMd: "Moved you to {{tier.name}} from {{tier.previousName}}.",
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // Same row — not a new one.
+    expect(result.data.assignmentId).toBe(assignmentId);
+
+    const after = await db.query.licenseAssignments.findFirst({
+      where: eq(licenseAssignments.id, assignmentId),
+    });
+    expect(after?.tierId).toBe(target);
+    expect(after?.status).toBe("active");
+    // The seat's start date is history, not something an upgrade rewrites.
+    expect(after?.assignedAt.getTime()).toBe(before!.assignedAt.getTime());
+    expect(after?.apiKeyEncrypted).toBe(before!.apiKeyEncrypted);
+    // Cost follows the new tier (spec 037's convention for active rows).
+    const tier = await db.query.accessTiers.findFirst({
+      where: eq(accessTiers.id, target),
+    });
+    expect(after?.costAtAssignmentCents).toBe(tier!.monthlyCostCents);
+
+    // Exactly one active row for this user+tool — no supersede, no duplicate.
+    const active = await db
+      .select({ id: licenseAssignments.id })
+      .from(licenseAssignments)
+      .where(
+        and(
+          eq(licenseAssignments.userId, after!.userId),
+          eq(licenseAssignments.toolId, seatToolId),
+          eq(licenseAssignments.status, "active"),
+        ),
+      );
+    expect(active).toHaveLength(1);
+
+    const row = await db.query.licenseRequests.findFirst({
+      where: eq(licenseRequests.id, second.id),
+    });
+    expect(row?.status).toBe("approved");
+    expect(row?.assignmentId).toBe(assignmentId);
+    // {{tier.previousName}} must resolve, never survive as literal braces.
+    expect(row?.approvalMessageMd).not.toContain("{{tier.previousName}}");
+  });
+
+  it("approves and links without mutating anything in link_existing mode", async () => {
+    const email = `${RUN_TAG}-link@test.local`;
+    createdUserEmails.push(email);
+    const assignmentId = await seedActiveSeat(email);
+    const before = await db.query.licenseAssignments.findFirst({
+      where: eq(licenseAssignments.id, assignmentId),
+    });
+
+    const second = await seedRequest({ requesterEmail: email });
+    const result = await approveRequest({
+      mode: "link_existing" as const,
+      requestId: second.id,
+      assignmentId,
+      bodyMd: "Your existing seat covers this.",
+    });
+    expect(result.success).toBe(true);
+
+    const after = await db.query.licenseAssignments.findFirst({
+      where: eq(licenseAssignments.id, assignmentId),
+    });
+    expect(after?.tierId).toBe(before!.tierId);
+    expect(after?.costAtAssignmentCents).toBe(before!.costAtAssignmentCents);
+    expect(after?.updatedAt.getTime()).toBe(before!.updatedAt.getTime());
+
+    const row = await db.query.licenseRequests.findFirst({
+      where: eq(licenseRequests.id, second.id),
+    });
+    expect(row?.status).toBe("approved");
+    expect(row?.assignmentId).toBe(assignmentId);
+  });
+
+  it("still refuses a create when the requester already holds the tool", async () => {
+    const email = `${RUN_TAG}-dup2@test.local`;
+    createdUserEmails.push(email);
+    await seedActiveSeat(email);
+
+    const second = await seedRequest({ requesterEmail: email });
+    const result = await approveRequest({
+      mode: "create" as const,
+      requestId: second.id,
+      toolId: seatToolId,
+      tierId: seatTierId,
+      assignedAt: "2026-07-09",
+      bodyMd: "ok",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain("already has an active assignment");
+
+    const row = await db.query.licenseRequests.findFirst({
+      where: eq(licenseRequests.id, second.id),
+    });
+    expect(row?.status).toBe("pending_review");
+  });
+
+  it("refuses a retier onto another user's assignment", async () => {
+    const ownerEmail = `${RUN_TAG}-owner@test.local`;
+    createdUserEmails.push(ownerEmail);
+    const ownerAssignmentId = await seedActiveSeat(ownerEmail);
+
+    // A different requester pointing at someone else's seat.
+    const stranger = await seedRequest();
+    const result = await approveRequest({
+      mode: "change_tier" as const,
+      requestId: stranger.id,
+      assignmentId: ownerAssignmentId,
+      toolId: seatToolId,
+      tierId: seatTierId,
+      bodyMd: "nope",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain("different user");
+
+    const row = await db.query.licenseRequests.findFirst({
+      where: eq(licenseRequests.id, stranger.id),
+    });
+    expect(row?.status).toBe("pending_review");
   });
 });
 

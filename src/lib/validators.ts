@@ -696,6 +696,19 @@ export const recordAssignmentSchema = z.object({
 });
 export type RecordAssignmentInput = z.infer<typeof recordAssignmentSchema>;
 
+// 042: the legacy record-assignment path's missing case. recordAssignment can
+// only CREATE, so a v1-approved request whose requester already holds the tool
+// was permanently stuck — the create hits the duplicate-seat guard, and
+// approveRequest cannot help because it requires status='pending_review' while
+// this row is already 'approved'. This links the seat that already exists.
+export const linkExistingAssignmentSchema = z.object({
+  requestId: z.number().int().positive(),
+  assignmentId: z.number().int().positive(),
+});
+export type LinkExistingAssignmentInput = z.infer<
+  typeof linkExistingAssignmentSchema
+>;
+
 export const rejectRequestSchema = z.object({
   requestId: z.number().int().positive(),
   decisionNote: z.string().min(1).max(2000),
