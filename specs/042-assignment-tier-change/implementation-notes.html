@@ -858,6 +858,157 @@
           <code>/simplify</code> pass, then PR with the Copilot reviewer.
         </li>
       </ul>
+      <h2 id="simplify">Simplify pass</h2>
+      <p class="meta">
+        Four parallel lenses over the branch diff — reuse, simplification,
+        efficiency, altitude. 10 findings applied, 4 skipped. Suite went 658 →
+        659; typecheck and eslint clean throughout.
+      </p>
+
+      <h4>Applied</h4>
+      <table>
+        <thead><tr><th>Lens</th><th>Finding</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>reuse · altitude</td>
+            <td>
+              <code>revalidate.ts</code> duplicated the five path literals
+              <code>actions/tools.ts</code>&rsquo;s tier price cascade already
+              revalidated — and the two lists had <em>already</em> drifted.
+            </td>
+            <td>
+              One <code>revalidateCostSurfaces()</code>;
+              <code>updateTier</code> calls it too.
+            </td>
+          </tr>
+          <tr>
+            <td>efficiency</td>
+            <td>
+              Cost invalidation fired on <em>every</em> successful update —
+              including workspace/API-key-only edits, a no-op retier, and
+              <code>link_existing</code>. Seven paths each time, and the
+              dashboard alone re-runs ~13 queries. The precedent it claimed to
+              mirror gates on <code>newCostCents !== undefined</code>; this
+              did not.
+            </td>
+            <td>
+              Gated on the tier actually moving
+              (<code>"tierId" in changes</code>), and on a
+              <code>costChanged</code> flag returned from the approval
+              transaction.
+            </td>
+          </tr>
+          <tr>
+            <td>efficiency · simplification</td>
+            <td>
+              <code>isSyncManagedTool(toolId)</code> re-queried
+              <code>ai_tools</code> at three call sites that already had the
+              tool row in memory — <code>approveRequest</code> even fetched it
+              via <code>loadToolAndTier</code> and threw it away.
+            </td>
+            <td>
+              API is now name-based:
+              <code>isCopilotSyncActive()</code> +
+              <code>isSyncManagedToolName()</code>, with
+              <code>isSyncManagedTool(name)</code> as the convenience.
+              <code>getSyncManagedToolId</code> deleted. One fewer query on
+              each of three paths.
+            </td>
+          </tr>
+          <tr>
+            <td>efficiency</td>
+            <td><code>getRequestContext</code> awaited the sync lookup before the row fetch, with no data dependency between them.</td>
+            <td><code>Promise.all</code>; <code>syncManaged</code> now derived from the tool name the join already returned.</td>
+          </tr>
+          <tr>
+            <td>reuse</td>
+            <td>
+              The &ldquo;Managed by sync&rdquo; badge existed twice with
+              <strong>two different explanations</strong> of the same condition.
+            </td>
+            <td>Shared <code>SyncManagedBadge</code>; message stays per-caller.</td>
+          </tr>
+          <tr>
+            <td>reuse · altitude</td>
+            <td>
+              <strong>Resolves the deviation logged above.</strong> The user
+              detail page gated on <code>assignment.source</code> — exactly the
+              check §6 rejects as insufficient — leaving one right and one wrong
+              example of the same decision for the next surface to copy.
+            </td>
+            <td>
+              <code>page.tsx</code> resolves it server-side and passes
+              <code>syncManagedToolNames</code>; the client no longer reads
+              <code>source</code> at all.
+            </td>
+          </tr>
+          <tr>
+            <td>altitude</td>
+            <td>
+              <code>fetchPerToolByPeriod</code> still inlined its own copy of
+              the overlap predicate — so the CI test pinned the rule for one
+              reader while the other could drift freely, defeating the point of
+              extracting it.
+            </td>
+            <td>
+              Both readers share <code>overlapsPeriod</code>, with the
+              long-standing <code>&gt;</code> vs <code>&gt;=</code> edge case
+              preserved as an explicit <code>revokedBound</code> parameter and
+              pinned by its own test.
+            </td>
+          </tr>
+          <tr>
+            <td>simplification · altitude</td>
+            <td>The <code>RACE_LOST</code>/<code>ApprovalError</code> catch body was copy-pasted into three transactions.</td>
+            <td>One <code>catchApprovalTx</code>.</td>
+          </tr>
+          <tr>
+            <td>simplification</td>
+            <td><code>hasTemplate</code> re-encoded the mode &rarr; tool/tier rule that <code>handleAdvance</code> already had.</td>
+            <td>A derived <code>effective</code> selection, read by both.</td>
+          </tr>
+          <tr>
+            <td>simplification</td>
+            <td>Unused <code>ne</code> import left over from an earlier draft of the race guard.</td>
+            <td>Removed.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Skipped, with reasons</h4>
+      <ul>
+        <li class="note">
+          <strong>Extract <code>resolveApprovalOutcome</code> from
+          <code>approveRequest</code>&rsquo;s transaction body</strong> (four
+          <code>let</code>s, 4–5 levels of nesting). A genuine readability win,
+          and I chose not to take it: this is the most delicate code in the
+          branch, its correctness rests on throw-based rollback, and the value is
+          purely presentational. Not worth re-opening freshly-verified logic at
+          the end of the pass — but it is the first thing to do if this function
+          is touched again.
+        </li>
+        <li class="note">
+          <strong><code>buildTierChange</code>&rsquo;s three-way union &rarr;
+          <code>null</code> for the no-op.</strong> The reviewer rated it low
+          urgency itself; the current shape is correct, tested, and its
+          ordering invariant is documented. Churn on tested code for a marginal
+          readability gain.
+        </li>
+        <li class="note">
+          <strong>Row-level optimistic-concurrency token</strong> covering all
+          four editable fields instead of a <code>tierId</code>-keyed guard.
+          Correct observation — only one of four fields is race-protected — but
+          deliberately out of scope: the plan scoped the guard to the tier
+          snapshot invariant. Worth its own spec.
+        </li>
+        <li class="note">
+          <strong>Factoring the request-transaction shell</strong> (request
+          fetch + catch mapping + &ldquo;actioned by another admin&rdquo; copy)
+          across the three actions. Took the catch helper, left the rest:
+          boilerplate that drifts harmlessly, and collapsing it would obscure
+          the genuinely different status guards each action needs.
+        </li>
+      </ul>
     </main>
   </body>
 </html>

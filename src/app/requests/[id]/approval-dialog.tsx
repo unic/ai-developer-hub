@@ -145,6 +145,25 @@ export function ApprovalDialog({
   // link_existing never needs a tier pick — the seat's own tier is unaffected.
   const canContinue = toolId !== null && (mode === "link_existing" || tierId !== null);
 
+  // Which tool/tier pair is actually in play, given the mode: the seat's own for
+  // a link, the admin's picks otherwise. Derived once so the template lookup and
+  // the has-a-template check cannot encode the rule differently.
+  const effective =
+    mode === "link_existing"
+      ? activeMatch && {
+          toolId: activeMatch.toolId,
+          toolName: activeMatch.toolName,
+          tierId: activeMatch.tierId,
+          tierName: activeMatch.tierName,
+        }
+      : selectedTool &&
+        selectedTier && {
+          toolId: selectedTool.id,
+          toolName: selectedTool.name,
+          tierId: selectedTier.id,
+          tierName: selectedTier.name,
+        };
+
   function handleToolChange(value: string) {
     const id = Number.parseInt(value, 10);
     setToolId(id);
@@ -160,14 +179,18 @@ export function ApprovalDialog({
 
   function handleAdvance() {
     if (mode === "link_existing") {
-      if (!activeMatch) {
+      if (!effective) {
         status.error("Select a tool");
         return;
       }
       // Nothing is being mutated — tool/tier stay the seat's current ones, so
       // tier.previousName has nothing to report and stays "".
-      const template = resolveTemplate(approvalTemplates, activeMatch.toolId, activeMatch.tierId);
-      const ctx = buildContext(detail, activeMatch.toolName, activeMatch.tierName, approver);
+      const template = resolveTemplate(
+        approvalTemplates,
+        effective.toolId,
+        effective.tierId,
+      );
+      const ctx = buildContext(detail, effective.toolName, effective.tierName, approver);
       setBodyMd(template ? renderTemplate(template, ctx).rendered : "");
       setStep(2);
       return;
@@ -269,14 +292,10 @@ export function ApprovalDialog({
   }
 
   const previewHtml = markdownToTeamsHtml(resolvedBody());
-  const hasTemplate =
-    mode === "link_existing"
-      ? activeMatch
-        ? resolveTemplate(approvalTemplates, activeMatch.toolId, activeMatch.tierId) !== null
-        : true
-      : selectedTool && selectedTier
-        ? resolveTemplate(approvalTemplates, selectedTool.id, selectedTier.id) !== null
-        : true;
+  // Nothing selected yet is not "no template" — don't warn prematurely.
+  const hasTemplate = effective
+    ? resolveTemplate(approvalTemplates, effective.toolId, effective.tierId) !== null
+    : true;
 
   return (
     <Dialog

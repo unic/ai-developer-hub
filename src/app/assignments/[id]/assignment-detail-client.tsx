@@ -28,6 +28,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SyncManagedBadge } from "@/components/assignments/sync-managed-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -322,19 +323,7 @@ export function AssignmentDetailClient({
                             Tier
                           </FormLabel>
                           {isSyncManaged && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge
-                                  variant="outline"
-                                  className="cursor-default text-xs text-muted-foreground"
-                                >
-                                  Managed by sync
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {SYNC_MANAGED_TIER_ERROR}
-                              </TooltipContent>
-                            </Tooltip>
+                            <SyncManagedBadge tooltip={SYNC_MANAGED_TIER_ERROR} />
                           )}
                         </div>
                         <Select

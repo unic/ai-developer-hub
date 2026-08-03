@@ -30,8 +30,8 @@ import {
   type ChangeMap,
 } from "@/lib/assignments/tier-change";
 import {
-  isSyncManagedTool,
-  getSyncManagedToolId,
+  isCopilotSyncActive,
+  isSyncManagedToolName,
 } from "@/lib/assignments/sync-authority";
 import { revalidateAssignmentCostPaths } from "@/lib/assignments/revalidate";
 
@@ -200,6 +200,17 @@ const RACE_LOST = Symbol("race-lost");
  * this, never returns.
  */
 class ApprovalError extends Error {}
+
+/**
+ * Shared `.catch` for the three request-mutating transactions. `null` means the
+ * first-write-wins race was lost; `{ error }` is a rejection raised inside the
+ * transaction. Anything else is a real fault and rethrows.
+ */
+function catchApprovalTx(err: unknown): null | { error: string } {
+  if (err === RACE_LOST) return null;
+  if (err instanceof ApprovalError) return { error: err.message };
+  throw err;
+}
 
 interface AssignmentInputs {
   toolId: number;
@@ -483,18 +494,26 @@ export async function approveRequest(
   // Tool/tier validation happens outside the transaction, as before. The
   // API-key rule is create-only: a retier reuses the seat's stored key.
   let tier: { id: number; monthlyCostCents: number } | null = null;
+  let toolName: string | null = null;
   if (approval.mode !== "link_existing") {
     const loaded = await loadToolAndTier(approval, {
       requireApiKey: approval.mode === "create",
     });
     if (loaded.error) return { success: false, error: loaded.error };
+    // Non-null once loaded.error is falsy — same contract the tier read relies on.
     tier = loaded.tier;
+    toolName = loaded.tool!.name;
   }
 
   // A retier on a sync-managed tool would be reverted by the next cron, so it is
   // refused here rather than silently undone later. link_existing remains
-  // available and is the intended route for those seats.
-  if (approval.mode === "change_tier" && (await isSyncManagedTool(approval.toolId))) {
+  // available and is the intended route for those seats. Reuses the tool row
+  // loadToolAndTier already fetched rather than looking it up again.
+  if (
+    approval.mode === "change_tier" &&
+    isSyncManagedToolName(toolName!) &&
+    (await isCopilotSyncActive())
+  ) {
     return { success: false, error: SYNC_MANAGED_TIER_ERROR };
   }
 
@@ -588,13 +607,16 @@ export async function approveRequest(
         );
       }
 
-      return { assignmentId, userId, toolId };
+      // `changes` is set only when a tier actually moved — a create always adds
+      // cost, a no-op retier and a link add none.
+      return {
+        assignmentId,
+        userId,
+        toolId,
+        costChanged: approval.mode === "create" || changes !== null,
+      };
     })
-    .catch((err) => {
-      if (err === RACE_LOST) return null;
-      if (err instanceof ApprovalError) return { error: err.message };
-      throw err;
-    });
+    .catch(catchApprovalTx);
 
   if (result === null) {
     return {
@@ -609,7 +631,13 @@ export async function approveRequest(
   revalidatePath(`/requests/${requestId}`);
   revalidatePath(`/assignments/${result.assignmentId}`);
   revalidatePath("/users");
-  revalidateAssignmentCostPaths(result.userId, result.toolId);
+  // A link, or a retier to the tier already held, changes no cost — so it must
+  // not bust the budget/report/dashboard caches.
+  if (result.costChanged) {
+    revalidateAssignmentCostPaths(result.userId, result.toolId);
+  } else {
+    revalidatePath("/assignments");
+  }
   return {
     success: true,
     data: { requestId, assignmentId: result.assignmentId },
@@ -690,13 +718,7 @@ export async function recordAssignment(
 
       return { assignmentId: created.assignmentId, userId };
     })
-    .catch((err) => {
-      if (err === RACE_LOST) return null;
-      // 042: the duplicate-seat refusal now throws, so this path inherits the
-      // rollback too — previously it committed an auto-created user as well.
-      if (err instanceof ApprovalError) return { error: err.message };
-      throw err;
-    });
+    .catch(catchApprovalTx);
 
   if (result === null) {
     return {
@@ -791,11 +813,7 @@ export async function linkExistingAssignment(
 
       return { assignmentId: target.id };
     })
-    .catch((err) => {
-      if (err === RACE_LOST) return null;
-      if (err instanceof ApprovalError) return { error: err.message };
-      throw err;
-    });
+    .catch(catchApprovalTx);
 
   if (result === null) {
     return {
@@ -951,8 +969,10 @@ export async function getRequestContext(requestId: number) {
   // approveRequest's ensureRequesterUser resolves the same way, so keying only on
   // requesterUserId (as this did) meant a request whose user row exists but is
   // not yet linked showed NO collision in the dialog and then failed server-side.
-  const syncManagedToolId = await getSyncManagedToolId();
-  const rows = await db.execute(sql`
+  // Independent of the row fetch, so issued concurrently with it.
+  const [syncActive, rows] = await Promise.all([
+    isCopilotSyncActive(),
+    db.execute(sql`
       SELECT la.id, la.tool_id, la.tier_id, la.assigned_at,
              t.name AS tool_name,
              ti.name AS tier_name, ti.monthly_cost_cents
@@ -966,7 +986,8 @@ export async function getRequestContext(requestId: number) {
           OR lower(u.email) = ${detail.requesterEmail.toLowerCase()}
         )
       ORDER BY la.assigned_at DESC
-    `);
+    `),
+  ]);
   const activeAssignments: ActiveAssignmentSummary[] = (
     rows.rows as Array<Record<string, unknown>>
   ).map((r) => ({
@@ -976,8 +997,8 @@ export async function getRequestContext(requestId: number) {
     tierId: r.tier_id as number,
     tierName: r.tier_name as string,
     tierCostCents: Number(r.monthly_cost_cents ?? 0),
-    syncManaged:
-      syncManagedToolId !== null && (r.tool_id as number) === syncManagedToolId,
+    // The join already gave us the tool name, so no extra lookup is needed.
+    syncManaged: syncActive && isSyncManagedToolName(r.tool_name as string),
     assignedAt: toDate(r.assigned_at) ?? new Date(0),
   }));
 

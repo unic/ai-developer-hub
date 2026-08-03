@@ -211,6 +211,45 @@ describe("per-period cost attribution — why the tier change is in-place", () =
       ).toBe(true);
     });
 
+    /**
+     * The one edge case where the two per-period readers disagree, and always
+     * have: getBudgetWithCosts counts a revocation landing on periodStart,
+     * fetchPerToolByPeriod does not. Pinned so the difference stays deliberate
+     * — it is now a parameter of one shared predicate rather than two inlined
+     * copies, and this is the only behaviour that may differ between them.
+     */
+    it("differs only on a revocation exactly at periodStart", () => {
+      const revokedAtPeriodStart = {
+        assignedAt: HELD_SINCE,
+        revokedAt: AUG_START,
+        costAtAssignmentCents: 1,
+      };
+      expect(
+        overlapsPeriod(revokedAtPeriodStart, AUG_START, AUG_END, "inclusive"),
+      ).toBe(true);
+      expect(
+        overlapsPeriod(revokedAtPeriodStart, AUG_START, AUG_END, "exclusive"),
+      ).toBe(false);
+
+      // Everywhere else the two bounds agree.
+      const stillHeld = {
+        assignedAt: HELD_SINCE,
+        revokedAt: null,
+        costAtAssignmentCents: 1,
+      };
+      for (const bound of ["inclusive", "exclusive"] as const) {
+        expect(overlapsPeriod(stillHeld, AUG_START, AUG_END, bound)).toBe(true);
+        expect(
+          overlapsPeriod(
+            { ...stillHeld, revokedAt: JUL_END },
+            AUG_START,
+            AUG_END,
+            bound,
+          ),
+        ).toBe(false);
+      }
+    });
+
     it("excludes an assignment revoked before the period opens", () => {
       expect(
         overlapsPeriod(

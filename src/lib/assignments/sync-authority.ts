@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { aiTools, githubConnections } from "@/lib/db/schema";
+import { githubConnections } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 /**
@@ -8,6 +8,31 @@ import { eq, and } from "drizzle-orm";
  * sync is concerned.
  */
 export const COPILOT_SYNC_TOOL_NAME = "GitHub Copilot";
+
+/**
+ * Is Copilot sync actually running? One query.
+ *
+ * Callers that already hold a tool row combine this with
+ * `isSyncManagedToolName` themselves; there is deliberately no id-based variant,
+ * because every caller turned out to have the tool's name in hand already and an
+ * id-based lookup meant a second `ai_tools` round trip for data the caller had
+ * just fetched and discarded.
+ */
+export async function isCopilotSyncActive(): Promise<boolean> {
+  const connection = await db.query.githubConnections.findFirst({
+    where: and(
+      eq(githubConnections.status, "active"),
+      eq(githubConnections.copilotSyncEnabled, true),
+    ),
+    columns: { id: true },
+  });
+  return connection !== undefined;
+}
+
+/** Pure name check — pair with isCopilotSyncActive(). */
+export function isSyncManagedToolName(toolName: string): boolean {
+  return toolName === COPILOT_SYNC_TOOL_NAME;
+}
 
 /**
  * Is this tool's tier assignment owned by GitHub rather than the Hub? (spec 042)
@@ -19,33 +44,11 @@ export const COPILOT_SYNC_TOOL_NAME = "GitHub Copilot";
  * cron just as surely as one on an already-synced row. Gating on source would
  * have left exactly that hole open.
  *
- * Returns false when Copilot sync is not actually running (no active connection,
- * or the connection has sync disabled), because then nothing will overwrite a
- * manual change and there is no reason to forbid it.
+ * Returns false when sync is not running (no active connection, or sync disabled
+ * on it), because then nothing will overwrite a manual change and there is no
+ * reason to forbid it.
  */
-export async function isSyncManagedTool(toolId: number): Promise<boolean> {
-  const syncManagedToolId = await getSyncManagedToolId();
-  return syncManagedToolId !== null && syncManagedToolId === toolId;
-}
-
-/**
- * The id of the tool Copilot sync currently owns, or null when sync is not
- * running. One query pair, so callers that need to mark up a whole list (e.g. the
- * approval dialog's collision check) do not call isSyncManagedTool per row.
- */
-export async function getSyncManagedToolId(): Promise<number | null> {
-  const connection = await db.query.githubConnections.findFirst({
-    where: and(
-      eq(githubConnections.status, "active"),
-      eq(githubConnections.copilotSyncEnabled, true),
-    ),
-    columns: { id: true },
-  });
-  if (!connection) return null;
-
-  const tool = await db.query.aiTools.findFirst({
-    where: eq(aiTools.name, COPILOT_SYNC_TOOL_NAME),
-    columns: { id: true },
-  });
-  return tool?.id ?? null;
+export async function isSyncManagedTool(toolName: string): Promise<boolean> {
+  if (!isSyncManagedToolName(toolName)) return false;
+  return isCopilotSyncActive();
 }

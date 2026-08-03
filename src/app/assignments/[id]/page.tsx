@@ -32,7 +32,7 @@ export default async function AssignmentDetailPage({
     // Gated on the TOOL, not assignment.source — see isSyncManagedTool (spec
     // 042): sync takes over manual rows too, so source alone would leave a
     // manual GitHub Copilot row's tier editable right up to the next cron.
-    isSyncManagedTool(assignment.tool.id),
+    isSyncManagedTool(assignment.tool.name),
     getAssignmentTierHistory(assignmentId),
   ]);
   const tierHistory = tierHistoryResult.success ? tierHistoryResult.data : [];

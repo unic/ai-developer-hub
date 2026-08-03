@@ -8,7 +8,7 @@ import {
   users,
   assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, ne, count, asc, inArray, isNull, lte, gt, or } from "drizzle-orm";
+import { eq, and, count, asc, inArray, isNull, lte, gt, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -231,7 +231,7 @@ export async function updateAssignment(
     const isSyncManaged =
       newTier.id === assignment.tierId
         ? false
-        : await isSyncManagedTool(assignment.toolId);
+        : await isSyncManagedTool(assignment.tool.name);
 
     const outcome = buildTierChange(
       {
@@ -357,7 +357,15 @@ export async function updateAssignment(
     };
   }
 
-  revalidateAssignmentCostPaths(assignment.userId, assignment.toolId);
+  // Only a tier move changes cost, and only that justifies busting the budget /
+  // report / dashboard caches. A workspace or API-key edit affects nothing but
+  // the assignment's own pages.
+  if ("tierId" in changes) {
+    revalidateAssignmentCostPaths(assignment.userId, assignment.toolId);
+  } else {
+    revalidatePath("/assignments");
+    revalidatePath(`/users/${assignment.userId}`);
+  }
   revalidatePath(`/assignments/${id}`);
 
   return { success: true, data: undefined, warning };

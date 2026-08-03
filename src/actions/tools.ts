@@ -12,6 +12,7 @@ import {
   updateTierSchema,
 } from "@/lib/validators";
 import type { ActionResult, AiTool, AccessTier } from "@/types";
+import { revalidateCostSurfaces } from "@/lib/assignments/revalidate";
 import {
   recordCreation,
   recordUpdate,
@@ -317,12 +318,9 @@ export async function updateTier(input: unknown): Promise<ActionResult<void>> {
     });
     await recordUpdate("access_tier", id, Number(admin.id), changes);
 
+    // Same list as the assignment-level tier change — see revalidateCostSurfaces.
     if (newCostCents !== undefined) {
-      revalidatePath("/");
-      revalidatePath("/assignments");
-      revalidatePath("/budget");
-      revalidatePath("/reports");
-      revalidatePath("/reports/budget");
+      revalidateCostSurfaces();
     }
   }
 

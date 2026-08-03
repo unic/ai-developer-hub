@@ -7,7 +7,7 @@ const {
   mockTx,
   mockRequireAdmin,
   mockIsSyncManagedTool,
-  mockGetSyncManagedToolId,
+  mockIsCopilotSyncActive,
   mockRecordUpdate,
 } = vi.hoisted(() => {
   const mockTx = {
@@ -32,7 +32,7 @@ const {
     mockTx,
     mockRequireAdmin: vi.fn(),
     mockIsSyncManagedTool: vi.fn(),
-    mockGetSyncManagedToolId: vi.fn(),
+    mockIsCopilotSyncActive: vi.fn(),
     mockRecordUpdate: vi.fn(),
   };
 });
@@ -47,8 +47,11 @@ vi.mock("@/actions/history", () => ({
   recordStatusChange: vi.fn(),
 }));
 vi.mock("@/lib/assignments/sync-authority", () => ({
+  // Name-based since the 042 simplify pass — callers already hold the tool row,
+  // so an id-based lookup meant a redundant ai_tools query.
   isSyncManagedTool: mockIsSyncManagedTool,
-  getSyncManagedToolId: mockGetSyncManagedToolId,
+  isCopilotSyncActive: mockIsCopilotSyncActive,
+  isSyncManagedToolName: (name: string) => name === "GitHub Copilot",
 }));
 vi.mock("@/lib/crypto", () => ({
   encryptApiKey: vi.fn(async (s: string) => `enc:${s}`),
@@ -103,7 +106,13 @@ function baseAssignment(overrides: Record<string, unknown> = {}) {
     costAtAssignmentCents: 2500,
     revokedAt: null,
     updatedAt: new Date("2026-01-01T00:00:00Z"),
-    tool: { id: 2, createdAt: new Date("2024-01-01T00:00:00Z") },
+    // name matters since the 042 simplify pass: the sync gate is checked against
+    // the tool name the action already has in hand, not a second id lookup.
+    tool: {
+      id: 2,
+      name: "GitHub Copilot",
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+    },
     user: { id: 3 },
     ...overrides,
   };
@@ -114,6 +123,7 @@ describe("updateAssignment", () => {
     vi.clearAllMocks();
     mockRequireAdmin.mockResolvedValue(ADMIN);
     mockIsSyncManagedTool.mockResolvedValue(false);
+    mockIsCopilotSyncActive.mockResolvedValue(false);
   });
 
   it("non-admin: Unauthorized, and the DB is never touched", async () => {
@@ -186,7 +196,7 @@ describe("updateAssignment", () => {
     const result = await updateAssignment({ id: 100, tierId: 6 });
 
     expect(result).toEqual({ success: false, error: SYNC_MANAGED_TIER_ERROR });
-    expect(mockIsSyncManagedTool).toHaveBeenCalledWith(2);
+    expect(mockIsSyncManagedTool).toHaveBeenCalledWith("GitHub Copilot");
     expect(mockDb.transaction).not.toHaveBeenCalled();
   });
 
@@ -356,7 +366,7 @@ describe("approveRequest", () => {
       isActive: true,
       monthlyCostCents: 5000,
     });
-    mockIsSyncManagedTool.mockResolvedValue(true);
+    mockIsCopilotSyncActive.mockResolvedValue(true);
 
     const result = await approveRequest({
       mode: "change_tier",

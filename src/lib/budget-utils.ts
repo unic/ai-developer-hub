@@ -90,33 +90,43 @@ export interface AssignmentCostWindow {
 }
 
 /**
+ * How a revocation landing exactly on periodStart is treated.
+ *
+ * The two per-period readers disagree, and always have: getBudgetWithCosts
+ * counts that assignment (`>=`), fetchPerToolByPeriod does not (`>`). The
+ * difference is one edge case and predates spec 042, so it is preserved rather
+ * than silently changed here — but it is now a parameter of one shared predicate
+ * instead of two independently-inlined copies, so the two can no longer drift on
+ * anything else.
+ */
+export type RevokedBound = "inclusive" | "exclusive";
+
+/**
  * Does an assignment's held-window overlap a budget period?
  *
  * Extracted (spec 042) so the double-counting property can be pinned by a unit
  * test that actually runs in CI — integration tests are disabled there
- * (.github/workflows/ci.yml). getBudgetWithCosts inlined this predicate, which
- * meant the single most consequential arithmetic rule in the app had no
- * automated guard.
+ * (.github/workflows/ci.yml). Both readers inlined this predicate, which meant
+ * the single most consequential arithmetic rule in the app had no automated
+ * guard.
  *
  * Cost is the flat monthly tier price with NO proration, so an assignment that
  * overlaps a period by one day contributes a full month. That is what makes
  * "close the old row and open a new one" double-count the switch period: both
  * rows overlap it. A tier change must therefore mutate in place — see
  * specs/042-assignment-tier-change.
- *
- * Note the asymmetry with fetchPerToolByPeriod (actions/reports.ts), which uses
- * a strict `>` on the revoked bound. Both double-count; they differ only on a
- * revocation landing exactly on periodStart.
  */
 export function overlapsPeriod(
   assignment: AssignmentCostWindow,
   periodStart: Date,
   periodEnd: Date,
+  revokedBound: RevokedBound = "inclusive",
 ): boolean {
-  return (
-    assignment.assignedAt <= periodEnd &&
-    (assignment.revokedAt === null || assignment.revokedAt >= periodStart)
-  );
+  if (assignment.assignedAt > periodEnd) return false;
+  if (assignment.revokedAt === null) return true;
+  return revokedBound === "inclusive"
+    ? assignment.revokedAt >= periodStart
+    : assignment.revokedAt > periodStart;
 }
 
 /** Sum the flat monthly cost of every assignment overlapping a period. */
@@ -124,9 +134,10 @@ export function sumExpectedSpendCents(
   assignments: readonly AssignmentCostWindow[],
   periodStart: Date,
   periodEnd: Date,
+  revokedBound: RevokedBound = "inclusive",
 ): number {
   return assignments
-    .filter((a) => overlapsPeriod(a, periodStart, periodEnd))
+    .filter((a) => overlapsPeriod(a, periodStart, periodEnd, revokedBound))
     .reduce((total, a) => total + a.costAtAssignmentCents, 0);
 }
 
