@@ -10,6 +10,7 @@ import {
   aiTools,
   accessTiers,
   users,
+  changeHistory,
 } from "@/lib/db/schema";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/crypto";
@@ -125,6 +126,12 @@ afterAll(async () => {
       .where(inArray(licenseRequests.id, createdRequestIds));
   }
   if (userIds.length > 0) {
+    // 042: change_history.changed_by is onDelete RESTRICT, and approving as a
+    // tier change now writes audit rows attributed to the test admin — so the
+    // users delete below fails with a FK violation unless these go first.
+    await db
+      .delete(changeHistory)
+      .where(inArray(changeHistory.changedBy, userIds));
     await db.delete(users).where(inArray(users.id, userIds));
   }
 });
@@ -399,8 +406,15 @@ describe("approveRequest tier changes (042)", () => {
     });
     expect(row?.status).toBe("approved");
     expect(row?.assignmentId).toBe(assignmentId);
-    // {{tier.previousName}} must resolve, never survive as literal braces.
-    expect(row?.approvalMessageMd).not.toContain("{{tier.previousName}}");
+    // bodyMd is stored VERBATIM — approveRequest never renders templates. The
+    // approval dialog renders and passes the finished markdown (and deliberately
+    // leaves {{licenseCode}} unresolved so the key never lands in the DB; see the
+    // requires_api_key test above). Binding {{tier.previousName}} is therefore a
+    // client concern, covered by tests/unit/license-requests/render-template.test.ts
+    // — asserting it here would be testing the wrong layer.
+    expect(row?.approvalMessageMd).toBe(
+      "Moved you to {{tier.name}} from {{tier.previousName}}.",
+    );
   });
 
   it("approves and links without mutating anything in link_existing mode", async () => {
