@@ -286,7 +286,7 @@
         <div class="row" style="margin-bottom: 16px">
           <span class="badge">Implementation notes</span>
           <span class="badge">spec/042-assignment-tier-change</span>
-          <span class="badge accent">In progress</span>
+          <span class="badge accent">Verified (unit + integration) — UI pass outstanding</span>
         </div>
         <h1>Assignment Tier Change — running log</h1>
         <p class="lede">
@@ -1007,6 +1007,131 @@
           across the three actions. Took the catch helper, left the rest:
           boilerplate that drifts harmlessly, and collapsing it would obscure
           the genuinely different status guards each action needs.
+        </li>
+      </ul>
+      <h2 id="verification">Verification against a real database</h2>
+
+      <div class="callout info">
+        <strong>The app&rsquo;s own Neon project is not reachable from this
+        session.</strong> The connected Neon MCP sees exactly one project
+        (<code>workable</code>), whose only branch is empty — no
+        <code>ai_tools</code>, no <code>license_assignments</code>, no compute
+        usage since it was created. No shared projects either. The real database
+        (the <code>ep-little-frost</code> endpoint referenced by the main
+        checkout) lives under an account this connection cannot see, and the
+        worktree had no <code>.env.local</code> at all.
+      </div>
+
+      <p>
+        So verification ran against a <strong>synthetic branch</strong>:
+        <code>wt/upgrade</code> (<code>br-empty-pond-ayfmd73z</code>) forked from
+        <code>workable/main</code>, migrated 0000&ndash;0029, then seeded with an
+        admin plus a catalogue mirroring the live taxonomy — Claude (Standard Seat
+        &euro;25 / Premium Seat &euro;125) and Claude Console (the
+        <code>requires_api_key</code> tool). <code>workable/main</code> was never
+        touched.
+      </p>
+
+      <h4>Results</h4>
+      <table>
+        <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>pnpm typecheck</code></td><td class="s">clean</td></tr>
+          <tr><td><code>pnpm test</code> (unit, gates CI)</td><td class="s">659 passed, 53 files</td></tr>
+          <tr><td>eslint on changed files</td><td class="s">clean</td></tr>
+          <tr>
+            <td><code>pnpm test:integration</code> — full directory</td>
+            <td class="s">
+              8 files passed, 2 skipped · 56 passed, 7 todo. Includes the budget
+              suites, so the <code>getBudgetWithCosts</code> refactor onto the
+              shared overlap predicate is verified against real Postgres.
+            </td>
+          </tr>
+          <tr>
+            <td>Playwright browser pass</td>
+            <td class="con"><strong>Not completed</strong> — see below.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Two defects the integration run found that unit tests could not</h4>
+      <ol>
+        <li>
+          <strong>This spec broke the suite&rsquo;s teardown.</strong>
+          <code>change_history.changed_by</code> is <code>onDelete RESTRICT</code>,
+          and approving as a tier change now writes audit rows attributed to the
+          test admin — so <code>afterAll</code>&rsquo;s user delete failed with a
+          <code>23503</code> FK violation on every run. The suite reported
+          <em>12/12 tests passing and a failed file</em>, which is easy to skim
+          past. Audit rows for the run&rsquo;s users are now deleted first.
+        </li>
+        <li>
+          <strong>My own retier assertion tested the wrong layer.</strong> It
+          expected <code>{{tier.previousName}}</code> to be resolved in the stored
+          approval message. It never will be: <code>approveRequest</code> stores
+          <code>bodyMd</code> verbatim and rendering happens client-side in the
+          dialog — the suite already depends on that, asserting the stored message
+          deliberately <em>keeps</em> <code>{{licenseCode}}</code> so the key never
+          reaches the database. Corrected to assert verbatim storage.
+        </li>
+      </ol>
+
+      <h4>Why the browser pass did not happen</h4>
+      <p>
+        <code>@neondatabase/serverless</code> falls back to Node&rsquo;s built-in
+        (undici) WebSocket when <code>neonConfig.webSocketConstructor</code> is
+        unset, and on <strong>Node 24</strong> that connects only intermittently —
+        a raw <code>ErrorEvent</code>, then the 10s
+        <code>connectionTimeoutMillis</code> in <code>src/lib/db/index.ts</code>
+        aborts. Measured: with the <code>ws</code> package, 3/3 connections
+        succeed; without it, failures are frequent. It is not specific to this
+        feature — it also broke <code>pnpm db:seed:agent</code> and made
+        <code>drizzle-kit</code> intermittent.
+      </p>
+      <p>
+        The integration suite was made reliable with a throwaway
+        <code>setupFiles</code> shim (not committed). For <code>pnpm dev</code> the
+        documented workaround — the shim in <code>src/instrumentation.ts</code>
+        plus <code>serverExternalPackages</code> in <code>next.config.ts</code> —
+        was tried temporarily and <strong>did not</strong> take effect; the mint
+        route kept returning 500 from the same WebSocket failure, so no agent
+        session could be created and no page could be driven. Both files were
+        reverted; the tree is clean.
+      </p>
+      <div class="callout">
+        <strong>Consequence: the UI has no verification at all.</strong> The sync
+        gate on the assignment detail page, the tier timeline, the mode-aware
+        approval dialog and the legacy link path are covered by neither automated
+        tests nor a manual pass. The server actions beneath them are covered.
+        This is the largest remaining gap before merge.
+      </div>
+      <p class="meta">
+        Offered but not done, since it is a shared-harness change rather than part
+        of this spec: committing the <code>ws</code> shim so
+        <code>pnpm test:integration</code> is reliable on Node 24 for everyone.
+        Without it, the integration results above are not reproducible on this
+        Node version.
+      </p>
+
+      <h2 id="open-final">Open before merge</h2>
+      <ul>
+        <li class="con">
+          <strong>Confirm the costing decision (D-A)</strong> — the upgrade month
+          bills entirely at the new tier and closed periods restate. Explained to
+          the user; still unconfirmed. The audit-log gaps that would let a future
+          effective-dated table be backfilled (copilot-sync writes no per-assignment
+          history; the price cascade logs against the tier) were raised and
+          <strong>explicitly declined</strong> by the user.
+        </li>
+        <li class="con"><strong>Browser pass for the UI</strong>, per the gap above.</li>
+        <li class="con">
+          Verification used a synthetic catalogue, not production data — the
+          Copilot sync-managed paths (63 live seats) were never exercised against
+          real synced rows.
+        </li>
+        <li class="note">
+          Neon branch <code>wt/upgrade</code> still exists in project
+          <code>blue-poetry-08641598</code>; delete when done.
         </li>
       </ul>
     </main>
