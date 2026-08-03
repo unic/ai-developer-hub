@@ -8,7 +8,7 @@ import {
   users,
   assignmentComments,
 } from "@/lib/db/schema";
-import { eq, and, count, asc, inArray, isNull, lte, gt, or } from "drizzle-orm";
+import { eq, and, ne, count, asc, inArray, isNull, lte, gt, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -21,6 +21,13 @@ import {
 import type { ActionResult } from "@/types";
 import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
+import {
+  buildTierChange,
+  isTierChangeError,
+  isTierChangeNoop,
+} from "@/lib/assignments/tier-change";
+import { isSyncManagedTool } from "@/lib/assignments/sync-authority";
+import { revalidateAssignmentCostPaths } from "@/lib/assignments/revalidate";
 
 export async function assignLicense(
   input: unknown
@@ -204,8 +211,8 @@ export async function updateAssignment(
   const updateValues: Record<string, unknown> = {};
   let warning: string | undefined;
 
-  // --- tierId change ---
-  if (tierId !== undefined && tierId !== assignment.tierId) {
+  // --- tierId change (spec 042: shared semantics via buildTierChange) ---
+  if (tierId !== undefined) {
     // Validate new tier exists, is active, and belongs to the same tool
     const newTier = await db.query.accessTiers.findFirst({
       where: and(
@@ -218,15 +225,30 @@ export async function updateAssignment(
       return { success: false, error: "Tier not found or not available for this tool" };
     }
 
-    changes.tierId = { old: assignment.tierId, new: tierId };
-    updateValues.tierId = tierId;
+    // Only consult sync authority when the tier actually differs — the detail
+    // form always submits tierId, so checking it unconditionally would block
+    // workspace/API-key edits on a sync-managed seat.
+    const isSyncManaged =
+      newTier.id === assignment.tierId
+        ? false
+        : await isSyncManagedTool(assignment.toolId);
 
-    // Also update cost snapshot to the new tier's cost
-    changes.costAtAssignmentCents = {
-      old: assignment.costAtAssignmentCents,
-      new: newTier.monthlyCostCents,
-    };
-    updateValues.costAtAssignmentCents = newTier.monthlyCostCents;
+    const outcome = buildTierChange(
+      {
+        tierId: assignment.tierId,
+        costAtAssignmentCents: assignment.costAtAssignmentCents,
+        isSyncManaged,
+      },
+      { id: newTier.id, monthlyCostCents: newTier.monthlyCostCents },
+    );
+
+    if (isTierChangeError(outcome)) {
+      return { success: false, error: outcome.error };
+    }
+    if (!isTierChangeNoop(outcome)) {
+      Object.assign(updateValues, outcome.values);
+      Object.assign(changes, outcome.changes);
+    }
   }
 
   // --- assignedAt change ---
@@ -294,22 +316,49 @@ export async function updateAssignment(
   const now = new Date();
   updateValues.updatedAt = now;
 
-  await db
-    .update(licenseAssignments)
-    .set(updateValues)
-    .where(eq(licenseAssignments.id, id));
+  // 042: guard the write on the state we actually read. Five concurrent
+  // producers can flip this row to inactive between the read above and here
+  // (revokeLicense, assignLicense's deactivate leg, deactivateUser's bulk
+  // revoke, copilot-sync's removed-seat revoke), and retiering a just-revoked
+  // row would corrupt the historical snapshot that revoked rows are supposed to
+  // preserve. The tierId predicate doubles as an optimistic lock against a
+  // concurrent tier price cascade (updateTier / syncBillingData) leaving the row
+  // stranded at a stale price.
+  //
+  // 042 (D-F): the update and its audit rows go in ONE transaction. Writing
+  // history afterwards means a throw there leaves the tier moved with no record,
+  // and the zero-diff early return would then make a retry report success —
+  // silently falsifying the audit trail. recordUpdate already accepts a tx
+  // client, so the stricter of the repo's two conventions costs nothing here.
+  const applied = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(licenseAssignments)
+      .set(updateValues)
+      .where(
+        and(
+          eq(licenseAssignments.id, id),
+          eq(licenseAssignments.status, "active"),
+          eq(licenseAssignments.tierId, assignment.tierId),
+        ),
+      )
+      .returning({ id: licenseAssignments.id });
 
-  // Record changes in history
-  await recordUpdate(
-    "license_assignment",
-    id,
-    Number(admin.id),
-    changes
-  );
+    if (updated.length === 0) return false;
 
-  revalidatePath("/assignments");
-  revalidatePath(`/users/${assignment.userId}`);
-  revalidatePath("/reports");
+    await recordUpdate("license_assignment", id, Number(admin.id), changes, tx);
+    return true;
+  });
+
+  if (!applied) {
+    return {
+      success: false,
+      error:
+        "This assignment changed while you were editing it. Refresh and try again.",
+    };
+  }
+
+  revalidateAssignmentCostPaths(assignment.userId, assignment.toolId);
+  revalidatePath(`/assignments/${id}`);
 
   return { success: true, data: undefined, warning };
 }

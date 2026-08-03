@@ -79,6 +79,57 @@ export async function findPeriodForDate(
   return rows[0] ?? null;
 }
 
+/**
+ * An assignment, reduced to what per-period cost attribution needs.
+ * `revokedAt === null` means still held.
+ */
+export interface AssignmentCostWindow {
+  assignedAt: Date;
+  revokedAt: Date | null;
+  costAtAssignmentCents: number;
+}
+
+/**
+ * Does an assignment's held-window overlap a budget period?
+ *
+ * Extracted (spec 042) so the double-counting property can be pinned by a unit
+ * test that actually runs in CI — integration tests are disabled there
+ * (.github/workflows/ci.yml). getBudgetWithCosts inlined this predicate, which
+ * meant the single most consequential arithmetic rule in the app had no
+ * automated guard.
+ *
+ * Cost is the flat monthly tier price with NO proration, so an assignment that
+ * overlaps a period by one day contributes a full month. That is what makes
+ * "close the old row and open a new one" double-count the switch period: both
+ * rows overlap it. A tier change must therefore mutate in place — see
+ * specs/042-assignment-tier-change.
+ *
+ * Note the asymmetry with fetchPerToolByPeriod (actions/reports.ts), which uses
+ * a strict `>` on the revoked bound. Both double-count; they differ only on a
+ * revocation landing exactly on periodStart.
+ */
+export function overlapsPeriod(
+  assignment: AssignmentCostWindow,
+  periodStart: Date,
+  periodEnd: Date,
+): boolean {
+  return (
+    assignment.assignedAt <= periodEnd &&
+    (assignment.revokedAt === null || assignment.revokedAt >= periodStart)
+  );
+}
+
+/** Sum the flat monthly cost of every assignment overlapping a period. */
+export function sumExpectedSpendCents(
+  assignments: readonly AssignmentCostWindow[],
+  periodStart: Date,
+  periodEnd: Date,
+): number {
+  return assignments
+    .filter((a) => overlapsPeriod(a, periodStart, periodEnd))
+    .reduce((total, a) => total + a.costAtAssignmentCents, 0);
+}
+
 /** Return type for getRunningCostsForPeriod */
 export interface RunningCostsResult {
   runningCostCents: number;

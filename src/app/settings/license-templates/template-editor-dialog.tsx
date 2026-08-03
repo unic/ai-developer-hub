@@ -46,7 +46,10 @@ const SAMPLE_CONTEXT: TemplateContext = {
     email: "sample@example.com",
   },
   tool: { name: "Sample Tool" },
-  tier: { name: "Sample Tier" },
+  // previousName is non-empty in the sample so an author previewing a template
+  // can see what {{tier.previousName}} renders on a tier-change approval. On a
+  // create-mode approval it resolves to the empty string.
+  tier: { name: "Sample Tier", previousName: "Previous Sample Tier" },
   licenseCode: "sk-sample-1234-redacted",
   approver: { name: "Sample Approver", firstName: "Sample" },
   requestUrl: "https://aihub.example.com/requests/0",
@@ -66,7 +69,12 @@ export function TemplateEditorDialog({ open, onOpenChange, state }: Props) {
     () => ({
       ...SAMPLE_CONTEXT,
       tool: { name: state.toolName },
-      tier: state.tierName ? { name: state.tierName } : SAMPLE_CONTEXT.tier,
+      tier: state.tierName
+        ? {
+            name: state.tierName,
+            previousName: SAMPLE_CONTEXT.tier?.previousName ?? "",
+          }
+        : SAMPLE_CONTEXT.tier,
       licenseCode: state.kind === "completion" ? SAMPLE_CONTEXT.licenseCode : undefined,
     }),
     [state.toolName, state.tierName, state.kind],
