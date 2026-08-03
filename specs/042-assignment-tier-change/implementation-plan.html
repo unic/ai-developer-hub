@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Plan — Assignment Tier Change (042)</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --bg-elev: #11141b;
+        --bg-card: #161a24;
+        --border: #232938;
+        --border-strong: #2f3850;
+        --fg: #e7ebf3;
+        --fg-muted: #9aa3b5;
+        --fg-dim: #6b7488;
+        --accent: #f0a072;
+        --accent-2: #7dd3fc;
+        --good: #86efac;
+        --warn: #fcd34d;
+        --bad: #fca5a5;
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        line-height: 1.55;
+      }
+      body {
+        padding: 48px 24px 96px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 52px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 17px;
+        margin: 0 0 6px;
+      }
+      h4 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: var(--fg-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+        background: var(--bg-elev);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        line-height: 1.5;
+      }
+      pre code {
+        background: transparent;
+        border: 0;
+        padding: 0;
+        font-size: inherit;
+      }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 16px;
+        max-width: 820px;
+      }
+      .meta {
+        color: var(--fg-dim);
+        font-size: 13px;
+        margin-top: 8px;
+        font-family: var(--mono);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-family: var(--mono);
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        color: var(--fg-muted);
+        background: var(--bg-elev);
+      }
+      .badge.accent {
+        color: var(--accent);
+        border-color: rgba(240, 160, 114, 0.35);
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 16px 0;
+      }
+      .card.accent {
+        border-left: 3px solid var(--accent);
+      }
+      .card.accent-2 {
+        border-left: 3px solid var(--accent-2);
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 760px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      ul {
+        padding-left: 20px;
+        margin: 8px 0 12px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      li.pro::marker {
+        content: "+ ";
+        color: var(--good);
+        font-weight: 700;
+      }
+      li.con::marker {
+        content: "− ";
+        color: var(--bad);
+        font-weight: 700;
+      }
+      li.note::marker {
+        content: "› ";
+        color: var(--fg-dim);
+      }
+      li.check::marker {
+        content: "\2610  ";
+        color: var(--fg-muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--bg-elev);
+      }
+      td code {
+        white-space: nowrap;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-family: var(--mono);
+      }
+      .pill.warn {
+        background: rgba(252, 211, 77, 0.12);
+        color: var(--warn);
+      }
+      .pill.new {
+        background: rgba(240, 160, 114, 0.14);
+        color: var(--accent);
+      }
+      .pill.neutral {
+        background: var(--bg-elev);
+        color: var(--fg-muted);
+        border: 1px solid var(--border);
+      }
+      .callout {
+        border: 1px solid var(--border-strong);
+        border-left: 3px solid var(--warn);
+        background: rgba(252, 211, 77, 0.04);
+        padding: 14px 16px;
+        border-radius: 8px;
+        margin: 16px 0;
+        font-size: 14px;
+      }
+      .callout.info {
+        border-left-color: var(--accent-2);
+        background: rgba(125, 211, 252, 0.04);
+      }
+      .callout.accent {
+        border-left-color: var(--accent);
+        background: rgba(240, 160, 114, 0.05);
+      }
+      .toc {
+        columns: 2;
+        column-gap: 32px;
+        font-size: 14px;
+      }
+      @media (max-width: 760px) {
+        .toc {
+          columns: 1;
+        }
+      }
+      .toc a {
+        display: block;
+        padding: 3px 0;
+        color: var(--fg-muted);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        color: var(--accent);
+      }
+      footer {
+        color: var(--fg-dim);
+        font-size: 12.5px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+      }
+      .s {
+        color: var(--good);
+      }
+      .c {
+        color: var(--fg-dim);
+        font-style: italic;
+      }
+      .k {
+        color: var(--accent-2);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="row" style="margin-bottom: 16px">
+          <span class="badge">Implementation plan</span>
+          <span class="badge">spec/042-assignment-tier-change</span>
+          <span class="badge accent">Challenged &amp; revised — ready to implement</span>
+        </div>
+        <h1>Assignment Tier Change</h1>
+        <p class="lede">
+          A colleague asked for a <strong>tier upgrade on a licence they already
+          hold</strong>, and approving that request fails outright. This spec
+          makes a tier change on an active assignment an
+          <strong>approvable, race-safe, auditable</strong> operation — and fixes
+          two live bugs found in its blast radius along the way. It adds
+          <strong>no new table and no migration</strong>: the mechanics already
+          exist, scattered and unreconciled.
+        </p>
+        <p class="meta">
+          Drafted 2026-08-03 · revised same day after a 5-lens adversarial panel
+          (2 blocking + 4 major findings adopted; scope cut by roughly half) ·
+          author: T. Studer · branch <code>042-assignment-tier-change</code> ·
+          builds on specs 003, 032-v2, 037 · estimate: ~1.5 dev days
+        </p>
+      </header>
+
+      <div class="callout" style="margin-top: 24px">
+        <strong>The reported blocker.</strong> Approving a licence request for
+        someone who already holds that tool fails:
+        <em>&ldquo;Requester already has an active assignment for this tool
+        (assignment #N). Revoke the existing assignment first, or cancel this
+        request.&rdquo;</em>
+        (<code>src/actions/license-requests.ts:274-278</code>).
+      </div>
+
+      <div class="callout">
+        <strong>Live bug found in the blast radius — a failed approval leaks a
+        Hub user.</strong> <code>ensureRequesterUser</code> inserts the requester
+        (<code>license-requests.ts:343</code>) and
+        <code>createAssignmentInTx</code>&rsquo;s duplicate-seat refusal is then
+        returned <em>out of</em> the transaction callback
+        (<code>:351</code>). In Drizzle a returned value <strong>commits</strong>
+        — only a <code>throw</code> rolls back, which is why the race guard at
+        <code>:371</code> throws <code>RACE_LOST</code>. So every time an admin
+        hit the blocker above for a requester who was not yet a Hub user, a
+        viewer account was silently created and left behind, while the request
+        stayed <code>pending_review</code>. This violates 032-v2&rsquo;s stated
+        rule that users are created at approval and never from failed ones.
+        Fixed here (§<a href="#requests">5</a>).
+      </div>
+
+      <h2 id="toc">Contents</h2>
+      <div class="toc card">
+        <a href="#goal">1 · Goal &amp; scope</a>
+        <a href="#today">2 · Three conflicting semantics today</a>
+        <a href="#costing">3 · The costing decision (revised)</a>
+        <a href="#action">4 · The tier-change path</a>
+        <a href="#requests">5 · Licence-request approval modes</a>
+        <a href="#sync">6 · Copilot sync authority</a>
+        <a href="#ui">7 · UI changes</a>
+        <a href="#tests">8 · Test plan</a>
+        <a href="#manifest">9 · File manifest</a>
+        <a href="#risks">10 · Decisions, deferrals &amp; risks</a>
+        <a href="#accept">11 · Acceptance checklist</a>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="goal">1 · Goal &amp; scope</h2>
+
+      <div class="card accent">
+        <h4>In scope</h4>
+        <ul>
+          <li class="note">
+            <strong>Licence-request approval gains three modes</strong>
+            (§<a href="#requests">5</a>), as a <em>discriminated union</em> so
+            create-only validation never runs on a retier:
+            <code>create</code> (today), <code>change_tier</code> (retier the
+            seat they already hold), <code>link_existing</code> (record that the
+            seat was provisioned vendor-side; approve and link, mutate nothing).
+          </li>
+          <li class="note">
+            <code>updateAssignment</code>&rsquo;s existing tier branch made
+            <strong>race-safe</strong>: a conditional UPDATE guarded on
+            <code>status</code> and the observed <code>tier_id</code>, with a
+            zero-rows sentinel — the pattern
+            <code>license-requests.ts</code> already uses.
+          </li>
+          <li class="note">
+            One small pure helper shared by the two real call sites
+            (<code>updateAssignment</code> and <code>approveRequest</code>) that
+            validates the target tier and builds the update values + audit change
+            map.
+          </li>
+          <li class="note">
+            <strong>Two live bugs fixed:</strong> the leaked Hub user above, and
+            the unguarded tier <code>&lt;Select&gt;</code> on
+            <code>/assignments/[id]</code> that lets an admin &ldquo;change&rdquo;
+            a Copilot seat the next cron silently reverts
+            (§<a href="#sync">6</a>).
+          </li>
+          <li class="note">
+            <code>loadToolAndTier</code> gains the missing
+            <code>access_tiers.is_active</code> check — today the request path
+            can put a live seat on a deactivated tier, which both other entry
+            points forbid.
+          </li>
+          <li class="note">
+            A <strong>tier timeline read from <code>change_history</code></strong>
+            on the assignment detail page — &ldquo;Standard Seat &rarr; Premium
+            Seat, 3 Aug 2026 by T. Studer&rdquo;. No new column.
+          </li>
+          <li class="note">
+            A <strong>unit test</strong> asserting the period-overlap
+            double-count invariant — because integration tests do not run in CI
+            (<code>.github/workflows/ci.yml:96-117</code>, commented out), a
+            unit test is the only automated guard that can gate a merge.
+          </li>
+          <li class="note">
+            Delete the dead <code>getExpectedSpendForPeriod</code> (zero callers
+            repo-wide).
+          </li>
+        </ul>
+
+        <h4>Cut from v1 after the challenge pass</h4>
+        <ul>
+          <li class="con">
+            <strong>A separate <code>changeAssignmentTier</code> action.</strong>
+            <code>updateAssignment</code> already implements same-tool tier
+            changes with validation, cost snapshot and audit diff, and is already
+            wired to two of the three target surfaces. A second action would have
+            been a parallel implementation of the thing this spec exists to
+            unify.
+          </li>
+          <li class="con">
+            <strong>A <code>ChangeTierDialog</code> on three surfaces.</strong>
+            Two already have working tier-edit UI. Only the missing affordance is
+            added.
+          </li>
+          <li class="con">
+            <strong>Migration 0030 / <code>tier_changed_at</code>.</strong>
+            <code>change_history</code> already stores old/new
+            <code>tierId</code> with actor and timestamp — a column would have
+            duplicated it and could hold only the most recent step. This spec is
+            now migration-free.
+          </li>
+          <li class="con">
+            <strong>Deferral &ldquo;reconcile the two rival expected-spend
+            readers&rdquo;.</strong> There is no rivalry:
+            <code>getExpectedSpendForPeriod</code> is dead code. Deleted instead
+            of documented.
+          </li>
+        </ul>
+
+        <h4>Out of scope</h4>
+        <ul>
+          <li class="con">
+            Mid-period proration and scheduled/effective-dated changes — both
+            need effective-dated cost history (deferral D-1).
+          </li>
+          <li class="con">
+            Self-service upgrades for viewers; e-mail notification on tier
+            change.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="today">2 · Three conflicting semantics today</h2>
+
+      <table>
+        <thead>
+          <tr><th>Path</th><th>What it does</th><th>Damage</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>assignLicense</code><br /><span class="meta">assignments.ts:97-133</span></td>
+            <td>Deactivates the old row, inserts a new one with fresh <code>assigned_at</code>. Also implements &ldquo;Reactivate&rdquo;.</td>
+            <td><span class="pill warn">double-bills switch month</span> orphans comments, drops <code>workspace</code>/<code>api_key_encrypted</code>, no status-change history for the closed row.</td>
+          </tr>
+          <tr>
+            <td><code>updateAssignment</code><br /><span class="meta">assignments.ts:207-230</span></td>
+            <td>Mutates <code>tier_id</code> + cost in place; clean <code>recordUpdate</code> diff.</td>
+            <td><span class="pill neutral">retroactive re-pricing</span> unguarded against a concurrent revoke; unguarded against Copilot sync.</td>
+          </tr>
+          <tr>
+            <td><code>createAssignmentInTx</code><br /><span class="meta">license-requests.ts:266-278</span></td>
+            <td>Refuses outright when an active assignment exists.</td>
+            <td><span class="pill warn">blocks the use case</span> and leaks a Hub user while doing it.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <strong>Live tier taxonomy</strong> (verified in production via MCP
+        <code>list_ai_tools</code>): every tool keeps its tiers as
+        <code>access_tiers</code> rows under <em>one</em> <code>ai_tools</code>
+        row, so every real upgrade is a same-tool <code>tier_id</code> change and
+        the existing same-tool guard suffices. GitHub Copilot: Business &euro;19 /
+        Enterprise &euro;39 · Claude: Standard Seat &euro;25 / Premium Seat
+        &euro;125 · Claude Console: boost-starter &euro;25 / advanced &euro;50 /
+        expert &euro;100 / leader &euro;200 / indie-profile &euro;125 · Cursor:
+        Member &euro;40 · Microsoft Copilot: Standard &euro;30.
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="costing">3 · The costing decision (revised)</h2>
+
+      <p>
+        Per-period expected spend sums <code>cost_at_assignment_cents</code> by
+        date overlap, flat monthly price, no proration:
+      </p>
+
+      <pre><code><span class="c">// src/actions/budget.ts:620-626 — getBudgetWithCosts (no status filter)</span>
+.filter((a) =&gt; a.assignedAt &lt;= periodEnd &amp;&amp;
+               (a.revokedAt === null || a.revokedAt &gt;= periodStart))
+.reduce((total, a) =&gt; total + a.costAtAssignmentCents, 0)
+
+<span class="c">// src/actions/reports.ts:146-161 — fetchPerToolByPeriod, same but `&gt;`</span></code></pre>
+
+      <div class="callout">
+        <strong>v1 of this plan claimed deactivate+insert was &ldquo;strictly
+        worse&rdquo;. That was arithmetically false</strong> and the panel proved
+        it. Both options are wrong; they are wrong in different places and by
+        different magnitudes.
+      </div>
+
+      <h4>The actual arithmetic</h4>
+      <p>
+        One Claude seat held since March, upgraded &euro;25 &rarr; &euro;125 on
+        15 August, monthly periods:
+      </p>
+      <table>
+        <thead>
+          <tr><th>Option</th><th>Error</th><th>Where it lands</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Deactivate + insert</td>
+            <td><code>1 period &times; old price</code> = <strong>+&euro;25, August only</strong></td>
+            <td>Both rows satisfy both predicates for the period containing the switch. Verified contained: July excludes the new row, September excludes the old one.</td>
+          </tr>
+          <tr>
+            <td>In-place (D-A)</td>
+            <td><code>N closed periods &times; delta</code> = <strong>+&euro;100 &times; Mar–Jul = +&euro;500</strong></td>
+            <td>Every closed period the row spans restates upward. <strong>20&times; larger</strong> here, and it grows with tenure.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>The retroactive blast radius (v1 never enumerated this)</h4>
+      <p>In-place re-pricing moves these already-published figures:</p>
+      <ul>
+        <li class="con">
+          <strong>The budget-health status pill</strong> —
+          <code>budget-health-hero.tsx:137</code> accumulates
+          <code>closedExpected</code> over closed periods, <code>:169-170</code>
+          derive <code>closedVariance</code> and
+          <code>ratio = closedActual / closedExpected</code>. Ten upgraded seats
+          can flip the pill to <em>&ldquo;Under&rdquo;</em> — reporting an
+          under-spend that never happened. Rendered on <code>/budget</code> and
+          <code>/budget/[id]</code>.
+        </li>
+        <li class="con"><code>period-allocations-table.tsx:97,126</code> · <code>past-month-spotlight.tsx:36</code></li>
+        <li class="con">Expected-monthly sparklines: <code>dashboard.ts:221-224</code> · <code>reports/page.tsx:119-122</code></li>
+        <li class="con">Per-tool YTD: <code>reports.ts:255-262</code> · MCP <code>get_budget_report</code>: <code>mcp/data.ts:320</code></li>
+        <li class="con">
+          <strong>Month-over-month goes blind.</strong>
+          <code>getAssignmentSnapshotAt</code> reconstructs an &ldquo;as of&rdquo;
+          snapshot but reads the <em>current</em> cost, so both months read the
+          new price and the delta contribution is exactly zero: the
+          &ldquo;Expected monthly / vs &euro;X last month&rdquo; KPI reads 0% on
+          the very month a seat's price quintupled. Deactivate+insert would be
+          correct here — this regression is specific to in-place.
+        </li>
+      </ul>
+
+      <h3>Decision D-A (kept, on honest grounds)</h3>
+      <div class="card accent-2">
+        <p>
+          <strong>In-place mutation stays</strong> — not because its error is
+          smaller, but because:
+        </p>
+        <ul>
+          <li class="pro">
+            <strong>It is the convention this codebase already committed
+            to.</strong> <code>src/actions/tools.ts:302-305</code> states it in a
+            comment and migration <code>0024</code> backfilled production to
+            match: active assignments follow the current tier price; only revoked
+            rows keep a historical snapshot. Spec 037 shipped that with the
+            user&rsquo;s agreement. A feature whose purpose is to
+            <em>reconcile</em> three rival tier-change semantics must not
+            introduce a fourth costing model.
+          </li>
+          <li class="pro">
+            The double count corrupts the <strong>current</strong> month — the
+            figure people act on now — whereas restatement moves closed history
+            that the billed-cost column still anchors.
+          </li>
+          <li class="pro">
+            Preserves row identity: <code>id</code>, comment thread,
+            <code>api_key_encrypted</code>, <code>workspace</code>,
+            <code>assigned_at</code> (the seat&rsquo;s true start) and the
+            <code>license_requests.assignment_id</code> link.
+          </li>
+          <li class="pro">
+            Immune to the <code>T00:00:00Z</code> vs period-boundary timezone
+            trap a fresh insert hits
+            (<code>license-requests.ts:291</code> builds a UTC-midnight date;
+            <code>periodEnd</code> is <code>new Date('YYYY-MM-DD')</code>).
+          </li>
+          <li class="con">
+            <strong>Accepted cost:</strong> closed periods restate, and MoM goes
+            blind for that seat. Disclosed in the UI, not hidden — see
+            §<a href="#ui">7</a>.
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout info">
+        <strong>The option nobody considered, recorded for the successor
+        spec.</strong> <em>Boundary-snapped supersede</em>: close the old row at
+        <code>periodStart - 1ms</code> and open the new one at
+        <code>periodStart</code>. It double-counts under <em>neither</em>
+        predicate <em>and</em> leaves closed periods at their historical price —
+        the only option here that is cost-correct on every reader, MoM included.
+        Rejected for v1 because it still breaks row/comment/API-key continuity
+        and makes <code>assigned_at</code> lie about when the seat began, which
+        would need a <code>supersedes_assignment_id</code> chain to repair.
+        Deferral D-1.
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="action">4 · The tier-change path</h2>
+
+      <p>
+        No new action. <code>updateAssignment</code> stays the entry point; its
+        tier branch is hardened and factored so the request path can share it.
+      </p>
+
+      <h4>The shared pure helper — one signature, settled</h4>
+      <pre><code><span class="c">// src/actions/assignments.ts — pure, no db access, no tx.
+// v1 gave two conflicting signatures; this is the only one.</span>
+<span class="k">export function</span> buildTierChange(
+  current: { tierId: number; costAtAssignmentCents: number; source: string },
+  newTier: { id: number; monthlyCostCents: number },
+): { values: TierChangeValues; changes: ChangeMap }
+  | { noop: <span class="k">true</span> }
+  | { error: string }</code></pre>
+      <ul>
+        <li class="check">
+          <code>newTier.id === current.tierId</code> &rarr;
+          <code>{ noop: true }</code>. <strong>Callers decide what a no-op
+          means</strong> — <code>updateAssignment</code> skips the write;
+          <code>approveRequest</code> must <em>still</em> approve and link the
+          request (v1 would have stranded it in
+          <code>pending_review</code>).
+        </li>
+        <li class="check">
+          <code>current.source === 'copilot-sync'</code> &rarr; error. Reached
+          <strong>only when the tier actually differs</strong> — v1&rsquo;s
+          invariant ordering would have rejected <em>every</em> edit of a synced
+          assignment, because the detail form always submits
+          <code>tierId</code>.
+        </li>
+        <li class="check">
+          Otherwise returns <code>tierId</code>,
+          <code>costAtAssignmentCents</code> and the old/new change map for
+          <code>recordUpdate</code>.
+        </li>
+      </ul>
+
+      <h4>Race-safe write</h4>
+      <p>
+        The existing write is an unconditional
+        <code>.where(eq(id, id))</code> after a separate read
+        (<code>assignments.ts:191-201</code> read, <code>:297-300</code> write).
+        Five concurrent producers can close the row inside that window:
+        <code>revokeLicense</code>, <code>assignLicense</code>&rsquo;s deactivate
+        leg, <code>deactivateUser</code>&rsquo;s bulk revoke
+        (<code>users.ts:197-207</code>) and copilot-sync&rsquo;s removed-seat
+        revoke. Retiering a just-revoked row would violate the very invariant
+        D-A rests on.
+      </p>
+      <pre><code>.where(and(
+   eq(licenseAssignments.id, id),
+   eq(licenseAssignments.status, <span class="s">"active"</span>),
+   eq(licenseAssignments.tierId, observedTierId),   <span class="c">// optimistic lock</span>
+   ne(licenseAssignments.source, <span class="s">"copilot-sync"</span>),
+ ))
+ .returning({ id: licenseAssignments.id });
+
+<span class="k">if</span> (updated.length === 0) <span class="k">return</span> { success: <span class="k">false</span>,
+  error: <span class="s">"This assignment changed while you were editing it. Refresh and try again."</span> };</code></pre>
+      <p>
+        The <code>tierId</code> predicate doubles as the optimistic lock against
+        a concurrent price cascade (<code>updateTier</code> /
+        <code>syncBillingData</code>) stranding the row at a stale price.
+      </p>
+
+      <h4>Audit durability</h4>
+      <p>
+        <code>recordUpdate</code> is written after the update, matching the
+        prevailing convention. If it throws, the tier moved with no history row —
+        and the no-op early return would then make a retry <em>report
+        success</em>, falsifying the audit acceptance criterion. Mitigation:
+        write history inside the same transaction as the update for this path,
+        so either both land or neither does. This is the stricter of the two
+        conventions already present in the repo, and correctness wins here.
+      </p>
+
+      <h4>Revalidation</h4>
+      <p>
+        Today&rsquo;s list (<code>assignments.ts:310-312</code>) misses every
+        cost surface. Corrected for <strong>all</strong>
+        <code>updateAssignment</code> fields, not just the tier — matching what
+        the analogous price cascade in <code>tools.ts</code> already does:
+        <code>/assignments</code>, <code>/assignments/[id]</code>,
+        <code>/users/[userId]</code>, <code>/tools/[toolId]</code>,
+        <code>/reports</code>, <code>/reports/budget</code>,
+        <code>/budget</code>, <code>/</code>.
+      </p>
+
+      <div class="callout info">
+        <strong>No <code>maxLicenses</code> check</strong> — a same-tool tier
+        change does not alter the seat count. Stated explicitly because GitHub
+        Copilot is live at <strong>63/63</strong>: any create-shaped
+        implementation that omitted <code>assignLicense</code>&rsquo;s
+        &ldquo;minus one for the user&rsquo;s own row&rdquo; adjustment
+        (<code>assignments.ts:73-88</code>) would reject every Copilot upgrade.
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="requests">5 · Licence-request approval modes</h2>
+
+      <div class="callout">
+        <strong>A flat <code>mode</code> flag cannot work.</strong>
+        <code>loadToolAndTier</code> runs <em>before</em> the transaction
+        (<code>:338</code> vs <code>:341</code>) and unconditionally errors when
+        <code>tool.requiresApiKey &amp;&amp; !licenseCode?.trim()</code>
+        (<code>:201-207</code>). Claude Console is the only
+        <code>requires_api_key</code> tool <em>and</em> has the deepest tier
+        ladder — so v1, which suppressed the key field on a retier, would have
+        killed exactly the upgrades most likely to happen, with a misleading
+        error.
+      </div>
+
+      <h4>A discriminated union, not a flag</h4>
+      <pre><code>approveRequestSchema = z.discriminatedUnion(<span class="s">"mode"</span>, [
+  z.object({ mode: z.literal(<span class="s">"create"</span>),        <span class="c">/* tool, tier, assignedAt, licenseCode, bodyMd */</span> }),
+  z.object({ mode: z.literal(<span class="s">"change_tier"</span>),   <span class="c">/* assignmentId, tierId, bodyMd — NO assignedAt */</span> }),
+  z.object({ mode: z.literal(<span class="s">"link_existing"</span>), <span class="c">/* assignmentId, bodyMd */</span> }),
+]);</code></pre>
+      <p>
+        Create-only validation (the API-key rule, <code>assignedAt</code>) now
+        lives only on the <code>create</code> member, so it cannot fire on the
+        other two. <code>mode</code> is destructured out before anything is
+        passed to <code>loadToolAndTier</code>.
+      </p>
+
+      <table>
+        <thead><tr><th>mode</th><th>Existing active assignment</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <tr><td><code>create</code></td><td>no</td><td>Insert, as today.</td></tr>
+          <tr><td><code>create</code></td><td>yes</td><td>Today&rsquo;s error — but now <strong>thrown</strong>, so the auto-created user rolls back (live-bug fix).</td></tr>
+          <tr><td><code>change_tier</code></td><td>yes, manual</td><td><span class="pill new">new</span> retier via <code>buildTierChange</code>; link <code>assignment_id</code>; approve.</td></tr>
+          <tr><td><code>change_tier</code></td><td>yes, same tier</td><td>No-op on the row, but <strong>still approve and link</strong>.</td></tr>
+          <tr><td><code>change_tier</code></td><td>no</td><td><strong>Throw</strong> to roll back: &ldquo;No active assignment to retier.&rdquo;</td></tr>
+          <tr><td><code>link_existing</code></td><td>yes</td><td><span class="pill new">new</span> mutate nothing; link <code>assignment_id</code>; approve. The answer for Copilot (§<a href="#sync">6</a>) and for the stuck legacy path.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <strong>Every in-transaction rejection must <code>throw</code>, never
+        <code>return</code>.</strong> This is the single most important
+        implementation note in the spec: a returned error commits the
+        auto-created requester user. Use a sentinel per the existing
+        <code>RACE_LOST</code> idiom and map it to a friendly message in the
+        <code>.catch</code>.
+      </div>
+
+      <h4>Data the dialog actually needs</h4>
+      <p>
+        v1 claimed the collision could be detected &ldquo;with no new
+        query&rdquo;. Half true: <code>getRequestContext</code> does return
+        <code>activeAssignments</code>, but
+        <code>ActiveAssignmentSummary</code> is
+        <code>{ id, toolName, tierName, assignedAt }</code>
+        (<code>:583-588</code>, SQL at <code>:618-625</code>) — no
+        <code>toolId</code> (so collision matching would key off a display
+        <em>name</em>), no <code>tierId</code>, and no <code>source</code> (so it
+        cannot tell a Copilot seat from a manual one). Add
+        <code>tool_id</code>, <code>tier_id</code> and <code>source</code> to
+        that SELECT — same query, three more columns.
+      </p>
+      <p>
+        Collision detection must key off <code>toolId</code>, and note that the
+        dialog keys on <code>requesterUserId</code> while the transaction
+        resolves the requester <em>by e-mail</em>: a request whose
+        <code>requesterUserId</code> is NULL but whose e-mail already matches a
+        Hub user shows no collision in the dialog yet collides server-side. The
+        server&rsquo;s mode revalidation is therefore the authority, and its
+        error message must tell the admin to reopen the dialog.
+      </p>
+
+      <h4>Template context</h4>
+      <p>
+        <code>renderTemplate</code> leaves an unresolved path as the
+        <strong>literal</strong> <code>{{tier.previousName}}</code> in the
+        output — it does not render empty. Templates are keyed only by
+        <code>(tool_id, tier_id, kind)</code> with no tier-change kind, so the
+        same approval body serves all three modes. Therefore
+        <code>tier.previousName</code> is <strong>always bound</strong> — the
+        previous tier name on a retier, an empty string otherwise — so a template
+        that references it can never leak braces into a message an admin pastes
+        to a colleague.
+      </p>
+      <p>
+        Also: in <code>change_tier</code>/<code>link_existing</code> mode the key
+        field is <em>optional, not suppressed</em>. Suppressing it made
+        <code>resolvedBody()</code> substitute the empty string into the seeded
+        Claude Console line <code>Your API key: {{licenseCode}}</code>, so the
+        pasted message read <em>&ldquo;Your API key: —&rdquo;</em>.
+      </p>
+
+      <!-- ============================================================ -->
+      <h2 id="sync">6 · Copilot sync authority</h2>
+
+      <p>
+        <code>syncSeatAssignments</code> rewrites <code>tier_id</code>,
+        <code>cost_at_assignment_cents</code>, <code>source</code> and
+        <code>workspace</code> from GitHub&rsquo;s <code>seat.plan_type</code>
+        with no history entry (<code>copilot-sync.ts:243-262</code>). GitHub owns
+        the entitlement; the Hub cannot win that argument.
+      </p>
+
+      <div class="callout">
+        <strong>Live bug.</strong>
+        <code>assignment-detail-client.tsx</code> contains <strong>zero</strong>
+        references to <code>source</code> and its <code>page.tsx</code> never
+        passes it, so the tier <code>&lt;Select&gt;</code> there is fully
+        editable for synced rows — <code>[SAVED]</code>, then silently reverted
+        by cron. Only <code>assignments-client.tsx</code> gates.
+      </div>
+
+      <div class="callout">
+        <strong>Blocking <code>source='copilot-sync'</code> is necessary but not
+        sufficient.</strong> Sync <em>takes over</em> manual rows
+        (<code>needsSourceUpdate</code>, <code>copilot-sync.ts:243</code>), so a
+        tier change on a <code>source='manual'</code> GitHub Copilot assignment
+        is equally reverted at the next cron — the same bug reached through a
+        different value. The honest gate is therefore
+        <strong>tool-based, not source-based</strong>: refuse tier changes on any
+        assignment whose tool is the Copilot-sync-managed tool while a Copilot
+        connection is active. Implemented as a single predicate so both the
+        server guard and the UI gate read the same rule.
+      </div>
+
+      <p>
+        <strong>This is why <code>link_existing</code> exists.</strong> Without
+        it, a Business &rarr; Enterprise request — the clearest upgrade ladder in
+        the system, on the tool with 63 live seats — has
+        <em>no approvable outcome at all</em>: refused by the create guard and by
+        the sync guard. With it, the flow matches 032-v2&rsquo;s provision-first
+        philosophy: the admin upgrades the plan in GitHub, approves the request
+        as <code>link_existing</code>, and the tier arrives on the next sync. The
+        dialog says exactly that.
+      </p>
+
+      <p class="meta">
+        Noted, not fixed (deferral D-5): sync&rsquo;s
+        <code>needsReactivate</code> branch resets
+        <code>assigned_at = new Date()</code> and
+        <code>revoked_at = null</code>, destroying a resurrected seat&rsquo;s
+        original start date and corrupting its period attribution.
+      </p>
+
+      <!-- ============================================================ -->
+      <h2 id="ui">7 · UI changes</h2>
+      <p>
+        Feedback via <code>StatusText</code>/<code>useInlineStatus</code> only —
+        no <code>sonner</code>.
+      </p>
+      <table>
+        <thead><tr><th>Surface</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>app/assignments/[id]/page.tsx</code> · <code>assignment-detail-client.tsx</code></td>
+            <td>
+              Pass <code>source</code>; gate the tier <code>&lt;Select&gt;</code>
+              for sync-managed rows with the existing &ldquo;Managed by
+              sync&rdquo; badge (<strong>bug fix</strong>); render a
+              <strong>tier timeline</strong> from <code>change_history</code>;
+              disclose that a tier change re-prices closed periods.
+            </td>
+          </tr>
+          <tr>
+            <td><code>app/users/[id]/user-detail-client.tsx</code></td>
+            <td>
+              The one genuinely missing affordance: a &ldquo;Change tier&rdquo;
+              link on each active row of the Assigned Tools card, routing to the
+              assignment detail page rather than duplicating a dialog.
+            </td>
+          </tr>
+          <tr>
+            <td><code>app/requests/[id]/approval-dialog.tsx</code></td>
+            <td>
+              Mode-aware step 1: detect collision by <code>toolId</code>; offer
+              <em>Change tier</em> for manual rows and
+              <em>Link existing seat</em> for sync-managed ones; keep the key
+              field optional; show a signed monthly delta.
+            </td>
+          </tr>
+          <tr>
+            <td><code>app/requests/[id]/record-assignment-dialog.tsx</code></td>
+            <td>Route the legacy v1 path through <code>link_existing</code> so an already-provisioned seat can finally be linked.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="meta">
+        <code>assignments-client.tsx</code> already has a working tier edit and
+        already gates synced rows — untouched. <code>profile-assignments.tsx</code>
+        stays read-only.
+      </p>
+
+      <!-- ============================================================ -->
+      <h2 id="tests">8 · Test plan</h2>
+
+      <div class="callout">
+        <strong>Integration tests do not run in CI</strong> —
+        <code>.github/workflows/ci.yml:96-117</code> has the
+        <code>integration-tests</code> job commented out; only
+        <code>pnpm test</code> (unit) gates a merge. v1 made an integration test
+        the sole guard for its central claim, which would never have blocked a
+        regression. The double-count guard is therefore a <strong>unit</strong>
+        test.
+      </div>
+
+      <h4>Unit — the regression guard</h4>
+      <ul>
+        <li class="check">
+          <strong>Extract the overlap predicate</strong> used by
+          <code>getBudgetWithCosts</code> into a pure exported function and test
+          it directly: given one in-place-changed row vs. an old+new row pair
+          spanning the same switch, assert the in-place result equals exactly one
+          tier price and the pair sums to two — pinning the double-count as a
+          <em>known property of the rejected design</em>, in CI, forever.
+        </li>
+        <li class="check"><code>buildTierChange</code>: no-op, sync refusal only when the tier differs, correct change map, signed delta both directions incl. Claude Console&rsquo;s non-monotonic prices.</li>
+        <li class="check">Non-admin &rarr; <code>Unauthorized</code>; inactive assignment refused; cross-tool tier refused; <strong>inactive tier refused on all three entry points</strong> (the <code>loadToolAndTier</code> gap).</li>
+        <li class="check">Race guard: zero-rows update &rarr; the refresh error, not a silent success.</li>
+        <li class="check">Mode matrix from §5, including that <code>change_tier</code> with no active assignment <strong>throws</strong> (asserting the user rolls back) and that same-tier still approves.</li>
+      </ul>
+
+      <h4>Integration — real DB, manual gate</h4>
+      <ul>
+        <li class="check">
+          <strong>Scoped, not global.</strong>
+          <code>getBudgetWithCosts</code> sums the entire
+          <code>license_assignments</code> table with no tool or budget scoping,
+          so a global before/after delta absorbs rows other suites create
+          concurrently. Assert instead on the seeded tool&rsquo;s own rows:
+          exactly one active row, and the predicate-matching sum equals the new
+          tier price alone.
+        </li>
+        <li class="check">
+          <strong>No active budget needed</strong> —
+          <code>getBudgetWithCosts</code> filters on <code>id</code> only
+          (<code>budget.ts:556-557</code>) and ignores
+          <code>status</code>. Seed it <code>archived</code>, outside every
+          claimed fiscal-year range. v1&rsquo;s &ldquo;claim FY &ge; 999,000&rdquo;
+          instruction would have collided with the suite that already owns that
+          window.
+        </li>
+        <li class="check">Approval round trip: <code>change_tier</code> retiers in place, preserves <code>id</code>/<code>assigned_at</code>/API key, links the request; failed <code>create</code> leaves <strong>no orphan user</strong>.</li>
+        <li class="check">Seeds its own tool/tiers/user — <code>seed.ts</code> creates only an admin.</li>
+      </ul>
+
+      <h4>Browser pass (Playwright via <code>agent-browser-session</code>)</h4>
+      <ul>
+        <li class="check">Change a tier on a manual assignment; assert the new tier, the timeline entry, <code>[SAVED]</code>.</li>
+        <li class="check">A sync-managed assignment offers no tier edit on the detail page (bug fix).</li>
+        <li class="check">Approve a request for an existing holder — manual (change tier) and Copilot (link existing).</li>
+        <li class="note">Use <code>page.innerText("body")</code>, not <code>textContent</code> (RSC flight payload); allow ~17s for the first <code>page.goto</code>.</li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="manifest">9 · File manifest</h2>
+      <p class="meta">No schema change. No migration. No new table.</p>
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/actions/assignments.ts</code></td><td><code>buildTierChange</code>; race-safe conditional update; history inside the tx; corrected revalidation; delete dead <code>getExpectedSpendForPeriod</code> import if any</td></tr>
+          <tr><td><code>src/actions/budget.ts</code></td><td>delete dead <code>getExpectedSpendForPeriod</code>; export the overlap predicate for the unit test</td></tr>
+          <tr><td><code>src/actions/license-requests.ts</code></td><td>discriminated-union modes; throw-not-return on every in-tx rejection; <code>isActive</code> in <code>loadToolAndTier</code>; <code>tool_id</code>/<code>tier_id</code>/<code>source</code> in <code>ActiveAssignmentSummary</code>; always-bound <code>tier.previousName</code></td></tr>
+          <tr><td><code>src/lib/validators.ts</code></td><td><code>approveRequestSchema</code> &rarr; discriminated union</td></tr>
+          <tr><td><code>src/actions/history.ts</code></td><td>read helper for an entity&rsquo;s field timeline (tier history)</td></tr>
+          <tr><td><code>src/app/assignments/[id]/page.tsx</code> · <code>assignment-detail-client.tsx</code></td><td>pass <code>source</code>; gate; tier timeline; disclosure copy</td></tr>
+          <tr><td><code>src/app/users/[id]/user-detail-client.tsx</code></td><td>Change-tier link per active row</td></tr>
+          <tr><td><code>src/app/requests/[id]/approval-dialog.tsx</code> · <code>record-assignment-dialog.tsx</code></td><td>mode-aware approval; legacy path via <code>link_existing</code></td></tr>
+          <tr><td><code>tests/unit/actions/assignment-tier-change.test.ts</code></td><td><span class="pill new">new</span> incl. the double-count property test</td></tr>
+          <tr><td><code>tests/integration/actions/assignment-tier-change.test.ts</code></td><td><span class="pill new">new</span></td></tr>
+        </tbody>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="risks">10 · Decisions, deferrals &amp; risks</h2>
+      <table>
+        <thead><tr><th>#</th><th>Decision</th></tr></thead>
+        <tbody>
+          <tr><td>D-A</td><td>In-place mutation — on the honest grounds in §3, not the false &ldquo;strictly worse&rdquo; claim of v1. Accepts closed-period restatement and MoM blindness.</td></tr>
+          <tr><td>D-B</td><td>Tier changes refused for Copilot-sync-<em>managed</em> assignments by <strong>tool</strong>, not by <code>source</code> — because sync takes over manual rows too.</td></tr>
+          <tr><td>D-C</td><td>Three approval modes as a discriminated union. <code>link_existing</code> is what gives Copilot an approvable outcome and unsticks the legacy path.</td></tr>
+          <tr><td>D-D</td><td>No <code>maxLicenses</code> check — seat count unchanged; explicit because Copilot is at 63/63.</td></tr>
+          <tr><td>D-E</td><td>No migration. <code>change_history</code> is the tier timeline.</td></tr>
+          <tr><td>D-F</td><td>Tier-change history written <em>inside</em> the transaction — the stricter of the repo&rsquo;s two conventions, chosen because the audit trail is an acceptance criterion.</td></tr>
+        </tbody>
+      </table>
+
+      <table>
+        <thead><tr><th>#</th><th>Deferred</th><th>Why not now</th></tr></thead>
+        <tbody>
+          <tr><td>D-1</td><td>Effective-dated cost history — enables proration, scheduling, and boundary-snapped supersede (§3)</td><td>New table + <code>supersedes_assignment_id</code> chain + rewriting four per-period readers. The right long-term answer.</td></tr>
+          <tr><td>D-2</td><td>Restore MoM correctness after an in-place change</td><td>Needs D-1. Until then the KPI under-reports the month a tier moves.</td></tr>
+          <tr><td>D-3</td><td>Tier drift vs <code>tool_mappings</code></td><td>Needs a product rule for what drift means.</td></tr>
+          <tr><td>D-4</td><td>Partial unique index on one active assignment per user+tool</td><td>Sync can transiently produce duplicates; the constraint could break cron.</td></tr>
+          <tr><td>D-5</td><td>Sync&rsquo;s <code>needsReactivate</code> resetting <code>assigned_at</code></td><td>Real defect, unrelated blast radius.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Risks</h4>
+      <ul>
+        <li class="con">
+          <strong>Claude Console tiers are entitlement caps, not seat fees</strong>
+          — its cost is a monthly allowance while real spend arrives as metered
+          Anthropic usage. The dialog&rsquo;s delta copy must say
+          &ldquo;monthly tier cost&rdquo;, never imply the bill changes.
+        </li>
+        <li class="con">
+          <strong>Closed-period restatement is invisible from
+          <code>/budget</code></strong>, where the affected pill lives. Mitigation
+          is disclosure at the point of change plus the
+          <code>change_history</code> timeline; a real fix needs D-1.
+        </li>
+        <li class="con">
+          <strong>Four write sites still touch <code>license_assignments</code>
+          directly.</strong> This spec unifies the tier path and adds no fifth,
+          but does not unify them.
+        </li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="accept">11 · Acceptance checklist</h2>
+      <ul>
+        <li class="check">A request from someone who already holds the tool can be approved — as a tier change (manual) or a linked existing seat (sync-managed) — without revoking anything.</li>
+        <li class="check">A failed approval leaves <strong>no orphan Hub user</strong> (live-bug fix, regression-tested).</li>
+        <li class="check">A sync-managed assignment offers no tier edit on <em>any</em> surface, including the detail page (live-bug fix).</li>
+        <li class="check">After a tier change: one active row, same <code>id</code>, same <code>assigned_at</code>, comments and API key intact, timeline entry visible.</li>
+        <li class="check">A concurrent revoke during a tier change yields the refresh error, never a retiered revoked row.</li>
+        <li class="check">No approval path can put a live seat on a deactivated tier.</li>
+        <li class="check">The double-count property is pinned by a <strong>unit</strong> test that runs in CI.</li>
+        <li class="check">A pasted approval message never contains literal <code>{{&hellip;}}</code> braces or an em-dash API key.</li>
+        <li class="check"><code>pnpm typecheck</code> clean · eslint clean on changed files · <code>pnpm test</code> green · integration green locally · browser pass done.</li>
+      </ul>
+
+      <footer>
+        specs/042-assignment-tier-change/implementation-plan.html · v2, revised
+        2026-08-03 after a 5-lens adversarial panel · recon: 7-reader workflow +
+        gap critic · see implementation-notes.html for the full challenge log
+      </footer>
+    </main>
+  </body>
+</html>
