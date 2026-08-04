@@ -5,81 +5,11 @@ import { changeHistory } from "@/lib/db/schema";
 import { eq, and, desc, count } from "drizzle-orm";
 import type { ActionResult, ChangeHistoryRecord } from "@/types";
 
-export async function recordCreation(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  txClient?: Pick<typeof db, "insert">,
-) {
-  await (txClient ?? db).insert(changeHistory).values({
-    entityType,
-    entityId,
-    changeType: "created",
-    changedBy,
-  });
-}
-
-export async function recordUpdate(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  changes: Record<string, { old: unknown; new: unknown }>,
-  txClient?: Pick<typeof db, "insert">,
-) {
-  const entries = Object.entries(changes);
-  if (entries.length === 0) return;
-
-  await (txClient ?? db).insert(changeHistory).values(
-    entries.map(([fieldName, values]) => ({
-      entityType,
-      entityId,
-      changeType: "updated" as const,
-      fieldName,
-      previousValue: JSON.stringify(values.old),
-      newValue: JSON.stringify(values.new),
-      changedBy,
-    })),
-  );
-}
-
 /**
- * Record a deletion with a previous-value snapshot so the audit trail can
- * reconstruct what was removed (the deleteBilledCost pattern).
+ * Read side of the audit trail. The WRITE helpers deliberately do not live here
+ * — see src/lib/history.ts for why (a `"use server"` export that takes
+ * `changedBy` as a parameter is an audit-forgery endpoint).
  */
-export async function recordDeletion(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  previousValue: unknown,
-  txClient?: Pick<typeof db, "insert">,
-) {
-  await (txClient ?? db).insert(changeHistory).values({
-    entityType,
-    entityId,
-    changeType: "deleted",
-    previousValue: JSON.stringify(previousValue),
-    changedBy,
-  });
-}
-
-export async function recordStatusChange(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  previousStatus: string,
-  newStatus: string,
-) {
-  await db.insert(changeHistory).values({
-    entityType,
-    entityId,
-    changeType: "status_change",
-    fieldName: "status",
-    previousValue: JSON.stringify(previousStatus),
-    newValue: JSON.stringify(newStatus),
-    changedBy,
-  });
-}
-
 export async function getEntityHistory(
   entityType: string,
   entityId: number,

@@ -16,7 +16,11 @@ import {
   readAuthorizeParams,
   validateAuthorizeRequest,
 } from "@/lib/oauth/authorize";
-import { MCP_SCOPE } from "@/lib/oauth/validate";
+import {
+  MCP_SCOPE,
+  MCP_WRITE_SCOPE,
+  resolveGrantedScope,
+} from "@/lib/oauth/validate";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -80,6 +84,15 @@ export default async function AuthorizePage({
     redirect(validation.redirectTo);
   }
 
+  // Must match what approveAuthorization will actually grant, or the screen lies.
+  // Both call resolveGrantedScope with the same inputs (043).
+  const grantsWrite = resolveGrantedScope(
+    validation.requestedScope,
+    session.user.role,
+  )
+    .split(" ")
+    .includes(MCP_WRITE_SCOPE);
+
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-md">
@@ -103,10 +116,28 @@ export default async function AuthorizePage({
               Read-only access to AI spend data — tools, budgets, Claude and
               Copilot usage (<code className="font-mono text-xs">{MCP_SCOPE}</code>)
             </li>
+            {grantsWrite && (
+              <li>
+                <span className="font-medium text-foreground">
+                  Permission to make changes
+                </span>{" "}
+                — create and edit users, assign, retier and revoke licenses, and
+                change access-tier prices (
+                <code className="font-mono text-xs">{MCP_WRITE_SCOPE}</code>)
+              </li>
+            )}
           </ul>
           <p className="text-muted-foreground">
-            No write access. You can revoke this anytime under Settings →
-            Connections.
+            {grantsWrite ? (
+              <>
+                Every change is recorded in the Hub&apos;s history against your
+                account. Secrets (API keys, license codes) and password resets are
+                never available over MCP.
+              </>
+            ) : (
+              <>No write access.</>
+            )}{" "}
+            You can revoke this anytime under Settings → Connections.
           </p>
         </CardContent>
         <CardFooter>

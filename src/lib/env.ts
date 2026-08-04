@@ -81,6 +81,25 @@ const envSchema = z.object({
     .string()
     .min(16, "MCP_SERVER_SECRET must be at least 16 characters")
     .optional(),
+
+  // MCP write tools (043-mcp-write-tools). Declared here for discoverability and
+  // boot-time validation only — the write gate reads process.env.MCP_WRITE_ENABLED
+  // directly on every request (src/lib/mcp/access.ts) rather than through this
+  // memoized object, so the value can change without a process restart.
+  //
+  // Literal "1" enables; anything else (including "true") leaves writes disabled.
+  // The regex makes a well-meant "true" fail loudly at boot instead of silently
+  // behaving as off.
+  MCP_WRITE_ENABLED: z
+    .string()
+    .regex(/^[01]$/, 'MCP_WRITE_ENABLED must be "1" (enabled) or "0"/unset (disabled)')
+    .optional(),
+
+  // Comma-separated email domains create_user will accept, e.g. "unic.com,example.org".
+  // Defaults to unic.com when unset (see allowedEmailDomains in src/lib/mcp/write.ts).
+  // Stops an agent following instructions embedded in a ticket or mail thread from
+  // creating an account on an address outside the org.
+  MCP_WRITE_EMAIL_DOMAINS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

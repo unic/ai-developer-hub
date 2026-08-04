@@ -16,6 +16,7 @@ import {
   validateAuthorizeRequest,
 } from "@/lib/oauth/authorize";
 import { issueAuthCode, revokeGrantForUser } from "@/lib/oauth/store";
+import { resolveGrantedScope } from "@/lib/oauth/validate";
 
 /**
  * Shared head of both consent actions: require a session and re-validate the
@@ -40,7 +41,13 @@ async function validateConsentSubmission(formData: FormData) {
     redirect(validation.redirectTo);
   }
 
-  return { validation, userId: Number(session.user.id) };
+  return {
+    validation,
+    userId: Number(session.user.id),
+    // Carried out so approveAuthorization can resolve mcp:write from the SESSION
+    // role rather than from anything the (client-controlled) form said. 043.
+    consenterRole: session.user.role,
+  };
 }
 
 /**
@@ -48,14 +55,16 @@ async function validateConsentSubmission(formData: FormData) {
  * redirects back to the client.
  */
 export async function approveAuthorization(formData: FormData): Promise<void> {
-  const { validation, userId } = await validateConsentSubmission(formData);
+  const { validation, userId, consenterRole } =
+    await validateConsentSubmission(formData);
 
   const code = await issueAuthCode({
     clientRowId: validation.client.id,
     userId,
     redirectUri: validation.redirectUri,
     codeChallenge: validation.codeChallenge,
-    scope: validation.grantedScope,
+    // mcp:write only when the client asked AND this session is an admin.
+    scope: resolveGrantedScope(validation.requestedScope, consenterRole),
   });
 
   redirect(buildRedirect(validation.redirectUri, { code, state: validation.state }));

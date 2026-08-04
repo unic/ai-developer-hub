@@ -7,7 +7,7 @@
  * src/lib/auth.ts).
  */
 
-import { MCP_SCOPE } from "@/lib/oauth/validate";
+import { MCP_SCOPE, MCP_WRITE_SCOPE } from "@/lib/oauth/validate";
 
 /** Path of the MCP Streamable HTTP endpoint this AS protects. */
 const MCP_RESOURCE_PATH = "/api/mcp/mcp";
@@ -44,7 +44,7 @@ export function authorizationServerMetadata(origin: string) {
     authorization_endpoint: `${origin}/oauth/authorize`,
     token_endpoint: `${origin}/api/oauth/token`,
     registration_endpoint: `${origin}/api/oauth/register`,
-    scopes_supported: [MCP_SCOPE],
+    scopes_supported: [MCP_SCOPE, MCP_WRITE_SCOPE],
     response_types_supported: ["code"],
     response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
@@ -58,7 +58,7 @@ export function protectedResourceMetadata(origin: string) {
   return {
     resource: `${origin}${MCP_RESOURCE_PATH}`,
     authorization_servers: [origin],
-    scopes_supported: [MCP_SCOPE],
+    scopes_supported: [MCP_SCOPE, MCP_WRITE_SCOPE],
     bearer_methods_supported: ["header"],
   };
 }

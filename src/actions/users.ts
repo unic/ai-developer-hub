@@ -6,19 +6,17 @@ import { eq, and, count, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { randomBytes } from "crypto";
-import {
-  userSchema,
-  updateUserSchema,
-  bulkImportUserSchema,
-} from "@/lib/validators";
+import { bulkImportUserSchema } from "@/lib/validators";
 import { createInviteTokenForUser } from "@/actions/invite";
 import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
 import { normalizeField } from "@/lib/utils";
+import { recordCreation, recordUpdate } from "@/lib/history";
+import { uiContext } from "@/lib/core/context";
 import {
-  recordCreation,
-  recordUpdate,
-  recordStatusChange,
-} from "@/actions/history";
+  createUserCore,
+  deactivateUserCore,
+  updateUserCore,
+} from "@/lib/core/users";
 
 export async function createUser(
   input: unknown
@@ -26,54 +24,24 @@ export async function createUser(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = userSchema.safeParse(input);
-  if (!parsed.success) {
+  const result = await createUserCore(
+    uiContext(Number(admin.id)),
+    input,
+    createInviteTokenForUser
+  );
+  if (!result.ok) {
     return {
       success: false,
-      error: "Validation failed",
-      fieldErrors: parsed.error.flatten().fieldErrors as Record<
-        string,
-        string[]
-      >,
+      error: result.error,
+      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
     };
   }
-
-  const { name, email, circle, role, discipline, githubUsername, profile } = parsed.data;
-  const normalizedEmail = email.toLowerCase();
-
-  // Check email uniqueness
-  const existing = await db.query.users.findFirst({
-    where: eq(users.email, normalizedEmail),
-  });
-  if (existing) {
-    return { success: false, error: "A user with this email already exists" };
-  }
-
-  // Set passwordHash to random bytes — user cannot sign in with this
-  const passwordHash = randomBytes(32).toString("hex");
-
-  const [user] = await db
-    .insert(users)
-    .values({
-      name,
-      email: normalizedEmail,
-      passwordHash,
-      circle: circle ?? null,
-      role,
-      discipline,
-      githubUsername: githubUsername ?? null,
-      profile: profile ?? null,
-      mustChangePassword: true,
-    })
-    .returning({ id: users.id });
-
-  await recordCreation("user", user.id, Number(admin.id));
-
-  // Generate invite token
-  const { inviteUrl } = await createInviteTokenForUser(user.id);
-
-  revalidatePath("/users");
-  return { success: true, data: { id: user.id, inviteUrl } };
+  for (const path of result.revalidate) revalidatePath(path);
+  return {
+    success: true,
+    // UI_CAPS includes `credentials`, so the core always returns the URL here.
+    data: { id: result.data.userId, inviteUrl: result.data.inviteUrl! },
+  };
 }
 
 export async function updateUser(
@@ -82,84 +50,9 @@ export async function updateUser(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = updateUserSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, error: "Validation failed" };
-  }
-
-  const { id, ...updates } = parsed.data;
-
-  const existing = await db.query.users.findFirst({
-    where: eq(users.id, id),
-  });
-  if (!existing) return { success: false, error: "User not found" };
-
-  const changes: Record<string, { old: unknown; new: unknown }> = {};
-  const values: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (updates.name !== undefined && updates.name !== existing.name) {
-    changes.name = { old: existing.name, new: updates.name };
-    values.name = updates.name;
-  }
-  if (updates.email !== undefined) {
-    const normalizedEmail = updates.email.toLowerCase();
-    if (normalizedEmail !== existing.email) {
-      const emailExists = await db.query.users.findFirst({
-        where: eq(users.email, normalizedEmail),
-      });
-      if (emailExists) {
-        return { success: false, error: "Email already in use" };
-      }
-      changes.email = { old: existing.email, new: normalizedEmail };
-      values.email = normalizedEmail;
-    }
-  }
-  if (
-    updates.circle !== undefined &&
-    updates.circle !== existing.circle
-  ) {
-    changes.circle = { old: existing.circle, new: updates.circle };
-    values.circle = updates.circle;
-  }
-  if (updates.role !== undefined && updates.role !== existing.role) {
-    changes.role = { old: existing.role, new: updates.role };
-    values.role = updates.role;
-  }
-  if (
-    updates.discipline !== undefined &&
-    updates.discipline !== existing.discipline
-  ) {
-    changes.discipline = { old: existing.discipline, new: updates.discipline };
-    values.discipline = updates.discipline;
-  }
-  if (
-    updates.githubUsername !== undefined &&
-    updates.githubUsername !== existing.githubUsername
-  ) {
-    changes.githubUsername = {
-      old: existing.githubUsername,
-      new: updates.githubUsername,
-    };
-    values.githubUsername = updates.githubUsername;
-  }
-  if (
-    updates.profile !== undefined &&
-    updates.profile !== existing.profile
-  ) {
-    changes.profile = {
-      old: existing.profile,
-      new: updates.profile,
-    };
-    values.profile = updates.profile;
-  }
-
-  if (Object.keys(changes).length > 0) {
-    await db.update(users).set(values).where(eq(users.id, id));
-    await recordUpdate("user", id, Number(admin.id), changes);
-  }
-
-  revalidatePath("/users");
-  revalidatePath(`/users/${id}`);
+  const result = await updateUserCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) return { success: false, error: result.error };
+  for (const path of result.revalidate) revalidatePath(path);
   return { success: true, data: undefined };
 }
 
@@ -169,57 +62,14 @@ export async function deactivateUser(input: {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const existing = await db.query.users.findFirst({
-    where: eq(users.id, input.id),
-  });
-  if (!existing) return { success: false, error: "User not found" };
-  if (existing.status !== "active") {
-    return { success: false, error: "User is already inactive" };
-  }
-
-  // Transaction: deactivate user + revoke all active assignments (FR-007)
-  const now = new Date();
-  const activeAssignments = await db.query.licenseAssignments.findMany({
-    where: and(
-      eq(licenseAssignments.userId, input.id),
-      eq(licenseAssignments.status, "active")
-    ),
-  });
-
-  await db.transaction(async (tx) => {
-    // Deactivate user
-    await tx
-      .update(users)
-      .set({ status: "inactive", updatedAt: now })
-      .where(eq(users.id, input.id));
-
-    // Revoke all active license assignments
-    if (activeAssignments.length > 0) {
-      await tx
-        .update(licenseAssignments)
-        .set({ status: "inactive", revokedAt: now, updatedAt: now })
-        .where(
-          and(
-            eq(licenseAssignments.userId, input.id),
-            eq(licenseAssignments.status, "active")
-          )
-        );
-    }
-  });
-
-  await recordStatusChange(
-    "user",
-    input.id,
-    Number(admin.id),
-    "active",
-    "inactive"
-  );
-
-  revalidatePath("/users");
-  revalidatePath(`/users/${input.id}`);
-  revalidatePath("/assignments");
-  return { success: true, data: { revokedCount: activeAssignments.length } };
+  const result = await deactivateUserCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) return { success: false, error: result.error };
+  // Preserved pre-refactor UI behavior: this surfaced as an error toast.
+  if (result.noop) return { success: false, error: "User is already inactive" };
+  for (const path of result.revalidate) revalidatePath(path);
+  return { success: true, data: { revokedCount: result.data.revokedCount } };
 }
+
 
 /** Compare CSV row fields against existing user, return changed fields with old/new values.
  *  Only considers a field changed if the CSV explicitly provides a value (not undefined). */
@@ -376,7 +226,9 @@ export async function bulkImportUsers(input: {
         }
 
         await db.update(users).set(values).where(eq(users.id, existing.id));
-        await recordUpdate("user", existing.id, Number(admin.id), diff);
+        await recordUpdate("user", existing.id, Number(admin.id), diff, {
+          source: "ui",
+        });
         updated++;
       } else {
         // Create new user with random password (unusable — user must use invite link)
@@ -398,7 +250,9 @@ export async function bulkImportUsers(input: {
           })
           .returning({ id: users.id });
 
-        await recordCreation("user", user.id, Number(admin.id));
+        await recordCreation("user", user.id, Number(admin.id), {
+          source: "ui",
+        });
 
         // Generate invite token for the new user
         const { inviteUrl } = await createInviteTokenForUser(user.id);

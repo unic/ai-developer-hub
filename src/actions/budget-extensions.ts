@@ -16,7 +16,7 @@ import {
   updateBudgetExtensionSchema,
   deleteBudgetExtensionSchema,
 } from "@/lib/validators";
-import { recordCreation, recordUpdate } from "@/actions/history";
+import { recordCreation, recordUpdate } from "@/lib/history";
 import type { ActionResult } from "@/types";
 import { z } from "zod";
 
@@ -38,7 +38,7 @@ function resolveAllocations(
   amountCents: number,
   allocation: AllocationInput,
   periods: { id: number; endDate: string }[],
-  effectiveDate: string
+  effectiveDate: string,
 ): ResolveResult {
   switch (allocation.mode) {
     case "unallocated":
@@ -73,7 +73,7 @@ function resolveAllocations(
     case "custom": {
       const sumCents = allocation.allocations.reduce(
         (s, a) => s + a.amountCents,
-        0
+        0,
       );
       if (sumCents !== amountCents) {
         return {
@@ -85,7 +85,10 @@ function resolveAllocations(
       const byPeriodId: Record<number, number> = {};
       for (const a of allocation.allocations) {
         if (!validIds.has(a.periodId)) {
-          return { ok: false, error: "Allocation references a period not in this budget" };
+          return {
+            ok: false,
+            error: "Allocation references a period not in this budget",
+          };
         }
         byPeriodId[a.periodId] = (byPeriodId[a.periodId] ?? 0) + a.amountCents;
       }
@@ -95,7 +98,7 @@ function resolveAllocations(
 }
 
 export async function createBudgetExtension(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ id: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -138,7 +141,7 @@ export async function createBudgetExtension(
     data.amountCents,
     data.allocation,
     budget.periods.map((p) => ({ id: p.id, endDate: p.endDate })),
-    data.effectiveDate
+    data.effectiveDate,
   );
   if (!resolved.ok) return { success: false, error: resolved.error };
 
@@ -150,10 +153,8 @@ export async function createBudgetExtension(
   }
   const newAllocTotal = budget.periods.reduce(
     (sumCents, p) =>
-      sumCents +
-      p.plannedAmountCents +
-      (resolved.byPeriodId[p.id] ?? 0),
-    0
+      sumCents + p.plannedAmountCents + (resolved.byPeriodId[p.id] ?? 0),
+    0,
   );
   if (newAllocTotal > newCeiling) {
     return {
@@ -217,7 +218,9 @@ export async function createBudgetExtension(
   });
 
   // 4. History (outside tx, matching the createBudget pattern).
-  await recordCreation("budget_extension", extensionId, Number(admin.id));
+  await recordCreation("budget_extension", extensionId, Number(admin.id), {
+    source: "ui",
+  });
 
   revalidatePath("/");
   revalidatePath("/budget");
@@ -230,7 +233,7 @@ export async function createBudgetExtension(
 }
 
 export async function updateBudgetExtension(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -262,7 +265,10 @@ export async function updateBudgetExtension(
     patch.reason = data.reason;
     changes.reason = { old: existing.reason, new: data.reason };
   }
-  if (data.description !== undefined && data.description !== existing.description) {
+  if (
+    data.description !== undefined &&
+    data.description !== existing.description
+  ) {
     patch.description = data.description;
     changes.description = { old: existing.description, new: data.description };
   }
@@ -296,7 +302,8 @@ export async function updateBudgetExtension(
     "budget_extension",
     data.extensionId,
     Number(admin.id),
-    changes
+    changes,
+    { source: "ui" },
   );
 
   revalidatePath("/budget");
@@ -306,7 +313,7 @@ export async function updateBudgetExtension(
 }
 
 export async function deleteBudgetExtension(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -336,7 +343,7 @@ export async function deleteBudgetExtension(
       where: (p, { inArray }) =>
         inArray(
           p.id,
-          existing.allocations.map((a) => a.periodId)
+          existing.allocations.map((a) => a.periodId),
         ),
       columns: { id: true, periodLabel: true, plannedAmountCents: true },
     });
@@ -387,6 +394,7 @@ export async function deleteBudgetExtension(
     entityType: "budget_extension",
     entityId: existing.id,
     changeType: "deleted",
+    source: "ui",
     previousValue: JSON.stringify({
       budgetId: existing.budgetId,
       amountCents: existing.amountCents,

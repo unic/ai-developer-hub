@@ -7,13 +7,24 @@
  * - Redirect URIs must be https, or http on a loopback host (RFC 8252 §7.3).
  *   Loopback matching ignores the port because Claude Code redirects to an
  *   ephemeral localhost port chosen at authorize time.
- * - Single scope: `mcp:read` (the MCP server is read-only by design, spec 034).
+ * - Two scopes: `mcp:read` (spec 034) and `mcp:write` (043-mcp-write-tools).
+ *   `mcp:write` is granted only when the client asks for it AND the consenting
+ *   session user is an admin, so a grant can never carry more authority than the
+ *   consent screen described.
  */
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 export const MCP_SCOPE = "mcp:read";
+
+/**
+ * Write capability over MCP (043). Separate from the admin role on purpose:
+ * every grant issued before this feature was consented to with the words "No
+ * write access." on the screen, so those tokens must stay read-only until the
+ * human re-authorizes. The role is still checked independently at call time.
+ */
+export const MCP_WRITE_SCOPE = "mcp:write";
 
 /** Constant-time string comparison that is safe for unequal lengths. */
 export function safeEqual(a: string, b: string): boolean {
@@ -115,16 +126,43 @@ export function verifyPkce(verifier: string, storedChallenge: string): boolean {
 
 /**
  * Is the requested scope string (space-delimited) acceptable? Empty/absent is
- * fine — the grant is always MCP_SCOPE regardless. Unknown scopes are rejected
- * so the consent screen never overstates what it grants. `offline_access` is
- * tolerated and ignored (some clients request it reflexively; refresh tokens
- * are always issued).
+ * fine — MCP_SCOPE is always granted. Unknown scopes are rejected so the consent
+ * screen never overstates what it grants. `offline_access` is tolerated and
+ * ignored (some clients request it reflexively; refresh tokens are always
+ * issued).
  */
 export function isValidScopeRequest(scope: string | undefined | null): boolean {
   if (!scope || scope.trim() === "") return true;
-  const known = new Set([MCP_SCOPE, "offline_access"]);
+  const known = new Set([MCP_SCOPE, MCP_WRITE_SCOPE, "offline_access"]);
   return scope
     .trim()
     .split(/\s+/)
     .every((s) => known.has(s));
+}
+
+/** Did the client ask for write capability? */
+export function requestsWriteScope(scope: string | undefined | null): boolean {
+  if (!scope) return false;
+  return scope.trim().split(/\s+/).includes(MCP_WRITE_SCOPE);
+}
+
+/**
+ * Resolve what a grant actually receives. `mcp:read` is unconditional;
+ * `mcp:write` requires BOTH an explicit request and an admin consenter — a
+ * viewer who somehow reaches a write-scoped authorize URL gets a read-only grant
+ * rather than an error, which keeps the connector usable.
+ */
+export function resolveGrantedScope(
+  requestedScope: string | undefined | null,
+  consenterRole: string | undefined,
+): string {
+  if (requestsWriteScope(requestedScope) && consenterRole === "admin") {
+    return `${MCP_SCOPE} ${MCP_WRITE_SCOPE}`;
+  }
+  return MCP_SCOPE;
+}
+
+/** Does a stored/space-delimited grant carry write capability? */
+export function hasWriteScope(scopes: readonly string[] | undefined): boolean {
+  return scopes?.includes(MCP_WRITE_SCOPE) ?? false;
 }

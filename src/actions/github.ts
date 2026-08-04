@@ -7,7 +7,11 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { encryptApiKey } from "@/lib/crypto";
 import { validateTokenAndListOrgs } from "@/lib/github";
 import { githubTokenSchema, connectOrgSchema } from "@/lib/validators";
-import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
+import {
+  recordCreation,
+  recordStatusChange,
+  recordUpdate,
+} from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import type { ActionResult, GitHubConnectionStatus } from "@/types";
 
@@ -42,9 +46,7 @@ export async function getActiveGitHubConnection(): Promise<
   return { success: true, data: { connection: connection ?? null } };
 }
 
-export async function validateGitHubToken(
-  input: unknown
-): Promise<
+export async function validateGitHubToken(input: unknown): Promise<
   ActionResult<{
     scopes: string[];
     organizations: Array<{
@@ -70,14 +72,17 @@ export async function validateGitHubToken(
   const result = await validateTokenAndListOrgs(parsed.data.token);
 
   if (result.error || !result.data) {
-    return { success: false, error: result.error || "Failed to validate token" };
+    return {
+      success: false,
+      error: result.error || "Failed to validate token",
+    };
   }
 
   return { success: true, data: result.data };
 }
 
 export async function connectGitHubOrg(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ connectionId: number }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -102,7 +107,9 @@ export async function connectGitHubOrg(
     };
   }
 
-  const orgMatch = validation.data.organizations.find((o) => o.login === orgLogin);
+  const orgMatch = validation.data.organizations.find(
+    (o) => o.login === orgLogin,
+  );
   if (!orgMatch) {
     return {
       success: false,
@@ -148,7 +155,9 @@ export async function connectGitHubOrg(
     return newConn;
   });
 
-  await recordCreation("github_connection", result.id, Number(admin.id));
+  await recordCreation("github_connection", result.id, Number(admin.id), {
+    source: "ui",
+  });
   revalidatePath("/settings/integrations");
 
   return { success: true, data: { connectionId: result.id } };
@@ -182,7 +191,8 @@ export async function disconnectGitHubOrg(): Promise<ActionResult<void>> {
     connection.id,
     Number(admin.id),
     "active",
-    "disconnected"
+    "disconnected",
+    { source: "ui" },
   );
 
   revalidatePath("/settings/integrations");
@@ -190,7 +200,7 @@ export async function disconnectGitHubOrg(): Promise<ActionResult<void>> {
 }
 
 export async function updateGitHubToken(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -227,7 +237,7 @@ export async function updateGitHubToken(
   }
 
   const orgMatch = validation.data.organizations.find(
-    (o) => o.login === connection.orgLogin
+    (o) => o.login === connection.orgLogin,
   );
   if (!orgMatch) {
     return {
@@ -246,17 +256,21 @@ export async function updateGitHubToken(
     })
     .where(eq(githubConnections.id, connection.id));
 
-  await recordUpdate("github_connection", connection.id, Number(admin.id), {
-    tokenEncrypted: { old: "[redacted]", new: "[updated]" },
-  });
+  await recordUpdate(
+    "github_connection",
+    connection.id,
+    Number(admin.id),
+    {
+      tokenEncrypted: { old: "[redacted]", new: "[updated]" },
+    },
+    { source: "ui" },
+  );
 
   revalidatePath("/settings/integrations");
   return { success: true, data: undefined };
 }
 
-export async function getGitHubProfile(
-  userId: number
-): Promise<
+export async function getGitHubProfile(userId: number): Promise<
   ActionResult<{
     profile: {
       githubLogin: string;

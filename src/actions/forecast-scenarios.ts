@@ -6,11 +6,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { getActiveBudgetId } from "@/lib/budget-utils";
-import {
-  recordCreation,
-  recordDeletion,
-  recordUpdate,
-} from "@/actions/history";
+import { recordCreation, recordDeletion, recordUpdate } from "@/lib/history";
 import {
   createForecastScenarioSchema,
   deleteForecastScenarioSchema,
@@ -161,7 +157,9 @@ export async function createForecastScenario(
     throw e;
   }
 
-  await recordCreation(ENTITY_TYPE, created.id, Number(admin.id));
+  await recordCreation(ENTITY_TYPE, created.id, Number(admin.id), {
+    source: "ui",
+  });
 
   revalidatePath(SCENARIO_PAGE);
   return { success: true, data: { id: created.id } };
@@ -218,7 +216,9 @@ export async function updateForecastScenario(
   if (params !== undefined) {
     changes.params = { old: scenario.params, new: params };
   }
-  await recordUpdate(ENTITY_TYPE, id, Number(admin.id), changes);
+  await recordUpdate(ENTITY_TYPE, id, Number(admin.id), changes, {
+    source: "ui",
+  });
 
   revalidatePath(SCENARIO_PAGE);
   return { success: true, data: { id } };
@@ -242,11 +242,17 @@ export async function deleteForecastScenario(
     .returning();
   if (!scenario) return { success: false, error: "Scenario not found" };
 
-  await recordDeletion(ENTITY_TYPE, scenario.id, Number(admin.id), {
-    budgetId: scenario.budgetId,
-    name: scenario.name,
-    params: scenario.params,
-  });
+  await recordDeletion(
+    ENTITY_TYPE,
+    scenario.id,
+    Number(admin.id),
+    {
+      budgetId: scenario.budgetId,
+      name: scenario.name,
+      params: scenario.params,
+    },
+    { source: "ui" },
+  );
 
   revalidatePath(SCENARIO_PAGE);
   return { success: true, data: { id: scenario.id } };

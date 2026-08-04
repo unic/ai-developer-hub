@@ -11,7 +11,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { syncOptionsSchema } from "@/lib/validators";
-import { recordCreation } from "@/actions/history";
+import { recordCreation } from "@/lib/history";
 import { hashSourceType } from "@/lib/sync/framework";
 import type { ActionResult, SyncInvoiceOutcome, SyncResult } from "@/types";
 
@@ -29,9 +29,9 @@ const SYNC_LOCK_ID = Number(hashSourceType("invoice_period_matching"));
  * When dryRun is true, computes outcomes without writing to the database.
  * Uses a PostgreSQL advisory lock to prevent concurrent sync runs.
  */
-export async function syncInvoices(
-  options: { dryRun: boolean }
-): Promise<ActionResult<SyncResult>> {
+export async function syncInvoices(options: {
+  dryRun: boolean;
+}): Promise<ActionResult<SyncResult>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -45,7 +45,7 @@ export async function syncInvoices(
   // Acquire advisory lock (non-blocking) to prevent concurrent sync runs
   if (!dryRun) {
     const lockRows = await db.execute(
-      sql`SELECT pg_try_advisory_lock(${SYNC_LOCK_ID})`
+      sql`SELECT pg_try_advisory_lock(${SYNC_LOCK_ID})`,
     );
     const acquired = (lockRows.rows?.[0] as Record<string, unknown>)
       ?.pg_try_advisory_lock;
@@ -61,16 +61,14 @@ export async function syncInvoices(
     return await executeSyncLogic(dryRun, admin);
   } finally {
     if (!dryRun) {
-      await db.execute(
-        sql`SELECT pg_advisory_unlock(${SYNC_LOCK_ID})`
-      );
+      await db.execute(sql`SELECT pg_advisory_unlock(${SYNC_LOCK_ID})`);
     }
   }
 }
 
 async function executeSyncLogic(
   dryRun: boolean,
-  admin: { id: string | number }
+  admin: { id: string | number },
 ): Promise<ActionResult<SyncResult>> {
   // Bulk-load all invoices with their linked billed cost's period
   const allInvoices = await db
@@ -111,10 +109,10 @@ async function executeSyncLogic(
 
   // In-memory period matching — periods are pre-sorted so first match wins
   function findPeriodInMemory(
-    invoiceDate: string
+    invoiceDate: string,
   ): { id: number; periodLabel: string } | null {
     const match = allPeriods.find(
-      (p) => p.startDate <= invoiceDate && p.endDate > invoiceDate
+      (p) => p.startDate <= invoiceDate && p.endDate > invoiceDate,
     );
     return match ? { id: match.id, periodLabel: match.periodLabel } : null;
   }
@@ -171,12 +169,10 @@ async function executeSyncLogic(
               .update(invoices)
               .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
               .where(eq(invoices.id, inv.id));
-            await recordCreation(
-              "billed_cost",
-              created.id,
-              Number(admin.id),
-              tx
-            );
+            await recordCreation("billed_cost", created.id, Number(admin.id), {
+              tx,
+              source: "sync",
+            });
           });
         }
 
@@ -232,12 +228,10 @@ async function executeSyncLogic(
             .update(invoices)
             .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
             .where(eq(invoices.id, inv.id));
-          await recordCreation(
-            "billed_cost",
-            created.id,
-            Number(admin.id),
-            tx
-          );
+          await recordCreation("billed_cost", created.id, Number(admin.id), {
+            tx,
+            source: "sync",
+          });
         });
       }
 

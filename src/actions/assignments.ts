@@ -13,14 +13,50 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-helpers";
 import {
-  assignmentSchema,
-  updateAssignmentSchema,
   assignmentCommentSchema,
   bulkImportAssignmentRowSchema,
 } from "@/lib/validators";
 import type { ActionResult } from "@/types";
 import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
-import { recordCreation, recordStatusChange, recordUpdate } from "@/actions/history";
+import { recordCreation } from "@/lib/history";
+import { uiContext, type CoreResult } from "@/lib/core/context";
+import {
+  assignLicenseCore,
+  revokeLicenseCore,
+  updateAssignmentCore,
+} from "@/lib/core/assignments";
+
+/**
+ * Replay a core's revalidation list and collapse its result into the
+ * `ActionResult` shape the UI already consumes (043-mcp-write-tools).
+ *
+ * `noopError` preserves the pre-refactor UI behavior for the two operations that
+ * surfaced "already inactive" as an error toast. The MCP adapter maps the same
+ * no-op to a SUCCESS payload instead — an `isError` there would contradict
+ * `idempotentHint: true` and teach an agent that a committed-but-unacknowledged
+ * call had failed.
+ */
+function fromCore<T>(
+  result: CoreResult<T>,
+  noopError?: string,
+): ActionResult<T> {
+  if (!result.ok) {
+    return {
+      success: false,
+      error: result.error,
+      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
+    };
+  }
+  if (result.noop && noopError) {
+    return { success: false, error: noopError };
+  }
+  for (const path of result.revalidate) revalidatePath(path);
+  return {
+    success: true,
+    data: result.data,
+    ...(result.warning ? { warning: result.warning } : {}),
+  };
+}
 
 export async function assignLicense(
   input: unknown
@@ -28,115 +64,10 @@ export async function assignLicense(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = assignmentSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, error: "Validation failed" };
-  }
-
-  const { userId, toolId, tierId, workspace, apiKey } = parsed.data;
-
-  // Validate user exists and is active
-  const user = await db.query.users.findFirst({
-    where: and(eq(users.id, userId), eq(users.status, "active")),
-  });
-  if (!user) return { success: false, error: "User not found or inactive" };
-
-  // Validate tool exists and is active
-  const tool = await db.query.aiTools.findFirst({
-    where: and(eq(aiTools.id, toolId), eq(aiTools.status, "active")),
-  });
-  if (!tool) return { success: false, error: "Tool not found or archived" };
-
-  // Validate tier exists, is active, and belongs to the tool
-  const tier = await db.query.accessTiers.findFirst({
-    where: and(
-      eq(accessTiers.id, tierId),
-      eq(accessTiers.toolId, toolId),
-      eq(accessTiers.isActive, true)
-    ),
-  });
-  if (!tier)
-    return { success: false, error: "Tier not found or not available" };
-
-  // FR-006: License capacity check
-  if (tool.maxLicenses !== null) {
-    const [activeCount] = await db
-      .select({ count: count() })
-      .from(licenseAssignments)
-      .where(
-        and(
-          eq(licenseAssignments.toolId, toolId),
-          eq(licenseAssignments.status, "active")
-        )
-      );
-
-    // Check if user already has an active assignment (upgrade scenario)
-    const existingAssignment = await db.query.licenseAssignments.findFirst({
-      where: and(
-        eq(licenseAssignments.userId, userId),
-        eq(licenseAssignments.toolId, toolId),
-        eq(licenseAssignments.status, "active")
-      ),
-    });
-
-    const effectiveCount = existingAssignment
-      ? activeCount.count - 1
-      : activeCount.count;
-
-    if (effectiveCount >= tool.maxLicenses) {
-      return { success: false, error: "License capacity limit reached" };
-    }
-  }
-
-  // Encrypt API key if provided (before transaction to avoid holding connection during crypto)
-  const apiKeyEncrypted = apiKey && apiKey !== "" ? await encryptApiKey(apiKey) : null;
-
-  const now = new Date();
-  let newAssignmentId: number;
-
-  // Transaction: deactivate existing + create new (for upgrades/downgrades)
-  await db.transaction(async (tx) => {
-    // Deactivate existing assignment for this user+tool if any
-    await tx
-      .update(licenseAssignments)
-      .set({ status: "inactive", revokedAt: now, updatedAt: now })
-      .where(
-        and(
-          eq(licenseAssignments.userId, userId),
-          eq(licenseAssignments.toolId, toolId),
-          eq(licenseAssignments.status, "active")
-        )
-      );
-
-    // Create new assignment with cost snapshot (FR-020)
-    const [newAssignment] = await tx
-      .insert(licenseAssignments)
-      .values({
-        userId,
-        toolId,
-        tierId,
-        costAtAssignmentCents: tier.monthlyCostCents,
-        status: "active",
-        assignedAt: now,
-        workspace: workspace ?? null,
-        apiKeyEncrypted,
-      })
-      .returning({ id: licenseAssignments.id });
-
-    newAssignmentId = newAssignment.id;
-  });
-
-  await recordCreation(
-    "license_assignment",
-    newAssignmentId!,
-    Number(admin.id)
-  );
-
-  revalidatePath("/assignments");
-  revalidatePath(`/users/${userId}`);
-  revalidatePath(`/tools/${toolId}`);
-  revalidatePath("/reports");
-  return { success: true, data: { id: newAssignmentId! } };
+  const result = await assignLicenseCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) return { success: false, error: result.error };
+  for (const path of result.revalidate) revalidatePath(path);
+  return { success: true, data: { id: result.data.assignmentId } };
 }
 
 export async function revokeLicense(input: {
@@ -145,33 +76,11 @@ export async function revokeLicense(input: {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const assignment = await db.query.licenseAssignments.findFirst({
-    where: eq(licenseAssignments.id, input.id),
-  });
-  if (!assignment) return { success: false, error: "Assignment not found" };
-  if (assignment.status !== "active") {
-    return { success: false, error: "Assignment is already inactive" };
-  }
-
-  const now = new Date();
-  await db
-    .update(licenseAssignments)
-    .set({ status: "inactive", revokedAt: now, updatedAt: now })
-    .where(eq(licenseAssignments.id, input.id));
-
-  await recordStatusChange(
-    "license_assignment",
-    input.id,
-    Number(admin.id),
-    "active",
-    "inactive"
-  );
-
-  revalidatePath("/assignments");
-  revalidatePath(`/users/${assignment.userId}`);
-  revalidatePath(`/tools/${assignment.toolId}`);
-  revalidatePath("/reports");
-  return { success: true, data: undefined };
+  const result = await revokeLicenseCore(uiContext(Number(admin.id)), input);
+  const mapped = fromCore(result, "Assignment is already inactive");
+  return mapped.success
+    ? { success: true, data: undefined }
+    : { success: false, error: mapped.error };
 }
 
 export async function updateAssignment(
@@ -180,139 +89,12 @@ export async function updateAssignment(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = updateAssignmentSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, error: "Validation failed" };
-  }
-
-  const { id, tierId, assignedAt, workspace, apiKey } = parsed.data;
-
-  // Load existing assignment with user and tool relations
-  const assignment = await db.query.licenseAssignments.findFirst({
-    where: eq(licenseAssignments.id, id),
-    with: {
-      user: true,
-      tool: true,
-    },
-  });
-  if (!assignment) return { success: false, error: "Assignment not found" };
-  if (assignment.status !== "active") {
-    return { success: false, error: "Cannot edit an inactive assignment" };
-  }
-
-  const changes: Record<string, { old: unknown; new: unknown }> = {};
-  const updateValues: Record<string, unknown> = {};
-  let warning: string | undefined;
-
-  // --- tierId change ---
-  if (tierId !== undefined && tierId !== assignment.tierId) {
-    // Validate new tier exists, is active, and belongs to the same tool
-    const newTier = await db.query.accessTiers.findFirst({
-      where: and(
-        eq(accessTiers.id, tierId),
-        eq(accessTiers.toolId, assignment.toolId),
-        eq(accessTiers.isActive, true)
-      ),
-    });
-    if (!newTier) {
-      return { success: false, error: "Tier not found or not available for this tool" };
-    }
-
-    changes.tierId = { old: assignment.tierId, new: tierId };
-    updateValues.tierId = tierId;
-
-    // Also update cost snapshot to the new tier's cost
-    changes.costAtAssignmentCents = {
-      old: assignment.costAtAssignmentCents,
-      new: newTier.monthlyCostCents,
-    };
-    updateValues.costAtAssignmentCents = newTier.monthlyCostCents;
-  }
-
-  // --- assignedAt change ---
-  if (assignedAt !== undefined) {
-    const newDate = new Date(assignedAt);
-    const existingDate = assignment.assignedAt;
-
-    if (newDate.getTime() !== existingDate.getTime()) {
-      // Validate not in the future
-      if (newDate > new Date()) {
-        return { success: false, error: "Assigned date cannot be in the future" };
-      }
-
-      // Validate not before tool.createdAt
-      if (newDate < assignment.tool.createdAt) {
-        return {
-          success: false,
-          error: "Assigned date cannot be before the tool was created",
-        };
-      }
-
-      // Warn if more than 12 months in the past
-      const twelveMonthsAgo = new Date();
-      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-      if (newDate < twelveMonthsAgo) {
-        warning = "Assigned date is more than 12 months in the past";
-      }
-
-      changes.assignedAt = {
-        old: existingDate.toISOString(),
-        new: newDate.toISOString(),
-      };
-      updateValues.assignedAt = newDate;
-    }
-  }
-
-  // --- apiKey change ---
-  if (apiKey !== undefined) {
-    if (apiKey === "") {
-      // Empty string = clear API key
-      changes.apiKeyEncrypted = { old: "[redacted]", new: null };
-      updateValues.apiKeyEncrypted = null;
-    } else {
-      const encrypted = await encryptApiKey(apiKey);
-      changes.apiKeyEncrypted = { old: "[redacted]", new: "[redacted]" };
-      updateValues.apiKeyEncrypted = encrypted;
-    }
-  }
-
-  // --- workspace change ---
-  if (workspace !== undefined && workspace !== (assignment.workspace ?? "")) {
-    changes.workspace = {
-      old: assignment.workspace ?? null,
-      new: workspace || null,
-    };
-    updateValues.workspace = workspace || null;
-  }
-
-  // No changes detected
-  if (Object.keys(changes).length === 0) {
-    return { success: true, data: undefined };
-  }
-
-  // Apply update
-  const now = new Date();
-  updateValues.updatedAt = now;
-
-  await db
-    .update(licenseAssignments)
-    .set(updateValues)
-    .where(eq(licenseAssignments.id, id));
-
-  // Record changes in history
-  await recordUpdate(
-    "license_assignment",
-    id,
-    Number(admin.id),
-    changes
-  );
-
-  revalidatePath("/assignments");
-  revalidatePath(`/users/${assignment.userId}`);
-  revalidatePath("/reports");
-
-  return { success: true, data: undefined, warning };
+  const result = await updateAssignmentCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) return { success: false, error: result.error };
+  for (const path of result.revalidate) revalidatePath(path);
+  return { success: true, data: undefined, ...(result.warning ? { warning: result.warning } : {}) };
 }
+
 
 export async function bulkImportAssignments(input: {
   assignments: unknown[];
@@ -452,7 +234,12 @@ export async function bulkImportAssignments(input: {
         })
         .returning({ id: licenseAssignments.id });
 
-      await recordCreation("license_assignment", newAssignment.id, Number(admin.id));
+      await recordCreation(
+        "license_assignment",
+        newAssignment.id,
+        Number(admin.id),
+        { source: "ui" },
+      );
       // Track newly created assignment to prevent duplicates within the same batch
       activeAssignmentSet.add(`${user.id}:${tool.id}`);
       // Update license count for capacity tracking within batch

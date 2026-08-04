@@ -1,0 +1,26 @@
+-- 043-mcp-write-tools — DEPLOY SAFETY. Must be applied together with 0030.
+--
+-- 0030 adds change_history.source as NOT NULL. On its own that is a BREAKING change
+-- in both deploy directions:
+--
+--   * migrate first, deploy second -> the currently-live code calls
+--     recordCreation/recordUpdate/recordStatusChange WITHOUT a source, so every
+--     audited write in the app fails with a not-null violation (23502) until the new
+--     code goes live.
+--   * deploy first, migrate second -> the new code writes a column that does not
+--     exist yet, so every audited write fails until the migration lands.
+--
+-- There is no safe ordering without a default. This statement supplies one, so the
+-- pre-043 code keeps working against the migrated schema and the deploy can follow at
+-- any point afterwards.
+--
+-- `pnpm db:migrate` applies every pending file in one run, so 0030 and 0031 land
+-- together and the intermediate NOT-NULL-without-default state is never visible to
+-- application traffic. Do NOT apply 0030 on its own.
+--
+-- The default is NOT what enforces provenance. `source` is a REQUIRED field on
+-- HistoryOptions (src/lib/history.ts), so the compiler forces all ~44 call sites to
+-- state it explicitly; the default only backstops a raw db.insert(changeHistory) that
+-- bypasses the helpers.
+
+ALTER TABLE "change_history" ALTER COLUMN "source" SET DEFAULT 'ui';

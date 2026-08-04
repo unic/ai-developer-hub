@@ -68,17 +68,22 @@ export function registerHubTools(server: ToolRegistrar): void {
     {
       title: "List AI tools",
       description:
-        "List the active AI tools tracked by the Hub with their access tiers and monthly cost (cents and USD). Admin-role tokens additionally get active license counts and license utilization.",
-      inputSchema: {},
+        "List the active AI tools tracked by the Hub with their access tiers and monthly cost (cents and USD). Admin-role tokens additionally get active license counts and license utilization. Pass includeInactive to also see archived tools and deactivated tiers (admin only) — needed to reference or reverse them.",
+      inputSchema: {
+        includeInactive: z.boolean().optional(),
+      },
       annotations: READ_ONLY,
     },
-    (_args: unknown, extra: HandlerAuthExtra) =>
-      safeJsonResult(() =>
+    ({ includeInactive }, extra: HandlerAuthExtra) => {
+      const isAdmin = callerFromAuthInfo(extra?.authInfo).role === "admin";
+      return safeJsonResult(() =>
         listAiToolsData({
-          includeUtilization:
-            callerFromAuthInfo(extra?.authInfo).role === "admin",
+          includeUtilization: isAdmin,
+          // Archived/inactive rows are admin-only, like utilization.
+          includeInactive: isAdmin && includeInactive === true,
         }),
-      ),
+      );
+    },
   );
 
   server.registerTool(

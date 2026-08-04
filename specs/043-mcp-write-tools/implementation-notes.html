@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — MCP Write Tools (043)</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --bg-elev: #11141b;
+        --bg-card: #161a24;
+        --border: #232938;
+        --border-strong: #2f3850;
+        --fg: #e7ebf3;
+        --fg-muted: #9aa3b5;
+        --fg-dim: #6b7488;
+        --accent: #f0a072;
+        --accent-2: #7dd3fc;
+        --good: #86efac;
+        --warn: #fcd34d;
+        --bad: #fca5a5;
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        line-height: 1.55;
+      }
+      body {
+        padding: 48px 24px 96px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 52px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 17px;
+        margin: 0 0 6px;
+      }
+      h4 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: var(--fg-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+        background: var(--bg-elev);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        line-height: 1.5;
+      }
+      pre code {
+        background: transparent;
+        border: 0;
+        padding: 0;
+        font-size: inherit;
+      }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 16px;
+        max-width: 820px;
+      }
+      .meta {
+        color: var(--fg-dim);
+        font-size: 13px;
+        margin-top: 8px;
+        font-family: var(--mono);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-family: var(--mono);
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        color: var(--fg-muted);
+        background: var(--bg-elev);
+      }
+      .badge.accent {
+        color: var(--accent);
+        border-color: rgba(240, 160, 114, 0.35);
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 16px 0;
+      }
+      .card.accent {
+        border-left: 3px solid var(--accent);
+      }
+      .card.accent-2 {
+        border-left: 3px solid var(--accent-2);
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 760px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      ul {
+        padding-left: 20px;
+        margin: 8px 0 12px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      li.pro::marker {
+        content: "+ ";
+        color: var(--good);
+        font-weight: 700;
+      }
+      li.con::marker {
+        content: "− ";
+        color: var(--bad);
+        font-weight: 700;
+      }
+      li.note::marker {
+        content: "› ";
+        color: var(--fg-dim);
+      }
+      li.check::marker {
+        content: "\2610  ";
+        color: var(--fg-muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--bg-elev);
+      }
+      td code {
+        white-space: nowrap;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-family: var(--mono);
+      }
+      .pill.warn {
+        background: rgba(252, 211, 77, 0.12);
+        color: var(--warn);
+      }
+      .pill.new {
+        background: rgba(240, 160, 114, 0.14);
+        color: var(--accent);
+      }
+      .pill.neutral {
+        background: var(--bg-elev);
+        color: var(--fg-muted);
+        border: 1px solid var(--border);
+      }
+      .callout {
+        border: 1px solid var(--border-strong);
+        border-left: 3px solid var(--warn);
+        background: rgba(252, 211, 77, 0.04);
+        padding: 14px 16px;
+        border-radius: 8px;
+        margin: 16px 0;
+        font-size: 14px;
+      }
+      .callout.info {
+        border-left-color: var(--accent-2);
+        background: rgba(125, 211, 252, 0.04);
+      }
+      .callout.accent {
+        border-left-color: var(--accent);
+        background: rgba(240, 160, 114, 0.05);
+      }
+      .toc {
+        columns: 2;
+        column-gap: 32px;
+        font-size: 14px;
+      }
+      @media (max-width: 760px) {
+        .toc {
+          columns: 1;
+        }
+      }
+      .toc a {
+        display: block;
+        padding: 3px 0;
+        color: var(--fg-muted);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        color: var(--accent);
+      }
+      footer {
+        color: var(--fg-dim);
+        font-size: 12.5px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+      }
+      .s {
+        color: var(--good);
+      }
+      .c {
+        color: var(--fg-dim);
+        font-style: italic;
+      }
+      .k {
+        color: var(--accent-2);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="row" style="margin-bottom: 16px">
+          <span class="badge">Implementation notes</span>
+          <span class="badge">spec/043-mcp-write-tools</span>
+          <span class="badge accent">Challenge pass logged</span>
+        </div>
+        <h1>MCP Write Tools — running notes</h1>
+        <p class="lede">
+          Design decisions, deviations, tradeoffs, open questions, and the
+          adversarial challenge pass for spec 043. Appended as work proceeds.
+        </p>
+        <p class="meta">
+          Started 2026-08-04 · author: T. Studer · branch
+          <code>worktree-mcp-write-tools</code>
+        </p>
+      </header>
+
+      <h2>Process</h2>
+      <p>
+        Explored and designed by a 12-agent dynamic workflow rather than by hand,
+        because the write surface touches three subsystems whose invariants live
+        in different files: 5 parallel inventory agents (MCP layer · user writes ·
+        assignment writes · tool/tier writes · actor &amp; non-session-write
+        plumbing), 3 competing design lenses (shared-core · thin-adapter ·
+        agent-safety), a judge, then 3 adversarial challenge lenses. 1.32M
+        subagent tokens, 0 errors, ~22 min wall clock.
+      </p>
+      <p class="note">
+        The three design lenses were deliberately given <em>conflicting</em>
+        biases so the judge had a real decision to make rather than three
+        variations of one idea. That paid off: the winning spine came from the
+        shared-core lens, but its <code>confirm: z.boolean()</code> guardrail was
+        worthless and got replaced wholesale by the agent-safety lens's plan
+        token.
+      </p>
+
+      <h2>Decisions taken without sign-off</h2>
+      <p>
+        Both were surfaced to the user, who was away; both are cheap to reverse
+        and are flagged in the plan's opening callout.
+      </p>
+      <ul>
+        <li class="con">
+          <strong>Writes require a new <code>mcp:write</code> scope</strong>, so
+          existing OAuth grants stay read-only until the connector is
+          re-authorized once. Decisive evidence:
+          <code>src/app/oauth/authorize/page.tsx:108</code> tells the person
+          clicking Allow &ldquo;No write access.&rdquo; Shipping writes over that
+          grant makes the consent screen a false statement to a human. The
+          alternative (role-only) was rejected for that reason alone; it is
+          otherwise simpler and would need no reconnect.
+        </li>
+        <li class="con">
+          <strong><code>create_user</code> mints an invite token but returns only
+          a pointer</strong>, never the <code>/setup-password</code> URL. Keeps a
+          live 72h credential out of the transcript while leaving the account in
+          exactly the state a UI-created user is in — which also avoids inventing
+          the Hub's first-ever <code>users</code> row with no invite token.
+        </li>
+      </ul>
+
+      <h2>Scope reductions (mine, and why)</h2>
+      <ul>
+        <li class="note">
+          <strong>Tool-catalogue writes deferred</strong>
+          (<code>create_ai_tool</code> / <code>update_ai_tool</code> /
+          <code>archive_ai_tool</code>). The user's ask named users, assignments
+          and tiers explicitly, then &ldquo;things like that&rdquo;. Catalogue
+          creation is procurement with no delete path, and
+          <code>update_ai_tool</code>'s only interesting field
+          (<code>maxLicenses</code>) is overwritten nightly by the Copilot cron on
+          the largest seat pool. Cutting these takes the surface from 12 tools to
+          9 and removes the archive trapdoor and the duplicate-name race.
+        </li>
+        <li class="note">
+          <strong>Reactivation cut</strong> — not merely deferred. The judge
+          proposed <code>set_user_status</code> handling both directions and
+          treated reactivation as a licenses/UI-parity question. It is actually a
+          security question; see the blocker below.
+        </li>
+      </ul>
+
+      <h2>Challenge pass — 29 findings, 4 blockers</h2>
+      <p>
+        Every finding below was re-verified against the real code before being
+        accepted; the panel was explicitly told that a finding contradicted by the
+        code is worse than no finding. All four blockers held up.
+      </p>
+
+      <h3>Blockers</h3>
+      <ul>
+        <li class="con">
+          <strong>Reactivation is a credential re-grant.</strong>
+          <code>deactivateUser</code>
+          (<code>src/actions/users.ts:180-208</code>) flips
+          <code>status</code> and cascade-revokes licenses, but never clears
+          <code>passwordHash</code>, never sets
+          <code>mustChangePassword</code>, and never touches
+          <code>mcp_oauth_tokens</code>. <code>src/lib/auth.ts:51</code> gates
+          password login on <code>status</code> alone, and
+          <code>verifyAccessToken</code> re-reads
+          <code>status = 'active'</code> live against tokens with 60-day refresh
+          lifetimes. So a one-line reactivation restores an offboarded leaver's
+          old password <em>and</em> re-arms every dormant grant they still hold.
+          <strong>Resolution:</strong> reactivation removed from the spec;
+          <code>set_user_status</code> became <code>deactivate_user</code>. Noted
+          as a pre-existing hole worth its own fix (deactivation should revoke
+          token families).
+        </li>
+        <li class="con">
+          <strong>&ldquo;One active assignment per (user, tool)&rdquo; is not
+          enforced by the DB.</strong>
+          <code>license_assignments_active_lookup_idx</code>
+          (<code>schema.ts:279-283</code>) is <code>index()</code>, not
+          <code>uniqueIndex()</code>; there is no partial unique index on the
+          table at all. The design dropped the UI's deactivate-and-replace in
+          favour of read-then-refuse — which converts the TOCTOU window from
+          &ldquo;collapses to one row&rdquo; into &ldquo;produces two active
+          rows&rdquo;, double-billing a seat in every aggregation that sums
+          <code>cost_at_assignment_cents</code>, and no tool in the surface can
+          detect it. <strong>Resolution:</strong> partial unique index in
+          migration 0030 + <code>23505</code> mapped to the friendly refusal, so
+          the invariant is a DB guarantee. Fixes the UI action and the
+          license-request flow too.
+        </li>
+        <li class="con">
+          <strong>Removing the capacity minus-1 branch regresses the UI.</strong>
+          The judge's rationale explicitly claimed the MCP refusal &ldquo;removes
+          the whole capacity-check-minus-one special case&rdquo;. But
+          <code>copilot-sync.ts:73-80</code> sets
+          <code>maxLicenses = billing.seat_breakdown.total</code> on every sync,
+          so Copilot sits routinely at <em>exactly</em> capacity, and
+          <code>assignments.ts:82-84</code>'s minus-1 is what lets an admin
+          retier an existing holder through the assign dialog.
+          <strong>Resolution:</strong> branch stays verbatim in the core, gated on
+          <code>caps.replaceAssignments</code> — unreachable from MCP, intact for
+          the UI wrapper. Unit test pins both directions.
+        </li>
+        <li class="con">
+          <strong><code>expectedTierName</code> does not identify a tier.</strong>
+          Tier names are unique only per tool
+          (<code>access_tiers_tool_name_idx</code> on
+          <code>(toolId, name)</code>), and the real ones are generic:
+          <code>copilot-sync.ts:83-95</code> creates tiers named
+          &ldquo;Business&rdquo; and &ldquo;Enterprise&rdquo; under GitHub
+          Copilot. An agent told &ldquo;set the Enterprise seat price to
+          $60&rdquo; can grab Copilot's <code>Enterprise</code> id instead of
+          Claude's, pass a matching name echo, and reprice every active Copilot
+          seat. <strong>Resolution:</strong> the tier tools take
+          <code>expectedToolName</code> + <code>expectedTierName</code>, and
+          <code>set_tier_price</code> additionally
+          <code>expectedMonthlyCostCents</code> — which also makes staleness
+          detectable on the first call, before a preview is even generated.
+        </li>
+      </ul>
+
+      <h3>Majors accepted</h3>
+      <ul>
+        <li class="note">
+          <strong>Sync-owned fields refused.</strong> A
+          <code>set_tier_price</code> on a Copilot tier reports success and is
+          silently reverted at 06:00 UTC by
+          <code>copilot-sync.ts:103-121</code> (hardcoded
+          <code>business: 1900, enterprise: 3900</code>), with zero audit rows —
+          so the agent's report becomes false within 24h and nothing explains
+          why. Refused with a message naming the sync as the owner. Contributed to
+          deferring <code>update_ai_tool</code> entirely.
+        </li>
+        <li class="note">
+          <strong><code>update_user</code> loses <code>email</code>.</strong>
+          <code>resetUserPassword</code> (<code>invite.ts:239-247</code>) and
+          <code>sendInviteEmail</code> (<code>:279-287</code>) both mail a fresh
+          72h token to the <em>current</em> <code>users.email</code>. An agent
+          able to rewrite that field has an account-takeover primitive, and
+          <code>expectedEmail</code> is no defense — the echo matches because the
+          agent reads the correct current address out of
+          <code>find_users</code>.
+        </li>
+        <li class="note">
+          <strong>Secrets refused in the handler, not the schema.</strong> The
+          design's <code>z.string().refine(() =&gt; false)</code> decoy rejects at
+          the SDK's input-validation boundary, outside
+          <code>format.ts</code>'s controlled formatting — so the repo cannot
+          assert a submitted live key is absent from the error response or the
+          transport log, and the decoy's whole purpose is to induce the agent to
+          send one at least once. Now a plain optional string, refused as the
+          first statement inside the handler, with the prohibition led in the
+          description so the model reads it before composing the call.
+        </li>
+        <li class="note">
+          <strong>No-op is success, not <code>isError</code>.</strong> Returning
+          an error for &ldquo;already inactive&rdquo; contradicts
+          <code>idempotentHint: true</code>. Concretely: a committed
+          <code>revoke_license</code> whose response is lost to the 60s
+          <code>maxDuration</code> cutoff, retried, answers &ldquo;Error:
+          Assignment is already inactive&rdquo; — the model reads failure and its
+          plausible recovery is <code>deactivate_user</code>, cascading a revoke
+          across every license the person holds. Cores return a discriminated
+          no-op; the UI wrapper keeps today's error string so UI behavior is
+          unchanged.
+        </li>
+        <li class="note">
+          <strong>Plan tokens get <code>iat</code>/TTL and a caller
+          binding.</strong> As designed they were unbound, non-expiring bearer
+          capabilities — liftable from a shared transcript weeks later and
+          committable by a different credential. Now
+          <code>sub = clientId:userId</code>, 10-minute TTL, and an
+          HKDF-derived signing key so this surface cannot become an oracle on the
+          session-cookie key. Also corrected the rationale: the token proves
+          state-binding, <em>not</em> human review — in an auto-approving client
+          preview and commit are consecutive calls with no human turn between.
+          <code>destructiveHint: true</code> is the actual human gate.
+        </li>
+        <li class="note">
+          <strong><code>set_tier_price</code> is
+          <code>destructiveHint: true</code>.</strong> &ldquo;No row is
+          destroyed&rdquo; was the wrong test for an irreversible bulk overwrite
+          of financial snapshots whose prior values exist only in the audit rows
+          this spec is newly adding.
+        </li>
+        <li class="note">
+          <strong>Propagation row set comes from
+          <code>SELECT … FOR UPDATE</code> inside the transaction</strong>, not
+          from the preview's captured set — otherwise the audit rows describe a
+          different row set than the <code>WHERE tier_id = $1 AND status =
+          'active'</code> update rewrote, with
+          <code>previousValue</code>s that were never in the rows.
+        </li>
+        <li class="note">
+          <strong>Cents guard is two-sided.</strong> Only the high side was
+          guarded; <code>monthlyCostCents: 19</code> for a $19 seat passes
+          <code>min(0)</code> and understates that tool's spend 100× through
+          propagation. <code>1..99</code> refused with both readings spelled out,
+          <code>0</code> stays legal.
+        </li>
+        <li class="note">
+          <strong><code>source</code> is required with no default.</strong> A
+          <code>NOT NULL DEFAULT 'ui'</code> column fails in the wrong direction:
+          any call site that forgets the argument silently labels its row a human
+          UI edit, which is the exact forensic lie the column exists to prevent.
+          Required + options-object (not a 6th positional arg after an optional
+          one) so the compiler flags all existing call sites.
+        </li>
+        <li class="note">
+          <strong>Cores return their own <code>revalidate</code> list.</strong>
+          <code>updateTier</code>'s invalidation set is conditional on whether the
+          price changed (<code>tools.ts:294-330</code>), computed from the diff
+          inside the function — a wrapper cannot reproduce it. Getting it wrong
+          serves <code>/budget</code> and <code>/reports</code> from cache built
+          on the old snapshots.
+        </li>
+        <li class="note">
+          <strong>Gate partition tested per tool.</strong> Today's
+          exhaustiveness test only checks that a tool <em>name</em> is
+          classified, so a write tool that forgot the gate would compile and pass
+          green. Added per-tool assertions for viewer refusal (core never
+          invoked), kill switch, missing scope, absent <code>authInfo</code>, and
+          <code>readOnlyHint === false</code> with the mirror assertion on read
+          tools.
+        </li>
+        <li class="note">
+          <strong><code>list_ai_tools</code> gains
+          <code>includeInactive</code>.</strong> <code>data.ts:95/105</code>
+          filter to active tools and tiers, so deactivating a tier made its id
+          unobtainable from MCP — a one-way trapdoor behind a boolean that looks
+          two-way.
+        </li>
+        <li class="note">
+          <strong>Actor <code>isAgent</code> refused.</strong>
+          <code>BUILT_IN_DENY_PATHS</code> encodes the standing policy that an
+          automated agent must never reach user creation or deletion; the
+          <code>/api/mcp</code> entry there is already inert because MCP sits in
+          the middleware matcher's negative lookahead. A two-line check on the
+          resolved actor keeps the policy true if the login/consent
+          <code>isAgent</code> refusals are ever relaxed.
+        </li>
+      </ul>
+
+      <h3>Findings rejected or downgraded</h3>
+      <ul>
+        <li class="note">
+          <strong><code>users.createdVia</code> column + excluding MCP-created
+          users from <code>sendBatchInviteEmails</code></strong> — the finding
+          (real: <code>invite.ts:312</code> selects <em>every</em> user with
+          <code>mustChangePassword = true</code> and mails a live setup link) is
+          correct that an MCP-created row is not inert. But once
+          <code>create_user</code>'s email is constrained to an allow-listed org
+          domain, the residual case is &ldquo;an admin later batch-invites an
+          org-domain user they asked the agent to create&rdquo; — which is
+          intended behavior, not a hole. Dropped the column; kept the domain
+          allowlist, which is what actually stops
+          <code>attacker@gmail.com</code>.
+        </li>
+        <li class="note">
+          <strong>Pointing <code>copilot-sync.ts</code> at the extracted
+          core</strong> — correct and worth doing, but out of this spec's blast
+          radius. Recorded as a known limitation in the plan rather than silently
+          leaving the &ldquo;one implementation of each mutation&rdquo; claim
+          overread.
+        </li>
+      </ul>
+
+      <h2>Open questions</h2>
+      <ul>
+        <li class="note">
+          <code>MAX_REPRICE_ROWS</code> and the implausible-price ceiling are
+          policy numbers, not engineering ones. Starting values:
+          <strong>250 rows</strong> and <strong>$2,000/seat/month</strong>
+          (200,000 cents) — chosen to leave a wide margin over the real catalogue
+          (Claude Enterprise ≈ $150/seat, Copilot Enterprise $39/seat). Worth
+          confirming against the live tier catalogue.
+        </li>
+        <li class="note">
+          <code>MCP_WRITE_EMAIL_DOMAINS</code> default: the domain of
+          <code>SYSTEM_ADMIN_USER_ID</code>'s email
+          (<code>unic.com</code>). Contractors on other domains would need the
+          UI.
+        </li>
+      </ul>
+
+      <h2>Implementation log</h2>
+      <p class="meta">Implemented 2026-08-04 · verified typecheck / lint / unit</p>
+      <ul>
+        <li class="note">
+          <strong>The audit writers moved out of a <code>"use server"</code>
+          file.</strong> Not planned — found while wiring the cores.
+          <code>src/actions/history.ts</code> exported
+          <code>recordCreation(entityType, entityId, changedBy, …)</code> with no
+          auth check of its own, and every export of a <code>"use server"</code>
+          file is a client-callable RPC endpoint. That was an audit-forgery
+          primitive (write any row, attributed to anyone). The four writers now
+          live in <code>src/lib/history.ts</code> (a plain module, which the cores
+          need anyway); only <code>getEntityHistory</code> stays behind
+          <code>"use server"</code>, because Server Components import it there.
+        </li>
+        <li class="note">
+          <strong>44 call sites migrated by codemod</strong> across 13 files, with
+          balanced-paren parsing rather than regex so multi-line calls and the
+          positional <code>tx</code> form folded correctly. Provenance was assigned
+          per file rather than blanket-<code>ui</code>:
+          <code>github-sync</code>/<code>invoice-sync</code>/<code>invoice-matching</code>
+          → <code>sync</code>, invoice-derived billed costs → <code>ingest</code>,
+          the rest → <code>ui</code>. Two raw <code>db.insert(changeHistory)</code>
+          calls (budget.ts, budget-extensions.ts) the codemod could not see were
+          fixed by hand — the compiler found them, which is the whole argument for
+          making <code>source</code> required.
+        </li>
+        <li class="con">
+          <strong>The generated migration was wrong and had to be hand-edited.</strong>
+          <code>drizzle-kit generate</code> emitted
+          <code>ADD COLUMN source varchar(20) NOT NULL</code> with no default,
+          which cannot be applied to a table that already has rows. Rewritten as
+          add-nullable → backfill <code>ui</code> → <code>SET NOT NULL</code>,
+          reaching the same final schema. The partial unique index also aborts on
+          pre-existing duplicates, so a <code>DO</code> block now reports the count
+          via <code>RAISE NOTICE</code> and deactivates all but the highest id per
+          (user, tool) before the index is created.
+        </li>
+        <li class="con">
+          <strong>Migration is 0030, not 0027.</strong> The plan was written
+          against a stale count; <code>src/lib/db/migrations/</code> already had
+          through 0029. Corrected throughout both documents.
+        </li>
+        <li class="note">
+          <strong>Caps gained a fifth axis, <code>syncOwnedFields</code>.</strong>
+          The first draft gated the Copilot-price refusal on
+          <code>!caps.secrets</code> as a proxy for &ldquo;is this MCP&rdquo;, which
+          is exactly the kind of implicit coupling that rots. It is now its own
+          named capability: <code>true</code> for the UI (which has always been
+          able to edit that price and get overwritten at 06:00), <code>false</code>
+          for MCP.
+        </li>
+        <li class="note">
+          <strong>The cents guard lives at the MCP edge, not in the core.</strong>
+          Same reasoning: it is an LLM-specific narrowing like the calendar-date
+          refine, and applying it inside the core would change UI behavior for a
+          legitimately unusual price.
+        </li>
+        <li class="con">
+          <strong>The canary could not stay byte-identical, and that was
+          predicted.</strong> The plan said commit 1 would be a pure relocation
+          with <code>tier-cost-propagation.test.ts</code> untouched and green. In
+          practice the audit-into-transaction change, the per-row audit rows and
+          the locking <code>SELECT</code> all landed together, so the test needed
+          the <code>{ update, insert, select }</code> tx stub the challenge pass
+          said it would. It now asserts the properties that actually matter: 1 tier
+          row + 1 per repriced seat, every audit write carrying the <code>tx</code>
+          client, and the audited row set coming from the in-transaction locking
+          read rather than the preview. Grown from 4 tests to 15.
+        </li>
+        <li class="note">
+          <strong>Test results.</strong> 703 unit tests, 701 passing.
+          <code>tests/unit/mcp/write.test.ts</code> adds 63 covering the gate
+          partition (viewer / missing scope / kill switch / absent authInfo /
+          shared secret / unbound / agent actor — each asserting the core was never
+          invoked), the plan-token protocol (issue, commit, fabricated value,
+          cross-credential, stale plan), secret refusal without echoing the
+          submitted value, the two-sided cents guard, and no-op-as-success. The two
+          remaining failures are pre-existing load flakes in files this spec never
+          touched — <code>anthropic-users-phase3</code> takes 18s in isolation
+          against a 5s per-test timeout, and <code>system-admin-user-id</code> 2.6s;
+          both pass alone.
+        </li>
+      </ul>
+
+      <h2>Verification against the Neon branch (2026-08-04)</h2>
+      <p class="lede">
+        The user provisioned a branch of production. The pre-flight paid for itself
+        immediately: it found <strong>two bugs in the migration</strong> that no unit
+        test could have reached.
+      </p>
+      <h3>Bugs the real data exposed</h3>
+      <ul>
+        <li class="con">
+          <strong>The survivor rule was backwards.</strong> The DO block kept
+          <code>max(id)</code>, documented as &ldquo;the most recent assignment
+          survives&rdquo;. The branch&rsquo;s one duplicate is
+          <code>marta.kachniarz@unic.com</code> / GitHub Copilot Business, where id
+          <strong>391</strong> carries <code>assigned_at = 2026-07-16</code> and id
+          <strong>102</strong> carries <code>2026-07-17</code> — the higher id is the
+          OLDER assignment, because the license-request workflow inserts backdated
+          rows. Picking by id would have silently moved that seat&rsquo;s start date
+          forward a day. Now <code>ORDER BY assigned_at ASC, id ASC</code>.
+        </li>
+        <li class="con">
+          <strong><code>revoked_at = now()</code> would not have fixed the
+          history.</strong> <code>getAssignmentSnapshotAt</code> selects
+          <code>assigned_at &lt;= asOf AND (revoked_at IS NULL OR revoked_at &gt;
+          asOf)</code>. With <code>now()</code>, the spurious row still satisfies
+          <code>revoked_at &gt; asOf</code> for every PAST date, so the double-count
+          would have survived its own remediation in every point-in-time report,
+          permanently. Changed to <code>revoked_at = assigned_at</code> — a
+          zero-duration row that counts at no <code>asOf</code> at all. Verified
+          after migrating: a snapshot at 2026-07-20 now counts that seat ONCE.
+        </li>
+      </ul>
+      <h3>Thresholds calibrated against the real catalogue</h3>
+      <ul>
+        <li class="note">
+          Largest tier is Claude &ldquo;Standard Seat&rdquo; at <strong>116 active
+          seats</strong> — under <code>MAX_REPRICE_ROWS = 250</code>, so a legitimate
+          reprice of the biggest tier is not blocked. Priciest is
+          <code>boost-leader</code> at $200/mo, far under the $2,000 implausibility
+          ceiling. No tier sits in the 1&ndash;99&cent; band the low-side guard
+          rejects. All three numbers are correctly placed.
+        </li>
+        <li class="note">
+          <code>change_history</code> was 1,933 rows / 544 kB, so the backfill and
+          <code>SET NOT NULL</code> are trivial — no lock-duration concern. The
+          branch was also missing <strong>0029</strong> (from merged PR #124), so two
+          migrations applied.
+        </li>
+      </ul>
+      <h3>Migration result</h3>
+      <ul>
+        <li class="note">
+          <code>source</code> landed as <code>varchar(20) NOT NULL</code> with no
+          default; all 1,933 rows backfilled to <code>ui</code>. Partial unique index
+          created with the right predicate. Zero duplicates remain. Org-wide active
+          spend went 1,359,200&cent; &rarr; <strong>1,357,300&cent;</strong>
+          (&minus;$19.00), which is the double-billed seat being corrected.
+        </li>
+      </ul>
+      <h3>Runtime facts the unit suite structurally could not establish</h3>
+      <p class="note">
+        Every unit test mocks <code>@/lib/db</code>, so these were guesses until
+        <code>tests/integration/mcp-write-cores.test.ts</code> (17 tests) ran:
+      </p>
+      <ul>
+        <li class="note">
+          <code>isUniqueViolationOn(err, "license_assignments_one_active_idx")</code>
+          <strong>does</strong> match a real Postgres 23505 — the constraint-name
+          extraction was an untested guess.
+        </li>
+        <li class="note">
+          <code>SELECT &hellip; FOR UPDATE</code> works through the neon-serverless
+          driver inside <code>db.transaction()</code>. There is no other row-locking
+          call anywhere in this repo, so this had zero precedent.
+        </li>
+        <li class="note">
+          The <strong>UI retier path still works</strong> and does not trip the new
+          unique index — the single largest regression risk in the whole refactor,
+          since <code>assignLicense</code>&rsquo;s deactivate-then-insert runs inside
+          one transaction against a now-unique predicate.
+        </li>
+        <li class="note">
+          Propagation rewrites active rows, leaves inactive ones on their historical
+          snapshot, and writes 1 tier + 1 per-seat audit row with
+          <code>source='mcp'</code>. The deactivation cascade writes a full JSON
+          snapshot per revoked seat.
+        </li>
+        <li class="note">
+          Full integration suite: <strong>69 passed</strong>, no regressions in the
+          budget / invoice / sync suites the 44-call-site codemod touched.
+        </li>
+      </ul>
+      <h3>Live MCP session over Streamable HTTP</h3>
+      <ul>
+        <li class="note">
+          <code>tools/list</code> returns <strong>23 tools</strong> (14 read + 9
+          write) with correct annotations over the wire —
+          <code>destructiveHint</code> true on exactly <code>deactivate_user</code>,
+          <code>revoke_license</code>, <code>set_tier_price</code>.
+        </li>
+        <li class="note">
+          A read-only token is refused with the reconnect message; a submitted
+          <code>apiKey</code> is refused <em>without the value appearing in the
+          response</em>; a wrong <code>expectedUserEmail</code> is refused naming the
+          actual holder; correct args succeed.
+        </li>
+        <li class="note">
+          <code>set_tier_price</code> preview returns the per-seat breakdown plus a
+          <code>planToken</code> and writes nothing; a fabricated token
+          (<code>"true"</code> — the value an LLM would invent) is refused without
+          echoing the real one; the genuine token commits; a replay is refused
+          because the price basis moved.
+        </li>
+        <li class="con">
+          <strong>Audit attribution confirmed end to end</strong>: all three rows
+          recorded <code>changed_by = maciej.zielinski@unic.com</code> (the human the
+          OAuth token is bound to) with <code>source = 'mcp'</code>. This was the
+          user&rsquo;s original question, and it now has a demonstrated answer rather
+          than an argued one.
+        </li>
+        <li class="note">
+          All smoke fixtures removed afterwards; org spend returned to
+          1,357,300&cent; and zero <code>source='mcp'</code> rows remain.
+        </li>
+      </ul>
+
+      <h3>Reusable pre-flight</h3>
+      <ul>
+        <li class="note">
+          The duplicate check is committed as
+          <code>scripts/preflight-duplicate-assignments.ts</code> (read-only, no
+          <code>--apply</code> mode, safe against production) so the production
+          rollout does not depend on a query pasted out of a chat log. Its
+          <code>ORDER BY</code> is deliberately identical to migration 0030's, so its
+          KEEP / will-be-revoked column is what 0030 will actually do rather than an
+          approximation — if one changes, both must.
+        </li>
+        <li class="note">
+          Both branches were exercised against the Neon branch: with the index
+          temporarily dropped and the duplicate restored it predicted KEEP=391,
+          revoke=102, &minus;1900&cent;, matching what the migration had really done;
+          with the index present it takes the already-applied early return. The
+          branch was then restored byte-for-byte (index recreated, row 102 back to
+          zero-duration inactive, org spend 1,357,300&cent;, zero duplicates).
+        </li>
+        <li class="note">
+          Dates in this document are the values <code>to_char</code> reports. An
+          earlier reading via <code>assigned_at::date</code> showed them a day
+          earlier because the neon driver localizes a naive
+          <code>timestamp</code> on that cast; the ordering the survivor rule depends
+          on is identical either way.
+        </li>
+      </ul>
+
+      <h2>Browser pass over the UI write paths (2026-08-04)</h2>
+      <p class="lede">
+        The refactor moved every existing UI write behind
+        <code>src/lib/core/*</code>, so the largest risk in this spec was never the
+        MCP surface — it was breaking the dialogs an admin uses daily.
+        <code>tests/e2e/043-write-paths.spec.ts</code> drives them with real clicks
+        under a minted Nighthawk agent session. <strong>5/5 passing.</strong>
+      </p>
+      <ul>
+        <li class="note">
+          <code>/users</code>, <code>/assignments</code>, <code>/tools</code> and
+          <code>/tools/:id</code> all render with no Next error boundary — i.e. no
+          Server Component throws from the moved code or the new
+          <code>change_history.source</code> column.
+        </li>
+        <li class="note">
+          <strong>Assign</strong> through the real dialog (cmdk user picker, two Radix
+          selects, submit) creates the row with the cost snapshotted from the tier
+          (1000&cent;), <code>license_assignments.source = 'manual'</code>, and a
+          <code>change_history</code> row with <code>source = 'ui'</code> — proving
+          the Server Action wrapper still resolves <code>requireAdmin()</code> into a
+          <code>uiContext()</code> and that <code>revalidatePath</code> ran (the row
+          is on the page after reload).
+        </li>
+        <li class="con">
+          <strong>Retier through the same dialog is the test that mattered
+          most.</strong> <code>assignLicense</code> deactivates the existing active
+          row and inserts a new one inside ONE transaction, now against a partial
+          unique index on <code>(user_id, tool_id) WHERE status='active'</code>. It
+          succeeds: exactly one active row at the new price (4000&cent;), the old row
+          retained as inactive history. Had the index ordering interacted badly with
+          that transaction, every licence upgrade in the app would have started
+          failing with a 23505 — and no unit test would have shown it.
+        </li>
+        <li class="note">
+          <strong>Tier price change</strong> via the Edit Tier dialog (whose input is
+          in DOLLARS — displayed <code>/100</code>, submitted <code>&times;100</code>)
+          propagates: tier &rarr; 5500&cent; and the held seat follows to 5500&cent;,
+          with a per-seat <code>costAtAssignmentCents</code> audit row. The spec-037
+          propagation survives being routed through <code>setTierPriceCore</code> and
+          the <code>updateTier</code> wrapper that splits price from metadata.
+        </li>
+        <li class="note">
+          Fixtures torn down; the branch is back to 1,357,300&cent; active spend, zero
+          duplicate pairs, zero <code>source='mcp'</code> rows.
+        </li>
+      </ul>
+      <h3>Incidental findings</h3>
+      <ul>
+        <li class="note">
+          <strong>This repo has no <code>playwright.config.*</code></strong>, so
+          <code>playwright test</code> runs on defaults — notably a 30s test timeout,
+          which the first compile of a route on <code>pnpm dev</code> can exhaust on
+          its own. The spec calls <code>test.setTimeout(180_000)</code> in
+          <code>beforeEach</code> and documents why. Worth adding a real config
+          eventually; out of scope here.
+        </li>
+        <li class="note">
+          The spec is <code>describe.configure({ mode: "serial" })</code> and the
+          tests genuinely depend on each other (assign &rarr; retier &rarr; reprice
+          mirrors how an admin works). Running a subset with <code>-g</code> fails on
+          missing fixture state — that is the intended design, not a flake.
+        </li>
+      </ul>
+
+      <h2>Not done</h2>
+      <ul>
+        <li class="con">
+          <strong>Nothing has touched production.</strong> Everything above ran
+          against a Neon branch. Production still needs migration 0030 applied, and
+          the same duplicate-remediation will run there — its effect on reported
+          spend must be re-measured against production data, not assumed to be the
+          same &minus;$19.00.
+        </li>
+        <li class="note">
+          <code>MCP_WRITE_ENABLED</code> is not set in any environment. The write
+          tools are registered but refuse every call until it is, which is the
+          intended staged-rollout posture.
+        </li>
+      </ul>
+
+    </main>
+  </body>
+</html>

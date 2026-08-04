@@ -11,7 +11,7 @@ import {
   matchMembersToUsers,
 } from "@/lib/github";
 import { confirmSyncSchema } from "@/lib/validators";
-import { recordCreation, recordUpdate } from "@/actions/history";
+import { recordCreation, recordUpdate } from "@/lib/history";
 import { withSyncLock } from "@/lib/sync/framework";
 import { summarizeErrors } from "@/lib/sync/error-message";
 import { revalidatePath } from "next/cache";
@@ -243,7 +243,7 @@ export async function confirmGitHubSync(
                     new: new Date().toISOString(),
                   },
                 },
-                tx,
+                { tx, source: "sync" },
               );
             } else {
               const [newProfile] = await tx
@@ -254,12 +254,10 @@ export async function confirmGitHubSync(
                 })
                 .returning({ id: githubProfiles.id });
 
-              await recordCreation(
-                "github_profile",
-                newProfile.id,
-                adminId,
+              await recordCreation("github_profile", newProfile.id, adminId, {
                 tx,
-              );
+                source: "sync",
+              });
             }
 
             // Populate githubUsername if matched by email and field was empty
@@ -286,7 +284,7 @@ export async function confirmGitHubSync(
                   {
                     githubUsername: { old: null, new: match.githubLogin },
                   },
-                  tx,
+                  { tx, source: "sync" },
                 );
               }
             }
@@ -319,7 +317,10 @@ export async function confirmGitHubSync(
               })
               .returning({ id: users.id });
 
-            await recordCreation("user", newUser.id, adminId, tx);
+            await recordCreation("user", newUser.id, adminId, {
+              tx,
+              source: "sync",
+            });
 
             const [newProfile] = await tx
               .insert(githubProfiles)
@@ -337,7 +338,10 @@ export async function confirmGitHubSync(
               })
               .returning({ id: githubProfiles.id });
 
-            await recordCreation("github_profile", newProfile.id, adminId, tx);
+            await recordCreation("github_profile", newProfile.id, adminId, {
+              tx,
+              source: "sync",
+            });
             importedCount++;
           }
 
@@ -397,7 +401,7 @@ export async function confirmGitHubSync(
                   new: mm.githubLogin,
                 },
               },
-              tx,
+              { tx, source: "sync" },
             );
 
             // Upsert githubProfiles with enriched data
@@ -485,7 +489,10 @@ export async function confirmGitHubSync(
               })
               .returning({ id: users.id });
 
-            await recordCreation("user", newInlineUser.id, adminId, tx);
+            await recordCreation("user", newInlineUser.id, adminId, {
+              tx,
+              source: "sync",
+            });
 
             const memberData = memberLookup.get(nu.githubLogin.toLowerCase());
             if (memberData) {
@@ -505,12 +512,10 @@ export async function confirmGitHubSync(
                 })
                 .returning({ id: githubProfiles.id });
 
-              await recordCreation(
-                "github_profile",
-                newProfile.id,
-                adminId,
+              await recordCreation("github_profile", newProfile.id, adminId, {
                 tx,
-              );
+                source: "sync",
+              });
             }
 
             createdCount++;

@@ -55,7 +55,7 @@ describe("protectedResourceMetadata", () => {
     expect(doc).toMatchObject({
       resource: "https://hub.example.com/api/mcp/mcp",
       authorization_servers: ["https://hub.example.com"],
-      scopes_supported: ["mcp:read"],
+      scopes_supported: ["mcp:read", "mcp:write"],
     });
   });
 });
