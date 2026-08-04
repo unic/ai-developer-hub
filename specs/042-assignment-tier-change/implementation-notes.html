@@ -1251,6 +1251,89 @@
           <code>.env.local</code>.
         </li>
       </ul>
+      <h2 id="review">Review pass — PR #125</h2>
+      <p class="meta">
+        Sole reviewer: the GitHub Copilot review bot. Three inline comments, all
+        three correct, all three adopted. Fixed in <code>f4bb80b</code>.
+      </p>
+
+      <div class="callout">
+        <strong>One was a real defect this spec introduced.</strong>
+        <code>change_tier</code> never checked that the target assignment belongs
+        to the <em>selected</em> tool. <code>loadToolAndTier</code> proves the
+        tier belongs to <code>approval.toolId</code>, but nothing tied the
+        <em>assignment</em> to it — so a stale dialog or a crafted payload could
+        write another tool&rsquo;s tier onto a seat. Worse, it would
+        <strong>slip past the sync-managed refusal</strong>, because that check
+        also keys off the selected tool rather than the row&rsquo;s own: pass a
+        Copilot <code>assignmentId</code> with a non-Copilot
+        <code>toolId</code> and the gate never fires. Copilot identified both
+        consequences.
+        <br /><br />
+        Notable that the challenge pass missed this. It scrutinised the
+        <em>mode</em> matrix and the sync gate in isolation, but not the
+        interaction between them — the gate&rsquo;s input and the mutation&rsquo;s
+        target being allowed to disagree. <code>updateAssignment</code> never had
+        the hole because its tier lookup is scoped by
+        <code>assignment.toolId</code> in a single query; splitting validation
+        across two loads is what opened it.
+      </div>
+
+      <table>
+        <thead><tr><th>Finding</th><th>Verdict</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>license-requests.ts</code> — <code>change_tier</code> does
+              not verify <code>target.toolId === approval.toolId</code>
+            </td>
+            <td class="s">real defect</td>
+            <td>
+              Explicit guard before <code>buildTierChange</code>, mirroring the
+              same-tool rule <code>updateAssignment</code> enforces through its
+              <code>accessTiers</code> query. Unit regression test asserts both
+              the refusal <em>and</em> that nothing is written.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>history.ts</code> —
+              <code>with: { changedByUser: true }</code> selects the whole users
+              row, <code>password_hash</code> included, to render one name
+            </td>
+            <td class="s">correct</td>
+            <td>
+              Restricted to <code>{ name: true }</code>. Worth being accurate
+              about severity: the mapped result never exposed it to the client, so
+              this is hygiene, not a leak.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>assignments.ts</code> — the race-guard comment claims the
+              <code>tierId</code> predicate is an optimistic lock against the
+              tier price cascade
+            </td>
+            <td class="s">correct — my comment was wrong</td>
+            <td>
+              It is not: <code>updateTier</code> and
+              <code>syncBillingData</code> rewrite
+              <code>cost_at_assignment_cents</code> while leaving
+              <code>tier_id</code> alone, so the predicate cannot see them. The
+              comment now states what the guard really covers (status flips,
+              concurrent retiers), names the price-cascade race it does
+              <em>not</em>, and points at the compare-and-swap the plan scoped
+              out.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="meta">
+        Post-fix gates: <code>pnpm typecheck</code> clean · <code>pnpm test</code>
+        660 passed (from 659) · integration 8 files / 56 passed · eslint clean on
+        changed files.
+      </p>
     </main>
   </body>
 </html>
