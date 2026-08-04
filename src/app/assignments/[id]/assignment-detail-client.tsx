@@ -56,11 +56,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
-import {
   Eye,
   EyeOff,
   Copy,
@@ -335,13 +330,26 @@ export function AssignmentDetailClient({
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue
-                                placeholder={
-                                  loadingTiers
+                              {/* Render the label ourselves. Radix resolves the
+                                  displayed value by looking up the SELECTED
+                                  ITEM's children, and the items arrive
+                                  asynchronously from loadTiers — so the control
+                                  painted EMPTY on every assignment until the
+                                  list happened to be ready. A placeholder does
+                                  not help: it only shows when the value is
+                                  empty, and here it is a real tier id. */}
+                              <SelectValue>
+                                {(() => {
+                                  const sel = tiers.find(
+                                    (t) => t.id === field.value,
+                                  );
+                                  if (sel)
+                                    return `${sel.name} — ${formatCurrency(sel.monthlyCostCents)}/mo`;
+                                  return loadingTiers
                                     ? "Loading tiers..."
-                                    : "Select tier"
-                                }
-                              />
+                                    : assignment.tier.name;
+                                })()}
+                              </SelectValue>
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
