@@ -14,6 +14,18 @@ interface SyncDashboardProps {
   initialManualEvents: SyncEventRow[];
 }
 
+/**
+ * How long the 5s fast poll may run before giving up.
+ *
+ * The fast poll used to exit only when nothing was `in_progress`. A sync whose
+ * process died mid-run leaves that row `in_progress` permanently, so every open
+ * admin tab queried the database every 5 seconds indefinitely — a
+ * self-inflicted, self-sustaining load that outlived the sync that caused it.
+ * Server-side reaping now terminates such rows, but the client must not depend
+ * on that to stop polling.
+ */
+const MAX_FAST_POLL_MS = 10 * 60 * 1000;
+
 /** Compare previous and updated sources; returns true if any event changed. */
 function hasSourcesChanged(
   prev: SyncSourceWithLastEvent[],
@@ -38,6 +50,11 @@ export function SyncDashboard({
   const manualEvents = initialManualEvents;
   const sourcesRef = useRef(initialSources);
   const [sources, setSources] = useState(initialSources);
+  // Events we have stopped waiting on. Without this the 30s loop below would
+  // immediately re-arm fast polling on the very row the fast loop just gave up
+  // on, restoring the infinite cycle. Keyed by event id so a genuinely NEW run
+  // still re-arms.
+  const abandonedEventIdsRef = useRef<Set<number>>(new Set());
   const [isPolling, setIsPolling] = useState(() =>
     initialSources.some((s) => s.lastEvent?.outcome === "in_progress")
   );
@@ -64,7 +81,12 @@ export function SyncDashboard({
 
       if (hasSourcesChanged(sourcesRef.current, result.data)) {
         setSources(result.data);
-        if (result.data.some((s) => s.lastEvent?.outcome === "in_progress")) {
+        const hasFreshInProgress = result.data.some(
+          (s) =>
+            s.lastEvent?.outcome === "in_progress" &&
+            !abandonedEventIdsRef.current.has(s.lastEvent.id)
+        );
+        if (hasFreshInProgress) {
           setIsPolling(true);
         }
       }
@@ -77,7 +99,25 @@ export function SyncDashboard({
   useEffect(() => {
     if (!isPolling) return;
 
+    const startedAt = Date.now();
+
     const intervalId = setInterval(async () => {
+      // Background tabs contributed the same 5s query load as focused ones.
+      if (document.hidden) return;
+
+      if (Date.now() - startedAt > MAX_FAST_POLL_MS) {
+        for (const source of sourcesRef.current) {
+          if (source.lastEvent?.outcome === "in_progress") {
+            abandonedEventIdsRef.current.add(source.lastEvent.id);
+          }
+        }
+        setIsPolling(false);
+        status.error(
+          "A sync has been in progress for over 10 minutes — stopped auto-refreshing. Reload to check again."
+        );
+        return;
+      }
+
       const result = await getSyncStatus();
       if (!result.success) return;
 
