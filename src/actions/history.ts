@@ -142,7 +142,9 @@ export async function getAssignmentTierHistory(
       eq(changeHistory.fieldName, "tierId"),
     ),
     orderBy: desc(changeHistory.createdAt),
-    with: { changedByUser: true },
+    // Only the actor's name is rendered. `changedByUser: true` would select the
+    // whole users row — password_hash included — into memory for no reason.
+    with: { changedByUser: { columns: { name: true } } },
   });
 
   if (records.length === 0) {

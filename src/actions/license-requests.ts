@@ -545,11 +545,23 @@ export async function approveRequest(
         toolId = target.toolId;
 
         if (approval.mode === "change_tier") {
+          // loadToolAndTier proved the tier belongs to approval.toolId, but
+          // nothing so far ties the ASSIGNMENT to that tool. Without this, a
+          // stale dialog or a crafted payload could write another tool's tier
+          // onto this seat — and slip past the sync-managed refusal above, which
+          // keys off the SELECTED tool rather than the row's own. Mirrors the
+          // same-tool guard updateAssignment enforces via its accessTiers query.
+          if (target.toolId !== approval.toolId) {
+            throw new ApprovalError(
+              "That assignment is for a different tool than the one selected. Reopen the dialog and try again.",
+            );
+          }
+
           const outcome = buildTierChange(
             {
               tierId: target.tierId,
               costAtAssignmentCents: target.costAtAssignmentCents,
-              // Already refused above; the tool cannot change mid-transaction.
+              // Safe now that the tool is pinned to the one checked above.
               isSyncManaged: false,
             },
             { id: tier!.id, monthlyCostCents: tier!.monthlyCostCents },

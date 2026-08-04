@@ -316,14 +316,21 @@ export async function updateAssignment(
   const now = new Date();
   updateValues.updatedAt = now;
 
-  // 042: guard the write on the state we actually read. Five concurrent
-  // producers can flip this row to inactive between the read above and here
-  // (revokeLicense, assignLicense's deactivate leg, deactivateUser's bulk
-  // revoke, copilot-sync's removed-seat revoke), and retiering a just-revoked
-  // row would corrupt the historical snapshot that revoked rows are supposed to
-  // preserve. The tierId predicate doubles as an optimistic lock against a
-  // concurrent tier price cascade (updateTier / syncBillingData) leaving the row
-  // stranded at a stale price.
+  // 042: guard the write on the state we actually read. The predicate covers
+  // exactly two races, and it is worth being precise about which:
+  //   - status flipped to inactive between the read above and here. Four
+  //     producers can do that (revokeLicense, assignLicense's deactivate leg,
+  //     deactivateUser's bulk revoke, copilot-sync's removed-seat revoke), and
+  //     retiering a just-revoked row would corrupt the historical snapshot that
+  //     revoked rows are supposed to preserve.
+  //   - tierId already moved, i.e. another admin retiered concurrently.
+  //
+  // It does NOT protect against a tier PRICE cascade (updateTier /
+  // syncBillingData): those rewrite cost_at_assignment_cents while leaving
+  // tier_id alone, so this predicate cannot see them, and our cost value —
+  // read before the transaction — would win. Narrow and self-correcting (the
+  // next cascade or retier fixes it); a real fix needs row-level
+  // compare-and-swap on updatedAt, which the plan scoped out deliberately.
   //
   // 042 (D-F): the update and its audit rows go in ONE transaction. Writing
   // history afterwards means a throw there leaves the tier moved with no record,

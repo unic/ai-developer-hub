@@ -451,6 +451,50 @@ describe("approveRequest", () => {
   });
 
   /**
+   * Regression guard for a real defect caught in review (PR #125). The tier is
+   * validated against the SELECTED tool, so without an explicit check tying the
+   * assignment to that same tool, a stale dialog or crafted payload could write
+   * another tool's tier onto this seat — and slip past the sync-managed refusal,
+   * which also keys off the selected tool rather than the row's own.
+   */
+  it("mode change_tier where the assignment belongs to a different tool: refused", async () => {
+    mockDb.query.licenseRequests.findFirst.mockResolvedValue(baseRequest());
+    // Selected tool 2 with a tier that legitimately belongs to tool 2...
+    mockDb.query.aiTools.findFirst.mockResolvedValue({
+      id: 2,
+      name: "Claude Console",
+      requiresApiKey: false,
+    });
+    mockDb.query.accessTiers.findFirst.mockResolvedValue({
+      id: 6,
+      name: "Premium",
+      toolId: 2,
+      isActive: true,
+      monthlyCostCents: 5000,
+    });
+    // ...but the target assignment is for a DIFFERENT tool.
+    mockTx.query.licenseAssignments.findFirst.mockResolvedValue(
+      activeTargetAssignment({ toolId: 7 }),
+    );
+
+    const result = await approveRequest({
+      mode: "change_tier",
+      requestId: 50,
+      assignmentId: 10,
+      toolId: 2,
+      tierId: 6,
+      bodyMd: "Approved",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: expect.stringContaining("different tool"),
+    });
+    // Nothing may be written to the assignment.
+    expect(mockTx.update).not.toHaveBeenCalled();
+  });
+
+  /**
    * Regression guard: a naive copy of updateAssignment's zero-diff early
    * return would leave the request stuck in pending_review whenever the
    * approver picks the tier the seat already has. Approval must still land —
