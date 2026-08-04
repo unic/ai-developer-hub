@@ -124,6 +124,21 @@ uncaught after connect-timeout: NONE</pre>
     <p>A <code>_comment</code> key was added to explain the stagger, then removed: <code>vercel.json</code> is schema-validated and unknown top-level keys fail the deploy. Rationale lives in the plan doc instead.</p>
   </div>
 
+  <h2>Review pass</h2>
+  <p>PR <a href="https://github.com/unic/ai-developer-hub/pull/126">#126</a>. Sole reviewer: the GitHub Copilot review bot. One inline comment, accepted.</p>
+
+  <div class="entry ok">
+    <h3>Accepted · the reaper could out-live-run a long backfill<span class="tag ok">fixed</span></h3>
+    <p>Copilot: <i>"an active backfill that legitimately exceeds 60 minutes can be incorrectly reaped on the next cron attempt, even though the job is still running."</i></p>
+    <p>Valid, and the same hazard the challenge pass raised independently. In practice the <code>maxDuration = 300</code> added in this same PR bounds every entrypoint — cron routes and the <code>/settings/sync</code> segment that dispatches the manual trigger and backfill server actions — so no run can currently reach 60 minutes. But that made the sweep's safety rest on an <b>implicit</b> invariant: raise the ceiling later and it would silently begin reaping live backfills.</p>
+    <p>Fixed by making the invariant explicit and giving backfills their own headroom:</p>
+    <ul>
+      <li><code>SYNC_MAX_DURATION_SECONDS</code> now mirrors the route ceiling in the same module, so the margin is expressed against the thing that actually bounds a run.</li>
+      <li><code>STALE_EVENT_AFTER_MS</code> became per-operation — 1h regular (12× the ceiling), 6h backfill (72×) — and the sweep predicate is now an <code>OR</code> over <code>operationType</code>.</li>
+      <li>Two invariant tests: every cutoff must exceed 10× the ceiling, and backfill must exceed regular. These fail if someone raises <code>maxDuration</code> without revisiting the cutoffs.</li>
+    </ul>
+  </div>
+
   <h2>Verification</h2>
   <div class="scroll">
   <table>

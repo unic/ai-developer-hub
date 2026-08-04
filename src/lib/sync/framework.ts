@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { syncEvents, syncSourceTypeEnum, syncOperationTypeEnum } from "@/lib/db/schema";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lt, or, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Types — derived from schema enums
@@ -110,15 +110,37 @@ export async function updateSyncEvent(
 // ---------------------------------------------------------------------------
 
 /**
- * How long an `in_progress` row may sit before it is treated as abandoned.
+ * The platform ceiling that bounds every sync entrypoint, in seconds.
  *
- * Deliberately far above any bounded run (cron routes cap at maxDuration =
- * 300s) so a live sync can never be reaped out from under itself. Long
- * admin-triggered backfills are the one thing that can legitimately exceed
- * this; the dashboard's own poll bail-out — not this reaper — is what stops
- * the UI spinning in that case, so erring long here costs nothing.
+ * Mirrors `export const maxDuration` on the three cron routes and on the
+ * `/settings/sync` segment that dispatches the manual trigger + backfill server
+ * actions. Kept here so the reaper's safety margin below is expressed against
+ * the thing that actually bounds a run, rather than as a bare number.
  */
-const STALE_EVENT_AFTER_MS = 60 * 60 * 1000;
+const SYNC_MAX_DURATION_SECONDS = 300;
+
+/**
+ * How long an `in_progress` row of each operation type may sit before it is
+ * treated as abandoned.
+ *
+ * The invariant: a cutoff MUST exceed the longest a live run of that type can
+ * possibly take, so the sweep can never terminate a row that is still being
+ * written. Every entrypoint is bounded by SYNC_MAX_DURATION_SECONDS, so these
+ * carry a large multiple of that ceiling rather than sitting just above it.
+ *
+ * Backfills are separated out deliberately: they iterate per day (Copilot) or
+ * per 31-day window (Anthropic) with external API calls per step, so they are
+ * the runs most likely to grow if that ceiling is ever raised. Sharing a single
+ * cutoff would make "raise maxDuration" silently able to start reaping live
+ * backfills.
+ */
+export const STALE_EVENT_AFTER_MS: Record<SyncOperationType, number> = {
+  regular: 60 * 60 * 1000, // 1h — 12x the ceiling
+  backfill: 6 * 60 * 60 * 1000, // 6h — 72x the ceiling
+};
+
+/** Exported for the invariant test; see STALE_EVENT_AFTER_MS. */
+export const SYNC_MAX_DURATION_MS = SYNC_MAX_DURATION_SECONDS * 1000;
 
 /**
  * Terminate `in_progress` rows that no live run can still own.
@@ -132,7 +154,7 @@ const STALE_EVENT_AFTER_MS = 60 * 60 * 1000;
  * dependent on a later run of the same source succeeding.
  */
 async function reapAbandonedEvents(sourceType: SyncSourceType): Promise<void> {
-  const cutoff = new Date(Date.now() - STALE_EVENT_AFTER_MS);
+  const now = Date.now();
   await db
     .update(syncEvents)
     .set({
@@ -144,7 +166,24 @@ async function reapAbandonedEvents(sourceType: SyncSourceType): Promise<void> {
       and(
         eq(syncEvents.sourceType, sourceType),
         eq(syncEvents.outcome, "in_progress"),
-        lt(syncEvents.startedAt, cutoff)
+        // Per-operation cutoffs — a long backfill must not be reaped on the
+        // schedule that suits a regular hourly run.
+        or(
+          and(
+            eq(syncEvents.operationType, "regular"),
+            lt(
+              syncEvents.startedAt,
+              new Date(now - STALE_EVENT_AFTER_MS.regular)
+            )
+          ),
+          and(
+            eq(syncEvents.operationType, "backfill"),
+            lt(
+              syncEvents.startedAt,
+              new Date(now - STALE_EVENT_AFTER_MS.backfill)
+            )
+          )
+        )
       )
     );
 }

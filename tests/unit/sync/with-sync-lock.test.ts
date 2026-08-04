@@ -11,7 +11,11 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
-import { withSyncLock } from "@/lib/sync/framework";
+import {
+  withSyncLock,
+  STALE_EVENT_AFTER_MS,
+  SYNC_MAX_DURATION_MS,
+} from "@/lib/sync/framework";
 
 /** update(...).set(...).where(...) — resolves. */
 function okUpdate() {
@@ -43,6 +47,28 @@ const OK_COUNTS = {
   skippedCount: 0,
   errorCount: 0,
 };
+
+describe("stale-event cutoffs", () => {
+  // The sweep must never terminate a row a live run could still be writing.
+  // Both properties below are the invariant that makes that true; if someone
+  // raises the route ceiling without revisiting the cutoffs, this fails.
+  it("keeps every cutoff well above the platform ceiling that bounds a run", () => {
+    for (const [operation, cutoff] of Object.entries(STALE_EVENT_AFTER_MS)) {
+      expect(
+        cutoff,
+        `${operation} cutoff must exceed the ${SYNC_MAX_DURATION_MS}ms run ceiling`
+      ).toBeGreaterThan(SYNC_MAX_DURATION_MS * 10);
+    }
+  });
+
+  it("gives backfills a longer cutoff than regular runs", () => {
+    // Backfills iterate per day / per 31-day window with external calls per
+    // step, so they are the runs most likely to outlive a regular cutoff.
+    expect(STALE_EVENT_AFTER_MS.backfill).toBeGreaterThan(
+      STALE_EVENT_AFTER_MS.regular
+    );
+  });
+});
 
 describe("withSyncLock", () => {
   it("rejects when the lock is already held", async () => {
