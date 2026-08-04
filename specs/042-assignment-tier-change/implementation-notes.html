@@ -286,7 +286,7 @@
         <div class="row" style="margin-bottom: 16px">
           <span class="badge">Implementation notes</span>
           <span class="badge">spec/042-assignment-tier-change</span>
-          <span class="badge accent">Verified (unit + integration) — UI pass outstanding</span>
+          <span class="badge accent">Verified — unit, integration &amp; browser</span>
         </div>
         <h1>Assignment Tier Change — running log</h1>
         <p class="lede">
@@ -1113,25 +1113,139 @@
         Node version.
       </p>
 
+      <h2 id="verification-2">Verification round 2 — the real database</h2>
+      <div class="callout accent">
+        <strong>Supersedes the round-1 section above.</strong> The user created a
+        branch of the real database and swapped it into the worktree, so
+        everything below ran against production-shaped data:
+        <strong>223 users, 5 tools, 309 active assignments, 27 licence requests,
+        5 budgets, 1933 change-history rows</strong>, with
+        <code>0029_curly_strong_guy</code> applied. The synthetic
+        <code>workable</code> branch is no longer relevant except as history.
+      </div>
+
+      <table>
+        <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>pnpm typecheck</code></td><td class="s">clean</td></tr>
+          <tr><td><code>pnpm test</code></td><td class="s">659 passed, 53 files</td></tr>
+          <tr><td>eslint on changed files</td><td class="s">clean</td></tr>
+          <tr>
+            <td><code>pnpm test:integration</code> (full directory, real data)</td>
+            <td class="s">
+              8 files passed, 2 skipped · 56 passed, 7 todo — and stable rather
+              than flaky (216&thinsp;ms warm connect vs ~7&thinsp;s on the free-tier
+              branch), so no WebSocket shim was needed.
+            </td>
+          </tr>
+          <tr>
+            <td>Playwright browser pass</td>
+            <td class="s">
+              <strong>9/9 checks</strong> on the final run (13/13 on the earlier
+              one) against a real Claude seat and a real sync-managed Copilot
+              seat.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>What the browser pass actually exercised</h4>
+      <ul>
+        <li class="note">
+          A real manual Claude seat moved <strong>Standard Seat &rarr; Premium
+          Seat &rarr; Standard Seat</strong> — both directions, ending back on its
+          original tier.
+        </li>
+        <li class="note">
+          Header and cost followed the change (<code>$25.00</code> &harr;
+          <code>$125.00</code>); feedback arrived as inline
+          <code>[SAVED]</code>, not a toast.
+        </li>
+        <li class="note">
+          The <strong>tier timeline</strong> rendered both hops from
+          <code>change_history</code>, attributed and dated.
+        </li>
+        <li class="note">
+          Database end state confirmed directly: <strong>exactly one active
+          row</strong> for that user+tool (in place, no supersede, no duplicate),
+          with <code>tierId</code> 5&rarr;6 and
+          <code>costAtAssignmentCents</code> 2500&rarr;12500 written under a
+          single timestamp — the transaction of decision D-F.
+        </li>
+        <li class="note">
+          A real <code>copilot-sync</code> seat showed &ldquo;Managed by
+          sync&rdquo;, its tier control disabled but still legible, and no
+          re-pricing disclosure.
+        </li>
+      </ul>
+
+      <div class="callout">
+        <strong>The browser pass earned its place — it found two UI bugs nothing
+        else could.</strong> Typecheck, 659 unit tests and 56 integration tests
+        were all green while both of these were live.
+        <ol>
+          <li>
+            <strong>The sync-managed badge crashed the whole assignment detail
+            page</strong> (<em>&ldquo;<code>Tooltip</code> must be used within
+            <code>TooltipProvider</code>&rdquo;</em>). The assignments table only
+            works because <code>DataTable</code> happens to wrap its rows in a
+            provider; the detail page has none. So the page rendered nothing but
+            a heading for <em>every sync-managed seat</em> — exactly the case the
+            badge exists to mark. <code>SyncManagedBadge</code> now owns its own
+            provider.
+          </li>
+          <li>
+            <strong>The tier control rendered empty on every assignment.</strong>
+            Radix resolves a <code>Select</code>&rsquo;s displayed value by
+            looking up the selected <em>item&rsquo;s</em> children, and the items
+            arrive asynchronously from <code>loadTiers</code> — so the control
+            painted blank until the list happened to be ready, and stayed blank
+            whenever disabled. A placeholder does not help: it only shows for an
+            empty value, and here it is a real tier id. Pre-existing, but it is
+            this feature&rsquo;s primary control.
+          </li>
+        </ol>
+        Worth remembering next time the plan is tempted to treat a browser pass
+        as optional: <em>both</em> defects were in rendering, and no amount of
+        server-side testing would have surfaced either.
+      </div>
+
+      <p class="meta">
+        Note on reproducibility: the round-1 flakiness
+        (<code>@neondatabase/serverless</code> falling back to Node&rsquo;s undici
+        WebSocket) did not recur here — the EU endpoint connects in ~200&thinsp;ms
+        where the free-tier US branch took ~7&thinsp;s and brushed the 10&thinsp;s
+        <code>connectionTimeoutMillis</code>. The proposed <code>ws</code>
+        devDependency was declined and is not in the tree; if the slow-endpoint
+        case recurs, that is the fix.
+      </p>
+
       <h2 id="open-final">Open before merge</h2>
       <ul>
         <li class="con">
           <strong>Confirm the costing decision (D-A)</strong> — the upgrade month
-          bills entirely at the new tier and closed periods restate. Explained to
-          the user; still unconfirmed. The audit-log gaps that would let a future
-          effective-dated table be backfilled (copilot-sync writes no per-assignment
-          history; the price cascade logs against the tier) were raised and
-          <strong>explicitly declined</strong> by the user.
-        </li>
-        <li class="con"><strong>Browser pass for the UI</strong>, per the gap above.</li>
-        <li class="con">
-          Verification used a synthetic catalogue, not production data — the
-          Copilot sync-managed paths (63 live seats) were never exercised against
-          real synced rows.
+          bills entirely at the new tier and closed periods restate. Explained in
+          full to the user; still formally unconfirmed. Audit-log gaps that would
+          let a future effective-dated table be backfilled (copilot-sync writes no
+          per-assignment history; the price cascade logs against the tier) were
+          raised and <strong>explicitly declined</strong>.
         </li>
         <li class="note">
-          Neon branch <code>wt/upgrade</code> still exists in project
-          <code>blue-poetry-08641598</code>; delete when done.
+          The approval dialog&rsquo;s three modes were verified server-side
+          (integration) but not clicked through in a browser — the queue page
+          renders, and driving a specific pending request to approval was not
+          scripted.
+        </li>
+        <li class="note">
+          Test data written to the branch: RUN_TAG users/requests are cleaned up
+          by the suites; assignment #12 was returned to its original Standard
+          Seat, though its two tier-change audit rows remain.
+        </li>
+        <li class="note">
+          Disposable Neon branches to delete when done: <code>wt/upgrade</code> in
+          <code>blue-poetry-08641598</code> (the synthetic one), plus whichever
+          branch of the real project is wired into the worktree
+          <code>.env.local</code>.
         </li>
       </ul>
     </main>
