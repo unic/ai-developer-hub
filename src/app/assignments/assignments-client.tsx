@@ -28,6 +28,7 @@ import {
 import type { AiTool, User, AccessTier } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SyncManagedBadge } from "@/components/assignments/sync-managed-badge";
 import {
   Dialog,
   DialogContent,
@@ -463,20 +464,10 @@ function AssignmentRowActions({
       {isAdmin &&
         assignment.status === "active" &&
         assignment.source === "copilot-sync" && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge
-                variant="outline"
-                className="ml-1 cursor-default text-xs text-muted-foreground"
-              >
-                Managed by sync
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              This assignment is managed by Copilot sync and cannot be edited or
-              revoked manually.
-            </TooltipContent>
-          </Tooltip>
+          <SyncManagedBadge
+            className="ml-1"
+            tooltip="This assignment is managed by Copilot sync and cannot be edited or revoked manually."
+          />
         )}
       {isAdmin &&
         assignment.status === "active" &&

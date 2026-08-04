@@ -10,7 +10,18 @@
 export interface TemplateContext {
   requester: { name: string; firstName: string; email: string };
   tool: { name: string };
-  tier: { name: string } | null;
+  /**
+   * 042: `previousName` is the tier the seat is moving OFF for a tier-change
+   * approval, and the empty string otherwise.
+   *
+   * It is always bound, never optional, and that is deliberate: renderTemplate
+   * leaves an unresolvable path as the LITERAL `{{tier.previousName}}` so the
+   * template editor can flag it. Templates are keyed only by
+   * (tool_id, tier_id, kind) with no tier-change kind, so one approval body
+   * serves create and change_tier alike — an optional field would therefore leak
+   * raw braces into a message an admin pastes to a colleague.
+   */
+  tier: { name: string; previousName: string } | null;
   /** Completion-only — undefined at approve time. */
   licenseCode?: string;
   /** Approver / completer's identity, for `{{approver.firstName}}` etc. */
@@ -76,6 +87,7 @@ export const KNOWN_VARIABLE_PATHS: readonly string[] = [
   "requester.email",
   "tool.name",
   "tier.name",
+  "tier.previousName",
   "licenseCode",
   "approver.name",
   "approver.firstName",

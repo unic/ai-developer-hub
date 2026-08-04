@@ -16,9 +16,10 @@ import {
   updateAssignmentSchema,
   type UpdateAssignmentInput,
 } from "@/lib/validators";
-import { formatCurrency, cn, formatDateOnly } from "@/lib/utils";
+import { formatCurrency, cn, formatDateOnly, formatDate } from "@/lib/utils";
 import type { AccessTier, UserDiscipline } from "@/types";
 import { DISCIPLINE_ICON, DISCIPLINE_LABEL, asDiscipline } from "@/lib/disciplines";
+import { SYNC_MANAGED_TIER_ERROR } from "@/lib/assignments/tier-change";
 import {
   Card,
   CardContent,
@@ -27,6 +28,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SyncManagedBadge } from "@/components/assignments/sync-managed-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,16 +86,31 @@ interface CommentData {
   author: { name: string };
 }
 
+interface TierHistoryEntry {
+  id: number;
+  previousTierName: string | null;
+  newTierName: string | null;
+  changedByName: string;
+  createdAt: string;
+}
+
 interface Props {
   assignment: AssignmentData;
   comments: CommentData[];
   isAdmin: boolean;
+  // Gated on the tool, not assignment.source (spec 042) — see
+  // isSyncManagedTool in src/lib/assignments/sync-authority.ts. Only the tier
+  // control is affected; workspace, API key and assigned-date stay editable.
+  isSyncManaged: boolean;
+  tierHistory: TierHistoryEntry[];
 }
 
 export function AssignmentDetailClient({
   assignment,
   comments,
   isAdmin,
+  isSyncManaged,
+  tierHistory,
 }: Props) {
   const router = useRouter();
   const detailStatus = useInlineStatus();
@@ -290,29 +307,49 @@ export function AssignmentDetailClient({
                     <Badge variant="default">Active</Badge>
                   </div>
 
-                  {/* Tier (editable) */}
+                  {/* Tier (editable, unless sync-managed) */}
                   <FormField
                     control={form.control}
                     name="tierId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium text-muted-foreground">
-                          Tier
-                        </FormLabel>
+                        <div className="flex items-center gap-2">
+                          <FormLabel className="text-sm font-medium text-muted-foreground">
+                            Tier
+                          </FormLabel>
+                          {isSyncManaged && (
+                            <SyncManagedBadge tooltip={SYNC_MANAGED_TIER_ERROR} />
+                          )}
+                        </div>
                         <Select
                           value={String(field.value)}
                           onValueChange={(val) => field.onChange(Number(val))}
-                          disabled={loadingTiers || tiers.length === 0}
+                          disabled={
+                            loadingTiers || tiers.length === 0 || isSyncManaged
+                          }
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue
-                                placeholder={
-                                  loadingTiers
+                              {/* Render the label ourselves. Radix resolves the
+                                  displayed value by looking up the SELECTED
+                                  ITEM's children, and the items arrive
+                                  asynchronously from loadTiers — so the control
+                                  painted EMPTY on every assignment until the
+                                  list happened to be ready. A placeholder does
+                                  not help: it only shows when the value is
+                                  empty, and here it is a real tier id. */}
+                              <SelectValue>
+                                {(() => {
+                                  const sel = tiers.find(
+                                    (t) => t.id === field.value,
+                                  );
+                                  if (sel)
+                                    return `${sel.name} — ${formatCurrency(sel.monthlyCostCents)}/mo`;
+                                  return loadingTiers
                                     ? "Loading tiers..."
-                                    : "Select tier"
-                                }
-                              />
+                                    : assignment.tier.name;
+                                })()}
+                              </SelectValue>
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -325,6 +362,13 @@ export function AssignmentDetailClient({
                           </SelectContent>
                         </Select>
                         <FormMessage />
+                        {!isSyncManaged && (
+                          <p className="text-xs text-muted-foreground">
+                            Changing tier re-prices the current month and
+                            restates already-closed budget periods at the new
+                            price.
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -648,6 +692,33 @@ export function AssignmentDetailClient({
                 </>
               )}
             </div>
+          )}
+
+          {/* Tier timeline (spec 042) — the audit trail change_history already
+              keeps; assigned_at alone can't answer "since when is she on
+              Premium Seat?" once a tier change mutates the row in place. */}
+          {tierHistory.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Tier History
+                </p>
+                <ul className="space-y-1">
+                  {tierHistory.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="text-sm text-muted-foreground"
+                    >
+                      {entry.previousTierName ?? "—"} &rarr;{" "}
+                      {entry.newTierName ?? "—"} &middot;{" "}
+                      {formatDate(entry.createdAt)} &middot;{" "}
+                      {entry.changedByName}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

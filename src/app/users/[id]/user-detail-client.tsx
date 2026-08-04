@@ -34,6 +34,7 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
+  ArrowRightLeft,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -107,6 +108,10 @@ interface Props {
   githubProfile?: GitHubProfileData | null;
   costData: CostData;
   costAvailableMonths: string[];
+  /** Tools whose tier Copilot sync owns (spec 042). Empty when sync is off.
+   * Tool-based, not assignment.source-based: sync takes over manual rows, so a
+   * manual GitHub Copilot seat is just as sync-owned as an already-synced one. */
+  syncManagedToolNames: string[];
 }
 
 export function UserDetailClient({
@@ -117,6 +122,7 @@ export function UserDetailClient({
   githubProfile,
   costData,
   costAvailableMonths,
+  syncManagedToolNames,
 }: Props) {
   const router = useRouter();
   const status = useInlineStatus();
@@ -576,6 +582,16 @@ export function UserDetailClient({
                     >
                       {a.status}
                     </Badge>
+                    {isAdmin &&
+                      a.status === "active" &&
+                      !syncManagedToolNames.includes(a.tool.name) && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/assignments/${a.id}`}>
+                            <ArrowRightLeft className="mr-1 size-3" />
+                            Change tier
+                          </Link>
+                        </Button>
+                      )}
                     {isAdmin && a.status === "active" && (
                       <Button
                         size="sm"

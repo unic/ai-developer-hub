@@ -16,10 +16,24 @@ import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 import {
   approveRequestSchema,
   recordAssignmentSchema,
+  linkExistingAssignmentSchema,
   rejectRequestSchema,
   cancelRequestSchema,
 } from "@/lib/validators";
 import type { ActionResult } from "@/types";
+import { recordUpdate } from "@/actions/history";
+import {
+  buildTierChange,
+  isTierChangeError,
+  isTierChangeNoop,
+  SYNC_MANAGED_TIER_ERROR,
+  type ChangeMap,
+} from "@/lib/assignments/tier-change";
+import {
+  isCopilotSyncActive,
+  isSyncManagedToolName,
+} from "@/lib/assignments/sync-authority";
+import { revalidateAssignmentCostPaths } from "@/lib/assignments/revalidate";
 
 export interface LicenseRequestRow {
   id: number;
@@ -168,10 +182,48 @@ function mapRow(row: Record<string, unknown>): LicenseRequestRow {
 // ActionResult instead of a 500.
 const RACE_LOST = Symbol("race-lost");
 
+/**
+ * A rejection raised from INSIDE an approval transaction.
+ *
+ * 042 — in Drizzle, returning a value from the transaction callback COMMITS;
+ * only a throw rolls back, which is why the race guards throw RACE_LOST. The
+ * duplicate-seat refusal used to be *returned*.
+ *
+ * That was harmless in practice: ensureRequesterUser inserts a user only when no
+ * row with that e-mail exists, and a freshly inserted user cannot already hold an
+ * active assignment — so the refusal and an insert were mutually exclusive, and
+ * it was the only in-transaction error return.
+ *
+ * It stops being harmless here, because this file now rejects in places that CAN
+ * follow a real write (a retier that then loses the request-status race). So the
+ * rule is absolute rather than incidental: every in-transaction rejection throws
+ * this, never returns.
+ */
+class ApprovalError extends Error {}
+
+/**
+ * Shared `.catch` for the three request-mutating transactions. `null` means the
+ * first-write-wins race was lost; `{ error }` is a rejection raised inside the
+ * transaction. Anything else is a real fault and rethrows.
+ */
+function catchApprovalTx(err: unknown): null | { error: string } {
+  if (err === RACE_LOST) return null;
+  if (err instanceof ApprovalError) return { error: err.message };
+  throw err;
+}
+
 interface AssignmentInputs {
   toolId: number;
   tierId: number;
   assignedAt: string;
+  licenseCode?: string;
+}
+
+/** Tool + tier only — what a retier needs. A retier has no assignedAt: that is
+ * the seat's original start and an upgrade must not rewrite it. */
+interface TierOnlyInputs {
+  toolId: number;
+  tierId: number;
   licenseCode?: string;
 }
 
@@ -183,9 +235,24 @@ interface RequesterFields {
   requesterProfile: "baseline" | "maxed" | "indie" | null;
 }
 
-/** Validate tool + tier and enforce the requires_api_key rule. Returns the
- * rows needed to build the assignment, or an error string. */
-async function loadToolAndTier(inputs: AssignmentInputs) {
+/** Validate tool + tier. Returns the rows needed to build or retier an
+ * assignment, or an error string.
+ *
+ * 042: `requireApiKey` is now a parameter rather than an unconditional rule.
+ * The API-key requirement is a CREATE-time rule — a retier or a link reuses the
+ * seat's stored key — and enforcing it unconditionally made every Claude Console
+ * upgrade fail with a misleading message. Claude Console is the only
+ * requires_api_key tool and has the deepest tier ladder, so that was precisely
+ * the case most likely to arise.
+ *
+ * 042: also adds the missing `accessTiers.isActive` check. Without it the
+ * request path could put a live seat on a deactivated tier — something both
+ * updateAssignment and assignLicense already refuse.
+ */
+async function loadToolAndTier(
+  inputs: TierOnlyInputs,
+  { requireApiKey }: { requireApiKey: boolean },
+) {
   const tool = await db.query.aiTools.findFirst({
     where: eq(aiTools.id, inputs.toolId),
     columns: { id: true, name: true, requiresApiKey: true },
@@ -193,12 +260,25 @@ async function loadToolAndTier(inputs: AssignmentInputs) {
   if (!tool) return { error: "Tool not found." as string, tool: null, tier: null };
   const tier = await db.query.accessTiers.findFirst({
     where: eq(accessTiers.id, inputs.tierId),
-    columns: { id: true, name: true, monthlyCostCents: true, toolId: true },
+    columns: {
+      id: true,
+      name: true,
+      monthlyCostCents: true,
+      toolId: true,
+      isActive: true,
+    },
   });
   if (!tier || tier.toolId !== tool.id) {
     return { error: "Tier does not belong to the selected tool.", tool: null, tier: null };
   }
-  if (tool.requiresApiKey && !inputs.licenseCode?.trim()) {
+  if (!tier.isActive) {
+    return {
+      error: `Tier "${tier.name}" is no longer available for ${tool.name}.`,
+      tool: null,
+      tier: null,
+    };
+  }
+  if (requireApiKey && tool.requiresApiKey && !inputs.licenseCode?.trim()) {
     return {
       error: `${tool.name} assignments carry an API key — enter the key you provisioned.`,
       tool: null,
@@ -256,13 +336,14 @@ async function ensureRequesterUser(
 }
 
 /** Duplicate-seat guard + assignment insert, shared by approve and the legacy
- * record-assignment path. Returns the new assignment id or an error string. */
+ * record-assignment path. Returns the new assignment id, or THROWS
+ * ApprovalError so the auto-created requester user rolls back with it. */
 async function createAssignmentInTx(
   tx: Tx,
   userId: number,
   inputs: AssignmentInputs,
   monthlyCostCents: number,
-): Promise<{ assignmentId: number } | { error: string }> {
+): Promise<{ assignmentId: number }> {
   const existingActive = await tx.query.licenseAssignments.findFirst({
     where: and(
       eq(licenseAssignments.userId, userId),
@@ -272,9 +353,12 @@ async function createAssignmentInTx(
     columns: { id: true },
   });
   if (existingActive) {
-    return {
-      error: `Requester already has an active assignment for this tool (assignment #${existingActive.id}). Revoke the existing assignment first, or cancel this request.`,
-    };
+    // 042: this is now a throw, not a return — see ApprovalError. The advice has
+    // also changed: retiering is a first-class outcome, so "revoke first" is no
+    // longer the only way out.
+    throw new ApprovalError(
+      `Requester already has an active assignment for this tool (assignment #${existingActive.id}). Approve it as a tier change instead, or cancel this request.`,
+    );
   }
 
   const apiKeyEncrypted = inputs.licenseCode?.trim()
@@ -296,10 +380,81 @@ async function createAssignmentInTx(
   return { assignmentId: assignment.id };
 }
 
+/**
+ * Load the assignment a retier/link targets and prove it belongs to this
+ * requester. Throws ApprovalError rather than returning, so nothing commits.
+ *
+ * Deliberately resolves the user FROM the assignment instead of calling
+ * ensureRequesterUser: these two modes require the seat to already exist, so the
+ * user necessarily exists too, and never touching the users table makes it
+ * impossible to leak one. The ownership check is by id when the request is
+ * already linked to a Hub user, otherwise by e-mail — matching how
+ * ensureRequesterUser resolves a requester, so a request whose requesterUserId
+ * is still NULL but whose e-mail matches an existing user behaves consistently.
+ */
+async function loadTargetAssignmentInTx(
+  tx: Tx,
+  req: RequesterFields,
+  assignmentId: number,
+): Promise<{
+  id: number;
+  userId: number;
+  toolId: number;
+  tierId: number;
+  costAtAssignmentCents: number;
+}> {
+  const assignment = await tx.query.licenseAssignments.findFirst({
+    where: eq(licenseAssignments.id, assignmentId),
+    columns: {
+      id: true,
+      userId: true,
+      toolId: true,
+      tierId: true,
+      costAtAssignmentCents: true,
+      status: true,
+    },
+    with: { user: { columns: { id: true, email: true } } },
+  });
+
+  if (!assignment) throw new ApprovalError("Assignment not found.");
+  if (assignment.status !== "active") {
+    throw new ApprovalError(
+      "That assignment is no longer active. Reopen the dialog and approve it as a new licence instead.",
+    );
+  }
+
+  const belongsToRequester = req.requesterUserId
+    ? assignment.userId === req.requesterUserId
+    : assignment.user.email.toLowerCase() === req.requesterEmail.toLowerCase();
+  if (!belongsToRequester) {
+    throw new ApprovalError(
+      "That assignment belongs to a different user than the requester.",
+    );
+  }
+
+  return {
+    id: assignment.id,
+    userId: assignment.userId,
+    toolId: assignment.toolId,
+    tierId: assignment.tierId,
+    costAtAssignmentCents: assignment.costAtAssignmentCents,
+  };
+}
+
 /** 032-v2: approval is the terminal happy path — provision-first. In one
  * transaction: auto-create the requester's Hub user when missing, create the
  * license assignment, and transition pending_review → approved with the
- * message stored (licenseCode token unresolved — see getRequestMessage). */
+ * message stored (licenseCode token unresolved — see getRequestMessage).
+ *
+ * 042: approval now has three shapes, because "the requester already holds this
+ * tool" is a normal case rather than an error:
+ *   create        — insert a new assignment (the original behaviour)
+ *   change_tier   — retier the seat they already hold, in place
+ *   link_existing — approve and link an already-provisioned seat, mutating
+ *                   nothing. The only approvable outcome for a sync-managed tool
+ *                   (GitHub owns Copilot entitlements), and the escape hatch for
+ *                   the legacy record-assignment path.
+ */
 export async function approveRequest(
   input: unknown,
 ): Promise<ActionResult<{ requestId: number; assignmentId: number }>> {
@@ -313,7 +468,8 @@ export async function approveRequest(
       error: parsed.error.issues[0]?.message ?? "Validation failed",
     };
   }
-  const { requestId, bodyMd, ...assignmentInputs } = parsed.data;
+  const approval = parsed.data;
+  const { requestId, bodyMd } = approval;
 
   const req = await db.query.licenseRequests.findFirst({
     where: eq(licenseRequests.id, requestId),
@@ -335,20 +491,103 @@ export async function approveRequest(
     };
   }
 
-  const { error: toolError, tier } = await loadToolAndTier(assignmentInputs);
-  if (toolError) return { success: false, error: toolError };
+  // Tool/tier validation happens outside the transaction, as before. The
+  // API-key rule is create-only: a retier reuses the seat's stored key.
+  let tier: { id: number; monthlyCostCents: number } | null = null;
+  let toolName: string | null = null;
+  if (approval.mode !== "link_existing") {
+    const loaded = await loadToolAndTier(approval, {
+      requireApiKey: approval.mode === "create",
+    });
+    if (loaded.error) return { success: false, error: loaded.error };
+    // Non-null once loaded.error is falsy — same contract the tier read relies on.
+    tier = loaded.tier;
+    toolName = loaded.tool!.name;
+  }
+
+  // A retier on a sync-managed tool would be reverted by the next cron, so it is
+  // refused here rather than silently undone later. link_existing remains
+  // available and is the intended route for those seats. Reuses the tool row
+  // loadToolAndTier already fetched rather than looking it up again.
+  if (
+    approval.mode === "change_tier" &&
+    isSyncManagedToolName(toolName!) &&
+    (await isCopilotSyncActive())
+  ) {
+    return { success: false, error: SYNC_MANAGED_TIER_ERROR };
+  }
 
   const result = await db
     .transaction(async (tx) => {
-      const userId = await ensureRequesterUser(tx, req);
+      let assignmentId: number;
+      let userId: number;
+      let toolId: number;
+      let changes: ChangeMap | null = null;
 
-      const created = await createAssignmentInTx(
-        tx,
-        userId,
-        assignmentInputs,
-        tier!.monthlyCostCents,
-      );
-      if ("error" in created) return created;
+      if (approval.mode === "create") {
+        userId = await ensureRequesterUser(tx, req);
+        const created = await createAssignmentInTx(
+          tx,
+          userId,
+          approval,
+          tier!.monthlyCostCents,
+        );
+        assignmentId = created.assignmentId;
+        toolId = approval.toolId;
+      } else {
+        const target = await loadTargetAssignmentInTx(
+          tx,
+          req,
+          approval.assignmentId,
+        );
+        assignmentId = target.id;
+        userId = target.userId;
+        toolId = target.toolId;
+
+        if (approval.mode === "change_tier") {
+          // loadToolAndTier proved the tier belongs to approval.toolId, but
+          // nothing so far ties the ASSIGNMENT to that tool. Without this, a
+          // stale dialog or a crafted payload could write another tool's tier
+          // onto this seat — and slip past the sync-managed refusal above, which
+          // keys off the SELECTED tool rather than the row's own. Mirrors the
+          // same-tool guard updateAssignment enforces via its accessTiers query.
+          if (target.toolId !== approval.toolId) {
+            throw new ApprovalError(
+              "That assignment is for a different tool than the one selected. Reopen the dialog and try again.",
+            );
+          }
+
+          const outcome = buildTierChange(
+            {
+              tierId: target.tierId,
+              costAtAssignmentCents: target.costAtAssignmentCents,
+              // Safe now that the tool is pinned to the one checked above.
+              isSyncManaged: false,
+            },
+            { id: tier!.id, monthlyCostCents: tier!.monthlyCostCents },
+          );
+          if (isTierChangeError(outcome)) {
+            throw new ApprovalError(outcome.error);
+          }
+          // A no-op still has to approve and link the request — returning early
+          // here would strand it in pending_review forever.
+          if (!isTierChangeNoop(outcome)) {
+            const retiered = await tx
+              .update(licenseAssignments)
+              .set({ ...outcome.values, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(licenseAssignments.id, target.id),
+                  eq(licenseAssignments.status, "active"),
+                  eq(licenseAssignments.tierId, target.tierId),
+                ),
+              )
+              .returning({ id: licenseAssignments.id });
+            if (retiered.length === 0) throw RACE_LOST;
+            changes = outcome.changes;
+          }
+        }
+      }
 
       const updated = await tx
         .update(licenseRequests)
@@ -357,7 +596,7 @@ export async function approveRequest(
           decidedBy: Number(admin.id),
           decidedAt: new Date(),
           approvalMessageMd: bodyMd,
-          assignmentId: created.assignmentId,
+          assignmentId,
           requesterUserId: userId,
           updatedAt: new Date(),
         })
@@ -370,12 +609,26 @@ export async function approveRequest(
         .returning({ id: licenseRequests.id });
       if (updated.length === 0) throw RACE_LOST;
 
-      return { assignmentId: created.assignmentId };
+      if (changes) {
+        await recordUpdate(
+          "license_assignment",
+          assignmentId,
+          Number(admin.id),
+          changes,
+          tx,
+        );
+      }
+
+      // `changes` is set only when a tier actually moved — a create always adds
+      // cost, a no-op retier and a link add none.
+      return {
+        assignmentId,
+        userId,
+        toolId,
+        costChanged: approval.mode === "create" || changes !== null,
+      };
     })
-    .catch((err) => {
-      if (err === RACE_LOST) return null;
-      throw err;
-    });
+    .catch(catchApprovalTx);
 
   if (result === null) {
     return {
@@ -388,8 +641,15 @@ export async function approveRequest(
 
   revalidatePath("/requests");
   revalidatePath(`/requests/${requestId}`);
-  revalidatePath("/assignments");
+  revalidatePath(`/assignments/${result.assignmentId}`);
   revalidatePath("/users");
+  // A link, or a retier to the tier already held, changes no cost — so it must
+  // not bust the budget/report/dashboard caches.
+  if (result.costChanged) {
+    revalidateAssignmentCostPaths(result.userId, result.toolId);
+  } else {
+    revalidatePath("/assignments");
+  }
   return {
     success: true,
     data: { requestId, assignmentId: result.assignmentId },
@@ -435,7 +695,10 @@ export async function recordAssignment(
     };
   }
 
-  const { error: toolError, tier } = await loadToolAndTier(assignmentInputs);
+  // Create-time inputs, so the API-key rule applies here as it always did.
+  const { error: toolError, tier } = await loadToolAndTier(assignmentInputs, {
+    requireApiKey: true,
+  });
   if (toolError) return { success: false, error: toolError };
 
   const result = await db
@@ -447,7 +710,6 @@ export async function recordAssignment(
         assignmentInputs,
         tier!.monthlyCostCents,
       );
-      if ("error" in created) return created;
 
       const updated = await tx
         .update(licenseRequests)
@@ -466,12 +728,104 @@ export async function recordAssignment(
         .returning({ id: licenseRequests.id });
       if (updated.length === 0) throw RACE_LOST;
 
-      return { assignmentId: created.assignmentId };
+      return { assignmentId: created.assignmentId, userId };
     })
-    .catch((err) => {
-      if (err === RACE_LOST) return null;
-      throw err;
-    });
+    .catch(catchApprovalTx);
+
+  if (result === null) {
+    return {
+      success: false,
+      error:
+        "This request was actioned by another admin while you were entering details. Refresh to see the latest state.",
+    };
+  }
+  if ("error" in result) return { success: false, error: result.error };
+
+  revalidateAssignmentCostPaths(result.userId, assignmentInputs.toolId);
+
+  revalidatePath("/requests");
+  revalidatePath(`/requests/${requestId}`);
+  revalidatePath("/assignments");
+  revalidatePath("/users");
+  return {
+    success: true,
+    data: { requestId, assignmentId: result.assignmentId },
+  };
+}
+
+/**
+ * 042: link an already-existing seat to a v1-approved request.
+ *
+ * The gap this closes: `recordAssignment` can only CREATE, so a legacy approved
+ * request whose requester already holds the tool was permanently stuck — the
+ * create path hits the duplicate-seat guard, and `approveRequest`'s new
+ * `link_existing` mode cannot help because it requires
+ * `status='pending_review'` while these rows are already `'approved'`. The two
+ * guards are mutually exclusive, so the legacy path needs its own linker.
+ *
+ * Mutates nothing on the assignment — it only fills in the missing link.
+ */
+export async function linkExistingAssignment(
+  input: unknown,
+): Promise<ActionResult<{ requestId: number; assignmentId: number }>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const parsed = linkExistingAssignmentSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Validation failed",
+    };
+  }
+  const { requestId, assignmentId } = parsed.data;
+
+  const req = await db.query.licenseRequests.findFirst({
+    where: eq(licenseRequests.id, requestId),
+    columns: {
+      id: true,
+      status: true,
+      assignmentId: true,
+      requesterUserId: true,
+      requesterEmail: true,
+      requesterName: true,
+      requesterRole: true,
+      requesterProfile: true,
+    },
+  });
+  if (!req) return { success: false, error: "Request not found" };
+  if (req.status !== "approved" || req.assignmentId !== null) {
+    return {
+      success: false,
+      error: "Only approved requests without an assignment can link one.",
+    };
+  }
+
+  const result = await db
+    .transaction(async (tx) => {
+      // Same ownership/active checks as a retier — never creates a user.
+      const target = await loadTargetAssignmentInTx(tx, req, assignmentId);
+
+      const updated = await tx
+        .update(licenseRequests)
+        .set({
+          assignmentId: target.id,
+          requesterUserId: target.userId,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(licenseRequests.id, requestId),
+            eq(licenseRequests.status, "approved"),
+            sql`${licenseRequests.assignmentId} IS NULL`,
+          ),
+        )
+        .returning({ id: licenseRequests.id });
+      if (updated.length === 0) throw RACE_LOST;
+
+      return { assignmentId: target.id };
+    })
+    .catch(catchApprovalTx);
 
   if (result === null) {
     return {
@@ -485,7 +839,6 @@ export async function recordAssignment(
   revalidatePath("/requests");
   revalidatePath(`/requests/${requestId}`);
   revalidatePath("/assignments");
-  revalidatePath("/users");
   return {
     success: true,
     data: { requestId, assignmentId: result.assignmentId },
@@ -582,8 +935,17 @@ export interface ToolOption {
 
 export interface ActiveAssignmentSummary {
   id: number;
+  // 042: toolId/tierId/syncManaged added so the approval dialog can decide what
+  // it is looking at. Matching the approver's selected tool by display NAME was
+  // the alternative, and it could not distinguish a sync-managed seat at all —
+  // which is the single most likely collision, Copilot being at 63/63 seats.
+  toolId: number;
   toolName: string;
+  tierId: number;
   tierName: string;
+  tierCostCents: number;
+  /** GitHub owns this seat's plan; it can be linked but not retiered. */
+  syncManaged: boolean;
   assignedAt: Date;
 }
 
@@ -612,24 +974,45 @@ export async function getRequestContext(requestId: number) {
   }));
 
   // The requester's existing active assignments — add-on review context (the
-  // guide's "one tool per profile; combining needs justification" rule).
-  let activeAssignments: ActiveAssignmentSummary[] = [];
-  if (detail.requesterUserId) {
-    const rows = await db.execute(sql`
-      SELECT la.id, t.name AS tool_name, ti.name AS tier_name, la.assigned_at
+  // guide's "one tool per profile; combining needs justification" rule) and,
+  // since 042, the basis for offering a tier change instead of a create.
+  //
+  // Resolved by user id when the request is already linked, otherwise by e-mail.
+  // approveRequest's ensureRequesterUser resolves the same way, so keying only on
+  // requesterUserId (as this did) meant a request whose user row exists but is
+  // not yet linked showed NO collision in the dialog and then failed server-side.
+  // Independent of the row fetch, so issued concurrently with it.
+  const [syncActive, rows] = await Promise.all([
+    isCopilotSyncActive(),
+    db.execute(sql`
+      SELECT la.id, la.tool_id, la.tier_id, la.assigned_at,
+             t.name AS tool_name,
+             ti.name AS tier_name, ti.monthly_cost_cents
       FROM license_assignments la
       JOIN ai_tools t ON t.id = la.tool_id
       JOIN access_tiers ti ON ti.id = la.tier_id
-      WHERE la.user_id = ${detail.requesterUserId} AND la.status = 'active'
+      JOIN users u ON u.id = la.user_id
+      WHERE la.status = 'active'
+        AND (
+          u.id = ${detail.requesterUserId ?? null}
+          OR lower(u.email) = ${detail.requesterEmail.toLowerCase()}
+        )
       ORDER BY la.assigned_at DESC
-    `);
-    activeAssignments = (rows.rows as Array<Record<string, unknown>>).map((r) => ({
-      id: r.id as number,
-      toolName: r.tool_name as string,
-      tierName: r.tier_name as string,
-      assignedAt: toDate(r.assigned_at) ?? new Date(0),
-    }));
-  }
+    `),
+  ]);
+  const activeAssignments: ActiveAssignmentSummary[] = (
+    rows.rows as Array<Record<string, unknown>>
+  ).map((r) => ({
+    id: r.id as number,
+    toolId: r.tool_id as number,
+    toolName: r.tool_name as string,
+    tierId: r.tier_id as number,
+    tierName: r.tier_name as string,
+    tierCostCents: Number(r.monthly_cost_cents ?? 0),
+    // The join already gave us the tool name, so no extra lookup is needed.
+    syncManaged: syncActive && isSyncManagedToolName(r.tool_name as string),
+    assignedAt: toDate(r.assigned_at) ?? new Date(0),
+  }));
 
   return { detail, tools, activeAssignments };
 }
