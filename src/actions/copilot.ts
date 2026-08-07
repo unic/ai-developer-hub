@@ -16,7 +16,7 @@ import {
   getLastCompletedSyncEvent,
   mapOutcomeToLegacyStatus,
 } from "@/lib/sync/queries";
-import { recordUpdate } from "@/actions/history";
+import { recordUpdate } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import type { ActionResult, CopilotSyncStatus } from "@/types";
 
@@ -74,9 +74,15 @@ export async function enableCopilotSync(): Promise<
     console.error("Initial Copilot sync failed:", err);
   }
 
-  await recordUpdate("github_connection", connection.id, Number(admin.id), {
-    copilotSyncEnabled: { old: false, new: true },
-  });
+  await recordUpdate(
+    "github_connection",
+    connection.id,
+    Number(admin.id),
+    {
+      copilotSyncEnabled: { old: false, new: true },
+    },
+    { source: "ui" },
+  );
 
   revalidatePath("/settings/integrations");
   revalidatePath("/copilot");
@@ -101,9 +107,15 @@ export async function disableCopilotSync(): Promise<ActionResult<void>> {
     .set({ copilotSyncEnabled: false })
     .where(eq(githubConnections.id, connection.id));
 
-  await recordUpdate("github_connection", connection.id, Number(admin.id), {
-    copilotSyncEnabled: { old: true, new: false },
-  });
+  await recordUpdate(
+    "github_connection",
+    connection.id,
+    Number(admin.id),
+    {
+      copilotSyncEnabled: { old: true, new: false },
+    },
+    { source: "ui" },
+  );
 
   revalidatePath("/settings/integrations");
 

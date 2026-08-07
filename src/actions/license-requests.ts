@@ -21,7 +21,7 @@ import {
   cancelRequestSchema,
 } from "@/lib/validators";
 import type { ActionResult } from "@/types";
-import { recordUpdate } from "@/actions/history";
+import { recordUpdate } from "@/lib/history";
 import {
   buildTierChange,
   isTierChangeError,
@@ -615,7 +615,7 @@ export async function approveRequest(
           assignmentId,
           Number(admin.id),
           changes,
-          tx,
+          { tx, source: "ui" },
         );
       }
 

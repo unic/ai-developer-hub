@@ -8,66 +8,33 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
-import { generateToken, hashToken, buildInviteUrl } from "@/lib/invite";
+import {
+  hashToken,
+  createInviteTokenForUser,
+  INVITE_EXPIRY_HOURS,
+} from "@/lib/invite";
 import { isRateLimited } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { setupPasswordSchema } from "@/lib/validators";
-import { recordCreation } from "@/actions/history";
+import { recordCreation } from "@/lib/history";
 import { InviteEmail } from "@/emails/invite-email";
 import type { ActionResult } from "@/types";
 
-const INVITE_EXPIRY_HOURS = 72;
-
+// createInviteTokenForUser lives in src/lib/invite.ts, NOT here.
+//
+// It takes a userId, performs no auth check, and returns a live 72-hour
+// /setup-password URL. Every export of this "use server" file is a
+// client-callable RPC endpoint, so exporting it here made it a
+// credential-minting endpoint for an arbitrary account. The authenticated
+// wrappers below call it after their own requireAdmin().
 // ---------------------------------------------------------------------------
-// createInviteTokenForUser (internal helper — no auth check, no user lookup)
-// ---------------------------------------------------------------------------
-
-export async function createInviteTokenForUser(
-  userId: number
-): Promise<{ inviteUrl: string }> {
-  const { raw, hash: tokenHash } = generateToken();
-  const expiresAt = new Date(Date.now() + INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
-
-  const maxRetries = 2;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      await db.transaction(async (tx) => {
-        await tx
-          .update(inviteTokens)
-          .set({ status: "invalidated" })
-          .where(
-            and(
-              eq(inviteTokens.userId, userId),
-              eq(inviteTokens.status, "active")
-            )
-          );
-
-        await tx.insert(inviteTokens).values({
-          userId,
-          tokenHash,
-          status: "active",
-          expiresAt,
-        });
-      });
-      return { inviteUrl: buildInviteUrl(raw) };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (attempt < maxRetries - 1 && (msg.includes("unique") || msg.includes("duplicate"))) {
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  throw new Error("Failed to create invite token");
-}
 
 // ---------------------------------------------------------------------------
 // generateInviteToken (public API — checks admin auth + fetches user)
 // ---------------------------------------------------------------------------
 
 export async function generateInviteToken(
-  userId: number
+  userId: number,
 ): Promise<ActionResult<{ inviteUrl: string }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -89,7 +56,7 @@ export async function generateInviteToken(
 // ---------------------------------------------------------------------------
 
 export async function validateInviteToken(
-  token: string
+  token: string,
 ): Promise<ActionResult<{ userName: string; userEmail: string }>> {
   if (!token) return { success: false, error: "invalid" };
 
@@ -102,9 +69,12 @@ export async function validateInviteToken(
   });
 
   if (!record) return { success: false, error: "invalid" };
-  if (record.status === "consumed") return { success: false, error: "consumed" };
-  if (record.status === "invalidated") return { success: false, error: "invalid" };
-  if (record.expiresAt < new Date()) return { success: false, error: "expired" };
+  if (record.status === "consumed")
+    return { success: false, error: "consumed" };
+  if (record.status === "invalidated")
+    return { success: false, error: "invalid" };
+  if (record.expiresAt < new Date())
+    return { success: false, error: "expired" };
 
   return {
     success: true,
@@ -120,7 +90,7 @@ export async function validateInviteToken(
 // ---------------------------------------------------------------------------
 
 export async function setupPassword(
-  input: unknown
+  input: unknown,
 ): Promise<ActionResult<{ email: string }>> {
   // Rate limit by IP
   const headerStore = await headers();
@@ -128,9 +98,14 @@ export async function setupPassword(
   const realIp = headerStore.get("x-real-ip");
   const clientIp = forwarded
     ? forwarded.split(",")[0].trim()
-    : realIp ?? "unknown";
+    : (realIp ?? "unknown");
 
-  if (isRateLimited(`setup-password:${clientIp}`, { maxAttempts: 10, windowMs: 60_000 })) {
+  if (
+    isRateLimited(`setup-password:${clientIp}`, {
+      maxAttempts: 10,
+      windowMs: 60_000,
+    })
+  ) {
     return { success: false, error: "Too many attempts" };
   }
 
@@ -150,7 +125,7 @@ export async function setupPassword(
   const record = await db.query.inviteTokens.findFirst({
     where: and(
       eq(inviteTokens.tokenHash, tokenHash),
-      eq(inviteTokens.status, "active")
+      eq(inviteTokens.status, "active"),
     ),
     with: { user: true },
   });
@@ -174,10 +149,7 @@ export async function setupPassword(
         consumedAt: now,
       })
       .where(
-        and(
-          eq(inviteTokens.id, record.id),
-          eq(inviteTokens.status, "active")
-        )
+        and(eq(inviteTokens.id, record.id), eq(inviteTokens.status, "active")),
       );
 
     if (updated.rowCount === 0) return false;
@@ -249,7 +221,9 @@ export async function resetUserPassword(input: {
   }
 
   // Record in change history
-  await recordCreation("password_reset", input.userId, Number(admin.id));
+  await recordCreation("password_reset", input.userId, Number(admin.id), {
+    source: "ui",
+  });
 
   revalidatePath("/users");
   revalidatePath(`/users/${input.userId}`);
@@ -261,7 +235,7 @@ export async function resetUserPassword(input: {
 // ---------------------------------------------------------------------------
 
 export async function sendInviteEmail(
-  userId: number
+  userId: number,
 ): Promise<ActionResult<{ emailId: string; inviteUrl: string }>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -287,10 +261,16 @@ export async function sendInviteEmail(
   });
 
   if (!emailResult.success) {
-    return { success: false, error: emailResult.error ?? "Failed to send email" };
+    return {
+      success: false,
+      error: emailResult.error ?? "Failed to send email",
+    };
   }
 
-  return { success: true, data: { emailId: emailResult.data?.id ?? "", inviteUrl } };
+  return {
+    success: true,
+    data: { emailId: emailResult.data?.id ?? "", inviteUrl },
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,23 +1,23 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { aiTools, accessTiers, licenseAssignments } from "@/lib/db/schema";
-import { eq, and, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
+import type { AiTool } from "@/types";
+import type { ActionResult } from "@/types";
+import { db } from "@/lib/db";
+import { aiTools, licenseAssignments } from "@/lib/db/schema";
+import { and, count, eq } from "drizzle-orm";
+import { updateTierSchema } from "@/lib/validators";
+import { uiContext } from "@/lib/core/context";
 import {
-  toolSchema,
-  tierSchema,
-  updateToolSchema,
-  updateTierSchema,
-} from "@/lib/validators";
-import type { ActionResult, AiTool, AccessTier } from "@/types";
-import { revalidateCostSurfaces } from "@/lib/assignments/revalidate";
-import {
-  recordCreation,
-  recordUpdate,
-  recordStatusChange,
-} from "@/actions/history";
+  archiveToolCore,
+  createTierCore,
+  createToolCore,
+  setTierPriceCore,
+  updateTierCore,
+  updateToolCore,
+} from "@/lib/core/tools";
+
 
 // ---- Tool Actions ----
 
@@ -27,91 +27,25 @@ export async function createTool(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = toolSchema.safeParse(input);
-  if (!parsed.success) {
+  const result = await createToolCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) {
     return {
       success: false,
-      error: "Validation failed",
-      fieldErrors: parsed.error.flatten().fieldErrors as Record<
-        string,
-        string[]
-      >,
+      error: result.error,
+      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
     };
   }
-
-  const { name, vendor, description, maxLicenses } = parsed.data;
-
-  const [tool] = await db
-    .insert(aiTools)
-    .values({
-      name,
-      vendor,
-      description: description ?? null,
-      maxLicenses: maxLicenses ?? null,
-    })
-    .returning({ id: aiTools.id });
-
-  await recordCreation("ai_tool", tool.id, Number(admin.id));
-
-  revalidatePath("/tools");
-  return { success: true, data: { id: tool.id } };
+  for (const path of result.revalidate) revalidatePath(path);
+  return { success: true, data: { id: result.data.toolId } };
 }
 
 export async function updateTool(input: unknown): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = updateToolSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, error: "Validation failed" };
-  }
-
-  const { id, ...updates } = parsed.data;
-
-  const existing = await db.query.aiTools.findFirst({
-    where: eq(aiTools.id, id),
-  });
-  if (!existing) return { success: false, error: "Tool not found" };
-
-  const changes: Record<string, { old: unknown; new: unknown }> = {};
-  const values: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (updates.name !== undefined && updates.name !== existing.name) {
-    changes.name = { old: existing.name, new: updates.name };
-    values.name = updates.name;
-  }
-  if (updates.vendor !== undefined && updates.vendor !== existing.vendor) {
-    changes.vendor = { old: existing.vendor, new: updates.vendor };
-    values.vendor = updates.vendor;
-  }
-  if (
-    updates.description !== undefined &&
-    updates.description !== existing.description
-  ) {
-    changes.description = {
-      old: existing.description,
-      new: updates.description,
-    };
-    values.description = updates.description;
-  }
-  if (
-    updates.maxLicenses !== undefined &&
-    updates.maxLicenses !== existing.maxLicenses
-  ) {
-    changes.maxLicenses = {
-      old: existing.maxLicenses,
-      new: updates.maxLicenses,
-    };
-    values.maxLicenses = updates.maxLicenses;
-  }
-
-  if (Object.keys(changes).length > 0) {
-    await db.update(aiTools).set(values).where(eq(aiTools.id, id));
-    await recordUpdate("ai_tool", id, Number(admin.id), changes);
-  }
-
-  revalidatePath("/tools");
-  revalidatePath(`/tools/${id}`);
+  const result = await updateToolCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) return { success: false, error: result.error };
+  for (const path of result.revalidate) revalidatePath(path);
   return { success: true, data: undefined };
 }
 
@@ -121,43 +55,9 @@ export async function archiveTool(input: {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const existing = await db.query.aiTools.findFirst({
-    where: eq(aiTools.id, input.id),
-  });
-  if (!existing) return { success: false, error: "Tool not found" };
-
-  // FR-019: Check for active assignments
-  const [activeCount] = await db
-    .select({ count: count() })
-    .from(licenseAssignments)
-    .where(
-      and(
-        eq(licenseAssignments.toolId, input.id),
-        eq(licenseAssignments.status, "active"),
-      ),
-    );
-
-  if (activeCount.count > 0) {
-    return {
-      success: false,
-      error: "Cannot archive tool with active license assignments",
-    };
-  }
-
-  await db
-    .update(aiTools)
-    .set({ status: "archived", updatedAt: new Date() })
-    .where(eq(aiTools.id, input.id));
-
-  await recordStatusChange(
-    "ai_tool",
-    input.id,
-    Number(admin.id),
-    existing.status,
-    "archived",
-  );
-
-  revalidatePath("/tools");
+  const result = await archiveToolCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) return { success: false, error: result.error };
+  for (const path of result.revalidate) revalidatePath(path);
   return { success: true, data: undefined };
 }
 
@@ -169,164 +69,74 @@ export async function createTier(
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = tierSchema.safeParse(input);
-  if (!parsed.success) {
+  const result = await createTierCore(uiContext(Number(admin.id)), input);
+  if (!result.ok) {
     return {
       success: false,
-      error: "Validation failed",
-      fieldErrors: parsed.error.flatten().fieldErrors as Record<
-        string,
-        string[]
-      >,
+      error: result.error,
+      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
     };
   }
-
-  const { toolId, name, description, monthlyCostCents } = parsed.data;
-
-  // Check uniqueness within tool
-  const existingTier = await db.query.accessTiers.findFirst({
-    where: and(eq(accessTiers.toolId, toolId), eq(accessTiers.name, name)),
-  });
-  if (existingTier) {
-    return {
-      success: false,
-      error: "A tier with this name already exists for this tool",
-    };
-  }
-
-  const [tier] = await db
-    .insert(accessTiers)
-    .values({
-      toolId,
-      name,
-      description: description ?? null,
-      monthlyCostCents,
-    })
-    .returning({ id: accessTiers.id });
-
-  await recordCreation("access_tier", tier.id, Number(admin.id));
-
-  revalidatePath(`/tools/${toolId}`);
-  return { success: true, data: { id: tier.id } };
+  for (const path of result.revalidate) revalidatePath(path);
+  return { success: true, data: { id: result.data.tierId } };
 }
 
+/**
+ * Tier edit. A monthlyCostCents change is routed to setTierPriceCore so the new
+ * price propagates to every active assignment's cost snapshot (spec 037) —
+ * splitting the two keeps the propagating write in exactly one place, while this
+ * wrapper keeps the single call the tier dialog has always made.
+ */
 export async function updateTier(input: unknown): Promise<ActionResult<void>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const parsed = updateTierSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, error: "Validation failed" };
+  const parsedInput = updateTierSchema.safeParse(input);
+  if (!parsedInput.success) return { success: false, error: "Validation failed" };
+
+  const { id, monthlyCostCents, ...metadata } = parsedInput.data;
+  const ctx = uiContext(Number(admin.id));
+  const paths = new Set<string>();
+  const hasMetadata = Object.values(metadata).some((v) => v !== undefined);
+
+  // VALIDATE BOTH BEFORE COMMITTING EITHER. The tier dialog submits price and
+  // metadata together, and each core owns its own transaction, so committing the
+  // price first meant a later metadata failure (duplicate name, or deactivating a
+  // tier that still has active assignments) returned an error AFTER the price and
+  // every seat snapshot had already been rewritten — and skipped revalidation on
+  // that path, so the UI kept showing the old price. Both metadata failure modes
+  // are pure validation, so a commit:false pass rules them out first.
+  if (hasMetadata) {
+    const dryRun = await updateTierCore(
+      { ...ctx, commit: false },
+      { id, ...metadata },
+    );
+    if (!dryRun.ok) return { success: false, error: dryRun.error };
   }
 
-  const { id, ...updates } = parsed.data;
+  if (monthlyCostCents !== undefined) {
+    const priced = await setTierPriceCore(ctx, { tierId: id, monthlyCostCents });
+    if (!priced.ok) return { success: false, error: priced.error };
+    for (const path of priced.revalidate) paths.add(path);
+  }
 
-  const existing = await db.query.accessTiers.findFirst({
-    where: eq(accessTiers.id, id),
-  });
-  if (!existing) return { success: false, error: "Tier not found" };
-
-  const changes: Record<string, { old: unknown; new: unknown }> = {};
-  const values: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (updates.name !== undefined && updates.name !== existing.name) {
-    // Check uniqueness within tool
-    const duplicate = await db.query.accessTiers.findFirst({
-      where: and(
-        eq(accessTiers.toolId, existing.toolId),
-        eq(accessTiers.name, updates.name),
-      ),
-    });
-    if (duplicate) {
-      return {
-        success: false,
-        error: "A tier with this name already exists for this tool",
-      };
+  if (hasMetadata) {
+    const meta = await updateTierCore(ctx, { id, ...metadata });
+    if (!meta.ok) {
+      // The price is already committed at this point, so replay its invalidation
+      // rather than leaving every spend surface serving the old number. Only a
+      // concurrent rename or a DB fault reaches here — the validation pass above
+      // eliminated the reachable causes.
+      for (const path of paths) revalidatePath(path);
+      return { success: false, error: meta.error };
     }
-    changes.name = { old: existing.name, new: updates.name };
-    values.name = updates.name;
-  }
-  if (
-    updates.description !== undefined &&
-    updates.description !== existing.description
-  ) {
-    changes.description = {
-      old: existing.description,
-      new: updates.description,
-    };
-    values.description = updates.description;
-  }
-  if (
-    updates.monthlyCostCents !== undefined &&
-    updates.monthlyCostCents !== existing.monthlyCostCents
-  ) {
-    changes.monthlyCostCents = {
-      old: existing.monthlyCostCents,
-      new: updates.monthlyCostCents,
-    };
-    values.monthlyCostCents = updates.monthlyCostCents;
-  }
-  if (
-    updates.isActive !== undefined &&
-    updates.isActive !== existing.isActive
-  ) {
-    // If deactivating, check for active assignments
-    if (!updates.isActive) {
-      const [activeCount] = await db
-        .select({ count: count() })
-        .from(licenseAssignments)
-        .where(
-          and(
-            eq(licenseAssignments.tierId, id),
-            eq(licenseAssignments.status, "active"),
-          ),
-        );
-      if (activeCount.count > 0) {
-        return {
-          success: false,
-          error: "Cannot deactivate tier with active assignments",
-        };
-      }
-    }
-    changes.isActive = { old: existing.isActive, new: updates.isActive };
-    values.isActive = updates.isActive;
+    for (const path of meta.revalidate) paths.add(path);
   }
 
-  if (Object.keys(changes).length > 0) {
-    const newCostCents = changes.monthlyCostCents
-      ? updates.monthlyCostCents
-      : undefined;
-
-    await db.transaction(async (tx) => {
-      await tx.update(accessTiers).set(values).where(eq(accessTiers.id, id));
-
-      // Every spend aggregation (reports, dashboard, budget expected spend)
-      // sums license_assignments.cost_at_assignment_cents, so active
-      // assignments must follow the tier's new price or reports keep showing
-      // the old one. Revoked assignments keep their historical snapshot.
-      if (newCostCents !== undefined) {
-        await tx
-          .update(licenseAssignments)
-          .set({ costAtAssignmentCents: newCostCents, updatedAt: new Date() })
-          .where(
-            and(
-              eq(licenseAssignments.tierId, id),
-              eq(licenseAssignments.status, "active"),
-            ),
-          );
-      }
-    });
-    await recordUpdate("access_tier", id, Number(admin.id), changes);
-
-    // Same list as the assignment-level tier change — see revalidateCostSurfaces.
-    if (newCostCents !== undefined) {
-      revalidateCostSurfaces();
-    }
-  }
-
-  revalidatePath(`/tools/${existing.toolId}`);
+  for (const path of paths) revalidatePath(path);
   return { success: true, data: undefined };
 }
+
 
 // ---- Read helpers ----
 

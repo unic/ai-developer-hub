@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Plan — MCP Write Tools (043)</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --bg-elev: #11141b;
+        --bg-card: #161a24;
+        --border: #232938;
+        --border-strong: #2f3850;
+        --fg: #e7ebf3;
+        --fg-muted: #9aa3b5;
+        --fg-dim: #6b7488;
+        --accent: #f0a072;
+        --accent-2: #7dd3fc;
+        --good: #86efac;
+        --warn: #fcd34d;
+        --bad: #fca5a5;
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        line-height: 1.55;
+      }
+      body {
+        padding: 48px 24px 96px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 52px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 17px;
+        margin: 0 0 6px;
+      }
+      h4 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: var(--fg-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+        background: var(--bg-elev);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        line-height: 1.5;
+      }
+      pre code {
+        background: transparent;
+        border: 0;
+        padding: 0;
+        font-size: inherit;
+      }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 16px;
+        max-width: 820px;
+      }
+      .meta {
+        color: var(--fg-dim);
+        font-size: 13px;
+        margin-top: 8px;
+        font-family: var(--mono);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-family: var(--mono);
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        color: var(--fg-muted);
+        background: var(--bg-elev);
+      }
+      .badge.accent {
+        color: var(--accent);
+        border-color: rgba(240, 160, 114, 0.35);
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 16px 0;
+      }
+      .card.accent {
+        border-left: 3px solid var(--accent);
+      }
+      .card.accent-2 {
+        border-left: 3px solid var(--accent-2);
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 760px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      ul {
+        padding-left: 20px;
+        margin: 8px 0 12px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      li.pro::marker {
+        content: "+ ";
+        color: var(--good);
+        font-weight: 700;
+      }
+      li.con::marker {
+        content: "− ";
+        color: var(--bad);
+        font-weight: 700;
+      }
+      li.note::marker {
+        content: "› ";
+        color: var(--fg-dim);
+      }
+      li.check::marker {
+        content: "\2610  ";
+        color: var(--fg-muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--bg-elev);
+      }
+      td code {
+        white-space: nowrap;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-family: var(--mono);
+      }
+      .pill.warn {
+        background: rgba(252, 211, 77, 0.12);
+        color: var(--warn);
+      }
+      .pill.new {
+        background: rgba(240, 160, 114, 0.14);
+        color: var(--accent);
+      }
+      .pill.neutral {
+        background: var(--bg-elev);
+        color: var(--fg-muted);
+        border: 1px solid var(--border);
+      }
+      .callout {
+        border: 1px solid var(--border-strong);
+        border-left: 3px solid var(--warn);
+        background: rgba(252, 211, 77, 0.04);
+        padding: 14px 16px;
+        border-radius: 8px;
+        margin: 16px 0;
+        font-size: 14px;
+      }
+      .callout.info {
+        border-left-color: var(--accent-2);
+        background: rgba(125, 211, 252, 0.04);
+      }
+      .callout.accent {
+        border-left-color: var(--accent);
+        background: rgba(240, 160, 114, 0.05);
+      }
+      .toc {
+        columns: 2;
+        column-gap: 32px;
+        font-size: 14px;
+      }
+      @media (max-width: 760px) {
+        .toc {
+          columns: 1;
+        }
+      }
+      .toc a {
+        display: block;
+        padding: 3px 0;
+        color: var(--fg-muted);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        color: var(--accent);
+      }
+      footer {
+        color: var(--fg-dim);
+        font-size: 12.5px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+      }
+      .s {
+        color: var(--good);
+      }
+      .c {
+        color: var(--fg-dim);
+        font-style: italic;
+      }
+      .k {
+        color: var(--accent-2);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="row" style="margin-bottom: 16px">
+          <span class="badge">Implementation plan</span>
+          <span class="badge">spec/043-mcp-write-tools</span>
+          <span class="badge accent"
+            >Challenged &amp; revised — ready to implement</span
+          >
+        </div>
+        <h1>MCP Write Tools</h1>
+        <p class="lede">
+          The Hub's MCP server is read-only by construction (spec 034, 14 tools,
+          every one annotated <code>readOnlyHint</code>). This spec gives an
+          <strong>admin connected over OAuth</strong> the ability to
+          <em>act</em>: create and update users, deactivate a leaver, assign /
+          retier / revoke licenses, and manage access tiers including the
+          org-wide price change. The write path is
+          <strong>actor-parameterized</strong> — every mutation lands a
+          <code>change_history</code> row attributed to the real human behind the
+          token, identical to a UI edit.
+        </p>
+        <p class="meta">
+          Drafted 2026-08-04 · explored + designed by a 12-agent dynamic
+          workflow (5 inventory · 3 design lenses · judge · 3 adversarial
+          lenses), revised same day · author: T. Studer · branch:
+          <code>worktree-mcp-write-tools</code> · builds on specs 034 / 038 /
+          039 · estimate: ~3–4 dev days
+        </p>
+      </header>
+
+      <div class="callout warn" style="margin-top: 24px">
+        <strong>Two decisions taken without sign-off.</strong> The user was away
+        when these were surfaced; both are called out here because both are
+        cheap to reverse. <strong>(1)</strong> Writes require a new
+        <code>mcp:write</code> scope, so every existing OAuth grant stays
+        read-only until the human re-authorizes the connector once — chosen
+        because
+        <code>src/app/oauth/authorize/page.tsx:108</code> currently promises the
+        person clicking Allow &ldquo;No write access.&rdquo;, and shipping writes
+        over that grant would make the consent screen a false statement.
+        <strong>(2)</strong> <code>create_user</code> mints an invite token
+        exactly as the UI does but returns only a pointer, never the
+        <code>/setup-password</code> URL, so a live credential cannot land in a
+        chat transcript.
+      </div>
+
+      <div class="toc card">
+        <h3>Contents</h3>
+        <ol>
+          <li><a href="#why">1. Why the actor has to become a parameter</a></li>
+          <li><a href="#gate">2. The write gate</a></li>
+          <li><a href="#surface">3. Tool surface (9 tools)</a></li>
+          <li><a href="#plantoken">4. Plan tokens</a></li>
+          <li><a href="#schema">5. Schema changes (migrations 0030 + 0031)</a></li>
+          <li><a href="#layering">6. Layering &amp; file plan</a></li>
+          <li><a href="#challenge">7. Challenge pass — what changed</a></li>
+          <li><a href="#deferred">8. Deferred &amp; known limitations</a></li>
+          <li><a href="#tests">9. Verification plan</a></li>
+        </ol>
+      </div>
+
+      <h2 id="why">1. Why the actor has to become a parameter</h2>
+      <p>
+        Every write in the app today lives in a <code>"use server"</code> action
+        that gates on <code>requireAdmin()</code> — which reads the NextAuth
+        session. An MCP caller has no session, and
+        <code>change_history.changedBy</code> is
+        <code>integer NOT NULL REFERENCES users.id</code>
+        (<code>schema.ts:405</code>), so it needs a real user id.
+      </p>
+      <div class="callout bad">
+        <strong>The tempting shortcut is a security hole.</strong> Adding an
+        optional <code>ctx</code> parameter to the existing server actions —
+        <code>assignLicense(input, ctx?)</code> — would let
+        <em>any authenticated client</em> invoke the action with a forged
+        <code>ctx</code> claiming <code>role: "admin"</code>, because every
+        export of a <code>"use server"</code> file is a client-callable RPC
+        endpoint whose arguments are attacker-controlled. The actor must
+        therefore be injected in a module that is <em>not</em>
+        <code>"use server"</code>, with the action as a thin wrapper that derives
+        the actor from the session itself.
+      </div>
+      <p>
+        So: business logic moves to <code>src/lib/core/*.ts</code> (plain
+        modules) taking an explicit <code>WriteContext</code>. The existing
+        server actions become session-deriving wrappers; the MCP tools become
+        token-deriving wrappers. One implementation of each mutation, two
+        callers. This is the same adapter relationship
+        <code>src/lib/mcp/data.ts</code> already has to
+        <code>@/actions/budget</code>.
+      </p>
+      <pre><code><span class="c">// src/lib/core/context.ts</span>
+export interface WriteCaps {
+  <span class="c">/** May accept/return provisioned secrets. MCP: false. */</span>
+  secrets: boolean;
+  <span class="c">/** May mint invite URLs / reveal credentials. MCP: false. */</span>
+  credentials: boolean;
+  <span class="c">/** May target admin or agent rows, or change role/email. MCP: false. */</span>
+  privilegedTargets: boolean;
+  <span class="c">/** May silently deactivate-and-replace an active assignment. MCP: false. */</span>
+  replaceAssignments: boolean;
+}
+
+export interface WriteContext {
+  actorId: number;
+  source: ChangeSource; <span class="c">// 'ui' | 'mcp' | 'sync' | 'ingest'</span>
+  caps: WriteCaps;
+  <span class="c">/** Human-readable echoes the core verifies against the row it loaded. */</span>
+  expect?: { userEmail?: string; toolName?: string; tierName?: string; monthlyCostCents?: number };
+  <span class="c">/** false = run every precondition + build the diff, then stop before any write. */</span>
+  commit: boolean;
+}</code></pre>
+      <p class="note">
+        <code>caps</code> is enforced <em>inside</em> the cores, next to the row
+        they just loaded — not at the tool boundary. That way &ldquo;MCP never
+        touches a secret, never mints an invite URL, never promotes an
+        admin&rdquo; still holds for a tool someone adds later without reading
+        this spec.
+      </p>
+
+      <h2 id="gate">2. The write gate</h2>
+      <p>
+        One wrapper in <code>src/lib/mcp/access.ts</code>, structurally
+        analogous to the existing <code>adminOnly()</code>, is the
+        <strong>only</strong> way a write core is reachable from MCP. The
+        conjunction is deliberate and has no fallback branch:
+      </p>
+      <pre><code>writeGate(run) = (args, extra) => {
+  <span class="c">// 1. Kill switch — read per request, NOT via the memoized env object,</span>
+  <span class="c">//    mirroring src/lib/mcp/auth.ts:38's process.env read.</span>
+  if (process.env.MCP_WRITE_ENABLED !== "1") return errorResult(WRITE_DISABLED_MESSAGE);
+
+  const caller = callerFromAuthInfo(extra?.authInfo);
+
+  <span class="c">// 2. Live role (re-read from users.role on every request by verifyAccessToken).</span>
+  if (caller.role !== "admin") return errorResult(ADMIN_REQUIRED_MESSAGE);
+
+  <span class="c">// 3. Explicit write consent. The shared secret's scopes are the hardcoded</span>
+  <span class="c">//    [MCP_SCOPE] literal (auth.ts:52), so it fails here with no special case —</span>
+  <span class="c">//    an unbound credential can never attribute a write, so it must not write.</span>
+  if (!extra?.authInfo?.scopes?.includes(MCP_WRITE_SCOPE))
+    return errorResult(WRITE_SCOPE_REQUIRED_MESSAGE);
+
+  <span class="c">// 4. A bound identity is required — this is what makes the audit row real.</span>
+  if (typeof caller.userId !== "number") return errorResult(WRITE_NEEDS_BOUND_USER_MESSAGE);
+
+  <span class="c">// 5. Defense in depth: agent rows are denied every operation</span>
+  <span class="c">//    BUILT_IN_DENY_PATHS forbids over HTTP (src/lib/agent-auth.ts:18-28).</span>
+  if (await isAgentUser(caller.userId)) return errorResult(AGENT_ACTOR_REFUSED_MESSAGE);
+
+  return safeJsonResult(() => run(args, { actorId: caller.userId, source: "mcp", caps: MCP_CAPS, commit: ... }));
+}</code></pre>
+      <div class="callout info">
+        <strong>Why the shared secret stays read-only.</strong>
+        <code>MCP_SERVER_SECRET</code> resolves to
+        <code>{ role: "admin" }</code> with no <code>userId</code>
+        (<code>auth.ts:52</code>). Every write it performed would have to be
+        attributed to <code>SYSTEM_ADMIN_USER_ID</code> — an innocent named admin
+        who cannot repudiate it — and would be indistinguishable from a cron
+        write. Steps 3 and 4 exclude it without a single branch dedicated to it.
+        Headless write automation, if it is ever wanted, should get its own
+        OAuth-bound service identity.
+      </div>
+
+      <h2 id="surface">3. Tool surface (9 tools)</h2>
+      <p>
+        Nine write tools, covering exactly what was asked for: users,
+        assignments, tiers. Every tool that accepts a numeric id
+        <strong>must</strong> also accept a human-readable echo of that row,
+        verified against the row the core loaded — a hallucinated or stale id is
+        the single most likely failure mode on this surface.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Echo guard</th>
+            <th>Annotations</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>create_user</code></td>
+            <td>—</td>
+            <td>destructive:false, idempotent:false</td>
+            <td>
+              Email must match <code>MCP_WRITE_EMAIL_DOMAINS</code>. Role forced
+              <code>viewer</code>. Mints invite token like the UI; returns a
+              pointer, never the URL.
+            </td>
+          </tr>
+          <tr>
+            <td><code>update_user</code></td>
+            <td><code>expectedEmail</code></td>
+            <td>destructive:false, idempotent:true</td>
+            <td>
+              <strong>No <code>email</code></strong> (takeover primitive), no
+              <code>role</code>, no <code>status</code>. Refuses admin/agent
+              targets.
+            </td>
+          </tr>
+          <tr>
+            <td><code>deactivate_user</code></td>
+            <td><code>expectedEmail</code></td>
+            <td>destructive:<strong>true</strong>, idempotent:true</td>
+            <td>
+              Plan-token gated. Preview enumerates every license that will
+              cascade-revoke. Refuses self, admins, and the last active admin.
+              <strong>Deactivate only</strong> — see §8.
+            </td>
+          </tr>
+          <tr>
+            <td><code>assign_license</code></td>
+            <td><code>expectedUserEmail</code></td>
+            <td>destructive:false, idempotent:false</td>
+            <td>
+              Refuses when the user already holds the tool (points at
+              <code>update_assignment</code>) and when
+              <code>tool.requiresApiKey</code>. Cost snapshotted from the tier,
+              never from input.
+            </td>
+          </tr>
+          <tr>
+            <td><code>update_assignment</code></td>
+            <td><code>expectedUserEmail</code></td>
+            <td>destructive:false, idempotent:true</td>
+            <td>
+              The tier-change tool. Re-snapshots cost from the new tier.
+              Full calendar-date validation.
+            </td>
+          </tr>
+          <tr>
+            <td><code>revoke_license</code></td>
+            <td><code>expectedUserEmail</code></td>
+            <td>destructive:<strong>true</strong>, idempotent:true</td>
+            <td>Plan-token gated. Gains a Zod schema it lacks today.</td>
+          </tr>
+          <tr>
+            <td><code>create_access_tier</code></td>
+            <td><code>expectedToolName</code></td>
+            <td>destructive:false, idempotent:false</td>
+            <td>Cents sanity guard in <em>both</em> directions.</td>
+          </tr>
+          <tr>
+            <td><code>update_access_tier</code></td>
+            <td>
+              <code>expectedToolName</code> +
+              <code>expectedTierName</code>
+            </td>
+            <td>destructive:false, idempotent:true</td>
+            <td>
+              <code>monthlyCostCents</code> structurally absent — cannot
+              propagate by accident.
+            </td>
+          </tr>
+          <tr>
+            <td><code>set_tier_price</code></td>
+            <td>
+              <code>expectedToolName</code> +
+              <code>expectedTierName</code> +
+              <code>expectedMonthlyCostCents</code>
+            </td>
+            <td>destructive:<strong>true</strong>, idempotent:true</td>
+            <td>
+              Plan-token gated. The org-wide write — isolated so its preview can
+              be loud. Refuses sync-owned tiers.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout bad">
+        <strong>Why <code>expectedTierName</code> alone is not enough.</strong>
+        Access-tier names are unique only per tool
+        (<code>access_tiers_tool_name_idx</code> on
+        <code>(toolId, name)</code>), and the real ones are generic words shared
+        across tools: <code>copilot-sync.ts:83-95</code> creates tiers literally
+        named &ldquo;Business&rdquo; and &ldquo;Enterprise&rdquo; under GitHub
+        Copilot. An agent told &ldquo;set the Enterprise seat price to
+        $60&rdquo; can pick Copilot's <code>Enterprise</code> tier id instead of
+        Claude's, pass <code>expectedTierName: "Enterprise"</code>, and sail
+        through — repricing every active Copilot seat. Hence the
+        tool-name + tier-name + current-price triple.
+      </div>
+
+      <div class="callout warn">
+        <strong>Secrets are refused in the handler, not the schema.</strong>
+        <code>apiKey</code> / <code>licenseCode</code> are declared as plain
+        optional strings and rejected as the <em>first statement inside the
+        handler</em>, before actor resolution and before any DB read. A
+        <code>z.refine(() =&gt; false)</code> decoy would reject at the SDK's
+        input-validation boundary — outside <code>format.ts</code>'s controlled
+        error formatting — so the repo could not assert that a submitted live
+        key is absent from the response or the transport log. Both tool
+        descriptions lead with &ldquo;Never send an API key or license code to
+        this tool&rdquo; so the model reads it before composing the call.
+      </div>
+
+      <h2 id="plantoken">4. Plan tokens</h2>
+      <p>
+        <code>confirm: z.boolean()</code> is not a guardrail against an LLM — the
+        model satisfies it in the same turn it invents the call. The three
+        destructive tools instead take an optional
+        <code>planToken</code>: omit it to get a preview plus a token; call again
+        passing the token back verbatim.
+      </p>
+      <ul>
+        <li class="note">
+          HMAC-SHA256 over the canonicalized resolved plan, keyed by
+          <code>hkdf(AUTH_SECRET, "mcp-plan-token-v1")</code> — a derived key, so
+          this new signing surface can never become an oracle on the
+          session-cookie key. Verified with the existing
+          <code>safeEqual</code>.
+        </li>
+        <li class="note">
+          Payload carries <code>iat</code> with a hard <strong>10-minute
+          TTL</strong> and <code>sub = clientId:userId</code>, so a token cannot
+          be lifted from a shared transcript weeks later and committed by a
+          different credential.
+        </li>
+        <li class="note">
+          Bound to the mutable state that matters
+          (<code>tierId</code> + <code>priceBefore</code>), <em>not</em> to the
+          affected-row id set — so a benign concurrent assignment does not force
+          a pointless re-preview, while a concurrent price move still hard-fails.
+        </li>
+        <li class="con">
+          Mismatch never echoes the expected value. The message is exactly
+          &ldquo;Call this tool again WITHOUT planToken to get a fresh preview
+          and token.&rdquo;
+        </li>
+        <li class="con">
+          <strong>The token proves state-binding, not human review.</strong> In
+          an auto-approving client, preview and commit are consecutive tool calls
+          with no human turn between them. <code>destructiveHint: true</code> is
+          what actually asks the human; the token is what stops a commit against
+          state the agent never read.
+        </li>
+      </ul>
+      <p class="note">
+        <code>commit: false</code> short-circuits the core after every
+        precondition and the full diff, but before any <code>db.insert</code> /
+        <code>db.update</code> and before any <code>record*</code> call — which
+        is what makes the preview provably write-free rather than write-free by
+        inspection.
+      </p>
+
+      <h2 id="schema">5. Schema changes (migrations 0030 + 0031)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Change</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>change_history.source varchar(20) NOT NULL DEFAULT 'ui'</code>,
+              existing rows backfilled to <code>'ui'</code>
+            </td>
+            <td>
+              Distinguishes an agent-driven write from the same human's UI edit.
+              Provenance is enforced at the <em>type</em> level: <code>source</code>
+              is a required field on the history helpers' options object, so the
+              compiler flags all ~19 existing call sites. <strong>Originally planned
+              with no default</strong> — the argument being that a default silently
+              labels any forgetful call site as a human edit, the exact forensic lie
+              the column exists to prevent. <strong>Reversed during
+              implementation</strong>: a <code>NOT NULL</code> column with no default
+              is undeployable in either direction (migrate first → the live pre-043
+              code inserts without <code>source</code> and hits <code>23502</code>;
+              deploy first → the new code writes a column that does not exist yet).
+              Migration <code>0031</code> therefore sets <code>DEFAULT 'ui'</code>
+              purely for deploy safety; it only backstops a raw
+              <code>db.insert(changeHistory)</code> that bypasses the helpers.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code
+                >UNIQUE INDEX license_assignments_one_active_idx ON
+                (user_id, tool_id) WHERE status = 'active'</code
+              >
+            </td>
+            <td>
+              The plan asserts &ldquo;at most one active assignment per (user,
+              tool)&rdquo; and <em>nothing in the DB enforces it today</em>.
+              Replacing the UI's deactivate-and-replace with a read-then-refuse
+              turns the TOCTOU window into duplicate active rows, which
+              double-bill a seat in every aggregation. Same partial-unique
+              pattern as <code>invite_tokens_active_user_idx</code>. Postgres
+              <code>23505</code> on this index maps to the friendly refusal, so
+              the guarantee comes from the DB rather than a pre-check — which
+              also fixes the existing UI action and the license-request flow.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        Migration must be generated with
+        <code>db:generate</code>/<code>db:migrate</code>, not
+        <code>db:push</code> — partial/expression indexes do not survive push
+        diffing. It runs a duplicate pre-check first and ships the remediation
+        SQL (keep <code>max(id)</code>, mark the rest inactive).
+        <code>license_assignments.source</code> already exists
+        (<code>varchar(50) default 'manual'</code>,
+        <code>schema.ts:273</code>) so MCP-created assignments need no migration
+        — they just write <code>source: 'mcp'</code>.
+      </p>
+
+      <h2 id="layering">6. Layering &amp; file plan</h2>
+      <p>
+        Two commits, deliberately. Commit 1 is a <strong>pure relocation with
+        zero behavior change</strong>, whose only claim is that
+        <code>tests/unit/actions/tier-cost-propagation.test.ts</code> stays
+        byte-identical and green. Commit 2 adds caps, atomicity, audit rows and
+        the MCP surface. Mixing them would leave no way to tell a refactor
+        mistake from an intentional change in a ~600 LOC move of live financial
+        logic.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>src/lib/core/context.ts</code></td>
+            <td>NEW — <code>WriteContext</code>, <code>WriteCaps</code>, <code>MCP_CAPS</code>, <code>UI_CAPS</code>, refusal messages</td>
+          </tr>
+          <tr>
+            <td><code>src/lib/core/{users,assignments,tools}.ts</code></td>
+            <td>NEW — the extracted cores; each returns <code>{ data, revalidate: string[], noop? }</code></td>
+          </tr>
+          <tr>
+            <td><code>src/actions/{users,assignments,tools}.ts</code></td>
+            <td>Thin wrappers: <code>requireAdmin()</code> → <code>UI_CAPS</code> ctx → core → <code>revalidatePath</code> loop. Public signatures unchanged.</td>
+          </tr>
+          <tr>
+            <td><code>src/actions/history.ts</code></td>
+            <td>
+              All four helpers take an options object with
+              <code>source</code> <strong>required</strong> and
+              <code>tx</code> optional;
+              <code>recordStatusChange</code> gains the <code>tx</code> its three
+              siblings already have.
+            </td>
+          </tr>
+          <tr>
+            <td><code>src/lib/mcp/write.ts</code></td>
+            <td>NEW — the 9 tool registrations + <code>writeGate</code> plumbing</td>
+          </tr>
+          <tr>
+            <td><code>src/lib/mcp/plan-token.ts</code></td>
+            <td>NEW — sign / verify, canonicalization, TTL</td>
+          </tr>
+          <tr>
+            <td><code>src/lib/mcp/access.ts</code></td>
+            <td><code>writeGate</code>, write refusal messages</td>
+          </tr>
+          <tr>
+            <td><code>src/lib/oauth/validate.ts</code>, <code>authorize.ts</code>, <code>metadata.ts</code></td>
+            <td>
+              <code>MCP_WRITE_SCOPE</code>; <code>authorize</code> stops
+              hardcoding <code>grantedScope</code> and computes it from the
+              request, re-verifying <code>session.user.role === "admin"</code>
+              server-side in <code>approveAuthorization</code> — not trusting the
+              page; <code>scopes_supported</code> enumerates it.
+            </td>
+          </tr>
+          <tr>
+            <td><code>src/app/oauth/authorize/page.tsx</code></td>
+            <td>Consent copy tells the truth: lists the write scope when requested, drops the flat &ldquo;No write access.&rdquo;</td>
+          </tr>
+          <tr>
+            <td><code>src/lib/mcp/data.ts</code></td>
+            <td><code>list_ai_tools</code> gains <code>includeInactive</code> (admin branch, default false) so archived tools / inactive tiers stay addressable</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        Each core returns its own <code>revalidate</code> path list rather than
+        letting the wrapper guess: <code>updateTier</code>'s invalidation set is
+        <em>conditional</em> on whether the price actually changed
+        (<code>tools.ts:294-330</code>), and a wrapper cannot reproduce that
+        condition without being told. Getting it wrong serves
+        <code>/budget</code> and <code>/reports</code> from cache computed off
+        the old cost snapshots.
+      </p>
+
+      <h2 id="challenge">7. Challenge pass — what changed</h2>
+      <p>
+        A 3-lens adversarial panel (security &amp; privilege · data integrity ·
+        LLM misuse) returned 29 findings against the judge's design; 4 were
+        blockers. All were re-verified against the real code before acceptance.
+        The revisions that changed the design:
+      </p>
+      <ul>
+        <li class="con">
+          <strong>Reactivation cut entirely.</strong> The design had
+          <code>set_user_status</code> handling both directions. But
+          <code>deactivateUser</code> never clears
+          <code>passwordHash</code> and never revokes
+          <code>mcp_oauth_tokens</code>, and <code>auth.ts:51</code> gates login
+          on <code>status</code> alone — so reactivation is a
+          <em>credential and session re-grant</em>: an offboarded leaver's old
+          password works immediately and their 60-day refresh tokens start
+          returning 200 again. Reactivation belongs to a human in the UI, and it
+          is a capability the Hub does not have today at all.
+        </li>
+        <li class="con">
+          <strong>The capacity minus-1 branch stays.</strong> The judge wanted
+          the &ldquo;capacity-check-minus-one special case&rdquo; deleted along
+          with replace semantics. But <code>copilot-sync.ts</code> sets
+          <code>maxLicenses</code> to the synced seat total, so Copilot sits
+          routinely at <em>exactly</em> capacity, and that branch is what lets an
+          admin retier an existing holder through the UI dialog. Deleting it from
+          the shared core would regress the UI. It stays verbatim, gated on
+          <code>caps.replaceAssignments</code> — unreachable from MCP, intact for
+          the wrapper.
+        </li>
+        <li class="con">
+          <strong><code>update_user</code> loses <code>email</code>.</strong>
+          <code>resetUserPassword</code> and <code>sendInviteEmail</code> both
+          mail a fresh 72h token to the <em>current</em>
+          <code>users.email</code>. Letting an agent rewrite that field is an
+          account-takeover primitive that <code>expectedEmail</code> does not
+          defend against at all — the echo matches, because the agent reads the
+          correct current address straight out of <code>find_users</code>.
+        </li>
+        <li class="con">
+          <strong>Sync-owned fields are refused.</strong>
+          <code>set_tier_price</code> on a Copilot tier and
+          <code>update_ai_tool(maxLicenses)</code> on the Copilot tool would
+          report success and be silently reverted at 06:00 UTC by the cron, with
+          zero audit rows. Both refuse with a message naming the sync as the
+          owner. (This is why <code>update_ai_tool</code> is deferred — see §8.)
+        </li>
+        <li class="con">
+          <strong>&ldquo;Already in target state&rdquo; is success, not
+          error.</strong> Returning <code>isError</code> for a no-op contradicts
+          <code>idempotentHint: true</code> and drives bad recoveries: after a
+          transport timeout on a committed <code>revoke_license</code>, a retry
+          answering &ldquo;Error: Assignment is already inactive&rdquo; reads as
+          failure, and the model's plausible next move is
+          <code>deactivate_user</code> — cascading a revoke across every license
+          the person holds. The cores return a discriminated no-op the MCP
+          adapter maps to a success payload; the UI wrapper keeps rendering
+          today's error string, so UI behavior is unchanged.
+        </li>
+        <li class="con">
+          <strong><code>set_tier_price</code> is
+          <code>destructiveHint: true</code>.</strong> The design said false
+          because &ldquo;no row is destroyed&rdquo; — the wrong test. It
+          irreversibly overwrites the cost snapshot on every active seat, and
+          <code>destructiveHint</code> is precisely what makes an auto-approving
+          client stop and ask the human.
+        </li>
+        <li class="con">
+          <strong>The propagation row set comes from a locking read.</strong>
+          Deriving the per-row audit entries from the <em>preview's</em> captured
+          set would describe a different row set than the one the
+          <code>WHERE tier_id = $1 AND status = 'active'</code> update actually
+          rewrote, recording <code>previousValue</code>s that were never in the
+          rows. Commit re-reads
+          <code>SELECT ... FOR UPDATE</code> inside the transaction and uses that
+          set for the cap, the old values, and the audit inserts.
+        </li>
+        <li class="con">
+          <strong>Cents guard is two-sided.</strong> The design only refused
+          implausibly large values. Passing dollars-as-dollars
+          (<code>monthlyCostCents: 19</code> for a $19 seat) passes
+          <code>min(0)</code> and understates that tool's spend 100× through the
+          propagation path. Values in <code>1..99</code> are refused with both
+          readings spelled out; <code>0</code> stays legal for free tiers.
+        </li>
+        <li class="con">
+          <strong>A <code>writeGate</code> test partition, not just a name
+          list.</strong> Today's exhaustiveness test only checks that a tool
+          <em>name</em> is classified, so a write tool that forgets the gate
+          would compile and pass. New <code>it.each</code> blocks assert, per
+          write tool, that a viewer is refused with the core mock never invoked,
+          that the kill switch refuses, that a missing scope refuses, that absent
+          <code>authInfo</code> refuses, and that
+          <code>readOnlyHint === false</code> — with the mirror assertion that
+          every read tool's is <code>true</code>, so the two sets cannot blur.
+        </li>
+      </ul>
+
+      <h2 id="deferred">8. Deferred &amp; known limitations</h2>
+      <ul>
+        <li class="note">
+          <strong>Tool-catalogue writes</strong>
+          (<code>create_ai_tool</code>, <code>update_ai_tool</code>,
+          <code>archive_ai_tool</code>) are deferred. Adding rows to the AI-tool
+          catalogue is a procurement act with no delete path, and
+          <code>update_ai_tool</code>'s only interesting field
+          (<code>maxLicenses</code>) is cron-owned on the largest seat pool.
+          <code>create_access_tier</code> works fine against existing tools,
+          which is what &ldquo;change tiers&rdquo; actually needs.
+        </li>
+        <li class="note">
+          <strong>User reactivation</strong> — deferred to the UI with a human
+          owner, for the credential-re-grant reason in §7. If it is ever built,
+          it must randomize <code>passwordHash</code>, set
+          <code>mustChangePassword</code>, and revoke the user's OAuth token
+          families in the same transaction.
+        </li>
+        <li class="con">
+          <strong><code>copilot-sync.ts</code> keeps its own copy of the
+          tier-price propagation transaction</strong>
+          (<code>lines 103-121</code>), writing zero
+          <code>change_history</code> rows. Pointing it at the extracted core is
+          the right follow-up, but it is not in this spec's blast radius. Stated
+          plainly so the &ldquo;one implementation of each mutation&rdquo; claim
+          is not overread: after this ships, the audited implementation is the one
+          humans and agents call, and the unaudited one still runs nightly on
+          cron. A <code>change_history</code> query filtered on
+          <code>source</code> will therefore look complete while omitting the
+          largest automated repricing event in the system.
+        </li>
+        <li class="con">
+          <strong>The kill switch is not hot.</strong>
+          <code>MCP_WRITE_ENABLED</code> is read per request rather than through
+          the memoized <code>env</code> object, but a Vercel env-var change still
+          does not reach warm instances until they recycle or a redeploy lands.
+          The spec says &ldquo;takes effect on redeploy / as instances
+          recycle&rdquo;, not &ldquo;immediately&rdquo;.
+        </li>
+        <li class="con">
+          <strong>Deactivation deletes the record of what was held.</strong> The
+          cascade writes per-assignment audit rows carrying a JSON snapshot
+          (<code>toolId/toolName/tierId/tierName/cost</code>) so the set is at
+          least reconstructible — but nothing restores it, and
+          <code>deactivate_user</code>'s response says so explicitly.
+        </li>
+        <li class="con">
+          <strong>Tool count.</strong> 9 write + 14 read = 23 tools in one
+          server. That is real per-session context cost for every client and
+          raises mis-selection risk; it is the main argument for having deferred
+          the catalogue tools.
+        </li>
+      </ul>
+
+      <h2 id="tests">9. Verification plan</h2>
+      <ul>
+        <li class="note">
+          <strong>Unit</strong> — <code>tests/unit/mcp/write.test.ts</code>: the
+          gate partition described in §7; plan-token round-trip, tamper, TTL
+          expiry and cross-credential rejection; secret-field refusal asserting
+          the response text equals
+          <code>"Error: " + MCP_NO_SECRETS_MESSAGE</code> and does not contain
+          the submitted value; echo-mismatch refusals; the cents guard at
+          <code>0 / 19 / 1900 / ceiling</code>; no-op-as-success.
+        </li>
+        <li class="note">
+          <strong>Unit</strong> — <code>tests/unit/core/*</code>: caps
+          enforcement (MCP caps refuse admin targets, secrets, replace; UI caps
+          at exactly <code>maxLicenses</code> still permits an existing holder's
+          upgrade); each core's returned <code>revalidate</code> list.
+        </li>
+        <li class="note">
+          <strong>Unit</strong> —
+          <code>tests/unit/actions/tier-cost-propagation.test.ts</code>
+          byte-identical and green after commit 1; upgraded in commit 2 to a
+          <code>{ update, insert, select }</code> tx stub asserting the audit
+          inserts received the <code>tx</code> client and that the row set came
+          from the locking select.
+        </li>
+        <li class="note">
+          <strong>Integration</strong> — against a real DB: a reprice moves N
+          active rows and leaves inactive ones untouched, writes N+1
+          <code>change_history</code> rows with <code>source='mcp'</code>, and
+          writes <em>zero</em> on rollback; the partial unique index rejects a
+          concurrent duplicate active assignment with <code>23505</code>.
+        </li>
+        <li class="note">
+          <strong>Live MCP smoke test</strong> — against
+          <code>pnpm dev</code>: a viewer token refused, an admin token without
+          <code>mcp:write</code> refused, an admin token with the scope
+          previewing and then committing a tier price change, and the resulting
+          audit rows visible in <code>/history</code>.
+        </li>
+        <li class="note">
+          <code>pnpm typecheck</code> · <code>pnpm lint</code> ·
+          <code>pnpm test</code> · <code>pnpm test:integration</code>. Never
+          <code>pnpm format</code> repo-wide.
+        </li>
+      </ul>
+
+      <p class="meta" style="margin-top: 48px">
+        Plan produced 2026-08-04 · 12-agent dynamic workflow (1.32M subagent
+        tokens, 0 errors) · challenge findings and their resolutions logged in
+        <code>implementation-notes.html</code>
+      </p>
+    </main>
+  </body>
+</html>

@@ -16,6 +16,7 @@ import {
   safeJsonResult,
   type McpToolResult,
 } from "@/lib/mcp/format";
+import { hasWriteScope } from "@/lib/oauth/validate";
 
 export type McpRole = "admin" | "viewer";
 
@@ -80,6 +81,87 @@ export function adminOnly<Args>(
       return Promise.resolve(errorResult(ADMIN_REQUIRED_MESSAGE));
     }
     return safeJsonResult(() => run(args));
+  };
+}
+
+// ---- Write authorization (043-mcp-write-tools) ----
+
+export const WRITE_DISABLED_MESSAGE =
+  "MCP write tools are disabled on this deployment (MCP_WRITE_ENABLED is not set). " +
+  "Make this change in the Hub UI, or ask an operator to enable write access.";
+
+export const WRITE_SCOPE_REQUIRED_MESSAGE =
+  "This MCP connection was authorized for read-only access, so it cannot make changes. " +
+  "Reconnect the connector and approve the write permission on the consent screen " +
+  "(Settings → Connections in the Hub), then retry.";
+
+export const WRITE_NEEDS_BOUND_USER_MESSAGE =
+  "This credential is not bound to a Hub user, so a change made with it could not be " +
+  "attributed to anyone in the audit trail. Write tools require an OAuth connection " +
+  "signed in as an admin; the shared MCP secret is read-only.";
+
+export const AGENT_ACTOR_REFUSED_MESSAGE =
+  "This credential belongs to an automation account, which is not permitted to " +
+  "create or modify users and licenses. Use an admin's own connection.";
+
+/** A caller that has passed the write gate: admin, write-scoped, and identified. */
+export interface McpWriteActor {
+  userId: number;
+  email?: string;
+  clientId: string;
+}
+
+export type WriteAuthorization =
+  | { ok: true; actor: McpWriteActor }
+  | { ok: false; message: string };
+
+/**
+ * The single authorization decision for every MCP write tool. Conjunctive with
+ * no fallback branch: a disjunction (`role === "admin" || hasScope`) would let a
+ * connection consented to as read-only write freely, making the consent screen
+ * false in the opposite direction.
+ *
+ * The kill switch reads `process.env` per request rather than the memoized `env`
+ * object (mirroring src/lib/mcp/auth.ts) so flipping it does not require a code
+ * change — though on Vercel it still only reaches warm instances as they recycle.
+ */
+export async function authorizeWrite(
+  authInfo: AuthInfo | undefined,
+  isAgentUser: (userId: number) => Promise<boolean>,
+): Promise<WriteAuthorization> {
+  if (process.env.MCP_WRITE_ENABLED !== "1") {
+    return { ok: false, message: WRITE_DISABLED_MESSAGE };
+  }
+
+  const caller = callerFromAuthInfo(authInfo);
+  if (caller.role !== "admin") {
+    return { ok: false, message: ADMIN_REQUIRED_MESSAGE };
+  }
+
+  // The shared secret's scopes are the hardcoded [MCP_SCOPE] literal, so it fails
+  // here with no branch dedicated to it — which is correct: an unbound credential
+  // cannot attribute a write.
+  if (!hasWriteScope(authInfo?.scopes)) {
+    return { ok: false, message: WRITE_SCOPE_REQUIRED_MESSAGE };
+  }
+
+  if (typeof caller.userId !== "number") {
+    return { ok: false, message: WRITE_NEEDS_BOUND_USER_MESSAGE };
+  }
+
+  // Defense in depth: BUILT_IN_DENY_PATHS forbids agent identities from user
+  // creation/deletion over HTTP, and MCP is outside the middleware matcher.
+  if (await isAgentUser(caller.userId)) {
+    return { ok: false, message: AGENT_ACTOR_REFUSED_MESSAGE };
+  }
+
+  return {
+    ok: true,
+    actor: {
+      userId: caller.userId,
+      email: caller.email,
+      clientId: authInfo?.clientId ?? "unknown",
+    },
   };
 }
 

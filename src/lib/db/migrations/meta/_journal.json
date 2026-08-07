@@ -211,6 +211,20 @@
       "when": 1783601632819,
       "tag": "0029_curly_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785835084489,
+      "tag": "0030_mcp_write_audit_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785849754855,
+      "tag": "0031_change_history_source_default",
+      "breakpoints": true
     }
   ]
 }

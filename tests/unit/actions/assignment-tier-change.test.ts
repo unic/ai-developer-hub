@@ -41,10 +41,15 @@ vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/auth-helpers", () => ({ requireAdmin: mockRequireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/actions/history", () => ({
+// The audit writers live in a plain module, NOT the "use server" file: every
+// export of a "use server" file is a client-callable RPC endpoint, and these
+// take `changedBy` as a parameter (043). Mocking @/actions/history here would
+// intercept nothing and let the real writer run against mockTx.insert.
+vi.mock("@/lib/history", () => ({
   recordCreation: vi.fn(),
   recordUpdate: mockRecordUpdate,
   recordStatusChange: vi.fn(),
+  recordDeletion: vi.fn(),
 }));
 vi.mock("@/lib/assignments/sync-authority", () => ({
   // Name-based since the 042 simplify pass — callers already hold the tool row,
@@ -61,6 +66,8 @@ vi.mock("@/lib/crypto", () => ({
 // ── Import after mocks ────────────────────────────────────────────────────────
 
 import { updateAssignment } from "@/actions/assignments";
+import { updateAssignmentCore } from "@/lib/core/assignments";
+import { MCP_CAPS, UI_CAPS } from "@/lib/core/context";
 import { approveRequest } from "@/actions/license-requests";
 import { licenseAssignments, licenseRequests } from "@/lib/db/schema";
 import { SYNC_MANAGED_TIER_ERROR } from "@/lib/assignments/tier-change";
@@ -113,7 +120,7 @@ function baseAssignment(overrides: Record<string, unknown> = {}) {
       name: "GitHub Copilot",
       createdAt: new Date("2024-01-01T00:00:00Z"),
     },
-    user: { id: 3 },
+    user: { id: 3, email: "seat@unic.com" },
     ...overrides,
   };
 }
@@ -233,7 +240,7 @@ describe("updateAssignment", () => {
       100,
       1,
       expect.objectContaining({ workspace: { old: null, new: "new-workspace" } }),
-      mockTx,
+      { tx: mockTx, source: "ui" },
     );
   });
 
@@ -257,6 +264,78 @@ describe("updateAssignment", () => {
         "This assignment changed while you were editing it. Refresh and try again.",
     });
     expect(mockRecordUpdate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The regression the 042/043 merge exists to prevent: MCP's update_assignment
+ * reaches updateAssignmentCore directly, bypassing the Server Action, so a
+ * refusal implemented only in src/actions/assignments.ts would let an agent
+ * retier a Copilot seat and have the 06:00 cron silently revert it.
+ *
+ * Asserted at the CORE, under both capability sets, because the refusal is
+ * deliberately NOT gated on ctx.caps.syncOwnedFields — 042 shipped it to the UI
+ * too.
+ */
+describe("updateAssignmentCore — the sync-managed refusal is caps-independent", () => {
+  const MCP_CTX = {
+    actorId: 7,
+    source: "mcp" as const,
+    caps: MCP_CAPS,
+    commit: true,
+  };
+  const UI_CTX = {
+    actorId: 1,
+    source: "ui" as const,
+    caps: UI_CAPS,
+    commit: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.query.licenseAssignments.findFirst.mockResolvedValue(baseAssignment());
+    mockDb.query.accessTiers.findFirst.mockResolvedValue({
+      id: 6,
+      toolId: 2,
+      isActive: true,
+      monthlyCostCents: 5000,
+    });
+  });
+
+  it.each([
+    ["MCP_CAPS", MCP_CTX],
+    ["UI_CAPS", UI_CTX],
+  ])("refuses a sync-managed retier under %s", async (_label, ctx) => {
+    mockIsSyncManagedTool.mockResolvedValue(true);
+
+    const result = await updateAssignmentCore(ctx, { id: 100, tierId: 6 });
+
+    expect(result).toMatchObject({ ok: false, error: SYNC_MANAGED_TIER_ERROR });
+    // The ASYNC, connection-gated authority — not the pure name predicate. Wiring
+    // this to isSyncManagedToolName would still pass every assertion above (the
+    // fixture tool is literally named "GitHub Copilot") while newly refusing
+    // Copilot retiers whenever sync is switched off, which sync-authority.ts
+    // documents as legal. The next case is what catches that.
+    expect(mockIsSyncManagedTool).toHaveBeenCalledWith("GitHub Copilot");
+    expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("allows the same retier over MCP when Copilot sync is NOT running", async () => {
+    mockIsSyncManagedTool.mockResolvedValue(false);
+    mockTx.update.mockReturnValueOnce(chainedUpdateReturning([{ id: 100 }]).update);
+
+    const result = await updateAssignmentCore(MCP_CTX, { id: 100, tierId: 6 });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(mockDb.transaction).toHaveBeenCalled();
+    // Provenance is the agent's, attributed to the bound admin's users.id.
+    expect(mockRecordUpdate).toHaveBeenCalledWith(
+      "license_assignment",
+      100,
+      7,
+      expect.objectContaining({ tierId: { old: 5, new: 6 } }),
+      { tx: mockTx, source: "mcp" },
+    );
   });
 });
 

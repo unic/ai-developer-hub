@@ -282,6 +282,22 @@ export const licenseAssignments = pgTable(
       table.toolId,
       table.status,
     ),
+    /**
+     * At most one ACTIVE assignment per (user, tool) — 043-mcp-write-tools.
+     *
+     * The app has always assumed this, but nothing enforced it: assignLicense
+     * deactivates-then-inserts inside a transaction, which under READ COMMITTED
+     * does not stop two concurrent callers from each seeing "no active row" and
+     * both inserting. Two active rows double-count the seat in every
+     * aggregation that sums cost_at_assignment_cents (dashboard, /reports,
+     * budget expected spend, the forecast burn-up) and permanently skew the
+     * FR-006 capacity count. The MCP write path refuses rather than replaces,
+     * which widens that window, so the invariant becomes a DB guarantee and
+     * 23505 on this index maps to the friendly refusal.
+     */
+    uniqueIndex("license_assignments_one_active_idx")
+      .on(table.userId, table.toolId)
+      .where(sql`${table.status} = 'active'`),
   ],
 );
 
@@ -405,12 +421,32 @@ export const changeHistory = pgTable(
     changedBy: integer("changed_by")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    /**
+     * Where the mutation originated: 'ui' | 'mcp' | 'sync' | 'ingest'
+     * (043-mcp-write-tools).
+     *
+     * The DB default exists purely for DEPLOY SAFETY, not for correctness. The
+     * code running before this feature ships inserts change_history rows without
+     * a source, so a NOT NULL column with no default would fail every audited
+     * write in production during the window between the migration landing and
+     * the new code going live — and deploying the new code first fails the other
+     * way, because the column would not exist yet. There is no safe ordering
+     * without a default.
+     *
+     * Correctness is enforced at the type level instead: `source` is a REQUIRED
+     * field on HistoryOptions (src/lib/history.ts), so the compiler forces every
+     * call site through the helpers to state its provenance. The default only
+     * catches a raw `db.insert(changeHistory)` that bypasses them — there are
+     * two, both explicit.
+     */
+    source: varchar("source", { length: 20 }).notNull().default("ui"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("change_history_entity_idx").on(table.entityType, table.entityId),
     index("change_history_changed_by_idx").on(table.changedBy),
     index("change_history_created_at_idx").on(table.createdAt),
+    index("change_history_source_idx").on(table.source),
   ],
 );
 

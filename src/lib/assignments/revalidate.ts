@@ -1,26 +1,26 @@
 import { revalidatePath } from "next/cache";
 
+import {
+  COST_SURFACE_PATHS,
+  assignmentCostPaths,
+} from "@/lib/assignments/cost-paths";
+
 /**
- * The pages whose figures are derived from assignment cost (spec 042).
+ * Replay the cost-surface path list through `revalidatePath` (spec 042).
  *
- * Every spend aggregation sums license_assignments.cost_at_assignment_cents, so
- * a cost change makes all of these stale at once. This is the single list —
- * actions/tools.ts's tier price cascade calls it too, rather than keeping its own
- * copy, which is what let the two drift apart in the first place.
+ * The list itself moved to `./cost-paths.ts` when 043 landed, so the write cores
+ * can build a `CoreResult.revalidate` array from the same definition without
+ * dragging `next/cache` into the MCP module graph. This file stays the transport
+ * for Server Actions that do NOT go through a core — today that is only
+ * `src/actions/license-requests.ts`.
  *
- * Only call this when a cost actually changed. Each entry forces the next visitor
- * to recompute that page (the dashboard alone runs ~13 queries), so invalidating
- * on a workspace or API-key edit is pure waste.
+ * Only call this when a cost actually changed; see cost-paths.ts for why.
  *
  * Lives in a plain module because "use server" files may only export async
  * functions.
  */
 export function revalidateCostSurfaces(): void {
-  revalidatePath("/");
-  revalidatePath("/assignments");
-  revalidatePath("/budget");
-  revalidatePath("/reports");
-  revalidatePath("/reports/budget");
+  for (const path of COST_SURFACE_PATHS) revalidatePath(path);
 }
 
 /**
@@ -31,7 +31,5 @@ export function revalidateAssignmentCostPaths(
   userId: number,
   toolId: number,
 ): void {
-  revalidateCostSurfaces();
-  revalidatePath(`/users/${userId}`);
-  revalidatePath(`/tools/${toolId}`);
+  for (const path of assignmentCostPaths(userId, toolId)) revalidatePath(path);
 }

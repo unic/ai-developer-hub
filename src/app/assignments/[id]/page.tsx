@@ -82,6 +82,7 @@ export default async function AssignmentDetailPage({
           previousTierName: h.previousTierName,
           newTierName: h.newTierName,
           changedByName: h.changedByName,
+          source: h.source,
           createdAt: h.createdAt.toISOString(),
         }))}
       />

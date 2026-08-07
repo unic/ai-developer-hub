@@ -7,7 +7,7 @@ import {
   annualBudgets,
 } from "@/lib/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
-import { recordCreation } from "@/actions/history";
+import { recordCreation } from "@/lib/history";
 
 interface RunOptions {
   dryRun?: boolean;
@@ -16,7 +16,7 @@ interface RunOptions {
 
 export async function run(
   triggeredBy?: number,
-  opts?: RunOptions
+  opts?: RunOptions,
 ): Promise<{ eventId: number }> {
   return withSyncLock(
     {
@@ -62,7 +62,10 @@ export async function run(
             budgetCreatedAt: annualBudgets.createdAt,
           })
           .from(budgetPeriods)
-          .innerJoin(annualBudgets, eq(budgetPeriods.budgetId, annualBudgets.id))
+          .innerJoin(
+            annualBudgets,
+            eq(budgetPeriods.budgetId, annualBudgets.id),
+          )
       ).sort((a, b) => {
         const aOrder = a.budgetStatus === "active" ? 0 : 1;
         const bOrder = b.budgetStatus === "active" ? 0 : 1;
@@ -71,9 +74,11 @@ export async function run(
       });
 
       function findPeriodInMemory(invoiceDate: string) {
-        return allPeriods.find(
-          (p) => p.startDate <= invoiceDate && p.endDate >= invoiceDate
-        ) ?? null;
+        return (
+          allPeriods.find(
+            (p) => p.startDate <= invoiceDate && p.endDate >= invoiceDate,
+          ) ?? null
+        );
       }
 
       for (const inv of allInvoices) {
@@ -103,10 +108,16 @@ export async function run(
                   .returning({ id: billedCosts.id });
                 await tx
                   .update(invoices)
-                  .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
+                  .set({
+                    linkedBilledCostId: created.id,
+                    updatedAt: new Date(),
+                  })
                   .where(eq(invoices.id, inv.id));
                 if (triggeredBy) {
-                  await recordCreation("billed_cost", created.id, triggeredBy, tx);
+                  await recordCreation("billed_cost", created.id, triggeredBy, {
+                    tx,
+                    source: "sync",
+                  });
                 }
               });
             }
@@ -123,7 +134,9 @@ export async function run(
           // Wrong period — correct
           if (!dryRun) {
             await db.transaction(async (tx) => {
-              await tx.delete(billedCosts).where(eq(billedCosts.id, inv.linkedBilledCostId!));
+              await tx
+                .delete(billedCosts)
+                .where(eq(billedCosts.id, inv.linkedBilledCostId!));
               const description = inv.vendor
                 ? `Invoice ${inv.invoiceNumber} — ${inv.vendor}`
                 : `Invoice ${inv.invoiceNumber}`;
@@ -142,7 +155,10 @@ export async function run(
                 .set({ linkedBilledCostId: created.id, updatedAt: new Date() })
                 .where(eq(invoices.id, inv.id));
               if (triggeredBy) {
-                await recordCreation("billed_cost", created.id, triggeredBy, tx);
+                await recordCreation("billed_cost", created.id, triggeredBy, {
+                  tx,
+                  source: "sync",
+                });
               }
             });
           }
@@ -153,6 +169,6 @@ export async function run(
       }
 
       return counts;
-    }
+    },
   );
 }

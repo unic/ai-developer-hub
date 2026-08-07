@@ -16,6 +16,7 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 
 import { registerHubTools } from "@/lib/mcp/tools";
+import { registerHubWriteTools } from "@/lib/mcp/write";
 import { verifyMcpToken } from "@/lib/mcp/auth";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,10 @@ export const maxDuration = 60;
 const handler = createMcpHandler(
   (server) => {
     registerHubTools(server);
+    // Registered unconditionally so their descriptions explain the requirement
+    // rather than the tools vanishing; each one refuses at call time unless
+    // MCP_WRITE_ENABLED=1 and the credential is an admin holding mcp:write.
+    registerHubWriteTools(server);
   },
   {},
   { basePath: "/api/mcp" },

@@ -353,18 +353,30 @@ describe("list_ai_tools utilization stripping", () => {
     const handlers = collectHandlers();
     const result = await handlers.get("list_ai_tools")!({}, VIEWER);
     expect(result.isError).toBeUndefined();
-    expect(listAiToolsData).toHaveBeenCalledWith({ includeUtilization: false });
+    expect(listAiToolsData).toHaveBeenCalledWith({
+      includeUtilization: false,
+      // Archived tools / inactive tiers are admin-only and opt-in (043).
+      includeInactive: false,
+    });
   });
 
   it("admin: full catalog with utilization", async () => {
     const handlers = collectHandlers();
     await handlers.get("list_ai_tools")!({}, ADMIN);
-    expect(listAiToolsData).toHaveBeenCalledWith({ includeUtilization: true });
+    expect(listAiToolsData).toHaveBeenCalledWith({
+      includeUtilization: true,
+      // Archived tools / inactive tiers are admin-only and opt-in (043).
+      includeInactive: false,
+    });
   });
 
   it("shared secret: full catalog with utilization", async () => {
     const handlers = collectHandlers();
     await handlers.get("list_ai_tools")!({}, SECRET);
-    expect(listAiToolsData).toHaveBeenCalledWith({ includeUtilization: true });
+    expect(listAiToolsData).toHaveBeenCalledWith({
+      includeUtilization: true,
+      // Archived tools / inactive tiers are admin-only and opt-in (043).
+      includeInactive: false,
+    });
   });
 });

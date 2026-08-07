@@ -5,81 +5,11 @@ import { changeHistory, accessTiers } from "@/lib/db/schema";
 import { eq, and, desc, count, inArray } from "drizzle-orm";
 import type { ActionResult, ChangeHistoryRecord } from "@/types";
 
-export async function recordCreation(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  txClient?: Pick<typeof db, "insert">,
-) {
-  await (txClient ?? db).insert(changeHistory).values({
-    entityType,
-    entityId,
-    changeType: "created",
-    changedBy,
-  });
-}
-
-export async function recordUpdate(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  changes: Record<string, { old: unknown; new: unknown }>,
-  txClient?: Pick<typeof db, "insert">,
-) {
-  const entries = Object.entries(changes);
-  if (entries.length === 0) return;
-
-  await (txClient ?? db).insert(changeHistory).values(
-    entries.map(([fieldName, values]) => ({
-      entityType,
-      entityId,
-      changeType: "updated" as const,
-      fieldName,
-      previousValue: JSON.stringify(values.old),
-      newValue: JSON.stringify(values.new),
-      changedBy,
-    })),
-  );
-}
-
 /**
- * Record a deletion with a previous-value snapshot so the audit trail can
- * reconstruct what was removed (the deleteBilledCost pattern).
+ * Read side of the audit trail. The WRITE helpers deliberately do not live here
+ * — see src/lib/history.ts for why (a `"use server"` export that takes
+ * `changedBy` as a parameter is an audit-forgery endpoint).
  */
-export async function recordDeletion(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  previousValue: unknown,
-  txClient?: Pick<typeof db, "insert">,
-) {
-  await (txClient ?? db).insert(changeHistory).values({
-    entityType,
-    entityId,
-    changeType: "deleted",
-    previousValue: JSON.stringify(previousValue),
-    changedBy,
-  });
-}
-
-export async function recordStatusChange(
-  entityType: string,
-  entityId: number,
-  changedBy: number,
-  previousStatus: string,
-  newStatus: string,
-) {
-  await db.insert(changeHistory).values({
-    entityType,
-    entityId,
-    changeType: "status_change",
-    fieldName: "status",
-    previousValue: JSON.stringify(previousStatus),
-    newValue: JSON.stringify(newStatus),
-    changedBy,
-  });
-}
-
 export async function getEntityHistory(
   entityType: string,
   entityId: number,
@@ -121,13 +51,25 @@ export interface TierChangeEntry {
   previousTierName: string | null;
   newTierName: string | null;
   changedByName: string;
+  /**
+   * Where the retier came from (`change_history.source`, migration 0031). A
+   * non-'ui' entry was written by an agent or an automation under a real admin's
+   * `changedBy`, so rendering the name alone would show it as an ordinary human
+   * form edit.
+   *
+   * Typed `string`, not `ChangeSource`: the column is a plain varchar, so the
+   * DB — not the union in src/lib/history.ts — is what a reader actually gets.
+   * Every consumer's predicate is `!== "ui"`, which stays correct (and fails
+   * toward showing provenance) for a value written before the union catches up.
+   */
+  source: string;
   createdAt: Date;
 }
 
 /**
  * An assignment's tier-change timeline, newest first, with tier names
  * resolved (change_history stores access_tiers.id as JSON-stringified text —
- * see recordUpdate above and buildTierChange in
+ * see recordUpdate in src/lib/history.ts and buildTierChange in
  * src/lib/assignments/tier-change.ts) and the actor's name joined in. Spec 042
  * reads this instead of adding a column: change_history already has old/new
  * tierId, changedBy and createdAt for every retier.
@@ -174,6 +116,7 @@ export async function getAssignmentTierHistory(
         ? (tierNameById.get(JSON.parse(record.newValue)) ?? "an unknown tier")
         : null,
       changedByName: record.changedByUser.name,
+      source: record.source,
       createdAt: record.createdAt,
     })),
   };

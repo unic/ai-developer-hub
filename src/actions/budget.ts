@@ -35,7 +35,7 @@ import {
   recordCreation,
   recordUpdate,
   recordStatusChange,
-} from "@/actions/history";
+} from "@/lib/history";
 
 export async function createBudget(
   input: unknown,
@@ -90,7 +90,9 @@ export async function createBudget(
     await tx.insert(budgetPeriods).values(periods);
   });
 
-  await recordCreation("annual_budget", budgetId!, Number(admin.id));
+  await recordCreation("annual_budget", budgetId!, Number(admin.id), {
+    source: "ui",
+  });
 
   revalidatePath("/budget");
   revalidatePath("/reports");
@@ -215,9 +217,15 @@ export async function updateBudgetAllocations(
       .where(eq(budgetPeriods.id, allocation.periodId));
   }
 
-  await recordUpdate("annual_budget", budgetId, Number(admin.id), {
-    allocations: { old: "previous", new: "updated" },
-  });
+  await recordUpdate(
+    "annual_budget",
+    budgetId,
+    Number(admin.id),
+    {
+      allocations: { old: "previous", new: "updated" },
+    },
+    { source: "ui" },
+  );
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${budgetId}`);
@@ -259,6 +267,7 @@ export async function archiveBudget(input: {
     Number(admin.id),
     existing.status,
     "archived",
+    { source: "ui" },
   );
 
   revalidatePath("/budget");
@@ -379,7 +388,9 @@ export async function createBilledCost(
     })
     .returning({ id: billedCosts.id });
 
-  await recordCreation("billed_cost", billedCost.id, Number(admin.id));
+  await recordCreation("billed_cost", billedCost.id, Number(admin.id), {
+    source: "ui",
+  });
 
   revalidatePath("/budget");
   revalidatePath(`/budget/${period.budgetId}`);
@@ -470,7 +481,9 @@ export async function updateBilledCost(
   await db.update(billedCosts).set(setValues).where(eq(billedCosts.id, id));
 
   if (Object.keys(changes).length > 0) {
-    await recordUpdate("billed_cost", id, Number(admin.id), changes);
+    await recordUpdate("billed_cost", id, Number(admin.id), changes, {
+      source: "ui",
+    });
   }
 
   revalidatePath("/budget");
@@ -514,6 +527,7 @@ export async function deleteBilledCost(
     entityType: "billed_cost",
     entityId: id,
     changeType: "deleted",
+    source: "ui",
     previousValue: JSON.stringify({
       periodId: existing.periodId,
       amountCents: existing.amountCents,

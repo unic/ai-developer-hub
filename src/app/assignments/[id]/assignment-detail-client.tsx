@@ -91,6 +91,12 @@ interface TierHistoryEntry {
   previousTierName: string | null;
   newTierName: string | null;
   changedByName: string;
+  /**
+   * Provenance from change_history.source (migration 0031). An MCP retier is
+   * attributed to the bound admin's users.id, so the name alone would render an
+   * agent's write identically to a human filling in the form.
+   */
+  source: string;
   createdAt: string;
 }
 
@@ -714,6 +720,11 @@ export function AssignmentDetailClient({
                       {entry.newTierName ?? "—"} &middot;{" "}
                       {formatDate(entry.createdAt)} &middot;{" "}
                       {entry.changedByName}
+                      {entry.source !== "ui" && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          via {entry.source.toUpperCase()}
+                        </Badge>
+                      )}
                     </li>
                   ))}
                 </ul>

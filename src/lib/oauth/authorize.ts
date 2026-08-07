@@ -55,7 +55,14 @@ export type AuthorizeValidation =
       client: typeof mcpOauthClients.$inferSelect;
       redirectUri: string;
       codeChallenge: string;
+      /**
+       * The read-only baseline. Write capability is NOT resolved here because
+       * this function has no session: `approveAuthorization` re-checks the
+       * consenting user's role server-side and calls `resolveGrantedScope`.
+       */
       grantedScope: string;
+      /** Verbatim requested scope, for that resolution. */
+      requestedScope: string | null;
       state: string | null;
     }
   | { ok: false; fatal: true; message: string }
@@ -133,6 +140,7 @@ export async function validateAuthorizeRequest(
     redirectUri,
     codeChallenge: params.code_challenge,
     grantedScope: MCP_SCOPE,
+    requestedScope: params.scope ?? null,
     state,
   };
 }

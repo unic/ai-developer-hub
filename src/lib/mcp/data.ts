@@ -81,7 +81,16 @@ export async function listAiToolsData(options: {
    * catalog without it, and the aggregate query is skipped entirely (039).
    */
   includeUtilization: boolean;
+  /**
+   * Include archived tools and deactivated tiers (043-mcp-write-tools). Default
+   * false keeps the pre-043 response identical. Without this, deactivating a tier
+   * or archiving a tool was a one-way trapdoor over MCP: the row vanished from
+   * the only catalogue read tool, so the id needed to reverse the change — or
+   * even to name it in an echo field — became unobtainable.
+   */
+  includeInactive?: boolean;
 }) {
+  const includeInactive = options.includeInactive === true;
   const [tools, tiers, assignmentCounts] = await Promise.all([
     db
       .select({
@@ -92,7 +101,7 @@ export async function listAiToolsData(options: {
         maxLicenses: aiTools.maxLicenses,
       })
       .from(aiTools)
-      .where(eq(aiTools.status, "active")),
+      .where(includeInactive ? undefined : eq(aiTools.status, "active")),
     db
       .select({
         id: accessTiers.id,
@@ -102,7 +111,7 @@ export async function listAiToolsData(options: {
         isActive: accessTiers.isActive,
       })
       .from(accessTiers)
-      .where(eq(accessTiers.isActive, true)),
+      .where(includeInactive ? undefined : eq(accessTiers.isActive, true)),
     options.includeUtilization
       ? db
           .select({

@@ -1,10 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import {
-  invoices,
-  billedCosts,
-} from "@/lib/db/schema";
+import { invoices, billedCosts } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -12,17 +9,23 @@ import { getR2Client, getR2Bucket } from "@/lib/r2-client";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { z } from "zod";
 import { createInvoiceSchema } from "@/lib/validators";
-import type { CreateInvoiceInput, InvoiceExtractionResult } from "@/lib/validators";
+import type {
+  CreateInvoiceInput,
+  InvoiceExtractionResult,
+} from "@/lib/validators";
 import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction";
-import { recordCreation } from "@/actions/history";
+import { recordCreation } from "@/lib/history";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
-import { evaluateIngestionFilters, fetchEnabledFilterRules } from "@/lib/ingestion-filters";
+import {
+  evaluateIngestionFilters,
+  fetchEnabledFilterRules,
+} from "@/lib/ingestion-filters";
 import type { ActionResult } from "@/types";
 
-export async function extractInvoiceFieldsAction(
-  input: { objectKey: string }
-): Promise<ActionResult<InvoiceExtractionResult>> {
+export async function extractInvoiceFieldsAction(input: {
+  objectKey: string;
+}): Promise<ActionResult<InvoiceExtractionResult>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -75,7 +78,12 @@ export async function checkBulkDuplicates(invoiceNumbers: string[]): Promise<
   ActionResult<{
     duplicates: Record<
       string,
-      { id: number; invoiceDate: string; amountCents: number; vendor: string | null }
+      {
+        id: number;
+        invoiceDate: string;
+        amountCents: number;
+        vendor: string | null;
+      }
     >;
   }>
 > {
@@ -99,7 +107,12 @@ export async function checkBulkDuplicates(invoiceNumbers: string[]): Promise<
 
   const duplicates: Record<
     string,
-    { id: number; invoiceDate: string; amountCents: number; vendor: string | null }
+    {
+      id: number;
+      invoiceDate: string;
+      amountCents: number;
+      vendor: string | null;
+    }
   > = {};
   for (const row of existing) {
     if (!duplicates[row.invoiceNumber]) {
@@ -120,7 +133,7 @@ async function cleanupBlobInternal(blobPathname: string): Promise<void> {
   if (!blobPathname.startsWith("invoices/")) return;
   try {
     await getR2Client().send(
-      new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: blobPathname })
+      new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: blobPathname }),
     );
   } catch {
     // Best-effort — swallow errors
@@ -142,7 +155,14 @@ async function insertBilledCostDirect(params: {
   vendor: string | null | undefined;
   uploadedById: number;
 }): Promise<number> {
-  const { periodId, amountCents, invoiceDate, invoiceNumber, vendor, uploadedById } = params;
+  const {
+    periodId,
+    amountCents,
+    invoiceDate,
+    invoiceNumber,
+    vendor,
+    uploadedById,
+  } = params;
   const description = vendor
     ? `Invoice ${invoiceNumber} — ${vendor}`
     : `Invoice ${invoiceNumber}`;
@@ -158,7 +178,9 @@ async function insertBilledCostDirect(params: {
     })
     .returning({ id: billedCosts.id });
 
-  await recordCreation("billed_cost", created.id, uploadedById);
+  await recordCreation("billed_cost", created.id, uploadedById, {
+    source: "ingest",
+  });
   return created.id;
 }
 
@@ -174,7 +196,12 @@ type OverwriteInvoiceInput = {
 };
 
 type OverwriteResult =
-  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string }
+  | {
+      success: true;
+      data: { id: number };
+      linkedPeriodLabel?: string;
+      linkWarning?: string;
+    }
   | { success: false; error: string };
 
 const overwriteInvoiceSchema = createInvoiceSchema.extend({
@@ -182,17 +209,30 @@ const overwriteInvoiceSchema = createInvoiceSchema.extend({
 });
 
 export async function overwriteInvoice(
-  input: OverwriteInvoiceInput
+  input: OverwriteInvoiceInput,
 ): Promise<OverwriteResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = overwriteInvoiceSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: "Validation failed: " + parsed.error.issues.map(i => i.message).join(", ") };
+    return {
+      success: false,
+      error:
+        "Validation failed: " +
+        parsed.error.issues.map((i) => i.message).join(", "),
+    };
   }
 
-  const { existingInvoiceId, invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = parsed.data;
+  const {
+    existingInvoiceId,
+    invoiceNumber,
+    invoiceDate,
+    amountCents,
+    vendor,
+    blobUrl,
+    blobPathname,
+  } = parsed.data;
 
   // Fetch existing invoice
   const existing = await db.query.invoices.findFirst({
@@ -249,7 +289,9 @@ export async function overwriteInvoice(
         linkedPeriodLabel = period.periodLabel;
       } else if (period) {
         // Different period — delete old, create new
-        await tx.delete(billedCosts).where(eq(billedCosts.id, oldLinkedBilledCostId));
+        await tx
+          .delete(billedCosts)
+          .where(eq(billedCosts.id, oldLinkedBilledCostId));
         const description = vendor
           ? `Invoice ${invoiceNumber} — ${vendor}`
           : `Invoice ${invoiceNumber}`;
@@ -270,12 +312,15 @@ export async function overwriteInvoice(
         linkedPeriodLabel = period.periodLabel;
       } else {
         // No matching period — remove link
-        await tx.delete(billedCosts).where(eq(billedCosts.id, oldLinkedBilledCostId));
+        await tx
+          .delete(billedCosts)
+          .where(eq(billedCosts.id, oldLinkedBilledCostId));
         await tx
           .update(invoices)
           .set({ linkedBilledCostId: null })
           .where(eq(invoices.id, existingInvoiceId));
-        linkWarning = "No active budget period covers this invoice date. Previous budget link was removed.";
+        linkWarning =
+          "No active budget period covers this invoice date. Previous budget link was removed.";
       }
     } else if (period) {
       // No existing billed cost — attempt auto-link
@@ -318,13 +363,19 @@ export async function overwriteInvoice(
 }
 
 type SaveInvoiceResult =
-  | { success: true; data: { id: number }; linkedPeriodLabel?: string; linkWarning?: string; filterWarning?: string }
+  | {
+      success: true;
+      data: { id: number };
+      linkedPeriodLabel?: string;
+      linkWarning?: string;
+      filterWarning?: string;
+    }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export async function saveInvoice(
   input: CreateInvoiceInput,
   channel: "manual" | "bulk" = "manual",
-  preloadedFilterRules?: Awaited<ReturnType<typeof fetchEnabledFilterRules>>
+  preloadedFilterRules?: Awaited<ReturnType<typeof fetchEnabledFilterRules>>,
 ): Promise<SaveInvoiceResult> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
@@ -342,16 +393,26 @@ export async function saveInvoice(
     return {
       success: false,
       error: "Validation failed",
-      fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+      fieldErrors: parsed.error.flatten().fieldErrors as Record<
+        string,
+        string[]
+      >,
     };
   }
 
-  const { invoiceNumber, invoiceDate, amountCents, vendor, blobUrl, blobPathname } = parsed.data;
+  const {
+    invoiceNumber,
+    invoiceDate,
+    amountCents,
+    vendor,
+    blobUrl,
+    blobPathname,
+  } = parsed.data;
 
   // Evaluate ingestion filters before insert to set filteredOut in one query
   const filterResult = await evaluateIngestionFilters(
     { vendor: vendor ?? null, invoiceNumber },
-    preloadedFilterRules
+    preloadedFilterRules,
   );
 
   let newId: number;
@@ -373,7 +434,9 @@ export async function saveInvoice(
   } catch (err) {
     // Orphan cleanup: delete the uploaded R2 object if DB write fails
     try {
-      await getR2Client().send(new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: blobPathname }));
+      await getR2Client().send(
+        new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: blobPathname }),
+      );
     } catch {
       // Best-effort cleanup — ignore secondary failure
     }
@@ -392,7 +455,9 @@ export async function saveInvoice(
     return { success: false, error: `Failed to save invoice: ${message}` };
   }
 
-  await recordCreation("invoice", newId, Number(admin.id));
+  await recordCreation("invoice", newId, Number(admin.id), {
+    source: "ingest",
+  });
 
   if (filterResult.filteredOut) {
     await logIngestionAttempt({
@@ -412,7 +477,8 @@ export async function saveInvoice(
     return {
       success: true,
       data: { id: newId },
-      filterWarning: filterResult.reason ?? "Invoice was filtered by an ingestion rule.",
+      filterWarning:
+        filterResult.reason ?? "Invoice was filtered by an ingestion rule.",
     };
   }
 
@@ -477,7 +543,13 @@ export type BulkSaveOutcome = {
 };
 
 export async function saveBulkInvoices(
-  inputs: Array<CreateInvoiceInput & { filename: string; skip?: boolean; skipReason?: string }>
+  inputs: Array<
+    CreateInvoiceInput & {
+      filename: string;
+      skip?: boolean;
+      skipReason?: string;
+    }
+  >,
 ): Promise<ActionResult<BulkSaveOutcome[]>> {
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
