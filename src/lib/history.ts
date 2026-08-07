@@ -8,10 +8,15 @@
  * (`getEntityHistory`) stays in `src/actions/history.ts` because Server
  * Components import it from there.
  *
- * `source` is REQUIRED on every call and the column has no DB default. A
- * default would silently label a forgetful call site as a human UI edit — the
- * exact forensic lie the column exists to prevent — so the compiler is the
- * enforcement mechanism instead.
+ * `source` is REQUIRED on every call via the `HistoryOptions` interface below,
+ * so the compiler — not the database — forces every call site through these
+ * helpers (~44 of them) to state it explicitly and prevents a forgetful call
+ * site from silently getting labelled a human UI edit. The column itself does
+ * carry a DB default (`'ui'`, added by migration 0031) but that exists only
+ * for deploy safety; it backstops the two raw `db.insert(changeHistory)`
+ * sites that bypass these helpers (`src/actions/budget.ts` and
+ * `src/actions/budget-extensions.ts`), both of which also pass `source`
+ * explicitly.
  */
 
 import { db } from "@/lib/db";

@@ -1,0 +1,46 @@
+{
+  "note": "State captured immediately before applying 0030+0031 to production. Restores the row the DO block collapses.",
+  "endpoint": "ep-little-frost-alw6tlsf",
+  "pending": [
+    "0001_white_skin.sql",
+    "0003_peaceful_unus.sql",
+    "0006_shallow_ronan.sql",
+    "0009_quick_namor.sql",
+    "0014_giant_santa_claus.sql",
+    "0016_thick_titania.sql",
+    "0017_add_is_agent_to_users.sql",
+    "0026_nebulous_shadow_king.sql",
+    "0029_curly_strong_guy.sql",
+    "0030_mcp_write_audit_source.sql",
+    "0031_change_history_source_default.sql"
+  ],
+  "orgActiveSpendBefore": {
+    "active_rows": 309,
+    "total_cents": 1349200
+  },
+  "changeHistoryRowsBefore": 1935,
+  "affectedRows": [
+    {
+      "id": 102,
+      "user_id": 104,
+      "tool_id": 1,
+      "tier_id": 1,
+      "cost_at_assignment_cents": 1900,
+      "status": "active",
+      "assigned_at": "2026-07-17T04:00:04.982Z",
+      "revoked_at": null,
+      "updated_at": "2026-07-17T04:00:04.982Z"
+    },
+    {
+      "id": 391,
+      "user_id": 104,
+      "tool_id": 1,
+      "tier_id": 1,
+      "cost_at_assignment_cents": 1900,
+      "status": "active",
+      "assigned_at": "2026-07-15T22:00:00.000Z",
+      "revoked_at": null,
+      "updated_at": "2026-07-16T08:40:07.329Z"
+    }
+  ]
+}

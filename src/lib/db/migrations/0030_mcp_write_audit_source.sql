@@ -4,10 +4,13 @@
 --
 -- 1. `ADD COLUMN source varchar(20) NOT NULL` with no default cannot be applied
 --    to a table that already has rows. Added nullable -> backfilled -> SET NOT
---    NULL, which reaches the same final schema (NOT NULL, no default) while
---    remaining applicable. The absence of a default is deliberate: a default
---    would silently label a forgetful call site as a human UI edit, which is the
---    forensic lie this column exists to prevent.
+--    NULL, which reaches NOT NULL without that restriction. This
+--    migration leaves the column without a default; 0031
+--    (0031_change_history_source_default.sql) adds `DEFAULT 'ui'` afterwards,
+--    solely for deploy safety — see that file's header for why. Provenance
+--    itself is enforced at the type level, not by the database: `source` is a
+--    required field on `HistoryOptions` (src/lib/history.ts), so the compiler
+--    forces every call site through those helpers to state it explicitly.
 --
 -- 2. `CREATE UNIQUE INDEX license_assignments_one_active_idx` aborts if the table
 --    already violates the invariant. Nothing enforced it before, so duplicates

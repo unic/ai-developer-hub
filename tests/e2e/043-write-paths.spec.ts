@@ -274,8 +274,8 @@ test("changing a tier price from the tool page propagates to the held seat", asy
 test("the user detail page renders history with the new source column", async ({
   page,
 }) => {
-  // change_history.source became NOT NULL with no default in 0030; a read path that
-  // does not expect it would throw here.
+  // change_history.source became NOT NULL in 0030 (DEFAULT 'ui' added by 0031); a
+  // read path that does not expect it would throw here.
   const res = await page.goto(`${BASE}/users/${userId}`, { timeout: 90_000 });
   expect(res?.status()).toBeLessThan(400);
   const body = await page.innerText("body");

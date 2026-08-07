@@ -518,12 +518,16 @@
           <code>0</code> stays legal.
         </li>
         <li class="note">
-          <strong><code>source</code> is required with no default.</strong> A
-          <code>NOT NULL DEFAULT 'ui'</code> column fails in the wrong direction:
-          any call site that forgets the argument silently labels its row a human
-          UI edit, which is the exact forensic lie the column exists to prevent.
-          Required + options-object (not a 6th positional arg after an optional
-          one) so the compiler flags all existing call sites.
+          <strong><code>source</code> is required — at the type level.</strong> The
+          challenge pass argued for <code>NOT NULL</code> with <em>no</em> DB
+          default, on the grounds that a default lets any call site that forgets the
+          argument silently label its row a human UI edit, the exact forensic lie the
+          column exists to prevent. Required + options-object (not a 6th positional
+          arg after an optional one) so the compiler flags all existing call sites.
+          <strong>The no-default half was reversed later</strong> — see
+          &ldquo;<code>NOT NULL</code> with no default is undeployable&rdquo; below.
+          The shipped column is <code>varchar(20) NOT NULL DEFAULT 'ui'</code>, and
+          the compiler — not the DB — is what forces provenance.
         </li>
         <li class="note">
           <strong>Cores return their own <code>revalidate</code> list.</strong>
@@ -634,11 +638,37 @@
           <code>drizzle-kit generate</code> emitted
           <code>ADD COLUMN source varchar(20) NOT NULL</code> with no default,
           which cannot be applied to a table that already has rows. Rewritten as
-          add-nullable → backfill <code>ui</code> → <code>SET NOT NULL</code>,
-          reaching the same final schema. The partial unique index also aborts on
-          pre-existing duplicates, so a <code>DO</code> block now reports the count
-          via <code>RAISE NOTICE</code> and deactivates all but the highest id per
-          (user, tool) before the index is created.
+          add-nullable → backfill <code>ui</code> → <code>SET NOT NULL</code>.
+          The partial unique index also aborts on pre-existing duplicates, so a
+          <code>DO</code> block now reports the count via <code>RAISE NOTICE</code>
+          and collapses all but one row per (user, tool) before the index is
+          created. Both details written here were later reversed against real data:
+          the survivor is the <strong>earliest <code>assigned_at</code></strong>,
+          not the highest id, and the column ships <strong>with</strong> a
+          <code>DEFAULT 'ui'</code> — see the two items below and the Neon-branch
+          section.
+        </li>
+        <li class="con">
+          <strong><code>NOT NULL</code> with no default is undeployable — reversed
+          by 0031.</strong> The planned shape (<code>NOT NULL</code>, <em>no</em> DB
+          default, so nothing but the compiler can supply provenance) cannot be
+          rolled out in either order. Migrate first → the live pre-043 code calls
+          <code>recordCreation</code> / <code>recordUpdate</code> /
+          <code>recordStatusChange</code> without a <code>source</code>, so every
+          audited write in the app fails with <code>23502</code> until the new code
+          goes live. Deploy first → the new code writes a column that does not exist
+          yet. There is no safe ordering without a default, so
+          <code>0031_change_history_source_default.sql</code> supplies one and the
+          shipped column is <code>varchar(20) NOT NULL DEFAULT 'ui'</code>.
+          <code>pnpm db:migrate</code> applies every pending file in one run, so 0030
+          and 0031 land together and the NOT-NULL-without-default state is never
+          visible to application traffic — <strong>0030 must never be applied on its
+          own</strong>. The default is <em>not</em> what enforces provenance:
+          <code>source</code> is still a required field on
+          <code>HistoryOptions</code>, so the compiler still forces all 44 call sites
+          to state it; the default only backstops a raw
+          <code>db.insert(changeHistory)</code> that bypasses the helpers, and both
+          such calls are explicit anyway.
         </li>
         <li class="con">
           <strong>Migration is 0030, not 0027.</strong> The plan was written
@@ -738,8 +768,10 @@
       <h3>Migration result</h3>
       <ul>
         <li class="note">
-          <code>source</code> landed as <code>varchar(20) NOT NULL</code> with no
-          default; all 1,933 rows backfilled to <code>ui</code>. Partial unique index
+          <code>source</code> landed as <code>varchar(20) NOT NULL</code>; all 1,933
+          rows backfilled to <code>ui</code>. (This run predates 0031, which adds the
+          <code>DEFAULT 'ui'</code> the shipped column carries — see above.) Partial
+          unique index
           created with the right predicate. Zero duplicates remain. Org-wide active
           spend went 1,359,200&cent; &rarr; <strong>1,357,300&cent;</strong>
           (&minus;$19.00), which is the double-billed seat being corrected.
@@ -909,10 +941,11 @@
       <ul>
         <li class="con">
           <strong>Nothing has touched production.</strong> Everything above ran
-          against a Neon branch. Production still needs migration 0030 applied, and
-          the same duplicate-remediation will run there — its effect on reported
-          spend must be re-measured against production data, not assumed to be the
-          same &minus;$19.00.
+          against a Neon branch. Production still needs migrations 0030 <em>and</em>
+          0031 applied — in the same <code>pnpm db:migrate</code> run, never 0030
+          alone — and the same duplicate-remediation will run there — its effect on
+          reported spend must be re-measured against production data, not assumed to
+          be the same &minus;$19.00.
         </li>
         <li class="note">
           <code>MCP_WRITE_ENABLED</code> is not set in any environment. The write

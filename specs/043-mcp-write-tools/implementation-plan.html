@@ -334,7 +334,7 @@
           <li><a href="#gate">2. The write gate</a></li>
           <li><a href="#surface">3. Tool surface (9 tools)</a></li>
           <li><a href="#plantoken">4. Plan tokens</a></li>
-          <li><a href="#schema">5. Schema changes (migration 0030)</a></li>
+          <li><a href="#schema">5. Schema changes (migrations 0030 + 0031)</a></li>
           <li><a href="#layering">6. Layering &amp; file plan</a></li>
           <li><a href="#challenge">7. Challenge pass — what changed</a></li>
           <li><a href="#deferred">8. Deferred &amp; known limitations</a></li>
@@ -629,7 +629,7 @@ export interface WriteContext {
         inspection.
       </p>
 
-      <h2 id="schema">5. Schema changes (migration 0030)</h2>
+      <h2 id="schema">5. Schema changes (migrations 0030 + 0031)</h2>
       <table>
         <thead>
           <tr>
@@ -640,15 +640,24 @@ export interface WriteContext {
         <tbody>
           <tr>
             <td>
-              <code>change_history.source varchar(20) NOT NULL</code>, no
-              default, existing rows backfilled to <code>'ui'</code>
+              <code>change_history.source varchar(20) NOT NULL DEFAULT 'ui'</code>,
+              existing rows backfilled to <code>'ui'</code>
             </td>
             <td>
               Distinguishes an agent-driven write from the same human's UI edit.
-              <strong>No default on purpose</strong>: a default silently labels
-              any forgetful call site as a human edit, which is the exact
-              forensic lie the column exists to prevent. Required, so the
-              compiler flags all ~19 existing call sites.
+              Provenance is enforced at the <em>type</em> level: <code>source</code>
+              is a required field on the history helpers' options object, so the
+              compiler flags all ~19 existing call sites. <strong>Originally planned
+              with no default</strong> — the argument being that a default silently
+              labels any forgetful call site as a human edit, the exact forensic lie
+              the column exists to prevent. <strong>Reversed during
+              implementation</strong>: a <code>NOT NULL</code> column with no default
+              is undeployable in either direction (migrate first → the live pre-043
+              code inserts without <code>source</code> and hits <code>23502</code>;
+              deploy first → the new code writes a column that does not exist yet).
+              Migration <code>0031</code> therefore sets <code>DEFAULT 'ui'</code>
+              purely for deploy safety; it only backstops a raw
+              <code>db.insert(changeHistory)</code> that bypasses the helpers.
             </td>
           </tr>
           <tr>
