@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { syncEvents, syncSourceTypeEnum, syncOperationTypeEnum } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, lt, or, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Types — derived from schema enums
@@ -109,13 +109,107 @@ export async function updateSyncEvent(
 // withSyncLock — advisory lock + event lifecycle
 // ---------------------------------------------------------------------------
 
+/**
+ * The platform ceiling that bounds every sync entrypoint, in seconds.
+ *
+ * Mirrors `export const maxDuration` on the three cron routes and on the
+ * `/settings/sync` segment that dispatches the manual trigger + backfill server
+ * actions. Kept here so the reaper's safety margin below is expressed against
+ * the thing that actually bounds a run, rather than as a bare number.
+ */
+const SYNC_MAX_DURATION_SECONDS = 300;
+
+/**
+ * How long an `in_progress` row of each operation type may sit before it is
+ * treated as abandoned.
+ *
+ * The invariant: a cutoff MUST exceed the longest a live run of that type can
+ * possibly take, so the sweep can never terminate a row that is still being
+ * written. Every entrypoint is bounded by SYNC_MAX_DURATION_SECONDS, so these
+ * carry a large multiple of that ceiling rather than sitting just above it.
+ *
+ * Backfills are separated out deliberately: they iterate per day (Copilot) or
+ * per 31-day window (Anthropic) with external API calls per step, so they are
+ * the runs most likely to grow if that ceiling is ever raised. Sharing a single
+ * cutoff would make "raise maxDuration" silently able to start reaping live
+ * backfills.
+ */
+export const STALE_EVENT_AFTER_MS: Record<SyncOperationType, number> = {
+  regular: 60 * 60 * 1000, // 1h — 12x the ceiling
+  backfill: 6 * 60 * 60 * 1000, // 6h — 72x the ceiling
+};
+
+/** Exported for the invariant test; see STALE_EVENT_AFTER_MS. */
+export const SYNC_MAX_DURATION_MS = SYNC_MAX_DURATION_SECONDS * 1000;
+
+/**
+ * Terminate `in_progress` rows that no live run can still own.
+ *
+ * A sync whose process is killed mid-run (function timeout, instance eviction,
+ * a connection fault before the catch block lands) leaves its row at
+ * `in_progress` forever. That row is not merely cosmetic: the sync dashboard
+ * treats any `in_progress` source as reason to poll `getSyncStatus()` every 5s,
+ * so a single stranded row turns every open admin tab into permanent database
+ * load. Sweeping on every attempt keeps the cleanup unconditional rather than
+ * dependent on a later run of the same source succeeding.
+ */
+async function reapAbandonedEvents(sourceType: SyncSourceType): Promise<void> {
+  const now = Date.now();
+  await db
+    .update(syncEvents)
+    .set({
+      outcome: "failed",
+      completedAt: new Date(),
+      errorMessage: "Abandoned — no completion recorded before the stale cutoff",
+    })
+    .where(
+      and(
+        eq(syncEvents.sourceType, sourceType),
+        eq(syncEvents.outcome, "in_progress"),
+        // Per-operation cutoffs — a long backfill must not be reaped on the
+        // schedule that suits a regular hourly run.
+        or(
+          and(
+            eq(syncEvents.operationType, "regular"),
+            lt(
+              syncEvents.startedAt,
+              new Date(now - STALE_EVENT_AFTER_MS.regular)
+            )
+          ),
+          and(
+            eq(syncEvents.operationType, "backfill"),
+            lt(
+              syncEvents.startedAt,
+              new Date(now - STALE_EVENT_AFTER_MS.backfill)
+            )
+          )
+        )
+      )
+    );
+}
+
 export async function withSyncLock(
   params: WithSyncLockParams,
   fn: (eventId: number) => Promise<SyncCounts>
 ): Promise<{ eventId: number }> {
   const lockId = hashSourceType(params.sourceType);
 
-  // Try to acquire advisory lock
+  // Unconditional, and before the lock: a stranded row must be cleared even on
+  // attempts that go on to lose the race below.
+  try {
+    await reapAbandonedEvents(params.sourceType);
+  } catch (reapErr) {
+    console.error(`[sync] failed to reap abandoned ${params.sourceType} events:`, reapErr);
+  }
+
+  // NOTE: this advisory lock is not load-bearing against Neon's pooled
+  // endpoint. PgBouncer runs in transaction mode, where Neon documents
+  // session-level advisory locks as unsupported — successive statements can
+  // land on different backends, so the unlock below may release nothing and
+  // the acquire may even succeed re-entrantly on a session that already holds
+  // it. Replacing this with a TTL row lease needs a migration and is tracked
+  // as follow-up work (see specs/044). Until then the goal here is narrower:
+  // never leak silently, and never let lock bookkeeping mask a real error.
   const lockResult = await db.execute(
     sql`SELECT pg_try_advisory_lock(${Number(lockId)})`
   );
@@ -125,51 +219,92 @@ export async function withSyncLock(
     throw new Error("Sync already in progress");
   }
 
-  // Insert in-progress event
-  const [event] = await db
-    .insert(syncEvents)
-    .values({
-      sourceType: params.sourceType,
-      operationType: params.operationType ?? "regular",
-      backfillStartDate: params.backfillStartDate
-        ? params.backfillStartDate.toISOString().split("T")[0]
-        : null,
-      triggeredBy: params.triggeredBy ?? null,
-    })
-    .returning({ id: syncEvents.id });
-
   try {
-    const counts = await fn(event.id);
+    // Inside the try: if this insert throws, the finally still releases the
+    // lock. Previously it sat between acquire and try, so a failure here
+    // stranded the lock with no release path at all.
+    const [event] = await db
+      .insert(syncEvents)
+      .values({
+        sourceType: params.sourceType,
+        operationType: params.operationType ?? "regular",
+        backfillStartDate: params.backfillStartDate
+          ? params.backfillStartDate.toISOString().split("T")[0]
+          : null,
+        triggeredBy: params.triggeredBy ?? null,
+      })
+      .returning({ id: syncEvents.id });
 
-    // Determine outcome
-    const outcome =
-      counts.errorCount > 0 && counts.createdCount + counts.updatedCount > 0
-        ? "partial"
-        : counts.errorCount > 0
-          ? "failed"
-          : "success";
+    try {
+      const counts = await fn(event.id);
 
-    await updateSyncEvent(event.id, {
-      outcome,
-      completedAt: new Date(),
-      createdCount: counts.createdCount,
-      updatedCount: counts.updatedCount,
-      skippedCount: counts.skippedCount,
-      errorCount: counts.errorCount,
-      errorMessage: counts.errorMessage ?? null,
-    });
+      // Determine outcome
+      const outcome =
+        counts.errorCount > 0 && counts.createdCount + counts.updatedCount > 0
+          ? "partial"
+          : counts.errorCount > 0
+            ? "failed"
+            : "success";
 
-    return { eventId: event.id };
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : String(err);
-    await updateSyncEvent(event.id, {
-      outcome: "failed",
-      completedAt: new Date(),
-      errorMessage: message.slice(0, 1000),
-    });
-    throw err;
+      // Best-effort: the sync itself already succeeded and its data is
+      // written. If this status write fails (typically on a dead connection),
+      // recording that must not convert a completed run into a thrown failure
+      // — the reaper above will terminate the row on the next attempt.
+      try {
+        await updateSyncEvent(event.id, {
+          outcome,
+          completedAt: new Date(),
+          createdCount: counts.createdCount,
+          updatedCount: counts.updatedCount,
+          skippedCount: counts.skippedCount,
+          errorCount: counts.errorCount,
+          errorMessage: counts.errorMessage ?? null,
+        });
+      } catch (bookkeepingErr) {
+        console.error(
+          `[sync] ${params.sourceType} succeeded but recording event ${event.id} failed:`,
+          bookkeepingErr
+        );
+      }
+
+      return { eventId: event.id };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Same reasoning inverted: a failure to record the failure must never
+      // replace the original error, which is the one worth surfacing.
+      try {
+        await updateSyncEvent(event.id, {
+          outcome: "failed",
+          completedAt: new Date(),
+          errorMessage: message.slice(0, 1000),
+        });
+      } catch (bookkeepingErr) {
+        console.error(
+          `[sync] failed to mark event ${event.id} as failed:`,
+          bookkeepingErr
+        );
+      }
+      throw err;
+    }
   } finally {
-    await db.execute(sql`SELECT pg_advisory_unlock(${Number(lockId)})`);
+    // Total: an unlock that throws must not replace the error being propagated.
+    try {
+      const releaseResult = await db.execute(
+        sql`SELECT pg_advisory_unlock(${Number(lockId)})`
+      );
+      const released = (releaseResult.rows?.[0] as Record<string, unknown>)
+        ?.pg_advisory_unlock;
+      if (released === false) {
+        console.error(
+          `[sync] advisory unlock was a no-op for ${params.sourceType} — the ` +
+            `lock was taken on a different backend session and is now leaked`
+        );
+      }
+    } catch (unlockErr) {
+      console.error(
+        `[sync] advisory unlock threw for ${params.sourceType}:`,
+        unlockErr
+      );
+    }
   }
 }

@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { SyncDashboard } from "./sync-dashboard";
 import { LoadingState, InlineSpinner } from "@/components/ui/loading-state";
 
+// The manual "Sync now" / backfill triggers are Server Actions dispatched
+// against this route segment, so the cron routes' own maxDuration does not
+// govern them — without this they run under the platform default.
+export const maxDuration = 300;
+
 export default async function SyncSettingsPage() {
   const admin = await requireAdmin();
   if (!admin) redirect("/settings");

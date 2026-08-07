@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Plan — Database Connection Reliability (044)</title>
+  <style>
+    :root {
+      --bg:#0b0d12; --bg-elev:#11141b; --bg-card:#161a24; --border:#232938; --border-strong:#2f3850;
+      --fg:#e7ebf3; --fg-muted:#9aa3b5; --fg-dim:#6b7488;
+      --accent:#f0a072; --accent-2:#7dd3fc; --good:#86efac; --warn:#fcd34d; --bad:#fca5a5;
+      --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+      --sans: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family:var(--sans); line-height:1.55; }
+    body { padding:48px 24px 96px; }
+    main { max-width:1000px; margin:0 auto; }
+    h1 { font-size:30px; margin:0 0 6px; letter-spacing:-0.01em; }
+    h2 { font-size:20px; margin:44px 0 4px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+    h3 { font-size:15px; margin:22px 0 4px; }
+    p { margin:0 0 10px; }
+    a { color:var(--accent); }
+    code { font-family:var(--mono); font-size:0.88em; background:var(--bg-elev); padding:1px 5px; border-radius:4px; border:1px solid var(--border); }
+    .lede { color:var(--fg-muted); font-size:15.5px; max-width:80ch; }
+    .meta { color:var(--fg-dim); font-size:13px; margin-top:8px; font-family:var(--mono); }
+    .badge { display:inline-block; font-size:11px; font-family:var(--mono); padding:2px 8px; border-radius:999px; border:1px solid var(--border-strong); color:var(--fg-muted); background:var(--bg-elev); }
+    .badge.ok { color:var(--good); border-color:rgba(134,239,172,0.35); }
+    .entry { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin:14px 0; }
+    .entry.dd { border-left:3px solid var(--accent-2); }
+    .entry.dev { border-left:3px solid var(--warn); }
+    .entry.to { border-left:3px solid var(--accent); }
+    .entry.oq { border-left:3px solid var(--bad); }
+    .entry h3 { margin-top:0; }
+    .tag { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; padding:2px 7px; border-radius:3px; vertical-align:middle; margin-left:8px; }
+    .tag.dd { color:var(--accent-2); border:1px solid rgba(125,211,252,0.3); }
+    .tag.dev { color:var(--warn); border:1px solid rgba(252,211,77,0.3); }
+    .tag.to { color:var(--accent); border:1px solid rgba(240,160,114,0.3); }
+    .tag.oq { color:var(--bad); border:1px solid rgba(252,165,165,0.3); }
+    .entry p { font-size:13.5px; color:var(--fg-muted); }
+    .entry b { color:var(--fg); }
+    ul { padding-left:20px; margin:6px 0 10px; } li { margin:3px 0; font-size:13.5px; color:var(--fg-muted); }
+    .ts { font-family:var(--mono); font-size:11px; color:var(--fg-dim); }
+    table { border-collapse:collapse; width:100%; margin:12px 0; font-size:13px; }
+    th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+    th { color:var(--fg-dim); font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; }
+    td { color:var(--fg-muted); }
+    td b { color:var(--fg); }
+    .scroll { overflow-x:auto; }
+    footer { color:var(--fg-dim); font-size:12.5px; margin-top:56px; padding-top:20px; border-top:1px solid var(--border); font-family:var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Database Connection Reliability</h1>
+  <p class="lede">Production incident fix. Three error signatures on <code>ai-developer-hub</code> traced to the shared Neon connection layer: process-killing crashes from unhandled connection faults, connection starvation from a <code>max: 1</code> pool under Fluid Compute, and a sync lock that cannot work on Neon's pooled endpoint.</p>
+  <p class="meta">Spec 044 · branch <code>worktree-044-db-connection-reliability</code> · <span class="badge ok">Challenged &amp; revised — implemented</span></p>
+
+  <h2>1. Observed symptoms</h2>
+  <p>From Vercel runtime error groups, 7-day window ending 2026-08-04.</p>
+  <div class="scroll">
+  <table>
+    <tr><th>ID</th><th>Signature</th><th>Count</th><th>Routes</th></tr>
+    <tr><td><b>A</b></td><td><code>Cron … sync failed: Failed query: SELECT pg_try_advisory_lock($1)</code></td><td>51 + 12</td><td><code>/api/sync/anthropic-api-costs</code>, <code>/api/sync/anthropic-usage</code></td></tr>
+    <tr><td><b>B</b></td><td><code>timeout exceeded when trying to connect</code> (as <code>cause</code>)</td><td>2+</td><td><code>/</code> (admin dashboard)</td></tr>
+    <tr><td><b>C</b></td><td><code>Unhandled error. ()</code> at <code>idleListener</code> → <code>exit status: 129</code></td><td>18</td><td><code>/</code>, <code>/api/mcp</code>, <code>/api/auth</code>, <code>/api/profile</code>, <code>/api/oauth/token</code></td></tr>
+  </table>
+  </div>
+  <p>Every symptom-A occurrence is timestamped at <code>:00</code>–<code>:01</code> past the hour. Today's production deploy (<code>ea50404</code>, 08:42 UTC) is not implicated: it touched no DB, pool, or dashboard code, and all routes served 200 at 10:27–10:37 before the 12:00 cron tick.</p>
+
+  <h2>2. Root causes</h2>
+
+  <div class="entry dd">
+    <h3>RC-1 · <code>max: 1</code> pool starved by concurrent work<span class="tag dd">symptom A + B</span></h3>
+    <p><code>src/lib/db/index.ts</code> constructs a module-level singleton with <code>max: 1</code>. The original design note (<code>specs/001 research.md:24</code>) justifies this as "one connection per serverless function instance" — an assumption that predates Fluid Compute, which reuses one instance across <b>concurrent</b> invocations.</p>
+    <p>Three amplifiers stack on it: both hourly crons fired at <code>0 * * * *</code>; <code>src/actions/dashboard.ts:126</code> fans out 9 concurrent queries then 3 more; <code>getAssignments()</code> (<code>src/actions/assignments.ts:637</code>) is unbounded with three lateral joins.</p>
+    <p>Evidence chain at 12:00 UTC: api-costs cron starts 12:00:41 → usage cron's <i>first</i> query fails 12:00:49 → <code>GET /</code> fails 12:00:50 and 12:01:06, all with connect timeouts.</p>
+  </div>
+
+  <div class="entry dd">
+    <h3>RC-2 · No error listener on either pool object<span class="tag dd">symptom C</span></h3>
+    <p>Verified empirically against <code>@neondatabase/serverless</code> 1.0.2. Two distinct objects, both unguarded:</p>
+    <ul>
+      <li><b>Idle clients</b> — the driver re-emits a dead socket's error onto the Pool. <code>pool.emit("error", …)</code> with no listener <b>throws synchronously</b> (confirmed by probe). This is the production stack: <code>idleListener</code> → <code>emit</code> → <code>Unhandled error</code>.</li>
+      <li><b>Checked-out clients</b> — <code>_acquireClient</code> removes the driver's idle listener on checkout, and in 1.0.2 <b>neither <code>query()</code> nor <code>connect()</code> re-attaches one</b> (probed: both false). While a query is in flight the error rejects that promise; between statements inside a <code>db.transaction()</code> there is nothing to route it to.</li>
+    </ul>
+    <p>Under Fluid Compute one uncaught exception tears down an instance serving many concurrent invocations — hence exit 129 across unrelated routes.</p>
+  </div>
+
+  <div class="entry dd">
+    <h3>RC-3 · Session advisory locks are unsupported on the pooled endpoint<span class="tag dd">latent</span></h3>
+    <p>Production <code>DATABASE_URL</code> is <code>ep-little-frost-…-pooler…</code>. Neon's connection-pooling documentation lists <b>"Session-level advisory locks"</b> under <i>Not supported with pooled connections</i> (PgBouncer <code>pool_mode=transaction</code>).</p>
+    <p>The repo already knew: <code>vitest.config.integration.mts:14</code> documents this exact failure and works around it by repointing <code>DATABASE_URL</code> at <code>DATABASE_URL_UNPOOLED</code> — but <b>only for tests</b>. Production was never protected.</p>
+    <p>So <code>withSyncLock</code>'s mutual exclusion is not merely racy across checkouts; it is structurally unreliable, and can fail in both directions (a leaked lock that blocks forever, or a re-entrant false grant on a shared session).</p>
+  </div>
+
+  <div class="entry dd">
+    <h3>RC-4 · Failures were invisible, and one stranded row generated permanent load</h3>
+    <p><code>cron-handler.ts</code> returned HTTP 200 for <b>every</b> outcome, including unexpected errors — which is why 63 cron failures over seven weeks never showed as anything but a green tick.</p>
+    <p>Separately, the sync dashboard's 5s fast poll exits only when nothing is <code>in_progress</code>, and the 30s poll re-arms it whenever it sees one. A row stranded by a killed sync therefore made <b>every open admin tab query the database every 5 seconds indefinitely</b> — and unlike the 30s loop, the fast loop did not check <code>document.hidden</code>.</p>
+  </div>
+
+  <h2>3. Changes made</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>#</th><th>File</th><th>Change</th><th>Addresses</th></tr>
+    <tr><td>1</td><td><code>src/lib/db/index.ts</code></td><td><code>pool.on("error")</code> + <code>pool.on("connect", c =&gt; c.on("error"))</code></td><td>C</td></tr>
+    <tr><td>2</td><td><code>src/lib/db/index.ts</code></td><td><code>max</code> 1 → 10; <code>connectionTimeoutMillis</code> 10s → 15s</td><td>A, B</td></tr>
+    <tr><td>3</td><td><code>vercel.json</code></td><td>Stagger crons: <code>20 * * * *</code> and <code>40 6 * * *</code></td><td>A, B</td></tr>
+    <tr><td>4</td><td><code>src/lib/sync/framework.ts</code></td><td>Total release; guarded bookkeeping on <b>both</b> paths; event insert moved inside <code>try</code>; no-op-unlock detection</td><td>A</td></tr>
+    <tr><td>5</td><td><code>src/lib/sync/framework.ts</code></td><td>Unconditional stale-<code>in_progress</code> sweep, per-operation cutoffs (1h regular / 6h backfill, no migration)</td><td>RC-4</td></tr>
+    <tr><td>6</td><td><code>src/lib/sync/cron-handler.ts</code></td><td>409 for contention, 500 for unexpected errors</td><td>RC-4</td></tr>
+    <tr><td>7</td><td><code>sync-dashboard.tsx</code></td><td>10-minute fast-poll cap, <code>document.hidden</code> skip, abandoned-id guard against re-arming</td><td>RC-4</td></tr>
+    <tr><td>8</td><td>3 cron routes + <code>settings/sync/page.tsx</code></td><td><code>maxDuration = 300</code></td><td>A</td></tr>
+  </table>
+  </div>
+
+  <h3>Why <code>max: 10</code> is safe here</h3>
+  <p>Neon's pooler accepts <code>max_client_conn=10000</code> and sizes its server pool at <code>0.9 × max_connections</code>. Raising the client-side <code>max</code> adds sockets to PgBouncer, not Postgres backends. Had <code>DATABASE_URL</code> been the <i>direct</i> endpoint this change would be unsafe — that was the gating question, and it is resolved.</p>
+
+  <h2>4. Deliberately deferred</h2>
+  <p>The adversarial pass surfaced a wider set of real defects. These are excluded from the incident fix because each needs a migration, live database credentials, or a data audit — none of which are available in a credential-less worktree, and none of which should be entangled with a fix that needs to ship.</p>
+
+  <div class="entry to">
+    <h3>D-1 · Replace the advisory lock with a TTL row lease<span class="tag to">next</span></h3>
+    <p>A <code>sync_locks</code> table (<code>source_type</code> PK, <code>holder</code>, <code>expires_at</code>) with an atomic <code>INSERT … ON CONFLICT … WHERE expires_at &lt; now()</code> acquire and a holder-guarded release. Immune to both the scatter and re-entrancy failures of RC-3.</p>
+    <p><b>Blocked by:</b> needs migration 0030 and there is no automated migration step (<code>build</code> is <code>next build</code>; <code>db:migrate</code> is manual), so it requires a schema-first deploy verified against production before the reading code ships. Also needs the real concurrency test at <code>tests/integration/sync/lock.test.ts:22</code>, still an <code>it.todo</code>.</p>
+  </div>
+
+  <div class="entry to">
+    <h3>D-2 · Convergent writes for invoice matching<span class="tag to">money</span></h3>
+    <p><code>billed_costs</code> has no unique constraint, and invoice matching corrects via DELETE+INSERT keyed on its own snapshot. Every safety argument there rests entirely on the lock. A partial unique index on <code>(period_id, vendor_reference)</code> plus an upsert would make it safe regardless of lock behaviour. Needs a duplicate audit first, since overlapping runs may already have occurred.</p>
+  </div>
+
+  <div class="entry to">
+    <h3>D-3 · Retry once on connection-level errors</h3>
+    <p><code>idleTimeoutMillis</code> is a <code>setTimeout</code>, and timers do not advance while a Fluid instance is frozen between invocations — so the first query after a resume can still be handed a stale socket. A single retry would close this. Deferred because doing it properly means a query-layer wrapper across ~57 consumers and wants real-DB testing.</p>
+  </div>
+
+  <div class="entry to">
+    <h3>D-4 · Performance follow-ups</h3>
+    <p>Dashboard fan-out dedup (<code>getBudgetWithCosts</code> is computed three times per render); bounding <code>getAssignments()</code>; backfill resumability (a 24-month Copilot backfill cannot fit in any <code>maxDuration</code> and has no checkpoint).</p>
+  </div>
+
+  <div class="entry to">
+    <h3>D-5 · Dead code: <code>invoice-sync.ts</code> advisory lock</h3>
+    <p>Its lock is guarded by <code>if (!dryRun)</code> and the sole caller (<code>scheduled-jobs-table.tsx:101</code>) passes <code>dryRun: true</code>. Unreachable — hence excluded from the framework rewrite rather than migrated alongside it. Separate cleanup.</p>
+  </div>
+
+  <h2>5. Operational notes</h2>
+  <div class="entry oq">
+    <h3>Pre-existing leaked locks are not cleared by this change<span class="tag oq">action</span></h3>
+    <p>If an advisory lock is currently leaked on a pooler backend, nothing here releases it — it persists until that backend recycles. If a source stops syncing after deploy, a Neon compute restart is the fastest remedy.</p>
+  </div>
+  <div class="entry oq">
+    <h3>Behaviour change: cron responses<span class="tag oq">monitoring</span></h3>
+    <p>Cron endpoints now return 409/500 instead of a blanket 200. Any monitoring that asserted "cron returns 200" will start reporting the failures that were always happening. That is the point, but it should be expected rather than mistaken for a new regression.</p>
+  </div>
+</main>
+<footer>specs/044-db-connection-reliability · implementation-plan.html</footer>
+</body>
+</html>
