@@ -283,11 +283,25 @@ export async function revokeLicenseCore(
   if (!ctx.commit) return coreOk(summary);
 
   const now = new Date();
-  await db.transaction(async (tx) => {
-    await tx
+  // Compare-and-swap on status rather than a bare `WHERE id`. The status check
+  // above runs before the transaction, so a concurrent revoke (another admin, or
+  // a plan token committed against state that has since moved) would otherwise
+  // overwrite the original revokedAt with a later timestamp AND write a second
+  // "active -> inactive" audit row for a transition that already happened.
+  const raced = await db.transaction(async (tx) => {
+    const updated = await tx
       .update(licenseAssignments)
       .set({ status: "inactive", revokedAt: now, updatedAt: now })
-      .where(eq(licenseAssignments.id, input.id));
+      .where(
+        and(
+          eq(licenseAssignments.id, input.id),
+          eq(licenseAssignments.status, "active"),
+        ),
+      )
+      .returning({ id: licenseAssignments.id });
+
+    if (updated.length === 0) return true;
+
     await recordStatusChange(
       "license_assignment",
       input.id,
@@ -296,7 +310,12 @@ export async function revokeLicenseCore(
       "inactive",
       { tx, source: ctx.source },
     );
+    return false;
   });
+
+  // Someone else revoked it first. Report the no-op rather than an error, so a
+  // retry after a lost response is not read as failure (idempotentHint).
+  if (raced) return coreOk(summary, [], { noop: true });
 
   return coreOk(summary, [
     "/assignments",

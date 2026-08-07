@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { randomBytes } from "crypto";
 import { bulkImportUserSchema } from "@/lib/validators";
-import { createInviteTokenForUser } from "@/actions/invite";
+import { createInviteTokenForUser } from "@/lib/invite";
 import type { ActionResult, User, BulkImportResult, ExistingUserFields } from "@/types";
 import { normalizeField } from "@/lib/utils";
 import { recordCreation, recordUpdate } from "@/lib/history";

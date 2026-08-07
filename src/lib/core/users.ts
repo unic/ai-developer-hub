@@ -19,7 +19,12 @@ import { randomBytes } from "crypto";
 import { and, count, eq, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { licenseAssignments, users } from "@/lib/db/schema";
+import {
+  accessTiers,
+  aiTools,
+  licenseAssignments,
+  users,
+} from "@/lib/db/schema";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/lib/history";
 import {
   isCopilotSyncActive,
@@ -333,7 +338,36 @@ export async function deactivateUserCore(
       .set({ status: "inactive", updatedAt: now })
       .where(eq(users.id, input.id));
 
-    if (activeAssignments.length > 0) {
+    // Re-read the seats INSIDE the transaction under a row lock, and audit from
+    // THIS set rather than the pre-transaction read above. The UPDATE below is
+    // `WHERE status='active'`, so it revokes any seat assigned between the two
+    // reads — but the audit loop used to iterate the earlier snapshot, which
+    // meant such a seat was revoked with no change_history row at all. Locking
+    // also closes the plan-token window: a seat that appears after the token was
+    // verified can no longer be silently swept into the cascade.
+    const locked = await tx
+      .select({
+        assignmentId: licenseAssignments.id,
+        toolId: aiTools.id,
+        toolName: aiTools.name,
+        tierId: accessTiers.id,
+        tierName: accessTiers.name,
+        monthlyCostCents: licenseAssignments.costAtAssignmentCents,
+      })
+      .from(licenseAssignments)
+      .innerJoin(aiTools, eq(aiTools.id, licenseAssignments.toolId))
+      .innerJoin(accessTiers, eq(accessTiers.id, licenseAssignments.tierId))
+      .where(
+        and(
+          eq(licenseAssignments.userId, input.id),
+          eq(licenseAssignments.status, "active"),
+        ),
+      )
+      // Lock only the assignment rows — locking the joined catalogue rows would
+      // contend with unrelated tier edits.
+      .for("update", { of: licenseAssignments });
+
+    if (locked.length > 0) {
       await tx
         .update(licenseAssignments)
         .set({ status: "inactive", revokedAt: now, updatedAt: now })
@@ -357,8 +391,9 @@ export async function deactivateUserCore(
 
     // The cascade wrote NO audit rows at all before. Each carries a full
     // snapshot, because revokedAt alone cannot tell a reviewer which tools the
-    // person held — and nothing restores them.
-    for (const seat of revoked) {
+    // person held — and nothing restores them. Driven by the locked set, so the
+    // audit describes exactly the rows the UPDATE above touched.
+    for (const seat of locked) {
       await recordUpdate(
         "license_assignment",
         seat.assignmentId,

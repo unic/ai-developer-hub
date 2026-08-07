@@ -662,6 +662,6 @@ export function checkEmailDomain(email: string): string | null {
 }
 
 async function mintInvite(userId: number): Promise<{ inviteUrl: string }> {
-  const { createInviteTokenForUser } = await import("@/actions/invite");
+  const { createInviteTokenForUser } = await import("@/lib/invite");
   return createInviteTokenForUser(userId);
 }

@@ -260,8 +260,15 @@ describe("updateTier cost propagation", () => {
   it("does not touch assignments when only the name changes", async () => {
     const tierUpdate = chainedUpdate();
     mockTx.update.mockReturnValueOnce(tierUpdate.update);
-    // Name-uniqueness check: second findFirst call returns no duplicate
+    // updateTier now runs updateTierCore TWICE: a commit:false validation pass
+    // before anything is written, then the real commit. That is what stops a
+    // metadata failure (duplicate name / deactivating a tier with active
+    // assignments) from surfacing AFTER the price and every seat snapshot have
+    // already been rewritten. Each pass does tier-lookup then duplicate-check,
+    // hence four findFirst calls; only the commit pass writes.
     vi.mocked(db.query.accessTiers.findFirst)
+      .mockResolvedValueOnce(existingTier as never)
+      .mockResolvedValueOnce(undefined as never)
       .mockResolvedValueOnce(existingTier as never)
       .mockResolvedValueOnce(undefined as never);
 

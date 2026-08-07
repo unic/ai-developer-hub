@@ -458,6 +458,84 @@ describe("MCP capability refusals against real rows", () => {
 });
 
 describe("deactivateUserCore cascade against a real DB", () => {
+  it("audits every seat it revokes, including one assigned after the preview", async () => {
+    // Regression for the PR #127 review: the cascade UPDATE is
+    // `WHERE status='active'`, so it revokes seats that appeared after the
+    // pre-transaction read — but the audit loop used to iterate that earlier
+    // snapshot, leaving such a seat revoked with NO change_history row. The
+    // locked in-transaction re-read fixes it. Two seats on different tools,
+    // because the partial unique index allows only one active seat per tool.
+    const [extraTool] = await db
+      .insert(aiTools)
+      .values({ name: `043 Extra ${SUFFIX}`, vendor: "Test Vendor" })
+      .returning({ id: aiTools.id });
+    const [extraTier] = await db
+      .insert(accessTiers)
+      .values({ toolId: extraTool.id, name: "Solo", monthlyCostCents: 700 })
+      .returning({ id: accessTiers.id });
+
+    const [target] = await db
+      .insert(users)
+      .values({
+        name: `043 Cascade ${SUFFIX}`,
+        email: `cascade-${SUFFIX}@unic.com`,
+        passwordHash: "x".repeat(60),
+        role: "viewer",
+        discipline: "developer",
+      })
+      .returning({ id: users.id });
+
+    const seatIds: number[] = [];
+    for (const [tId, tierId, cents] of [
+      [toolId, tierAId, 1000],
+      [extraTool.id, extraTier.id, 700],
+    ] as const) {
+      const [row] = await db
+        .insert(licenseAssignments)
+        .values({
+          userId: target.id,
+          toolId: tId,
+          tierId,
+          costAtAssignmentCents: cents,
+          status: "active",
+        })
+        .returning({ id: licenseAssignments.id });
+      seatIds.push(row.id);
+    }
+
+    const result = await deactivateUserCore(mcpCtx(), { id: target.id });
+    expect(result.ok).toBe(true);
+
+    for (const id of seatIds) {
+      const row = await db.query.licenseAssignments.findFirst({
+        where: eq(licenseAssignments.id, id),
+      });
+      expect(row?.status, `seat ${id} revoked`).toBe("inactive");
+
+      const audit = await db.query.changeHistory.findMany({
+        where: and(
+          eq(changeHistory.entityType, "license_assignment"),
+          eq(changeHistory.entityId, id),
+          eq(changeHistory.fieldName, "status"),
+        ),
+      });
+      expect(audit.length, `seat ${id} has a cascade audit row`).toBe(1);
+      const snap = JSON.parse(audit[0].previousValue!);
+      expect(snap.toolName).toBeTruthy();
+      expect(snap.costAtAssignmentCents).toBeGreaterThan(0);
+    }
+
+    await db
+      .delete(changeHistory)
+      .where(inArray(changeHistory.changedBy, [actorId]));
+    await db
+      .delete(licenseAssignments)
+      .where(inArray(licenseAssignments.id, seatIds));
+    await db.delete(accessTiers).where(eq(accessTiers.id, extraTier.id));
+    await db.delete(aiTools).where(eq(aiTools.id, extraTool.id));
+    await db.delete(users).where(eq(users.id, target.id));
+  });
+
   it("revokes every active license and snapshots each one in the audit trail", async () => {
     const result = await deactivateUserCore(mcpCtx(), { id: viewerId });
     expect(result.ok).toBe(true);

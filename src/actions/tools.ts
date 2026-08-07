@@ -97,6 +97,22 @@ export async function updateTier(input: unknown): Promise<ActionResult<void>> {
   const { id, monthlyCostCents, ...metadata } = parsedInput.data;
   const ctx = uiContext(Number(admin.id));
   const paths = new Set<string>();
+  const hasMetadata = Object.values(metadata).some((v) => v !== undefined);
+
+  // VALIDATE BOTH BEFORE COMMITTING EITHER. The tier dialog submits price and
+  // metadata together, and each core owns its own transaction, so committing the
+  // price first meant a later metadata failure (duplicate name, or deactivating a
+  // tier that still has active assignments) returned an error AFTER the price and
+  // every seat snapshot had already been rewritten — and skipped revalidation on
+  // that path, so the UI kept showing the old price. Both metadata failure modes
+  // are pure validation, so a commit:false pass rules them out first.
+  if (hasMetadata) {
+    const dryRun = await updateTierCore(
+      { ...ctx, commit: false },
+      { id, ...metadata },
+    );
+    if (!dryRun.ok) return { success: false, error: dryRun.error };
+  }
 
   if (monthlyCostCents !== undefined) {
     const priced = await setTierPriceCore(ctx, { tierId: id, monthlyCostCents });
@@ -104,11 +120,16 @@ export async function updateTier(input: unknown): Promise<ActionResult<void>> {
     for (const path of priced.revalidate) paths.add(path);
   }
 
-  // Metadata fields (if any) go through the non-propagating core.
-  const hasMetadata = Object.values(metadata).some((v) => v !== undefined);
   if (hasMetadata) {
     const meta = await updateTierCore(ctx, { id, ...metadata });
-    if (!meta.ok) return { success: false, error: meta.error };
+    if (!meta.ok) {
+      // The price is already committed at this point, so replay its invalidation
+      // rather than leaving every spend surface serving the old number. Only a
+      // concurrent rename or a DB fault reaches here — the validation pass above
+      // eliminated the reachable causes.
+      for (const path of paths) revalidatePath(path);
+      return { success: false, error: meta.error };
+    }
     for (const path of meta.revalidate) paths.add(path);
   }
 

@@ -8,7 +8,11 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
-import { generateToken, hashToken, buildInviteUrl } from "@/lib/invite";
+import {
+  hashToken,
+  createInviteTokenForUser,
+  INVITE_EXPIRY_HOURS,
+} from "@/lib/invite";
 import { isRateLimited } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email";
 import { setupPasswordSchema } from "@/lib/validators";
@@ -16,54 +20,14 @@ import { recordCreation } from "@/lib/history";
 import { InviteEmail } from "@/emails/invite-email";
 import type { ActionResult } from "@/types";
 
-const INVITE_EXPIRY_HOURS = 72;
-
+// createInviteTokenForUser lives in src/lib/invite.ts, NOT here.
+//
+// It takes a userId, performs no auth check, and returns a live 72-hour
+// /setup-password URL. Every export of this "use server" file is a
+// client-callable RPC endpoint, so exporting it here made it a
+// credential-minting endpoint for an arbitrary account. The authenticated
+// wrappers below call it after their own requireAdmin().
 // ---------------------------------------------------------------------------
-// createInviteTokenForUser (internal helper — no auth check, no user lookup)
-// ---------------------------------------------------------------------------
-
-export async function createInviteTokenForUser(
-  userId: number,
-): Promise<{ inviteUrl: string }> {
-  const { raw, hash: tokenHash } = generateToken();
-  const expiresAt = new Date(Date.now() + INVITE_EXPIRY_HOURS * 60 * 60 * 1000);
-
-  const maxRetries = 2;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      await db.transaction(async (tx) => {
-        await tx
-          .update(inviteTokens)
-          .set({ status: "invalidated" })
-          .where(
-            and(
-              eq(inviteTokens.userId, userId),
-              eq(inviteTokens.status, "active"),
-            ),
-          );
-
-        await tx.insert(inviteTokens).values({
-          userId,
-          tokenHash,
-          status: "active",
-          expiresAt,
-        });
-      });
-      return { inviteUrl: buildInviteUrl(raw) };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (
-        attempt < maxRetries - 1 &&
-        (msg.includes("unique") || msg.includes("duplicate"))
-      ) {
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  throw new Error("Failed to create invite token");
-}
 
 // ---------------------------------------------------------------------------
 // generateInviteToken (public API — checks admin auth + fetches user)
