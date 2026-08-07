@@ -11,7 +11,7 @@ const ctx: TemplateContext = {
     email: "anna.schmid@unic.com",
   },
   tool: { name: "GitHub Copilot" },
-  tier: { name: "Business" },
+  tier: { name: "Business", previousName: "" },
   licenseCode: "sk-test-1234",
   approver: { name: "Tobias Studer", firstName: "Tobias" },
   requestUrl: "https://aihub.example.com/requests/42",

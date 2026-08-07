@@ -39,11 +39,21 @@ export interface WriteCaps {
    */
   replaceAssignments: boolean;
   /**
-   * May write fields an automated sync owns and would revert. The UI has always
-   * allowed this (an admin editing the Copilot price gets overwritten at 06:00
-   * too), so this stays `true` there rather than changing UI behavior; MCP
-   * refuses, because an agent reporting a success that silently reverts within
-   * 24 hours is worse than an agent that explains why it will not try.
+   * May write state an automated sync owns and would revert. Two things fall
+   * under it, both still reachable from the Hub UI today:
+   *   - a tier's PRICE (setTierPriceCore) — an admin editing the Copilot price
+   *     gets overwritten at 06:00 too, and 042 did not remove that affordance,
+   *     so this stays `true` for the UI rather than changing UI behavior;
+   *   - REVOKING a sync-provisioned seat (revokeLicenseCore) — the UI already
+   *     withholds this itself (assignments-client hides Revoke on
+   *     `source='copilot-sync'` rows), so `true` here changes nothing there.
+   * MCP refuses both, because an agent reporting a success that silently
+   * reverts within 24 hours is worse than one that explains why it will not try.
+   *
+   * It does NOT govern a per-seat TIER CHANGE: that is refused for every caller,
+   * UI included, by `buildTierChange` (spec 042, src/lib/assignments/tier-change.ts).
+   * Do not add a caps check there — it would hand the UI back an ability 042
+   * shipped to production without.
    */
   syncOwnedFields: boolean;
 }

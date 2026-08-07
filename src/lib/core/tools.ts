@@ -18,6 +18,8 @@ import { and, count, eq, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accessTiers, aiTools, licenseAssignments, users } from "@/lib/db/schema";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/lib/history";
+import { COST_SURFACE_PATHS } from "@/lib/assignments/cost-paths";
+import { isSyncManagedToolName } from "@/lib/assignments/sync-authority";
 import {
   coreErr,
   coreOk,
@@ -48,18 +50,17 @@ export const MAX_REPRICE_ROWS = 250;
 export const IMPLAUSIBLE_PRICE_CENTS = 200_000;
 
 /**
- * Tools whose tier prices and seat count are owned by an automated sync and
- * would be silently reverted by it. `copilot-sync.ts` hardcodes
- * `business: 1900, enterprise: 3900` and re-propagates to every active
- * assignment on the `0 6 * * *` cron, writing no audit rows — so a "successful"
- * MCP price change on these tiers becomes false within 24 hours.
+ * Refusal for a tier whose price an automated sync owns and would silently
+ * revert. `copilot-sync.ts` hardcodes `business: 1900, enterprise: 3900` and
+ * re-propagates to every active assignment on the `0 6 * * *` cron, writing no
+ * audit rows — so a "successful" MCP price change on these tiers becomes false
+ * within 24 hours.
+ *
+ * Which tool that is comes from @/lib/assignments/sync-authority (spec 042),
+ * which is the single authority on sync ownership; this module used to keep its
+ * own name set, and two lists of the same tool names is exactly the drift that
+ * module exists to prevent.
  */
-const SYNC_OWNED_TOOL_NAMES = new Set(["github copilot"]);
-
-export function isSyncOwnedTool(toolName: string): boolean {
-  return SYNC_OWNED_TOOL_NAMES.has(toolName.trim().toLowerCase());
-}
-
 export const SYNC_OWNED_PRICE_MESSAGE =
   "This tier's price is owned by the daily GitHub Copilot billing sync " +
   "(src/lib/copilot-sync.ts, 06:00 UTC) and any change here would be silently " +
@@ -548,7 +549,14 @@ export async function setTierPriceCore(
     checkPriceEcho(ctx, existing.monthlyCostCents);
   if (mismatch) return mismatch;
 
-  if (!ctx.caps.syncOwnedFields && isSyncOwnedTool(existing.tool.name)) {
+  // Caps first, so the UI path costs nothing. The PURE name check, not the async
+  // isSyncManagedTool: a connection-gated price refusal would let MCP reprice
+  // Copilot tiers during a momentary sync outage and get reverted the moment it
+  // came back — the exact "success that silently reverts" this guardrail exists
+  // to prevent — and it would add a query to a path that already holds FOR
+  // UPDATE locks. This is the tier-PRICE policy; the per-seat tier policy lives
+  // in src/lib/core/assignments.ts and is unconditional (see buildTierChange).
+  if (!ctx.caps.syncOwnedFields && isSyncManagedToolName(existing.tool.name)) {
     return coreErr(SYNC_OWNED_PRICE_MESSAGE);
   }
 
@@ -714,11 +722,7 @@ export async function setTierPriceCore(
   if (conflict) return coreErr(conflict);
 
   return coreOk(result, [
-    "/",
-    "/assignments",
-    "/budget",
-    "/reports",
-    "/reports/budget",
+    ...COST_SURFACE_PATHS,
     `/tools/${existing.tool.id}`,
   ]);
 }

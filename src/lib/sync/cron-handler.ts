@@ -15,10 +15,18 @@ export function makeCronSyncRoute(runner: SyncRunner, label: string) {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message === "Sync already in progress") {
-        return NextResponse.json({ ok: false, reason: "sync_in_progress" });
+        // 409, not 200: contention is a real outcome the caller should see.
+        // Still not an alertable failure — Vercel cron treats 4xx as handled.
+        return NextResponse.json(
+          { ok: false, reason: "sync_in_progress" },
+          { status: 409 }
+        );
       }
       console.error(`Cron ${label} sync failed:`, message);
-      return NextResponse.json({ ok: false, reason: message });
+      // 500, not 200. Every unexpected failure previously returned 200, which
+      // is why 63 cron failures over seven weeks never surfaced as anything
+      // but a healthy-looking green tick in cron monitoring.
+      return NextResponse.json({ ok: false, reason: message }, { status: 500 });
     }
   }
 

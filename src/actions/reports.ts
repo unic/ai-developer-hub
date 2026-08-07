@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { aiTools, licenseAssignments } from "@/lib/db/schema";
 import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { getActiveBudget, getBudgetWithCosts } from "@/actions/budget";
-import { getRunningCostsForPeriod } from "@/lib/budget-utils";
+import { getRunningCostsForPeriod, overlapsPeriod } from "@/lib/budget-utils";
 import { buildBudgetForecast } from "@/lib/forecast";
 import { classifyPeriod } from "@/lib/reports/period-helpers";
 import type {
@@ -144,10 +144,9 @@ async function fetchPerToolByPeriod(
     const periodEnd = new Date(p.endDate);
     const bucket = empty.get(p.id)!;
     for (const r of rows) {
-      if (
-        r.assignedAt <= periodEnd &&
-        (r.revokedAt === null || r.revokedAt > periodStart)
-      ) {
+      // Shared with getBudgetWithCosts (spec 042); "exclusive" keeps this
+      // reader's long-standing strict `>` on the revoked bound.
+      if (overlapsPeriod(r, periodStart, periodEnd, "exclusive")) {
         const existing = bucket.get(r.toolId);
         if (existing) {
           existing.cents += r.costAtAssignmentCents;

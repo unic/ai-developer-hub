@@ -5,6 +5,8 @@ import {
   getAssignmentById,
   getAssignmentComments,
 } from "@/actions/assignments";
+import { getAssignmentTierHistory } from "@/actions/history";
+import { isSyncManagedTool } from "@/lib/assignments/sync-authority";
 import { maskApiKey, decryptApiKey } from "@/lib/crypto";
 import { AssignmentDetailClient } from "./assignment-detail-client";
 
@@ -25,7 +27,15 @@ export default async function AssignmentDetailPage({
   const assignment = await getAssignmentById(assignmentId);
   if (!assignment) notFound();
 
-  const comments = await getAssignmentComments(assignmentId);
+  const [comments, isSyncManaged, tierHistoryResult] = await Promise.all([
+    getAssignmentComments(assignmentId),
+    // Gated on the TOOL, not assignment.source — see isSyncManagedTool (spec
+    // 042): sync takes over manual rows too, so source alone would leave a
+    // manual GitHub Copilot row's tier editable right up to the next cron.
+    isSyncManagedTool(assignment.tool.name),
+    getAssignmentTierHistory(assignmentId),
+  ]);
+  const tierHistory = tierHistoryResult.success ? tierHistoryResult.data : [];
 
   // Compute masked API key server-side
   let maskedApiKey: string | null = null;
@@ -66,6 +76,15 @@ export default async function AssignmentDetailPage({
           author: { name: c.author.name },
         }))}
         isAdmin={isAdmin}
+        isSyncManaged={isSyncManaged}
+        tierHistory={tierHistory.map((h) => ({
+          id: h.id,
+          previousTierName: h.previousTierName,
+          newTierName: h.newTierName,
+          changedByName: h.changedByName,
+          source: h.source,
+          createdAt: h.createdAt.toISOString(),
+        }))}
       />
     </AuthGuard>
   );

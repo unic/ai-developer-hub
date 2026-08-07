@@ -17,6 +17,13 @@ import {
 } from "@/lib/db/schema";
 import { encryptApiKey } from "@/lib/crypto";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/lib/history";
+import { assignmentCostPaths } from "@/lib/assignments/cost-paths";
+import { isSyncManagedTool } from "@/lib/assignments/sync-authority";
+import {
+  buildTierChange,
+  isTierChangeError,
+  isTierChangeNoop,
+} from "@/lib/assignments/tier-change";
 import {
   coreErr,
   coreOk,
@@ -30,6 +37,15 @@ import { assignmentSchema, updateAssignmentSchema } from "@/lib/validators";
 
 /** Name of the partial unique index added in migration 0030. */
 export const ONE_ACTIVE_ASSIGNMENT_INDEX = "license_assignments_one_active_idx";
+
+/**
+ * Refusal for revoking a seat GitHub owns. The seat's existence — not the Hub's
+ * row — is the source of truth, so the next sync restores it.
+ */
+export const SYNC_MANAGED_REVOKE_MESSAGE =
+  "This seat is provisioned by GitHub Copilot sync and would be restored on the " +
+  "next sync (06:00 UTC), so revoking it here releases no cost. Remove the seat " +
+  "in GitHub instead.";
 
 export interface AssignLicenseResult {
   assignmentId: number;
@@ -254,6 +270,16 @@ export async function revokeLicenseCore(
     return coreOk(summary, [], { noop: true });
   }
 
+  // A revoked Copilot seat comes straight back: syncSeatAssignments reactivates
+  // any inactive row whose GitHub seat still exists (status -> active,
+  // revokedAt -> null, no audit row), so an agent would report a released cost
+  // that returns at 06:00. Caps-gated because the UI already withholds this
+  // itself — assignments-client hides Revoke on source='copilot-sync' rows — so
+  // UI_CAPS keeps exactly today's behavior and nothing in the Hub changes.
+  if (!ctx.caps.syncOwnedFields && (await isSyncManagedTool(assignment.tool.name))) {
+    return coreErr(SYNC_MANAGED_REVOKE_MESSAGE, { refusedByCaps: true });
+  }
+
   if (!ctx.commit) return coreOk(summary);
 
   const now = new Date();
@@ -321,7 +347,10 @@ export async function updateAssignmentCore(
   let warning: string | undefined;
   let newCostCents = assignment.costAtAssignmentCents;
 
-  if (tierId !== undefined && tierId !== assignment.tierId) {
+  // --- tierId change (spec 042: shared semantics via buildTierChange) ---
+  // The tier is validated even on a same-tier resubmit, which is what the UI
+  // detail form does on every save; that matches 042's shipped behavior.
+  if (tierId !== undefined) {
     const newTier = await db.query.accessTiers.findFirst({
       where: and(
         eq(accessTiers.id, tierId),
@@ -333,14 +362,36 @@ export async function updateAssignmentCore(
       return coreErr("Tier not found or not available for this tool");
     }
 
-    changes.tierId = { old: assignment.tierId, new: tierId };
-    updateValues.tierId = tierId;
-    changes.costAtAssignmentCents = {
-      old: assignment.costAtAssignmentCents,
-      new: newTier.monthlyCostCents,
-    };
-    updateValues.costAtAssignmentCents = newTier.monthlyCostCents;
-    newCostCents = newTier.monthlyCostCents;
+    // Only consult sync authority when the tier actually differs — the detail
+    // form always submits tierId, so checking it unconditionally would block
+    // workspace/API-key edits on a sync-managed seat.
+    const isSyncManaged =
+      newTier.id === assignment.tierId
+        ? false
+        : await isSyncManagedTool(assignment.tool.name);
+
+    const outcome = buildTierChange(
+      {
+        tierId: assignment.tierId,
+        costAtAssignmentCents: assignment.costAtAssignmentCents,
+        isSyncManaged,
+      },
+      { id: newTier.id, monthlyCostCents: newTier.monthlyCostCents },
+    );
+
+    // Deliberately NOT gated on ctx.caps.syncOwnedFields: 042 refuses this in
+    // the UI too (the detail page disables the tier control and renders a
+    // badge), so caps-gating it would hand the UI back an ability that spec
+    // shipped to production without. The caps flag covers only the two things
+    // the UI CAN still do — the tier price (setTierPriceCore) and revoking a
+    // sync-provisioned seat (revokeLicenseCore above).
+    if (isTierChangeError(outcome)) return coreErr(outcome.error);
+
+    if (!isTierChangeNoop(outcome)) {
+      Object.assign(updateValues, outcome.values);
+      Object.assign(changes, outcome.changes);
+      newCostCents = outcome.values.costAtAssignmentCents;
+    }
   }
 
   if (assignedAt !== undefined) {
@@ -408,20 +459,70 @@ export async function updateAssignmentCore(
 
   updateValues.updatedAt = new Date();
 
-  await db.transaction(async (tx) => {
-    await tx
+  // 042: guard the write on the state we actually read. The predicate covers
+  // exactly two races, and it is worth being precise about which:
+  //   - status flipped to inactive between the read above and here. Four
+  //     producers can do that (revokeLicense, assignLicense's deactivate leg,
+  //     deactivateUser's bulk revoke, copilot-sync's removed-seat revoke), and
+  //     retiering a just-revoked row would corrupt the historical snapshot that
+  //     revoked rows are supposed to preserve.
+  //   - tierId already moved, i.e. another admin retiered concurrently.
+  //
+  // It does NOT protect against a tier PRICE cascade (setTierPriceCore /
+  // syncBillingData): those rewrite cost_at_assignment_cents while leaving
+  // tier_id alone, so this predicate cannot see them, and our cost value —
+  // read before the transaction — would win. Narrow and self-correcting (the
+  // next cascade or retier fixes it); a real fix needs row-level
+  // compare-and-swap on updatedAt, which the plan scoped out deliberately.
+  //
+  // 042 (D-F): the update and its audit rows go in ONE transaction. Writing
+  // history afterwards means a throw there leaves the tier moved with no record,
+  // and the zero-diff early return would then make a retry report success —
+  // silently falsifying the audit trail.
+  const applied = await db.transaction(async (tx) => {
+    const updated = await tx
       .update(licenseAssignments)
       .set(updateValues)
-      .where(eq(licenseAssignments.id, id));
+      .where(
+        and(
+          eq(licenseAssignments.id, id),
+          eq(licenseAssignments.status, "active"),
+          eq(licenseAssignments.tierId, assignment.tierId),
+        ),
+      )
+      .returning({ id: licenseAssignments.id });
+
+    if (updated.length === 0) return false;
+
     await recordUpdate("license_assignment", id, ctx.actorId, changes, {
       tx,
       source: ctx.source,
     });
+    return true;
   });
+
+  if (!applied) {
+    return coreErr(
+      "This assignment changed while you were editing it. Refresh and try again.",
+    );
+  }
+
+  // Only a cost-shaped change justifies busting the budget / report / dashboard
+  // caches. That is a tier move (new price snapshot) OR an assignedAt move: the
+  // assigned date is the left edge of the seat's held-window, and both
+  // overlapsPeriod and the report/budget queries filter on it, so backdating a
+  // seat adds its cost to earlier periods. A workspace or API-key edit affects
+  // nothing but the assignment's own pages.
+  const costChanged = "tierId" in changes || "assignedAt" in changes;
 
   return coreOk(
     result,
-    ["/assignments", `/users/${assignment.userId}`, "/reports"],
+    costChanged
+      ? [
+          ...assignmentCostPaths(assignment.userId, assignment.toolId),
+          `/assignments/${id}`,
+        ]
+      : ["/assignments", `/users/${assignment.userId}`, `/assignments/${id}`],
     { warning },
   );
 }

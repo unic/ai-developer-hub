@@ -8,7 +8,7 @@
  * until something runs them.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
@@ -27,6 +27,11 @@ import {
 } from "@/lib/core/assignments";
 import { isUniqueViolationOn, setTierPriceCore } from "@/lib/core/tools";
 import { deactivateUserCore } from "@/lib/core/users";
+import {
+  COPILOT_SYNC_TOOL_NAME,
+  isCopilotSyncActive,
+} from "@/lib/assignments/sync-authority";
+import { SYNC_MANAGED_TIER_ERROR } from "@/lib/assignments/tier-change";
 
 const SUFFIX = `043-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
@@ -258,6 +263,90 @@ describe("updateAssignmentCore against a real DB", () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.noop).toBe(true);
+  });
+});
+
+/**
+ * The 042 sync-managed refusal, end-to-end through the MCP-reachable core
+ * against real production-shaped data (spec 042 + the 043 merge).
+ *
+ * Deliberately NOT fixtured: `ai_tools_name_idx` is unique on name so a second
+ * "GitHub Copilot" row cannot exist, and `isCopilotSyncActive()` reads a real
+ * `github_connections` row that a test must not fabricate. So this reads what
+ * the branch actually has and skips when it is absent — the load-bearing proof
+ * of the refusal is the mocked core-level unit test in
+ * tests/unit/actions/assignment-tier-change.test.ts; this only confirms the
+ * wiring reaches a real row.
+ *
+ * Every call runs with `commit: false`: buildTierChange refuses BEFORE the
+ * `!ctx.commit` preview return, so the refusal is provable while the test stays
+ * write-free against a live Copilot seat.
+ */
+describe("updateAssignmentCore — sync-managed seats (042)", () => {
+  let copilotSeatId: number | undefined;
+  let copilotOtherTierId: number | undefined;
+  let syncActive = false;
+
+  beforeAll(async () => {
+    const copilot = await db.query.aiTools.findFirst({
+      where: eq(aiTools.name, COPILOT_SYNC_TOOL_NAME),
+      columns: { id: true },
+    });
+    if (!copilot) return;
+
+    const seat = await db.query.licenseAssignments.findFirst({
+      where: and(
+        eq(licenseAssignments.toolId, copilot.id),
+        eq(licenseAssignments.status, "active"),
+      ),
+      columns: { id: true, tierId: true },
+    });
+    if (!seat) return;
+
+    const otherTier = await db.query.accessTiers.findFirst({
+      where: and(
+        eq(accessTiers.toolId, copilot.id),
+        eq(accessTiers.isActive, true),
+        ne(accessTiers.id, seat.tierId),
+      ),
+      columns: { id: true },
+    });
+    if (!otherTier) return;
+
+    copilotSeatId = seat.id;
+    copilotOtherTierId = otherTier.id;
+    syncActive = await isCopilotSyncActive();
+  });
+
+  // Guarded on syncActive too, not just the rows: the refusal is gated on an
+  // ACTIVE github_connections row, so without one a correctly-wired core
+  // legitimately returns ok — asserting a refusal there would fail against
+  // working code and tempt the next reader to widen the skip until it is a
+  // silent no-op.
+  it("refuses a retier when Copilot sync is running", async ({ skip }) => {
+    if (!copilotSeatId || !copilotOtherTierId || !syncActive) skip();
+
+    const result = await updateAssignmentCore(mcpCtx({ commit: false }), {
+      id: copilotSeatId!,
+      tierId: copilotOtherTierId!,
+    });
+
+    expect(result).toMatchObject({ ok: false, error: SYNC_MANAGED_TIER_ERROR });
+  });
+
+  // The companion case: the gate is the CONNECTION, not the tool name. Without
+  // an active sync nothing overwrites a manual change, so the core must allow
+  // it — this is what fails if someone rewires the core to the pure
+  // isSyncManagedToolName predicate.
+  it("allows the same retier when Copilot sync is NOT running", async ({ skip }) => {
+    if (!copilotSeatId || !copilotOtherTierId || syncActive) skip();
+
+    const result = await updateAssignmentCore(mcpCtx({ commit: false }), {
+      id: copilotSeatId!,
+      tierId: copilotOtherTierId!,
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
 

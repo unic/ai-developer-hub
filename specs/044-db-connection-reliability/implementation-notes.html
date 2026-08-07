@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Implementation Notes — Database Connection Reliability (044)</title>
+  <style>
+    :root {
+      --bg:#0b0d12; --bg-elev:#11141b; --bg-card:#161a24; --border:#232938; --border-strong:#2f3850;
+      --fg:#e7ebf3; --fg-muted:#9aa3b5; --fg-dim:#6b7488;
+      --accent:#f0a072; --accent-2:#7dd3fc; --good:#86efac; --warn:#fcd34d; --bad:#fca5a5;
+      --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+      --sans: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family:var(--sans); line-height:1.55; }
+    body { padding:48px 24px 96px; }
+    main { max-width:1000px; margin:0 auto; }
+    h1 { font-size:30px; margin:0 0 6px; letter-spacing:-0.01em; }
+    h2 { font-size:20px; margin:44px 0 4px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+    h3 { font-size:15px; margin:22px 0 4px; }
+    p { margin:0 0 10px; }
+    a { color:var(--accent); }
+    code { font-family:var(--mono); font-size:0.88em; background:var(--bg-elev); padding:1px 5px; border-radius:4px; border:1px solid var(--border); }
+    .lede { color:var(--fg-muted); font-size:15.5px; max-width:80ch; }
+    .meta { color:var(--fg-dim); font-size:13px; margin-top:8px; font-family:var(--mono); }
+    .badge { display:inline-block; font-size:11px; font-family:var(--mono); padding:2px 8px; border-radius:999px; border:1px solid var(--border-strong); color:var(--fg-muted); background:var(--bg-elev); }
+    .badge.ok { color:var(--good); border-color:rgba(134,239,172,0.35); }
+    .entry { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin:14px 0; }
+    .entry.dd { border-left:3px solid var(--accent-2); }
+    .entry.dev { border-left:3px solid var(--warn); }
+    .entry.to { border-left:3px solid var(--accent); }
+    .entry.oq { border-left:3px solid var(--bad); }
+    .entry.ok { border-left:3px solid var(--good); }
+    .entry h3 { margin-top:0; }
+    .tag { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; padding:2px 7px; border-radius:3px; vertical-align:middle; margin-left:8px; }
+    .tag.dd { color:var(--accent-2); border:1px solid rgba(125,211,252,0.3); }
+    .tag.dev { color:var(--warn); border:1px solid rgba(252,211,77,0.3); }
+    .tag.to { color:var(--accent); border:1px solid rgba(240,160,114,0.3); }
+    .tag.oq { color:var(--bad); border:1px solid rgba(252,165,165,0.3); }
+    .tag.ok { color:var(--good); border:1px solid rgba(134,239,172,0.3); }
+    .entry p { font-size:13.5px; color:var(--fg-muted); }
+    .entry b { color:var(--fg); }
+    ul { padding-left:20px; margin:6px 0 10px; } li { margin:3px 0; font-size:13.5px; color:var(--fg-muted); }
+    .ts { font-family:var(--mono); font-size:11px; color:var(--fg-dim); }
+    table { border-collapse:collapse; width:100%; margin:12px 0; font-size:13px; }
+    th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+    th { color:var(--fg-dim); font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; }
+    td { color:var(--fg-muted); }
+    td b { color:var(--fg); }
+    .scroll { overflow-x:auto; }
+    pre { background:var(--bg-elev); border:1px solid var(--border); border-radius:8px; padding:12px 14px; overflow-x:auto; font-family:var(--mono); font-size:12px; color:var(--fg-muted); }
+    footer { color:var(--fg-dim); font-size:12.5px; margin-top:56px; padding-top:20px; border-top:1px solid var(--border); font-family:var(--mono); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Implementation Notes — 044</h1>
+  <p class="lede">Running log for the database connection reliability incident fix: how the diagnosis was grounded, what the challenge pass changed, and what was verified.</p>
+  <p class="meta">2026-08-04 · <span class="badge ok">implemented &amp; verified</span></p>
+
+  <h2>Investigation</h2>
+
+  <div class="entry dd">
+    <h3>Diagnosis grounded in production data, not inference<span class="tag dd">method</span></h3>
+    <p>Root causes were derived from Vercel runtime error groups and logs rather than from reading code and guessing. That is what dated the incident (symptoms first appear 2026-06-16/17), tied symptom A to the <code>:00</code>-past-the-hour cron collision, and <b>excluded</b> today's deploy <code>ea50404</code> as the trigger.</p>
+  </div>
+
+  <div class="entry dd">
+    <h3>The pooled-vs-direct question decided everything<span class="tag dd">key fact</span></h3>
+    <p>Whether raising <code>max</code> is safe or catastrophic depends entirely on which Neon endpoint is deployed. Resolved by extracting the host (credentials redacted) from the main checkout's <code>.env.local</code>: <code>ep-little-frost-alw6tlsf-pooler…</code>. Pooled — so raising <code>max</code> adds PgBouncer client sockets, not Postgres backends.</p>
+    <p>The same fact makes RC-3 worse: Neon's docs list session advisory locks as unsupported on exactly this endpoint.</p>
+  </div>
+
+  <h2>Challenge pass</h2>
+  <p>Five parallel code explorers (Sonnet), one plan drafter and three adversarial lenses — concurrency, correctness, blast radius (Opus, high effort). All three lenses returned <code>not-ready</code> on the draft: 5 fatal, 13 serious, 4 minor objections. Every load-bearing objection was independently verified before being accepted or rejected.</p>
+
+  <div class="entry dev">
+    <h3>Workflow defect: the incident brief never reached the agents<span class="tag dev">deviation</span></h3>
+    <p><code>args</code> was passed as a JSON-encoded <b>string</b> rather than a JSON value, so <code>args.rootCause</code> was <code>undefined</code> and every prompt interpolated the literal text "undefined". The drafting agent flagged this itself.</p>
+    <p>Impact was contained: the five explorer prompts were self-contained and code-grounded, so exploration was unaffected. The planner and challengers reasoned without symptom data — which is precisely why their conclusions were re-verified against the real logs rather than adopted.</p>
+  </div>
+
+  <div class="entry ok">
+    <h3>Objection accepted: <code>pool.on("error")</code> alone is insufficient<span class="tag ok">verified</span></h3>
+    <p>Claim: checked-out clients have no error listener. Verified by probing the vendored driver:</p>
+    <pre>_acquireClient removes idle listener: true
+_release re-attaches:                true
+query() adds its own once('error'):  false
+connect() adds its own:              false</pre>
+    <p>Worse than the objection stated — it assumed <code>query()</code> compensated; in 1.0.2 it does not. So a socket death between statements inside a <code>db.transaction()</code> had nothing listening. Also verified that <code>_acquireClient</code> removes only its <b>named</b> listener, so a listener added via <code>pool.on("connect")</code> survives checkout. Both handlers shipped.</p>
+  </div>
+
+  <div class="entry oq">
+    <h3>Objection rejected: the "null <code>ws</code>" TypeError crash<span class="tag oq">disproved</span></h3>
+    <p>The strongest fatal objection claimed the real crash was an uncaught <code>TypeError: Cannot read properties of null (reading 'close')</code> from the driver's connect-timeout path, invisible to <code>pool.on("error")</code> — and therefore that <code>max</code> must not be raised until it was neutralised.</p>
+    <p>The code path is real: <code>destroy()</code> → <code>end()</code> → <code>write(alloc(0))</code> short-circuits and synchronously calls <code>this.ws.close()</code>. But on the Node runtime <code>this.ws</code> is assigned <b>synchronously</b> inside <code>connect()</code>, which <code>newClient</code> calls immediately after arming the timer. The null window only exists on the fetch-fallback (Cloudflare Workers) path, which this app never takes.</p>
+    <p>Confirmed by direct probe against a non-routable host:</p>
+    <pre>error listeners at construction: 0
+CASE1 emit w/o listener: THREW Error - synthetic idle-client error
+CASE2 rejected: Error - Connection terminated due to connection timeout
+uncaught after connect-timeout: NONE</pre>
+    <p>The connect-timeout path rejects cleanly. Independently, no TypeError group appears in the 7-day production error aggregation, while the EventEmitter path appears 18 times. <b>Conclusion:</b> the objection's mechanism is not reachable here; the gate on raising <code>max</code> was dropped. Its secondary point — 10s is tight against a scale-to-zero compute — was accepted, hence <code>connectionTimeoutMillis: 15_000</code>.</p>
+  </div>
+
+  <div class="entry ok">
+    <h3>Objection accepted: <code>invoice-sync.ts</code> is dead code<span class="tag ok">verified</span></h3>
+    <p>The exploration dossier called it a live second advisory-lock implementation and recommended migrating it. A later lens contradicted this. Checked directly: the lock is guarded by <code>if (!dryRun)</code>, and the only caller in the repo (<code>scheduled-jobs-table.tsx:101</code>) passes <code>{ dryRun: true }</code>. Unreachable. Removed from scope entirely — this deleted a whole risky workstream.</p>
+  </div>
+
+  <div class="entry ok">
+    <h3>Objection accepted: the dashboard poll is a self-sustaining load source<span class="tag ok">adopted</span></h3>
+    <p>Not in the original diagnosis and genuinely valuable: a single stranded <code>in_progress</code> row made every open admin tab issue a real query every 5s forever, with no <code>document.hidden</code> check. Fixed both server-side (unconditional sweep) and client-side (10-minute cap plus an abandoned-id guard so the 30s loop cannot immediately re-arm on the same row).</p>
+  </div>
+
+  <div class="entry dev">
+    <h3>Scope call: the TTL lease was deferred<span class="tag dev">deviation</span></h3>
+    <p>The challenge pass argued hard for replacing the advisory lock now. Deferred deliberately — it needs a migration, and this repo has no automated migration step, so it requires a schema-first deploy verified against production. It also cannot be tested here: the worktree has no credentials, and the integration suite crashes the vitest worker without them rather than failing cleanly.</p>
+    <p>What shipped instead makes the existing lock <b>loud and self-healing</b> rather than silent: no-op releases are logged, the release is total, bookkeeping can no longer mask a real error, and stranded rows are swept. The observed manifestation of symptom A was connection starvation, which RC-1's fix addresses directly.</p>
+  </div>
+
+  <div class="entry dev">
+    <h3><code>vercel.json</code> comment reverted<span class="tag dev">deviation</span></h3>
+    <p>A <code>_comment</code> key was added to explain the stagger, then removed: <code>vercel.json</code> is schema-validated and unknown top-level keys fail the deploy. Rationale lives in the plan doc instead.</p>
+  </div>
+
+  <h2>Review pass</h2>
+  <p>PR <a href="https://github.com/unic/ai-developer-hub/pull/126">#126</a>. Sole reviewer: the GitHub Copilot review bot. One inline comment, accepted.</p>
+
+  <div class="entry ok">
+    <h3>Accepted · the reaper could out-live-run a long backfill<span class="tag ok">fixed</span></h3>
+    <p>Copilot: <i>"an active backfill that legitimately exceeds 60 minutes can be incorrectly reaped on the next cron attempt, even though the job is still running."</i></p>
+    <p>Valid, and the same hazard the challenge pass raised independently. In practice the <code>maxDuration = 300</code> added in this same PR bounds every entrypoint — cron routes and the <code>/settings/sync</code> segment that dispatches the manual trigger and backfill server actions — so no run can currently reach 60 minutes. But that made the sweep's safety rest on an <b>implicit</b> invariant: raise the ceiling later and it would silently begin reaping live backfills.</p>
+    <p>Fixed by making the invariant explicit and giving backfills their own headroom:</p>
+    <ul>
+      <li><code>SYNC_MAX_DURATION_SECONDS</code> now mirrors the route ceiling in the same module, so the margin is expressed against the thing that actually bounds a run.</li>
+      <li><code>STALE_EVENT_AFTER_MS</code> became per-operation — 1h regular (12× the ceiling), 6h backfill (72×) — and the sweep predicate is now an <code>OR</code> over <code>operationType</code>.</li>
+      <li>Two invariant tests: every cutoff must exceed 10× the ceiling, and backfill must exceed regular. These fail if someone raises <code>maxDuration</code> without revisiting the cutoffs.</li>
+    </ul>
+  </div>
+
+  <h2>Verification</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td><code>pnpm typecheck</code></td><td><b>clean</b> (baseline also clean, captured before any edit)</td></tr>
+    <tr><td><code>eslint</code> on all touched paths, <code>--max-warnings 0</code></td><td><b>clean</b></td></tr>
+    <tr><td><code>pnpm test</code></td><td><b>55 files / 672 tests passed</b> — baseline was 53/660; +12 new, no regressions</td></tr>
+    <tr><td><code>pnpm build</code></td><td><b>succeeded</b> — validates the new <code>maxDuration</code> route-segment exports</td></tr>
+    <tr><td>Mutation check on the centrepiece fix</td><td>Commenting out <code>pool.on("error")</code> fails exactly the 2 tests that assert it; restored and re-verified</td></tr>
+  </table>
+  </div>
+
+  <div class="entry ok">
+    <h3>Tests are non-vacuous by construction<span class="tag ok">method</span></h3>
+    <p>The fake Pool in <code>tests/unit/db/pool-error-handling.test.ts</code> reproduces Node's contract that an <code>'error'</code> emit with no listener <b>throws</b>. So the tests fail if the handler is removed, rather than passing on a listener count that could be satisfied by attaching to the wrong object. Verified by actually removing the fix and observing the failures.</p>
+  </div>
+
+  <div class="entry oq">
+    <h3>Not verified here<span class="tag oq">limits</span></h3>
+    <ul>
+      <li>No integration or browser pass — the worktree has no <code>.env.local</code> and no database credentials.</li>
+      <li>The <code>max: 10</code> value is reasoned, not measured. Meaningful verification is operational: watch for the disappearance of connect timeouts, plus Neon connection-count and CPU graphs, on a preview or canary before production.</li>
+      <li>Nothing here clears an advisory lock already leaked in production.</li>
+    </ul>
+  </div>
+</main>
+<footer>specs/044-db-connection-reliability · implementation-notes.html</footer>
+</body>
+</html>

@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Assignment Tier Change (042)</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --bg-elev: #11141b;
+        --bg-card: #161a24;
+        --border: #232938;
+        --border-strong: #2f3850;
+        --fg: #e7ebf3;
+        --fg-muted: #9aa3b5;
+        --fg-dim: #6b7488;
+        --accent: #f0a072;
+        --accent-2: #7dd3fc;
+        --good: #86efac;
+        --warn: #fcd34d;
+        --bad: #fca5a5;
+        --mono:
+          ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
+        line-height: 1.55;
+      }
+      body {
+        padding: 48px 24px 96px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 52px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 17px;
+        margin: 0 0 6px;
+      }
+      h4 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: var(--fg-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+        background: var(--bg-elev);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+      }
+      pre {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        line-height: 1.5;
+      }
+      pre code {
+        background: transparent;
+        border: 0;
+        padding: 0;
+        font-size: inherit;
+      }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 16px;
+        max-width: 820px;
+      }
+      .meta {
+        color: var(--fg-dim);
+        font-size: 13px;
+        margin-top: 8px;
+        font-family: var(--mono);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-family: var(--mono);
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        color: var(--fg-muted);
+        background: var(--bg-elev);
+      }
+      .badge.accent {
+        color: var(--accent);
+        border-color: rgba(240, 160, 114, 0.35);
+      }
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 16px 0;
+      }
+      .card.accent {
+        border-left: 3px solid var(--accent);
+      }
+      .card.accent-2 {
+        border-left: 3px solid var(--accent-2);
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 760px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      ul {
+        padding-left: 20px;
+        margin: 8px 0 12px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      li.pro::marker {
+        content: "+ ";
+        color: var(--good);
+        font-weight: 700;
+      }
+      li.con::marker {
+        content: "− ";
+        color: var(--bad);
+        font-weight: 700;
+      }
+      li.note::marker {
+        content: "› ";
+        color: var(--fg-dim);
+      }
+      li.check::marker {
+        content: "\2610  ";
+        color: var(--fg-muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--fg-muted);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--bg-elev);
+      }
+      td code {
+        white-space: nowrap;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-family: var(--mono);
+      }
+      .pill.warn {
+        background: rgba(252, 211, 77, 0.12);
+        color: var(--warn);
+      }
+      .pill.new {
+        background: rgba(240, 160, 114, 0.14);
+        color: var(--accent);
+      }
+      .pill.neutral {
+        background: var(--bg-elev);
+        color: var(--fg-muted);
+        border: 1px solid var(--border);
+      }
+      .callout {
+        border: 1px solid var(--border-strong);
+        border-left: 3px solid var(--warn);
+        background: rgba(252, 211, 77, 0.04);
+        padding: 14px 16px;
+        border-radius: 8px;
+        margin: 16px 0;
+        font-size: 14px;
+      }
+      .callout.info {
+        border-left-color: var(--accent-2);
+        background: rgba(125, 211, 252, 0.04);
+      }
+      .callout.accent {
+        border-left-color: var(--accent);
+        background: rgba(240, 160, 114, 0.05);
+      }
+      .toc {
+        columns: 2;
+        column-gap: 32px;
+        font-size: 14px;
+      }
+      @media (max-width: 760px) {
+        .toc {
+          columns: 1;
+        }
+      }
+      .toc a {
+        display: block;
+        padding: 3px 0;
+        color: var(--fg-muted);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        color: var(--accent);
+      }
+      footer {
+        color: var(--fg-dim);
+        font-size: 12.5px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+      }
+      .s {
+        color: var(--good);
+      }
+      .c {
+        color: var(--fg-dim);
+        font-style: italic;
+      }
+      .k {
+        color: var(--accent-2);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="row" style="margin-bottom: 16px">
+          <span class="badge">Implementation notes</span>
+          <span class="badge">spec/042-assignment-tier-change</span>
+          <span class="badge accent">Verified — unit, integration &amp; browser</span>
+        </div>
+        <h1>Assignment Tier Change — running log</h1>
+        <p class="lede">
+          Design decisions, deviations, tradeoffs, open questions, and the
+          challenge / simplify / review / verification passes for spec 042.
+          Appended as work proceeds. Companion to
+          <a href="implementation-plan.html">implementation-plan.html</a>.
+        </p>
+        <p class="meta">
+          Started 2026-08-03 · branch <code>042-assignment-tier-change</code> ·
+          author: T. Studer
+        </p>
+      </header>
+
+      <h2 id="trigger">The trigger</h2>
+      <p>
+        A tier-upgrade request arrived for a licence someone already held, and the
+        Hub had no way to action it. Reconnaissance established that this is not
+        one missing feature but <strong>three unreconciled implementations</strong>
+        of the same operation — see plan §2.
+      </p>
+
+      <div class="card accent">
+        <h4>The hard block</h4>
+        <p>
+          <code>createAssignmentInTx</code>
+          (<code>src/actions/license-requests.ts:266-278</code>) refuses approval
+          whenever the requester already holds an active assignment for the tool,
+          and recommends revoke-then-recreate — which routes the admin into the
+          <em>worst</em> of the three existing paths (orphaned comments, reset
+          <code>assigned_at</code>, dropped API key, double-billed switch month).
+        </p>
+      </div>
+
+      <h2 id="recon">Reconnaissance method</h2>
+      <p>
+        A dynamic workflow ran <strong>7 parallel read-only explorers</strong>
+        (assignment mutation layer · cost-snapshot semantics · licence-request
+        workflow · UI surfaces · audit/history · tests &amp; doc process · MCP and
+        API read surfaces) followed by a <strong>gap critic</strong> that was
+        allowed to read files itself to resolve contradictions between the
+        reports. 8 agents, ~873k subagent tokens, ~13 min wall clock.
+      </p>
+
+      <h4>What the critic caught that no individual explorer did</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>Correction</th>
+            <th>Consequence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>Deactivate+insert double-counts the switch month.</strong>
+              Three of the seven explorers recommended that pattern for
+              &ldquo;historically accurate per-period costs&rdquo;. Both
+              non-status-filtered per-period readers count the old
+              <em>and</em> the new row for the period containing the switch.
+            </td>
+            <td>
+              Inverted the central design decision. Became plan §3 / D-A.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>The detail page does NOT gate copilot-sync rows.</strong>
+              One explorer asserted both tier-edit surfaces gate on
+              <code>source</code>; the file contains zero references to it.
+            </td>
+            <td>
+              Live bug, folded into scope as D-B. Verified independently before
+              accepting.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Migration journal ends at 0029</strong>, not 0026 as
+              CLAUDE.md&rsquo;s &ldquo;Recent changes&rdquo; note implies.
+            </td>
+            <td>This migration is 0030. Verified independently.</td>
+          </tr>
+          <tr>
+            <td>
+              <strong><code>getExpectedSpendForPeriod</code> filters
+              <code>status='active'</code></strong>; the other two per-period
+              readers do not. Several explorers had grouped all three as
+              equivalent.
+            </td>
+            <td>
+              Pre-existing divergence, explicitly scoped out as deferral D-2 with
+              a stated authoritative figure for tests.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Live tier taxonomy resolved via MCP</strong> against
+              production — every tool keeps its tiers under one
+              <code>ai_tools</code> row, so every real upgrade is a same-tool
+              <code>tier_id</code> change.
+            </td>
+            <td>
+              No cross-tool reassignment semantics needed; the existing same-tool
+              guard suffices.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Copilot is at 63/63 seats</strong> and Claude Console&rsquo;s
+              price order is non-monotonic
+              (<code>indie-profile</code> &euro;125 sits between
+              <code>boost-expert</code> &euro;100 and
+              <code>boost-leader</code> &euro;200).
+            </td>
+            <td>
+              Drove D-D (no capacity check — a create-shaped implementation would
+              reject every Copilot upgrade) and D-C (neutral wording, no
+              price-derived upgrade/downgrade labels).
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="ambiguity">Open question at drafting time</h2>
+      <div class="callout">
+        <strong>Unanswered when the plan was drafted.</strong> Two questions were
+        put to the user and went unanswered (away from keyboard), so the plan
+        proceeds on stated assumptions rather than blocking:
+        <ul>
+          <li class="note">
+            <strong>Which surface blocked them.</strong> Assumed: the licence
+            request, since the trigger was described as a
+            <em>request</em> arriving. The plan therefore covers
+            <em>both</em> the direct admin operation and the request-approval
+            path, so the assumption being wrong costs nothing.
+          </li>
+          <li class="note">
+            <strong>Upgrade-month costing.</strong> Assumed D-A (whole month at
+            the new tier). Rationale in plan §3: it is the convention spec 037
+            already established and the user already accepted. If the user wants
+            true proration, that is deferral D-1 and a materially larger spec —
+            the plan says so explicitly rather than quietly choosing for them.
+          </li>
+        </ul>
+        Both should be confirmed before merge.
+      </div>
+
+      <h2 id="challenge">Challenge pass</h2>
+      <p>
+        Five adversarial lenses ran in parallel against plan v1, each told to
+        assume the plan was wrong and prove it against the real code: <em>cost
+        &amp; reporting correctness</em>, <em>concurrency &amp; data
+        integrity</em>, <em>licence-request flow correctness</em>,
+        <em>codebase fit / simplification</em>, <em>test adequacy &amp;
+        process</em>. 5 agents, ~715k tokens, ~11 min.
+      </p>
+      <p class="meta">
+        Verdicts: 2 &times; <code>has_blocking_flaw</code> (concurrency,
+        request-flow) · 3 &times; <code>needs_revision</code> (cost,
+        simplification, tests). <strong>Nothing returned
+        <code>plan_is_sound</code>.</strong> Every blocking and major finding
+        below was verified independently against the code before being adopted.
+      </p>
+
+      <div class="callout">
+        <strong>The panel proved the plan&rsquo;s central argument
+        wrong.</strong> v1 §3 asserted deactivate+insert was &ldquo;strictly
+        worse&rdquo; than in-place mutation. It is not. Double-count =
+        <strong>1 period &times; old price</strong>. In-place restatement =
+        <strong>N closed periods &times; delta</strong> — for one Claude seat
+        held since March, +&euro;25 versus +&euro;500. The decision (in-place)
+        survived; the <em>reasoning</em> had to be replaced entirely, and the
+        retroactive blast radius enumerated by file.
+      </div>
+
+      <h4>Blocking findings adopted</h4>
+      <table>
+        <thead><tr><th>Finding</th><th>Verified</th><th>Revision</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>
+              A flat <code>mode</code> flag cannot express
+              <code>change_tier</code>: <code>loadToolAndTier</code> runs before
+              the transaction and unconditionally errors on
+              <code>requiresApiKey &amp;&amp; !licenseCode</code>. v1 suppressed
+              the key field on a retier &rarr; <strong>every Claude Console
+              upgrade would die</strong> with a misleading message, and Claude
+              Console is the only <code>requires_api_key</code> tool <em>and</em>
+              has the deepest tier ladder.
+            </td>
+            <td>
+              Confirmed: <code>license-requests.ts:201-207</code>, called at
+              <code>:338</code>, transaction opens at <code>:341</code>.
+            </td>
+            <td>
+              <code>approveRequestSchema</code> becomes a
+              <strong>discriminated union</strong>; create-only validation lives
+              only on the <code>create</code> member. Key field becomes
+              <em>optional</em>, not suppressed.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Returning an error from inside the approval transaction
+              <strong>commits</strong> it — so v1&rsquo;s new in-transaction
+              rejection would have persisted an auto-created requester user.
+            </td>
+            <td>
+              Confirmed: the existing race guard <code>throw</code>s
+              <code>RACE_LOST</code> (<code>:371</code>) precisely because a
+              return would commit.
+            </td>
+            <td>
+              Every in-transaction rejection must <code>throw</code>. Called out
+              as the single most important implementation note.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              The tier UPDATE has no <code>status</code> guard, so it can retier a
+              row a concurrent revoke just closed — violating the very invariant
+              D-A&rsquo;s costing argument rests on.
+            </td>
+            <td>
+              Confirmed: unconditional
+              <code>.where(eq(id, id))</code> at
+              <code>assignments.ts:297-300</code> after a separate read at
+              <code>:191-201</code>. Five concurrent producers can close the row.
+            </td>
+            <td>
+              Conditional UPDATE guarded on <code>status</code> +
+              observed <code>tier_id</code> (doubling as an optimistic lock
+              against the price cascade) with a zero-rows sentinel.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="card accent">
+        <h4>
+          Correction — the &ldquo;leaked Hub user&rdquo; was not real
+        </h4>
+        <p>
+          Working from the panel&rsquo;s finding that a returned error commits, and
+          that <code>ensureRequesterUser</code> runs <em>before</em>
+          <code>createAssignmentInTx</code>, both the panel and plan v2 concluded
+          that the &ldquo;Requester already has an active assignment&rdquo;
+          refusal had been <strong>leaking an abandoned viewer account</strong> —
+          and that it was doing so on the exact error path this spec was opened to
+          fix. It was reported to the user in those terms.
+        </p>
+        <p>
+          <strong>That was wrong.</strong> Traced properly during implementation:
+          <code>ensureRequesterUser</code>
+          (<code>license-requests.ts:283-295</code>) inserts a user only when no
+          row with that e-mail exists — it early-returns on
+          <code>requesterUserId</code>, then on an e-mail match. A user who has
+          just been inserted cannot already hold an active assignment, because
+          assignments reference users. So the duplicate-seat refusal and a user
+          insert are <strong>mutually exclusive</strong>, and since that refusal
+          was the only in-transaction error return in the original code, nothing
+          was ever orphaned.
+        </p>
+        <p>
+          The throw-not-return revision is kept, and is still required — but as
+          <em>hardening</em>, not a bug fix. This spec adds in-transaction
+          rejections that <em>can</em> follow a real write (a retier that then
+          loses the request-status race), and for those a returned error would
+          commit a partial change. Corrected in plan §5 and reported to the user.
+        </p>
+        <p class="meta">
+          Worth recording as a process note: a confident, well-cited finding from
+          an adversarial reviewer still needs its <em>reachability</em> checked,
+          not just its mechanism. The mechanism here was real; the path to it was
+          not.
+        </p>
+      </div>
+
+      <h4>Major findings adopted</h4>
+      <ul>
+        <li class="note">
+          <strong>Copilot had no approvable outcome at all.</strong> All 63 live
+          Copilot seats are <code>source='copilot-sync'</code>, so a Business
+          &rarr; Enterprise request would be refused by the create guard
+          <em>and</em> by D-B&rsquo;s sync block — while v1&rsquo;s acceptance
+          checklist claimed such requests were approvable. Added a third mode,
+          <code>link_existing</code>, matching 032-v2&rsquo;s provision-first
+          philosophy: upgrade in GitHub, approve as linked, tier arrives via sync.
+          It also unsticks the legacy <code>recordAssignment</code> path, which
+          shared the same dead end.
+        </li>
+        <li class="note">
+          <strong>Blocking by <code>source</code> is the wrong gate.</strong>
+          Sync <em>takes over</em> manual rows
+          (<code>needsSourceUpdate</code>), so a tier change on a
+          <code>source='manual'</code> Copilot assignment is reverted just the
+          same. The gate became <strong>tool-based</strong>.
+        </li>
+        <li class="note">
+          <strong><code>loadToolAndTier</code> never checks
+          <code>is_active</code></strong> — so v1&rsquo;s §5 callout
+          (&ldquo;all three require isActive, exactly as today&rdquo;) was simply
+          false, and the request path could put a live seat on a deactivated
+          tier. Gap closed.
+        </li>
+        <li class="note">
+          <strong>Month-over-month goes blind.</strong>
+          <code>getAssignmentSnapshotAt</code> reads the <em>current</em> cost, so
+          after an in-place change both compared months read the new price and the
+          delta contribution is exactly zero — the KPI reads 0% on the month a
+          seat&rsquo;s price quintupled. A regression specific to in-place;
+          recorded as deferral D-2 rather than hidden.
+        </li>
+        <li class="note">
+          <strong>The helper&rsquo;s invariant ordering broke every synced-row
+          edit.</strong> The detail form always submits <code>tierId</code>, so
+          refusing sync rows before the no-op check would reject workspace and
+          API-key edits too. Sync refusal now fires only when the tier actually
+          differs.
+        </li>
+        <li class="note">
+          <strong>v1 gave the shared helper two different signatures</strong>
+          (§1 <code>applyTierChangeInTx</code> vs §5
+          <code>buildTierChange</code>), which would have blocked writing the unit
+          tests. Settled on one pure, db-free signature.
+        </li>
+        <li class="note">
+          <strong>Revalidation still missed cost surfaces.</strong> v1
+          congratulated itself on adding <code>/budget</code> but omitted
+          <code>/</code> and <code>/reports/budget</code>, which the analogous
+          price cascade already revalidates. Fixed for <em>all</em>
+          <code>updateAssignment</code> fields, not just the tier.
+        </li>
+        <li class="note">
+          <strong>The dialog cannot do what v1 promised &ldquo;with no new
+          query&rdquo;.</strong> <code>ActiveAssignmentSummary</code> lacks
+          <code>toolId</code>, <code>tierId</code> and <code>source</code>, so
+          collision matching would have keyed off a display name and could not
+          distinguish a synced seat. Three columns added to the existing SELECT.
+        </li>
+        <li class="note">
+          <strong><code>tier.previousName</code> would have leaked braces.</strong>
+          <code>renderTemplate</code> leaves unresolved paths as the
+          <em>literal</em> <code>{{tier.previousName}}</code>, and one approval
+          body serves all modes — so the token is now always bound (empty when not
+          a retier). Relatedly, suppressing the key field made the pasted message
+          read <em>&ldquo;Your API key: —&rdquo;</em>.
+        </li>
+        <li class="note">
+          <strong>Same-tool/same-tier was an unhandled cell.</strong> A naive
+          copy of <code>updateAssignment</code>&rsquo;s zero-diff early return
+          would report success while stranding the request in
+          <code>pending_review</code>. The no-op contract now explicitly belongs
+          to the caller.
+        </li>
+      </ul>
+
+      <h4>Scope cut on the simplification lens&rsquo; argument</h4>
+      <p>
+        The <em>/simplify</em> lens argued — correctly — that v1 was building a
+        parallel implementation of the thing the spec exists to unify. Adopted in
+        full:
+      </p>
+      <table>
+        <thead><tr><th>Dropped</th><th>Because</th></tr></thead>
+        <tbody>
+          <tr><td>Separate <code>changeAssignmentTier</code> action + schema</td><td><code>updateAssignment</code> already does same-tool tier changes with validation, cost snapshot and audit diff, and is already wired to two of the three target surfaces.</td></tr>
+          <tr><td><code>ChangeTierDialog</code> on three surfaces</td><td>Two already have working tier-edit UI; only the missing affordance remains, and it links to the detail page rather than duplicating a dialog.</td></tr>
+          <tr><td>Migration 0030 / <code>tier_changed_at</code></td><td><code>change_history</code> already stores old/new <code>tierId</code> with actor and timestamp, and a single column could hold only the latest step. <strong>The spec is now migration-free</strong> — which also drops the <code>drizzle-migration-reviewer</code> gate.</td></tr>
+          <tr><td>Deferral &ldquo;reconcile the rival expected-spend readers&rdquo;</td><td>No rivalry: <code>getExpectedSpendForPeriod</code> has <strong>zero callers</strong>. Deleting it is a one-line simplification; v1 had documented a non-problem and invited a future reader to &ldquo;fix&rdquo; it.</td></tr>
+          <tr><td>D-C framed as a decision</td><td>Direction-derived-from-price is already how <code>updateAssignment</code> behaves; there was no live fork to decide.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Test-plan corrections</h4>
+      <ul>
+        <li class="note">
+          <strong>Integration tests do not run in CI.</strong>
+          <code>.github/workflows/ci.yml:96-117</code> has the
+          <code>integration-tests</code> job commented out — only
+          <code>pnpm test</code> gates a merge. v1 made an integration test the
+          sole guard for its central claim, so a future
+          &ldquo;just reuse assignLicense&rdquo; refactor could have reintroduced
+          double-counting with nothing blocking it. The guard is now a
+          <strong>unit</strong> test over an extracted overlap predicate.
+        </li>
+        <li class="note">
+          <strong>The integration test was racy and mis-scoped.</strong>
+          <code>getBudgetWithCosts</code> sums the whole
+          <code>license_assignments</code> table with no tool or budget scoping,
+          so a global before/after delta absorbs other suites&rsquo; concurrent
+          rows. Now asserts on the seeded tool&rsquo;s own rows.
+        </li>
+        <li class="note">
+          <strong>v1&rsquo;s fiscal-year instruction was actively
+          harmful.</strong> It told the test to claim FY &ge; 999,000 — the window
+          <code>forecast-scenarios.test.ts</code> already owns. And it was
+          unnecessary: <code>getBudgetWithCosts</code> filters on
+          <code>id</code> only (<code>budget.ts:556-557</code>) and ignores
+          <code>status</code>, so the budget can be seeded
+          <code>archived</code> outside every claimed range.
+        </li>
+      </ul>
+
+      <h4>Confirmed correct — left alone</h4>
+      <p class="meta">
+        Recorded so a later reader does not &ldquo;fix&rdquo; a non-issue. The
+        double-count in both <code>getBudgetWithCosts</code> and
+        <code>fetchPerToolByPeriod</code> is real and exactly one period wide
+        (July excludes the new row; September excludes the old). The spec-037
+        precedent is real and stronger than v1 claimed —
+        <code>tools.ts:302-305</code> states it in a comment and migration
+        <code>0024</code> backfilled production to match. No per-tier
+        <em>historical</em> breakdown exists anywhere, so in-place change
+        misreports no per-tier chart. Nothing persists a computed expected-spend
+        figure, so no stale stored number is left behind. D-D is well-founded:
+        <code>assignLicense</code>&rsquo;s minus-one capacity adjustment
+        (<code>assignments.ts:73-88</code>) means a create-shaped implementation
+        really would reject every Copilot upgrade at 63/63.
+      </p>
+
+      <h2 id="implementation">Implementation log</h2>
+
+      <p class="meta">
+        Core logic written directly; UI wiring and the mocked-action tests
+        delegated to three parallel Sonnet agents on non-overlapping file sets.
+      </p>
+
+      <h4>What landed</h4>
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Change</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>lib/assignments/tier-change.ts</code> <span class="pill new">new</span></td>
+            <td>
+              Pure tier-change semantics: <code>buildTierChange</code>,
+              <code>tierCostDeltaCents</code>, <code>SYNC_MANAGED_TIER_ERROR</code>.
+              No db, no <code>"use server"</code> — which is also what forced it out
+              of <code>actions/assignments.ts</code>: a
+              <code>"use server"</code> module may only export async functions, so
+              pure helpers cannot live there.
+            </td>
+          </tr>
+          <tr>
+            <td><code>lib/assignments/sync-authority.ts</code> <span class="pill new">new</span></td>
+            <td>
+              <code>isSyncManagedTool</code> / <code>getSyncManagedToolId</code> —
+              the tool-based gate. Returns false when no active connection has
+              <code>copilot_sync_enabled</code>, since nothing would overwrite a
+              manual change then.
+            </td>
+          </tr>
+          <tr>
+            <td><code>lib/assignments/revalidate.ts</code> <span class="pill new">new</span></td>
+            <td>Shared cost-surface revalidation, applied to every field of <code>updateAssignment</code>, not only the tier.</td>
+          </tr>
+          <tr>
+            <td><code>lib/budget-utils.ts</code></td>
+            <td>
+              <code>overlapsPeriod</code> + <code>sumExpectedSpendCents</code>
+              extracted from <code>getBudgetWithCosts</code> so the double-count
+              property is unit-testable in CI.
+            </td>
+          </tr>
+          <tr>
+            <td><code>actions/license-requests.ts</code></td>
+            <td>
+              Three approval modes; <code>ApprovalError</code> throw discipline;
+              <code>loadToolAndTier</code> gains <code>isActive</code> and a
+              <code>requireApiKey</code> parameter;
+              <code>loadTargetAssignmentInTx</code> resolves the user
+              <em>from the assignment</em> so no mode can create one;
+              <code>ActiveAssignmentSummary</code> gains
+              <code>toolId</code>/<code>tierId</code>/<code>tierCostCents</code>/<code>syncManaged</code>
+              and now matches by e-mail as well as id.
+            </td>
+          </tr>
+          <tr>
+            <td><code>actions/budget.ts</code></td>
+            <td>Dead <code>getExpectedSpendForPeriod</code> deleted; per-period sum delegated to the shared helper.</td>
+          </tr>
+          <tr>
+            <td><code>actions/history.ts</code></td>
+            <td><code>getAssignmentTierHistory</code> — resolves the log's tier IDs to names and joins the actor.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Deviation — the legacy path needed its own action</h4>
+      <div class="card accent">
+        <p>
+          Plan v2 said the legacy <code>recordAssignment</code> dead end would be
+          unstuck by <code>approveRequest</code>&rsquo;s new
+          <code>link_existing</code> mode. <strong>It cannot be.</strong> The
+          delegated agent found this and stopped rather than wiring a call that
+          would always fail — correctly.
+        </p>
+        <p>
+          <code>RecordAssignmentDialog</code> only opens for
+          <code>status === "approved"</code> rows
+          (<code>isLegacyApproved</code>), while <code>approveRequest</code>
+          rejects anything not <code>pending_review</code>. The two guards are
+          mutually exclusive, so every such call would have returned
+          <em>Cannot approve a request in status &ldquo;approved&rdquo;</em>.
+        </p>
+        <p>
+          Resolved with a dedicated <code>linkExistingAssignment</code> action
+          guarded on <code>status='approved' AND assignment_id IS NULL</code>,
+          reusing <code>loadTargetAssignmentInTx</code> for the ownership and
+          active checks and mutating nothing on the seat. The plan&rsquo;s §7 row
+          and D-C were corrected to match.
+        </p>
+      </div>
+
+      <h4>Deviation — user-detail gating is source-based</h4>
+      <p>
+        The &ldquo;Change tier&rdquo; affordance on the user detail page hides
+        itself on <code>source === 'copilot-sync'</code> rather than via the
+        tool-based <code>isSyncManagedTool</code>, because the server component
+        feeding that card was outside the delegated agent&rsquo;s file scope.
+        Cosmetic only: the mutation stays protected server-side by the tool-based
+        check, and the link lands on a page whose tier control is correctly
+        disabled. Worth tidying if that page is touched again.
+      </p>
+
+      <h4>Verification</h4>
+      <ul>
+        <li class="note"><code>pnpm typecheck</code> — clean.</li>
+        <li class="note">
+          <code>pnpm test</code> — <strong>658 passed, 53 files</strong> (baseline
+          629; +29 from this spec's two new suites). No pre-existing test needed
+          weakening.
+        </li>
+        <li class="note">eslint — clean on every changed file.</li>
+        <li class="note">
+          <code>tests/integration/actions/license-requests.test.ts</code>: its six
+          existing <code>approveRequest</code> calls had to gain
+          <code>mode: "create"</code> — the discriminated union makes the
+          discriminator mandatory, and because the action takes
+          <code>input: unknown</code> <strong>typecheck would not have caught
+          this</strong>; the calls would simply have failed validation at
+          runtime. Four 042 cases added (retier round trip, link round trip,
+          create still refused, retier onto another user&rsquo;s seat refused).
+        </li>
+        <li class="note">
+          Integration suite not executed — this worktree has no
+          <code>.env.local</code>, so there is no database to run it against. It
+          is also not run by CI. <strong>Outstanding.</strong>
+        </li>
+        <li class="note">Playwright browser pass — <strong>outstanding</strong>, same reason.</li>
+      </ul>
+
+      <h2 id="open">Open before merge</h2>
+      <ul>
+        <li class="con">
+          <strong>Confirm the costing decision (D-A).</strong> The upgrade month
+          bills entirely at the new tier, and closed periods restate. Both
+          questions put to the user went unanswered; this is a real accounting
+          choice, not an obvious default.
+        </li>
+        <li class="con">
+          <strong>Run the integration suite and the browser pass</strong> against
+          a database branch.
+        </li>
+        <li class="con">
+          <code>/simplify</code> pass, then PR with the Copilot reviewer.
+        </li>
+      </ul>
+      <h2 id="simplify">Simplify pass</h2>
+      <p class="meta">
+        Four parallel lenses over the branch diff — reuse, simplification,
+        efficiency, altitude. 10 findings applied, 4 skipped. Suite went 658 →
+        659; typecheck and eslint clean throughout.
+      </p>
+
+      <h4>Applied</h4>
+      <table>
+        <thead><tr><th>Lens</th><th>Finding</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>reuse · altitude</td>
+            <td>
+              <code>revalidate.ts</code> duplicated the five path literals
+              <code>actions/tools.ts</code>&rsquo;s tier price cascade already
+              revalidated — and the two lists had <em>already</em> drifted.
+            </td>
+            <td>
+              One <code>revalidateCostSurfaces()</code>;
+              <code>updateTier</code> calls it too.
+            </td>
+          </tr>
+          <tr>
+            <td>efficiency</td>
+            <td>
+              Cost invalidation fired on <em>every</em> successful update —
+              including workspace/API-key-only edits, a no-op retier, and
+              <code>link_existing</code>. Seven paths each time, and the
+              dashboard alone re-runs ~13 queries. The precedent it claimed to
+              mirror gates on <code>newCostCents !== undefined</code>; this
+              did not.
+            </td>
+            <td>
+              Gated on the tier actually moving
+              (<code>"tierId" in changes</code>), and on a
+              <code>costChanged</code> flag returned from the approval
+              transaction.
+            </td>
+          </tr>
+          <tr>
+            <td>efficiency · simplification</td>
+            <td>
+              <code>isSyncManagedTool(toolId)</code> re-queried
+              <code>ai_tools</code> at three call sites that already had the
+              tool row in memory — <code>approveRequest</code> even fetched it
+              via <code>loadToolAndTier</code> and threw it away.
+            </td>
+            <td>
+              API is now name-based:
+              <code>isCopilotSyncActive()</code> +
+              <code>isSyncManagedToolName()</code>, with
+              <code>isSyncManagedTool(name)</code> as the convenience.
+              <code>getSyncManagedToolId</code> deleted. One fewer query on
+              each of three paths.
+            </td>
+          </tr>
+          <tr>
+            <td>efficiency</td>
+            <td><code>getRequestContext</code> awaited the sync lookup before the row fetch, with no data dependency between them.</td>
+            <td><code>Promise.all</code>; <code>syncManaged</code> now derived from the tool name the join already returned.</td>
+          </tr>
+          <tr>
+            <td>reuse</td>
+            <td>
+              The &ldquo;Managed by sync&rdquo; badge existed twice with
+              <strong>two different explanations</strong> of the same condition.
+            </td>
+            <td>Shared <code>SyncManagedBadge</code>; message stays per-caller.</td>
+          </tr>
+          <tr>
+            <td>reuse · altitude</td>
+            <td>
+              <strong>Resolves the deviation logged above.</strong> The user
+              detail page gated on <code>assignment.source</code> — exactly the
+              check §6 rejects as insufficient — leaving one right and one wrong
+              example of the same decision for the next surface to copy.
+            </td>
+            <td>
+              <code>page.tsx</code> resolves it server-side and passes
+              <code>syncManagedToolNames</code>; the client no longer reads
+              <code>source</code> at all.
+            </td>
+          </tr>
+          <tr>
+            <td>altitude</td>
+            <td>
+              <code>fetchPerToolByPeriod</code> still inlined its own copy of
+              the overlap predicate — so the CI test pinned the rule for one
+              reader while the other could drift freely, defeating the point of
+              extracting it.
+            </td>
+            <td>
+              Both readers share <code>overlapsPeriod</code>, with the
+              long-standing <code>&gt;</code> vs <code>&gt;=</code> edge case
+              preserved as an explicit <code>revokedBound</code> parameter and
+              pinned by its own test.
+            </td>
+          </tr>
+          <tr>
+            <td>simplification · altitude</td>
+            <td>The <code>RACE_LOST</code>/<code>ApprovalError</code> catch body was copy-pasted into three transactions.</td>
+            <td>One <code>catchApprovalTx</code>.</td>
+          </tr>
+          <tr>
+            <td>simplification</td>
+            <td><code>hasTemplate</code> re-encoded the mode &rarr; tool/tier rule that <code>handleAdvance</code> already had.</td>
+            <td>A derived <code>effective</code> selection, read by both.</td>
+          </tr>
+          <tr>
+            <td>simplification</td>
+            <td>Unused <code>ne</code> import left over from an earlier draft of the race guard.</td>
+            <td>Removed.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Skipped, with reasons</h4>
+      <ul>
+        <li class="note">
+          <strong>Extract <code>resolveApprovalOutcome</code> from
+          <code>approveRequest</code>&rsquo;s transaction body</strong> (four
+          <code>let</code>s, 4–5 levels of nesting). A genuine readability win,
+          and I chose not to take it: this is the most delicate code in the
+          branch, its correctness rests on throw-based rollback, and the value is
+          purely presentational. Not worth re-opening freshly-verified logic at
+          the end of the pass — but it is the first thing to do if this function
+          is touched again.
+        </li>
+        <li class="note">
+          <strong><code>buildTierChange</code>&rsquo;s three-way union &rarr;
+          <code>null</code> for the no-op.</strong> The reviewer rated it low
+          urgency itself; the current shape is correct, tested, and its
+          ordering invariant is documented. Churn on tested code for a marginal
+          readability gain.
+        </li>
+        <li class="note">
+          <strong>Row-level optimistic-concurrency token</strong> covering all
+          four editable fields instead of a <code>tierId</code>-keyed guard.
+          Correct observation — only one of four fields is race-protected — but
+          deliberately out of scope: the plan scoped the guard to the tier
+          snapshot invariant. Worth its own spec.
+        </li>
+        <li class="note">
+          <strong>Factoring the request-transaction shell</strong> (request
+          fetch + catch mapping + &ldquo;actioned by another admin&rdquo; copy)
+          across the three actions. Took the catch helper, left the rest:
+          boilerplate that drifts harmlessly, and collapsing it would obscure
+          the genuinely different status guards each action needs.
+        </li>
+      </ul>
+      <h2 id="verification">Verification against a real database</h2>
+
+      <div class="callout info">
+        <strong>The app&rsquo;s own Neon project is not reachable from this
+        session.</strong> The connected Neon MCP sees exactly one project
+        (<code>workable</code>), whose only branch is empty — no
+        <code>ai_tools</code>, no <code>license_assignments</code>, no compute
+        usage since it was created. No shared projects either. The real database
+        (the <code>ep-little-frost</code> endpoint referenced by the main
+        checkout) lives under an account this connection cannot see, and the
+        worktree had no <code>.env.local</code> at all.
+      </div>
+
+      <p>
+        So verification ran against a <strong>synthetic branch</strong>:
+        <code>wt/upgrade</code> (<code>br-empty-pond-ayfmd73z</code>) forked from
+        <code>workable/main</code>, migrated 0000&ndash;0029, then seeded with an
+        admin plus a catalogue mirroring the live taxonomy — Claude (Standard Seat
+        &euro;25 / Premium Seat &euro;125) and Claude Console (the
+        <code>requires_api_key</code> tool). <code>workable/main</code> was never
+        touched.
+      </p>
+
+      <h4>Results</h4>
+      <table>
+        <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>pnpm typecheck</code></td><td class="s">clean</td></tr>
+          <tr><td><code>pnpm test</code> (unit, gates CI)</td><td class="s">659 passed, 53 files</td></tr>
+          <tr><td>eslint on changed files</td><td class="s">clean</td></tr>
+          <tr>
+            <td><code>pnpm test:integration</code> — full directory</td>
+            <td class="s">
+              8 files passed, 2 skipped · 56 passed, 7 todo. Includes the budget
+              suites, so the <code>getBudgetWithCosts</code> refactor onto the
+              shared overlap predicate is verified against real Postgres.
+            </td>
+          </tr>
+          <tr>
+            <td>Playwright browser pass</td>
+            <td class="con"><strong>Not completed</strong> — see below.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>Two defects the integration run found that unit tests could not</h4>
+      <ol>
+        <li>
+          <strong>This spec broke the suite&rsquo;s teardown.</strong>
+          <code>change_history.changed_by</code> is <code>onDelete RESTRICT</code>,
+          and approving as a tier change now writes audit rows attributed to the
+          test admin — so <code>afterAll</code>&rsquo;s user delete failed with a
+          <code>23503</code> FK violation on every run. The suite reported
+          <em>12/12 tests passing and a failed file</em>, which is easy to skim
+          past. Audit rows for the run&rsquo;s users are now deleted first.
+        </li>
+        <li>
+          <strong>My own retier assertion tested the wrong layer.</strong> It
+          expected <code>{{tier.previousName}}</code> to be resolved in the stored
+          approval message. It never will be: <code>approveRequest</code> stores
+          <code>bodyMd</code> verbatim and rendering happens client-side in the
+          dialog — the suite already depends on that, asserting the stored message
+          deliberately <em>keeps</em> <code>{{licenseCode}}</code> so the key never
+          reaches the database. Corrected to assert verbatim storage.
+        </li>
+      </ol>
+
+      <h4>Why the browser pass did not happen</h4>
+      <p>
+        <code>@neondatabase/serverless</code> falls back to Node&rsquo;s built-in
+        (undici) WebSocket when <code>neonConfig.webSocketConstructor</code> is
+        unset, and on <strong>Node 24</strong> that connects only intermittently —
+        a raw <code>ErrorEvent</code>, then the 10s
+        <code>connectionTimeoutMillis</code> in <code>src/lib/db/index.ts</code>
+        aborts. Measured: with the <code>ws</code> package, 3/3 connections
+        succeed; without it, failures are frequent. It is not specific to this
+        feature — it also broke <code>pnpm db:seed:agent</code> and made
+        <code>drizzle-kit</code> intermittent.
+      </p>
+      <p>
+        The integration suite was made reliable with a throwaway
+        <code>setupFiles</code> shim (not committed). For <code>pnpm dev</code> the
+        documented workaround — the shim in <code>src/instrumentation.ts</code>
+        plus <code>serverExternalPackages</code> in <code>next.config.ts</code> —
+        was tried temporarily and <strong>did not</strong> take effect; the mint
+        route kept returning 500 from the same WebSocket failure, so no agent
+        session could be created and no page could be driven. Both files were
+        reverted; the tree is clean.
+      </p>
+      <div class="callout">
+        <strong>Consequence: the UI has no verification at all.</strong> The sync
+        gate on the assignment detail page, the tier timeline, the mode-aware
+        approval dialog and the legacy link path are covered by neither automated
+        tests nor a manual pass. The server actions beneath them are covered.
+        This is the largest remaining gap before merge.
+      </div>
+      <p class="meta">
+        Offered but not done, since it is a shared-harness change rather than part
+        of this spec: committing the <code>ws</code> shim so
+        <code>pnpm test:integration</code> is reliable on Node 24 for everyone.
+        Without it, the integration results above are not reproducible on this
+        Node version.
+      </p>
+
+      <h2 id="verification-2">Verification round 2 — the real database</h2>
+      <div class="callout accent">
+        <strong>Supersedes the round-1 section above.</strong> The user created a
+        branch of the real database and swapped it into the worktree, so
+        everything below ran against production-shaped data:
+        <strong>223 users, 5 tools, 309 active assignments, 27 licence requests,
+        5 budgets, 1933 change-history rows</strong>, with
+        <code>0029_curly_strong_guy</code> applied. The synthetic
+        <code>workable</code> branch is no longer relevant except as history.
+      </div>
+
+      <table>
+        <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>pnpm typecheck</code></td><td class="s">clean</td></tr>
+          <tr><td><code>pnpm test</code></td><td class="s">659 passed, 53 files</td></tr>
+          <tr><td>eslint on changed files</td><td class="s">clean</td></tr>
+          <tr>
+            <td><code>pnpm test:integration</code> (full directory, real data)</td>
+            <td class="s">
+              8 files passed, 2 skipped · 56 passed, 7 todo — and stable rather
+              than flaky (216&thinsp;ms warm connect vs ~7&thinsp;s on the free-tier
+              branch), so no WebSocket shim was needed.
+            </td>
+          </tr>
+          <tr>
+            <td>Playwright browser pass</td>
+            <td class="s">
+              <strong>9/9 checks</strong> on the final run (13/13 on the earlier
+              one) against a real Claude seat and a real sync-managed Copilot
+              seat.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>What the browser pass actually exercised</h4>
+      <ul>
+        <li class="note">
+          A real manual Claude seat moved <strong>Standard Seat &rarr; Premium
+          Seat &rarr; Standard Seat</strong> — both directions, ending back on its
+          original tier.
+        </li>
+        <li class="note">
+          Header and cost followed the change (<code>$25.00</code> &harr;
+          <code>$125.00</code>); feedback arrived as inline
+          <code>[SAVED]</code>, not a toast.
+        </li>
+        <li class="note">
+          The <strong>tier timeline</strong> rendered both hops from
+          <code>change_history</code>, attributed and dated.
+        </li>
+        <li class="note">
+          Database end state confirmed directly: <strong>exactly one active
+          row</strong> for that user+tool (in place, no supersede, no duplicate),
+          with <code>tierId</code> 5&rarr;6 and
+          <code>costAtAssignmentCents</code> 2500&rarr;12500 written under a
+          single timestamp — the transaction of decision D-F.
+        </li>
+        <li class="note">
+          A real <code>copilot-sync</code> seat showed &ldquo;Managed by
+          sync&rdquo;, its tier control disabled but still legible, and no
+          re-pricing disclosure.
+        </li>
+      </ul>
+
+      <div class="callout">
+        <strong>The browser pass earned its place — it found two UI bugs nothing
+        else could.</strong> Typecheck, 659 unit tests and 56 integration tests
+        were all green while both of these were live.
+        <ol>
+          <li>
+            <strong>The sync-managed badge crashed the whole assignment detail
+            page</strong> (<em>&ldquo;<code>Tooltip</code> must be used within
+            <code>TooltipProvider</code>&rdquo;</em>). The assignments table only
+            works because <code>DataTable</code> happens to wrap its rows in a
+            provider; the detail page has none. So the page rendered nothing but
+            a heading for <em>every sync-managed seat</em> — exactly the case the
+            badge exists to mark. <code>SyncManagedBadge</code> now owns its own
+            provider.
+          </li>
+          <li>
+            <strong>The tier control rendered empty on every assignment.</strong>
+            Radix resolves a <code>Select</code>&rsquo;s displayed value by
+            looking up the selected <em>item&rsquo;s</em> children, and the items
+            arrive asynchronously from <code>loadTiers</code> — so the control
+            painted blank until the list happened to be ready, and stayed blank
+            whenever disabled. A placeholder does not help: it only shows for an
+            empty value, and here it is a real tier id. Pre-existing, but it is
+            this feature&rsquo;s primary control.
+          </li>
+        </ol>
+        Worth remembering next time the plan is tempted to treat a browser pass
+        as optional: <em>both</em> defects were in rendering, and no amount of
+        server-side testing would have surfaced either.
+      </div>
+
+      <p class="meta">
+        Note on reproducibility: the round-1 flakiness
+        (<code>@neondatabase/serverless</code> falling back to Node&rsquo;s undici
+        WebSocket) did not recur here — the EU endpoint connects in ~200&thinsp;ms
+        where the free-tier US branch took ~7&thinsp;s and brushed the 10&thinsp;s
+        <code>connectionTimeoutMillis</code>. The proposed <code>ws</code>
+        devDependency was declined and is not in the tree; if the slow-endpoint
+        case recurs, that is the fix.
+      </p>
+
+      <h2 id="open-final">Open before merge</h2>
+      <ul>
+        <li class="note">
+          <strong>Costing decision D-A: confirmed by the user</strong>
+          (2026-08-04), after the trade-off was laid out in full — the upgrade
+          month bills entirely at the new tier, and closed budget periods restate
+          at the new price. The alternatives (boundary-snapped supersede, true
+          proration, or snapshotting expected spend when a period closes) stay on
+          record in plan §3 and deferral D-1. The audit-log gaps that would let a
+          future effective-dated table be backfilled — copilot-sync writes no
+          per-assignment history, and the price cascade logs against the tier —
+          were raised and <strong>explicitly declined</strong>.
+        </li>
+        <li class="note">
+          The approval dialog&rsquo;s three modes were verified server-side
+          (integration) but not clicked through in a browser — the queue page
+          renders, and driving a specific pending request to approval was not
+          scripted.
+        </li>
+        <li class="note">
+          Test data written to the branch: RUN_TAG users/requests are cleaned up
+          by the suites; assignment #12 was returned to its original Standard
+          Seat, though its two tier-change audit rows remain.
+        </li>
+        <li class="note">
+          Disposable Neon branches to delete when done: <code>wt/upgrade</code> in
+          <code>blue-poetry-08641598</code> (the synthetic one), plus whichever
+          branch of the real project is wired into the worktree
+          <code>.env.local</code>.
+        </li>
+      </ul>
+      <h2 id="review">Review pass — PR #125</h2>
+      <p class="meta">
+        Sole reviewer: the GitHub Copilot review bot. Three inline comments, all
+        three correct, all three adopted. Fixed in <code>f4bb80b</code>.
+      </p>
+
+      <div class="callout">
+        <strong>One was a real defect this spec introduced.</strong>
+        <code>change_tier</code> never checked that the target assignment belongs
+        to the <em>selected</em> tool. <code>loadToolAndTier</code> proves the
+        tier belongs to <code>approval.toolId</code>, but nothing tied the
+        <em>assignment</em> to it — so a stale dialog or a crafted payload could
+        write another tool&rsquo;s tier onto a seat. Worse, it would
+        <strong>slip past the sync-managed refusal</strong>, because that check
+        also keys off the selected tool rather than the row&rsquo;s own: pass a
+        Copilot <code>assignmentId</code> with a non-Copilot
+        <code>toolId</code> and the gate never fires. Copilot identified both
+        consequences.
+        <br /><br />
+        Notable that the challenge pass missed this. It scrutinised the
+        <em>mode</em> matrix and the sync gate in isolation, but not the
+        interaction between them — the gate&rsquo;s input and the mutation&rsquo;s
+        target being allowed to disagree. <code>updateAssignment</code> never had
+        the hole because its tier lookup is scoped by
+        <code>assignment.toolId</code> in a single query; splitting validation
+        across two loads is what opened it.
+      </div>
+
+      <table>
+        <thead><tr><th>Finding</th><th>Verdict</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>license-requests.ts</code> — <code>change_tier</code> does
+              not verify <code>target.toolId === approval.toolId</code>
+            </td>
+            <td class="s">real defect</td>
+            <td>
+              Explicit guard before <code>buildTierChange</code>, mirroring the
+              same-tool rule <code>updateAssignment</code> enforces through its
+              <code>accessTiers</code> query. Unit regression test asserts both
+              the refusal <em>and</em> that nothing is written.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>history.ts</code> —
+              <code>with: { changedByUser: true }</code> selects the whole users
+              row, <code>password_hash</code> included, to render one name
+            </td>
+            <td class="s">correct</td>
+            <td>
+              Restricted to <code>{ name: true }</code>. Worth being accurate
+              about severity: the mapped result never exposed it to the client, so
+              this is hygiene, not a leak.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>assignments.ts</code> — the race-guard comment claims the
+              <code>tierId</code> predicate is an optimistic lock against the
+              tier price cascade
+            </td>
+            <td class="s">correct — my comment was wrong</td>
+            <td>
+              It is not: <code>updateTier</code> and
+              <code>syncBillingData</code> rewrite
+              <code>cost_at_assignment_cents</code> while leaving
+              <code>tier_id</code> alone, so the predicate cannot see them. The
+              comment now states what the guard really covers (status flips,
+              concurrent retiers), names the price-cascade race it does
+              <em>not</em>, and points at the compare-and-swap the plan scoped
+              out.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="meta">
+        Post-fix gates: <code>pnpm typecheck</code> clean · <code>pnpm test</code>
+        660 passed (from 659) · integration 8 files / 56 passed · eslint clean on
+        changed files.
+      </p>
+    </main>
+  </body>
+</html>

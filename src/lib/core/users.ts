@@ -22,6 +22,10 @@ import { db } from "@/lib/db";
 import { licenseAssignments, users } from "@/lib/db/schema";
 import { recordCreation, recordStatusChange, recordUpdate } from "@/lib/history";
 import {
+  isCopilotSyncActive,
+  isSyncManagedToolName,
+} from "@/lib/assignments/sync-authority";
+import {
   coreErr,
   coreOk,
   MCP_LAST_ADMIN_MESSAGE,
@@ -299,12 +303,28 @@ export async function deactivateUserCore(
     revoked,
   };
 
+  // revoke_license refuses a sync-managed seat outright over MCP, but this
+  // cascade must not: refusing here would make deactivate_user unusable for
+  // anyone holding Copilot, which is most of the org. Warn instead, naming the
+  // seats, so the caller knows the released cost is provisional until the GitHub
+  // seat itself is removed (syncSeatAssignments reactivates the row at 06:00).
+  const syncManagedSeats = revoked.filter((r) =>
+    isSyncManagedToolName(r.toolName),
+  );
+  const warning =
+    syncManagedSeats.length > 0 && (await isCopilotSyncActive())
+      ? `${syncManagedSeats.map((s) => s.toolName).join(", ")}: this seat is ` +
+        `provisioned by GitHub Copilot sync and will be restored on the next ` +
+        `sync unless the seat is also removed in GitHub. Its released cost is ` +
+        `not final until then.`
+      : undefined;
+
   if (existing.status !== "active") {
     return coreOk({ ...result, revokedCount: 0, revoked: [] }, [], {
       noop: true,
     });
   }
-  if (!ctx.commit) return coreOk(result);
+  if (!ctx.commit) return coreOk(result, [], { warning });
 
   const now = new Date();
   await db.transaction(async (tx) => {
@@ -361,12 +381,11 @@ export async function deactivateUserCore(
     }
   });
 
-  return coreOk(result, [
-    "/users",
-    `/users/${input.id}`,
-    "/assignments",
-    "/reports",
-  ]);
+  return coreOk(
+    result,
+    ["/users", `/users/${input.id}`, "/assignments", "/reports"],
+    { warning },
+  );
 }
 
 // ---- Guards ----

@@ -13,6 +13,7 @@ import {
 import { eq, and, sum, count, lte, gte, or, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { sumExpectedSpendCents } from "@/lib/budget-utils";
 import {
   budgetSchema,
   budgetAllocationSchema,
@@ -335,29 +336,12 @@ export async function getBudgets(): Promise<
   }));
 }
 
-// US5: Expected spend calculation for a budget period (based on active license assignments)
-export async function getExpectedSpendForPeriod(
-  startDate: string,
-  endDate: string,
-): Promise<number> {
-  const result = await db
-    .select({
-      total: sum(licenseAssignments.costAtAssignmentCents),
-    })
-    .from(licenseAssignments)
-    .where(
-      and(
-        eq(licenseAssignments.status, "active"),
-        lte(licenseAssignments.assignedAt, new Date(endDate)),
-        or(
-          isNull(licenseAssignments.revokedAt),
-          gte(licenseAssignments.revokedAt, new Date(startDate)),
-        ),
-      ),
-    );
-
-  return Number(result[0]?.total ?? 0);
-}
+// 042: getExpectedSpendForPeriod (US5) was removed here — it had no callers
+// anywhere in src/ or tests/ since spec 028 moved per-period expected spend into
+// getBudgetWithCosts. It also carried a status='active' filter the surviving
+// readers do not, so leaving it in place invited a future "reconcile these two"
+// refactor against a function nobody read. Per-period expected spend now has a
+// single implementation: sumExpectedSpendCents in lib/budget-utils.ts.
 
 // Helper: ensure period exists and its parent budget is not archived
 async function requireActivePeriod(periodId: number) {
@@ -630,14 +614,13 @@ export async function getBudgetWithCosts(
     const periodStart = new Date(period.startDate);
     const periodEnd = new Date(period.endDate);
 
-    // Filter assignments overlapping this period in-memory
-    const expectedSpendCents = overlappingAssignments
-      .filter(
-        (a) =>
-          a.assignedAt <= periodEnd &&
-          (a.revokedAt === null || a.revokedAt >= periodStart),
-      )
-      .reduce((total, a) => total + a.costAtAssignmentCents, 0);
+    // Filter assignments overlapping this period in-memory. The predicate lives
+    // in lib/budget-utils so a CI-visible unit test can pin it (spec 042).
+    const expectedSpendCents = sumExpectedSpendCents(
+      overlappingAssignments,
+      periodStart,
+      periodEnd,
+    );
 
     const billedTotalCents = period.billedCosts.reduce(
       (s, bc) => s + bc.amountCents,

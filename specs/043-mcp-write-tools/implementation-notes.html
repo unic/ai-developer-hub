@@ -954,6 +954,158 @@
         </li>
       </ul>
 
+      <h2>Reconciliation with 042 + 044 (merge of origin/main, 2026-08-07)</h2>
+      <p>
+        While 043 was in review, main gained
+        <code>ea50404</code> (042, approvable tier changes on active licence
+        assignments) and <code>7e94118</code> (044, connection-fault handling).
+        042 and 043 had independently built three overlapping abstractions. This
+        is what each collapsed to, and why.
+      </p>
+      <ul>
+        <li>
+          <strong>Tier-change semantics: 042's <code>buildTierChange</code> wins,
+          and <code>updateAssignmentCore</code> now calls it.</strong> 043's inline
+          tier branch was deleted. It had re-derived the cost re-snapshot but had
+          <em>no</em> sync-managed refusal, so MCP's <code>update_assignment</code>
+          could retier a Copilot seat and have the 06:00 cron silently revert it —
+          the regression this merge existed to prevent. 042's race-guarded
+          conditional UPDATE (<code>WHERE id AND status='active' AND tierId=&lt;read
+          value&gt;</code>, zero rows &rarr; "changed while you were editing it")
+          came across with it, so MCP now hard-fails a lost race instead of
+          reporting a write that did not land. <code>approveRequest</code> remains a
+          third <em>caller</em> of <code>buildTierChange</code> — it cannot route
+          through the core because it writes inside its own transaction alongside
+          <code>licenseRequests</code>, with the <code>ApprovalError</code> throw
+          discipline and the <code>RACE_LOST</code> sentinel. That does not break the
+          one-implementation rule: <code>buildTierChange</code> is the single
+          implementation of the <em>semantics</em>, <code>updateAssignmentCore</code>
+          of the assignment <em>write</em>.
+        </li>
+        <li>
+          <strong>Sync authority: 042's
+          <code>src/lib/assignments/sync-authority.ts</code> is the only one.</strong>
+          043's <code>isSyncOwnedTool</code> / <code>SYNC_OWNED_TOOL_NAMES</code>
+          (a hardcoded Set, name-only) were deleted.
+          <code>SYNC_OWNED_PRICE_MESSAGE</code> survives — it is price-policy copy,
+          distinct from <code>SYNC_MANAGED_TIER_ERROR</code>, which is seat-policy
+          copy. <code>setTierPriceCore</code> uses the <em>pure</em>
+          <code>isSyncManagedToolName</code>, deliberately not the async
+          connection-gated variant: a price refusal that depends on the connection
+          would let MCP reprice Copilot tiers during a momentary sync outage and get
+          reverted the moment it came back. Narrowing accepted: 043's check was
+          case-insensitive on a trimmed name, 042's is <code>=== "GitHub
+          Copilot"</code>; a differently-cased row would no longer be price-refused,
+          but it would also not be sync-managed by the authority that drives the UI
+          badge and both assignment-level refusals, so consistency across all five
+          call sites beats the corner.
+        </li>
+        <li>
+          <strong>Two different sync policies, both kept.</strong> A per-seat
+          <em>tier change</em> is refused for <em>every</em> caller, UI included —
+          that is 042's shipped behaviour and caps-gating it would revert it. A
+          tier <em>price</em> change stays caps-gated: main never removed the UI
+          affordance for editing a Copilot tier price, so
+          <code>UI_CAPS.syncOwnedFields = true</code> remains factually correct.
+          The rows have different owners and different remediation ("change the
+          plan in GitHub" vs "change it in GitHub billing").
+        </li>
+        <li>
+          <strong>Cache invalidation composes; the list and the transport split.</strong>
+          New pure module <code>src/lib/assignments/cost-paths.ts</code> holds
+          <code>COST_SURFACE_PATHS</code> and <code>assignmentCostPaths()</code> —
+          the single definition. <code>revalidate.ts</code> keeps both exported
+          function names and becomes a thin replayer over it, for Server Actions
+          that do not go through a core (today only
+          <code>src/actions/license-requests.ts</code>).
+          <code>CoreResult.revalidate</code> stays the transport for everything that
+          does. The cores never import <code>revalidate.ts</code>: it statically
+          imports <code>next/cache</code>, which 043 deliberately keeps out of the
+          MCP module graph. No write uses both transports.
+        </li>
+        <li>
+          <strong>One deliberate divergence from main's revalidate condition.</strong>
+          Main busts the cost surfaces only when <code>'tierId' in changes</code>.
+          The merged core uses <code>'tierId' in changes || 'assignedAt' in
+          changes</code>, because <code>assignedAt</code> is the left edge of the
+          seat's held-window — <code>overlapsPeriod</code> and the report/budget
+          queries all filter on it, so backdating a seat moves its cost into earlier
+          periods. Main leaves <code>/</code>, <code>/budget</code> and
+          <code>/reports/budget</code> stale on a backdate; this does not. It is a
+          fix, not a copy error — do not "restore" main's version.
+        </li>
+        <li>
+          <strong>MCP inherits a second sync refusal:
+          <code>revoke_license</code>.</strong> <code>revokeLicenseCore</code> had no
+          sync check at all, so an agent could revoke a Copilot seat, report a
+          released cost, and have <code>syncSeatAssignments</code> reactivate the row
+          at 06:00 with no audit trail. Now refused, caps-gated, so the UI is
+          unchanged — it already withholds this itself
+          (<code>assignments-client</code> hides Revoke on
+          <code>source='copilot-sync'</code> rows).
+          <code>deactivateUserCore</code> deliberately does <em>not</em> refuse — that
+          would make <code>deactivate_user</code> unusable for most of the org — it
+          returns a <code>warning</code> naming the sync-managed seats instead.
+        </li>
+        <li>
+          <strong>Audit writers: 043's <code>src/lib/history.ts</code> wins
+          outright.</strong> 042 added one writer call site to
+          <code>src/actions/license-requests.ts</code>, the one file 043 never
+          touched; after the merge <code>@/actions/history</code> exports no
+          <code>recordUpdate</code>, so this was a hard build break, not a style
+          point. Migrated to the options-object signature with
+          <code>{ tx, source: "ui" }</code>. Every other writer importer on main was
+          already migrated on this branch.
+        </li>
+        <li>
+          <strong>042's tier timeline now shows provenance.</strong>
+          <code>getAssignmentTierHistory</code> selected only the actor's name, so an
+          MCP retier rendered identically to a human form edit — discarding exactly
+          what migration 0031 was for. It now returns <code>source</code> and the
+          detail page badges any entry whose source is not <code>ui</code>. Typed
+          <code>string</code>, not <code>ChangeSource</code>: the column is a plain
+          varchar, and the <code>!== "ui"</code> predicate stays correct (and fails
+          toward showing provenance) for a value written before the union catches up.
+        </li>
+        <li class="note">
+          <strong>044 needed no code change here</strong> — nothing in 043 touches
+          <code>src/lib/db/index.ts</code>, and no export on the <code>db</code>
+          binding changed. Worth watching after deploy though: 044 raised the pool
+          from <code>max: 1</code> to <code>10</code> while
+          <code>setTierPriceCore</code> holds <code>FOR UPDATE</code> locks on
+          <code>access_tiers</code> and every active assignment for that tier.
+          Genuinely concurrent repricing is reachable for the first time; the locks
+          are correct and <code>MAX_REPRICE_ROWS</code> bounds the hold, but a slow
+          reprice under load is the symptom to expect.
+        </li>
+      </ul>
+
+      <h2>Follow-ups this merge deliberately did not take</h2>
+      <ul>
+        <li class="con">
+          <strong>The assign dialog's retier still writes two rows, and still
+          double-counts the switch month.</strong> Re-submitting "Assign License" for
+          a user who already holds the tool deactivates the old row and inserts a new
+          one. Under 042's own no-proration argument, both rows are attributed to the
+          period they span. This is pre-existing main behaviour, unchanged by the
+          merge, and unreachable from MCP
+          (<code>caps.replaceAssignments = false</code> refuses it and names
+          <code>update_assignment</code> instead). Candidate spec 045: route the
+          dialog to <code>updateAssignment</code> when the user already holds the
+          tool. Changing it in a merge commit would also invalidate the partial
+          unique index's reason to exist on that path, the capacity minus-1 rule, the
+          inactive row that preserves the pre-change cost snapshot for closed
+          periods, and the e2e assertions that pin all of it.
+        </li>
+        <li class="con">
+          <strong>The same dialog also bypasses the sync-managed refusal entirely.</strong>
+          <code>assignLicense</code> has no sync check on main either, so a Copilot
+          seat can still be retiered through it in the UI. Also pre-existing, also
+          unreachable from MCP — but it is now the only remaining way to retier a
+          Copilot seat outside GitHub. If that is unacceptable it needs its own spec.
+        </li>
+      </ul>
+
     </main>
   </body>
 </html>

@@ -635,7 +635,15 @@ export type MessageTemplateInput = z.infer<typeof messageTemplateSchema>;
 // already done the vendor-side work). toolId is the derived tool, an override,
 // or the indie pick; licenseCode is enforced server-side for requires_api_key
 // tools (needs a tool lookup, so not expressible here).
-export const approveRequestSchema = z.object({
+//
+// 042: a discriminated union rather than a flat `mode` flag, deliberately.
+// loadToolAndTier runs before the transaction and hard-errors when a
+// requires_api_key tool arrives without a licenseCode — so create-only rules
+// have to be unreachable from the other modes, not merely skipped. Claude
+// Console is the only requires_api_key tool and has the deepest tier ladder,
+// i.e. exactly the upgrades a shared shape would have broken.
+const approveCreateSchema = z.object({
+  mode: z.literal("create"),
   requestId: z.number().int().positive(),
   toolId: z.number().int().positive(),
   tierId: z.number().int().positive(),
@@ -643,7 +651,38 @@ export const approveRequestSchema = z.object({
   licenseCode: z.string().min(1).max(700).optional(),
   bodyMd: z.string().min(1).max(8000),
 });
+
+// Retier the seat the requester already holds. No assignedAt: that is the
+// seat's original start and an upgrade must not rewrite it. licenseCode stays
+// optional — the stored key is preserved, but the approval message may still
+// need the token resolved for the copy-paste snippet.
+const approveChangeTierSchema = z.object({
+  mode: z.literal("change_tier"),
+  requestId: z.number().int().positive(),
+  assignmentId: z.number().int().positive(),
+  toolId: z.number().int().positive(),
+  tierId: z.number().int().positive(),
+  licenseCode: z.string().min(1).max(700).optional(),
+  bodyMd: z.string().min(1).max(8000),
+});
+
+// Approve and link an already-provisioned seat, mutating nothing. The only
+// approvable outcome for sync-managed tools (GitHub owns the entitlement), and
+// the escape hatch for the legacy v1 record-assignment path.
+const approveLinkExistingSchema = z.object({
+  mode: z.literal("link_existing"),
+  requestId: z.number().int().positive(),
+  assignmentId: z.number().int().positive(),
+  bodyMd: z.string().min(1).max(8000),
+});
+
+export const approveRequestSchema = z.discriminatedUnion("mode", [
+  approveCreateSchema,
+  approveChangeTierSchema,
+  approveLinkExistingSchema,
+]);
 export type ApproveRequestInput = z.infer<typeof approveRequestSchema>;
+export type ApproveRequestMode = ApproveRequestInput["mode"];
 
 // 032-v2: legacy migration path — attach the missing assignment to a request
 // approved under v1 semantics (status approved, assignment_id NULL). No
@@ -656,6 +695,19 @@ export const recordAssignmentSchema = z.object({
   licenseCode: z.string().min(1).max(700).optional(),
 });
 export type RecordAssignmentInput = z.infer<typeof recordAssignmentSchema>;
+
+// 042: the legacy record-assignment path's missing case. recordAssignment can
+// only CREATE, so a v1-approved request whose requester already holds the tool
+// was permanently stuck — the create hits the duplicate-seat guard, and
+// approveRequest cannot help because it requires status='pending_review' while
+// this row is already 'approved'. This links the seat that already exists.
+export const linkExistingAssignmentSchema = z.object({
+  requestId: z.number().int().positive(),
+  assignmentId: z.number().int().positive(),
+});
+export type LinkExistingAssignmentInput = z.infer<
+  typeof linkExistingAssignmentSchema
+>;
 
 export const rejectRequestSchema = z.object({
   requestId: z.number().int().positive(),

@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/sync/github-copilot",
-      "schedule": "0 6 * * *"
+      "schedule": "40 6 * * *"
     },
     {
       "path": "/api/sync/anthropic-usage",
@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/sync/anthropic-api-costs",
-      "schedule": "0 * * * *"
+      "schedule": "20 * * * *"
     }
   ]
 }

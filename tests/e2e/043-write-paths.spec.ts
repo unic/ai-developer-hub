@@ -184,6 +184,12 @@ test("re-assigning the same user+tool at a higher tier does not trip the unique 
   // This is the regression I was most worried about: assignLicense deactivates the
   // existing active row and inserts a new one inside ONE transaction, now against a
   // partial unique index on (user_id, tool_id) WHERE status='active'.
+  //
+  // Two rows is correct FOR THIS PATH. The assign dialog's deactivate-and-replace
+  // is a different affordance from the assignment-detail retier, which mutates in
+  // place (spec 042 — no proration, so two rows spanning the switch month would
+  // both be billed). Unifying them is a product decision, not a merge one; see
+  // the follow-ups in specs/043-mcp-write-tools/implementation-notes.html.
   await page.goto(`${BASE}/assignments`, { timeout: 90_000 });
 
   await page.getByRole("button", { name: "Assign License" }).first().click();
