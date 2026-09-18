@@ -626,6 +626,22 @@ export async function getBudgetWithCosts(
   // ALLOWANCE, not a cost, so forecasting it would over-predict ~10x on the
   // current portfolio; what those tools actually consumed is the honest input.
   const measuredByTool = await getMeasuredConsumptionByMonth();
+
+  // Billed-cost rows whose invoice is a credit top-up, not a cost (C2/C3).
+  // Excluded here rather than by unpicking the invoice link, so reclassifying
+  // an already-linked invoice needs no surgery and stays reversible.
+  const creditPurchaseBilledCostIds = new Set(
+    (
+      (
+        await db.execute(sql`
+          SELECT i.linked_billed_cost_id AS id
+          FROM credit_purchases cp
+          JOIN invoices i ON i.id = cp.invoice_id
+          WHERE i.linked_billed_cost_id IS NOT NULL
+        `)
+      ).rows as { id: number }[]
+    ).map((r) => r.id),
+  );
   const assignmentsByTool = new Map<number, typeof overlappingAssignments>();
   for (const a of overlappingAssignments) {
     const list = assignmentsByTool.get(a.toolId) ?? [];
@@ -660,17 +676,26 @@ export async function getBudgetWithCosts(
     const expected = combineExpectedSpend(perTool);
     const expectedSpendCents = expected.cents;
 
-    const billedTotalCents = period.billedCosts.reduce(
+    const periodBilledCosts = period.billedCosts.filter(
+      (bc) => !creditPurchaseBilledCostIds.has(bc.id),
+    );
+    const billedTotalCents = periodBilledCosts.reduce(
       (s, bc) => s + bc.amountCents,
       0,
     );
+    const creditPurchaseCents = period.billedCosts
+      .filter((bc) => creditPurchaseBilledCostIds.has(bc.id))
+      .reduce((s, bc) => s + bc.amountCents, 0);
 
     return {
       ...period,
       expectedSpendCents,
       expectedSpendBasis: expected.basis,
       billedTotalCents,
-      billedEntries: period.billedCosts,
+      // Cash paid for credits in this period. Reported beside the cost, never
+      // added into it — they are different kinds of number (C2/L4).
+      creditPurchaseCents,
+      billedEntries: periodBilledCosts,
       extensionAmountCents: extensionByPeriod[period.id] ?? 0,
     };
   });

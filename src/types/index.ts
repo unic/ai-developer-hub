@@ -94,6 +94,8 @@ export type PeriodWithCosts = BudgetPeriod & {
   /** What produced expectedSpendCents (045): a seat tier price, measured
    *  consumption, a projection, or an allowance placeholder. */
   expectedSpendBasis?: ExpectedSpendBasis;
+  /** Credit top-ups that landed in this period (045). Cash, never period cost. */
+  creditPurchaseCents?: number;
   billedTotalCents: number;
   billedEntries?: BilledCost[];
   /**

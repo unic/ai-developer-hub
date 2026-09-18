@@ -14,6 +14,7 @@ import {
   getTopMovers,
   getWorkspaceSparklines,
 } from "@/actions/anthropic-global";
+import { getAnthropicCreditBalance } from "@/actions/credits";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
@@ -54,6 +55,7 @@ export default async function ClaudePage() {
     pacing,
     movers,
     sparklines,
+    claudeConsoleCredits,
   ] = await Promise.all([
     getDashboardKpis(currentMonth),
     getDailyTotalsByWorkspace(currentMonth),
@@ -64,7 +66,12 @@ export default async function ClaudePage() {
     getCumulativePacing(),
     getTopMovers(),
     getWorkspaceSparklines(),
+    // The prepaid credit balance for the metered Anthropic tool (045). Null
+    // when no such tool exists; unavailable when no opening balance is on file.
+    getAnthropicCreditBalance(),
   ]);
+
+  const creditBalance = claudeConsoleCredits;
 
   return (
     <div className="space-y-6">
@@ -114,6 +121,7 @@ export default async function ClaudePage() {
           currentMonthTotalCents={kpis.totalCents}
           projectedMonthEndCents={kpis.projectedMonthEndCents}
           todayEstimate={kpis.todayEstimate}
+          creditBalance={creditBalance}
         />
       </section>
 

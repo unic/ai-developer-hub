@@ -16,6 +16,10 @@ import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { formatCurrency } from "@/lib/utils";
 import type { TodayEstimate } from "@/lib/anthropic/estimate-today";
 import { EstChip } from "@/components/claude/today-estimate";
+import {
+  creditBalanceProvenance,
+  type CreditBalance,
+} from "@/lib/credits";
 
 type OrgBillingBudgetCardProps = {
   orgConfig: { billingBudgetLimitCents: number | null } | null;
@@ -23,6 +27,8 @@ type OrgBillingBudgetCardProps = {
   projectedMonthEndCents: number;
   /** Spec 033 — estimate of today's spend (shown alongside actuals, not merged). */
   todayEstimate?: TodayEstimate | null;
+  /** Spec 045 — the Hub-derived prepaid credit balance, or an unavailable one. */
+  creditBalance?: CreditBalance | null;
 };
 
 export function OrgBillingBudgetCard({
@@ -30,6 +36,7 @@ export function OrgBillingBudgetCard({
   currentMonthTotalCents,
   projectedMonthEndCents,
   todayEstimate,
+  creditBalance,
 }: OrgBillingBudgetCardProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(
@@ -73,14 +80,31 @@ export function OrgBillingBudgetCard({
         <CardTitle className="text-base">Monthly Billing Budget</CardTitle>
         <CardDescription>
           Org-wide monthly spend limit for Claude API usage.{" "}
-          <a
-            href="https://console.anthropic.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-4"
-          >
-            Credit balance is not exposed by the Anthropic API — view in console.
-          </a>
+          {creditBalance?.available ? (
+            <>
+              Prepaid credit balance:{" "}
+              <span
+                className={
+                  creditBalance.balanceCents < 0
+                    ? "font-medium text-destructive"
+                    : "font-medium"
+                }
+              >
+                {formatCurrency(creditBalance.balanceCents)}
+              </span>{" "}
+              — {creditBalanceProvenance(creditBalance)}
+            </>
+          ) : (
+            <a
+              href="https://console.anthropic.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4"
+            >
+              Credit balance is not exposed by the Anthropic API — record the
+              opening balance from the console to track it here.
+            </a>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -180,6 +204,25 @@ export function OrgBillingBudgetCard({
             )}
           </div>
         </div>
+
+        {creditBalance?.available && (
+          <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">
+              Credits: {formatCurrency(creditBalance.balanceCents)} remaining
+            </span>{" "}
+            = {formatCurrency(creditBalance.openingCents)} opening on{" "}
+            {creditBalance.asOf} + {formatCurrency(creditBalance.purchasedCents)}{" "}
+            purchased − {formatCurrency(creditBalance.consumedCents)} consumed.
+            Purchases are cash paid for credits; consumption is what those
+            credits were spent on. They are never added together.
+            {creditBalance.balanceCents < 0 && (
+              <span className="ml-1 text-destructive">
+                A negative balance means a top-up has not been recorded, or the
+                opening figure is out of date.
+              </span>
+            )}
+          </div>
+        )}
 
         {limitCents != null && (
           <div className="mt-4">
