@@ -15,6 +15,10 @@ pnpm db:migrate        # applies 0032
 pnpm dev
 ```
 
+## 0. Sanity-check the rollup against the fixture first
+
+Before any database work, the captured live response in `tests/fixtures/anthropic-cost-report-description.json` pins the arithmetic: its 38 line items for 2026-09-01 must roll up to exactly **$29.28** and 2026-09-02 to **$8.86** — the figures the dashboard shows today. `pnpm vitest run tests/unit/sync/anthropic-cost-line-items.test.ts` proves it without a connection.
+
 ## 1. Ingest line items
 
 ```bash
@@ -25,24 +29,26 @@ curl -X POST localhost:3000/api/sync/anthropic-api-costs \
 Verify the dimensions that used to be discarded now land:
 
 ```sql
-SELECT date, model, token_type, context_window, service_tier, cost_cents
+SELECT date, model, token_type, context_window, service_tier, inference_geo,
+       cost_microcents, ROUND(cost_microcents / 1000000.0, 4) AS cents
 FROM anthropic_workspace_cost_items
 WHERE workspace_id = '<a workspace id>'
-ORDER BY date DESC, cost_cents DESC
+ORDER BY date DESC, cost_microcents DESC
 LIMIT 20;
 ```
 
-You should see `cache_creation.ephemeral_1h_input_tokens` and `…_5m_…` as separate rows, and `0-200k` / `200k-1M` context windows — the three "residual gaps" from docs/anthropic-cost-accuracy.md, now data.
+You should see `cache_creation.ephemeral_5m_input_tokens` (and `…_1h_…` once anyone uses a 1-hour cache) as separate rows, and both `0-200k` and `200k-1M` context windows — the three "residual gaps" from docs/anthropic-cost-accuracy.md, now data. Values are **micro-cents**: `143569125` is 143.569125 cents, i.e. $1.4357.
 
 Confirm the rollup still matches (it is derived from these rows):
 
 ```sql
-SELECT c.date, c.cost_cents AS rollup, SUM(i.cost_cents) AS from_items
+SELECT c.date, c.cost_cents AS rollup,
+       ROUND(SUM(i.cost_microcents) / 1000000.0) AS from_items
 FROM anthropic_workspace_costs c
 JOIN anthropic_workspace_cost_items i
   ON i.workspace_id IS NOT DISTINCT FROM c.workspace_id AND i.date = c.date
 GROUP BY c.date, c.cost_cents
-HAVING c.cost_cents <> SUM(i.cost_cents);   -- must return zero rows
+HAVING c.cost_cents <> ROUND(SUM(i.cost_microcents) / 1000000.0);  -- must return zero rows
 ```
 
 ## 2. Check attribution
