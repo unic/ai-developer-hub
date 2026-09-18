@@ -225,6 +225,13 @@
       "when": 1785849754855,
       "tag": "0031_change_history_source_default",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789735800779,
+      "tag": "0032_curious_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

@@ -93,6 +93,11 @@ async function fetchCostReport(
       `ending_at=${encodeURIComponent(endingAt)}`,
       "bucket_width=1d",
       "group_by[]=workspace_id",
+      // Splits each workspace-day into line items carrying model, cost_type,
+      // token_type, context_window, service_tier and inference_geo. The
+      // response schema already declared those fields — they were parsed and
+      // discarded. This stops the discard; it costs no extra request.
+      "group_by[]=description",
       ...(page ? [`page=${encodeURIComponent(page)}`] : []),
     ].join("&");
 
@@ -148,39 +153,188 @@ async function fetchAndUpsertWorkspaces(): Promise<number> {
   return response.data.length;
 }
 
+/** One billed line item: a workspace-day at full cost_report grain. */
+export interface CostLineItem {
+  workspaceId: string | null;
+  date: string;
+  model: string | null;
+  costType: string | null;
+  tokenType: string | null;
+  contextWindow: string | null;
+  serviceTier: string | null;
+  inferenceGeo: string | null;
+  /** Cents x 10^6 — see aggregateCostLineItems for why. */
+  costMicrocents: number;
+}
+
+/** The unique index coalesces nullable grain columns to '', so an empty
+ *  string from the API and a missing value would collide there. Normalise on
+ *  the way in, where the collision is still visible. */
+function blankToNull(v: string | null | undefined): string | null {
+  return v == null || v === "" ? null : v;
+}
+
+/** The grain key. `inference_geo` is part of it: a live sample has Haiku 4.5
+ *  reporting `not_available` beside `global` rows for the same workspace-day,
+ *  and collapsing them would silently overwrite one with the other. */
+function lineItemKey(r: {
+  workspaceId: string | null;
+  date: string;
+  model: string | null;
+  costType: string | null;
+  tokenType: string | null;
+  contextWindow: string | null;
+  serviceTier: string | null;
+  inferenceGeo: string | null;
+}): string {
+  return [
+    r.workspaceId ?? "__default__",
+    r.date,
+    r.model ?? "",
+    r.costType ?? "",
+    r.tokenType ?? "",
+    r.contextWindow ?? "",
+    r.serviceTier ?? "",
+    r.inferenceGeo ?? "",
+  ].join("|");
+}
+
 /**
- * Aggregate a cost_report response into one entry per (workspace_id, day).
+ * Aggregate a cost_report response into billed line items.
  *
- * Anthropic returns daily buckets (with `bucket_width=1d`) where each bucket's
- * `results[]` is grouped by `workspace_id`. A single workspace may appear in
- * multiple result rows of the same bucket (e.g., split by `cost_type`), which
- * must be summed into a single per-day cost.
+ * `amount` is a decimal string OF CENTS with up to six decimal places
+ * ("143.569125" = $1.4357). With `group_by[]=description` a workspace-day
+ * arrives as 12-14 rows instead of one, so rounding each row to whole cents
+ * before summing drifts by ~1 cent per workspace-day — enough to break the
+ * "equals the Console to the cent" requirement. Store micro-cents and round
+ * once, at the aggregate (contracts/cost-attribution.md R6).
  */
-export function aggregateDailyCosts(
+export function aggregateCostLineItems(
   buckets: z.infer<typeof costReportBucketSchema>[]
-): { workspaceId: string | null; date: string; costCents: number }[] {
-  // key: `${workspaceId ?? "__default__"}|${YYYY-MM-DD}`
-  const byKey = new Map<
-    string,
-    { workspaceId: string | null; date: string; costCents: number }
-  >();
+): CostLineItem[] {
+  const byKey = new Map<string, CostLineItem>();
 
   for (const bucket of buckets) {
     const date = bucket.starting_at.slice(0, 10); // "YYYY-MM-DDTHH:..." → "YYYY-MM-DD"
     for (const r of bucket.results) {
-      const wsId = r.workspace_id ?? null;
-      const key = `${wsId ?? "__default__"}|${date}`;
-      const cents = Math.round(parseFloat(r.amount));
+      const item: CostLineItem = {
+        workspaceId: r.workspace_id ?? null,
+        date,
+        model: blankToNull(r.model),
+        costType: blankToNull(r.cost_type),
+        tokenType: blankToNull(r.token_type),
+        contextWindow: blankToNull(r.context_window),
+        serviceTier: blankToNull(r.service_tier),
+        inferenceGeo: blankToNull(r.inference_geo),
+        costMicrocents: Math.round(parseFloat(r.amount) * 1_000_000),
+      };
+      const key = lineItemKey(item);
       const existing = byKey.get(key);
       if (existing) {
-        existing.costCents += cents;
+        existing.costMicrocents += item.costMicrocents;
       } else {
-        byKey.set(key, { workspaceId: wsId, date, costCents: cents });
+        byKey.set(key, item);
       }
     }
   }
 
   return Array.from(byKey.values());
+}
+
+/**
+ * Aggregate a cost_report response into one entry per (workspace_id, day).
+ *
+ * DERIVED from the line items rather than computed independently, so the daily
+ * rollup can never drift from its source (plan risk 8). The single rounding
+ * happens here, on the summed micro-cents (R7).
+ */
+export function aggregateDailyCosts(
+  buckets: z.infer<typeof costReportBucketSchema>[]
+): { workspaceId: string | null; date: string; costCents: number }[] {
+  return rollUpLineItems(aggregateCostLineItems(buckets));
+}
+
+/** Sum line items to whole cents per workspace-day. Rounds once, at the end. */
+export function rollUpLineItems(
+  items: CostLineItem[]
+): { workspaceId: string | null; date: string; costCents: number }[] {
+  const byKey = new Map<
+    string,
+    { workspaceId: string | null; date: string; microcents: number }
+  >();
+
+  for (const item of items) {
+    const key = `${item.workspaceId ?? "__default__"}|${item.date}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.microcents += item.costMicrocents;
+    } else {
+      byKey.set(key, {
+        workspaceId: item.workspaceId,
+        date: item.date,
+        microcents: item.costMicrocents,
+      });
+    }
+  }
+
+  return Array.from(byKey.values()).map((r) => ({
+    workspaceId: r.workspaceId,
+    date: r.date,
+    costCents: Math.round(r.microcents / 1_000_000),
+  }));
+}
+
+/**
+ * Batch-upsert billed line items, one statement per partial-index bucket.
+ *
+ * Drizzle generates the wrong WHERE clause for a partial-index ON CONFLICT, so
+ * this uses raw SQL with the index's own predicate — the same pattern the
+ * daily rollup above already uses. The conflict target must repeat the
+ * coalesce() expressions exactly as the index declares them.
+ */
+const LINE_ITEM_CHUNK = 500;
+
+async function upsertCostLineItems(items: CostLineItem[]): Promise<void> {
+  const named = items.filter((i) => i.workspaceId !== null);
+  const fallback = items.filter((i) => i.workspaceId === null);
+
+  for (let i = 0; i < named.length; i += LINE_ITEM_CHUNK) {
+    const chunk = named.slice(i, i + LINE_ITEM_CHUNK);
+    const valuesSql = sql.join(
+      chunk.map(
+        (r) =>
+          sql`(${r.workspaceId}, ${r.date}, ${r.model}, ${r.costType}, ${r.tokenType}, ${r.contextWindow}, ${r.serviceTier}, ${r.inferenceGeo}, ${r.costMicrocents})`
+      ),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_cost_items
+        (workspace_id, date, model, cost_type, token_type, context_window, service_tier, inference_geo, cost_microcents)
+      VALUES ${valuesSql}
+      ON CONFLICT (workspace_id, date, coalesce(model, ''), coalesce(cost_type, ''), coalesce(token_type, ''), coalesce(context_window, ''), coalesce(service_tier, ''), coalesce(inference_geo, ''))
+        WHERE workspace_id IS NOT NULL
+      DO UPDATE SET cost_microcents = EXCLUDED.cost_microcents, updated_at = now()
+    `);
+  }
+
+  for (let i = 0; i < fallback.length; i += LINE_ITEM_CHUNK) {
+    const chunk = fallback.slice(i, i + LINE_ITEM_CHUNK);
+    const valuesSql = sql.join(
+      chunk.map(
+        (r) =>
+          sql`(NULL, ${r.date}, ${r.model}, ${r.costType}, ${r.tokenType}, ${r.contextWindow}, ${r.serviceTier}, ${r.inferenceGeo}, ${r.costMicrocents})`
+      ),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_workspace_cost_items
+        (workspace_id, date, model, cost_type, token_type, context_window, service_tier, inference_geo, cost_microcents)
+      VALUES ${valuesSql}
+      ON CONFLICT (date, coalesce(model, ''), coalesce(cost_type, ''), coalesce(token_type, ''), coalesce(context_window, ''), coalesce(service_tier, ''), coalesce(inference_geo, ''))
+        WHERE workspace_id IS NULL
+      DO UPDATE SET cost_microcents = EXCLUDED.cost_microcents, updated_at = now()
+    `);
+  }
 }
 
 async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
@@ -218,7 +372,10 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
     fetchCostReport(startDate, endDate)
   );
 
-  const dailyRows = aggregateDailyCosts(buckets);
+  const lineItems = aggregateCostLineItems(buckets);
+  const dailyRows = rollUpLineItems(lineItems);
+
+  await upsertCostLineItems(lineItems);
 
   // Batch upserts to one statement per partial-index bucket — without batching
   // this loop would issue ~1800 round-trips on a 6-month backfill (rows × days).
