@@ -178,6 +178,14 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
             <ChevronRight className="size-4" />
           </Link>
         </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {/* Who this workspace's cost is attributed to, and how (045 US8). */}
+          {workspace.ownerCount === 1
+            ? `Billed to ${workspace.ownerNames}`
+            : (workspace.ownerCount ?? 0) > 1
+              ? `Apportioned between ${workspace.ownerNames}`
+              : "Unattributed — no owner resolved, so this spend belongs to no user"}
+        </p>
         <div className="mt-1 flex items-baseline gap-3">
           <span className="text-xl font-semibold tabular-nums">
             {formatCurrency(workspace.currentMonthCents)}

@@ -354,6 +354,8 @@ export async function loadWorkspaceList(
              COALESCE(SUM(DISTINCT_ALLOWANCE.allowance_cents), 0) AS allowance_sum_cents
       FROM anthropic_workspace_owners ow
       JOIN users u ON u.id = ow.user_id
+      -- An 'excluded' row means an admin decided this user does not own the
+      -- workspace; it is a tombstone against re-resolution, not ownership.
       LEFT JOIN LATERAL (
         SELECT COALESCE(SUM(t.monthly_cost_cents), 0) AS allowance_cents
         FROM license_assignments la
@@ -362,6 +364,7 @@ export async function loadWorkspaceList(
           AND la.status = 'active'
           AND t.pricing_model = 'usage'
       ) AS DISTINCT_ALLOWANCE ON TRUE
+      WHERE ow.source <> 'excluded'
       GROUP BY ow.workspace_id
     ) o ON o.workspace_id IS NOT DISTINCT FROM w.workspace_id
     LEFT JOIN (

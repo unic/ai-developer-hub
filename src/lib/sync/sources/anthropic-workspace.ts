@@ -480,7 +480,11 @@ export async function attributeRange(
 
   const ownerRows = (
     await db.execute(sql`
+      -- An 'excluded' row is an admin saying this user is NOT an owner — it
+      -- exists to stop key resolution re-adding them, so it must never count
+      -- as ownership here.
       SELECT workspace_id, user_id, source FROM anthropic_workspace_owners
+      WHERE source <> 'excluded' 
     `)
   ).rows as {
     workspace_id: string | null;
@@ -666,7 +670,8 @@ export async function reconcileRange(
              COALESCE((
                SELECT SUM(m.computed_cost_cents)
                FROM anthropic_usage_metrics m
-               JOIN anthropic_workspace_owners o ON o.user_id = m.user_id
+               JOIN anthropic_workspace_owners o
+                 ON o.user_id = m.user_id AND o.source <> 'excluded'
                WHERE o.workspace_id IS NOT DISTINCT FROM c.workspace_id
                  AND m.date >= ${startDate} AND m.date <= ${endDate}
                  AND m.model <> ${BILLED_ONLY_MODEL}
@@ -674,6 +679,7 @@ export async function reconcileRange(
              EXISTS (
                SELECT 1 FROM anthropic_workspace_owners o2
                WHERE o2.workspace_id IS NOT DISTINCT FROM c.workspace_id
+                 AND o2.source <> 'excluded' 
              ) AS has_owner
       FROM anthropic_workspace_costs c
       LEFT JOIN anthropic_workspaces w

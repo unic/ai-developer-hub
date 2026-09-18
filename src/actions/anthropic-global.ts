@@ -37,7 +37,10 @@ import type {
   ModelBreakdownRow,
 } from "@/types";
 import { formatUtcDateOnly, getCurrentMonth, projectMonthEnd } from "@/lib/utils";
-import { run as runAnthropicSync } from "@/lib/sync/sources/anthropic-workspace";
+import {
+  run as runAnthropicSync,
+  attributeRange,
+} from "@/lib/sync/sources/anthropic-workspace";
 import {
   loadDashboardKpis,
   loadSyncStatus,
@@ -181,13 +184,16 @@ export const getAvailableMonths = getAvailableWorkspaceCostMonths;
 //   5. $0 + no-limit last
 // Body lives in src/lib/anthropic/queries.ts so the cron-time Teams evaluator
 // (no session) can read the same data without an admin gate.
-export async function getWorkspaceList(): Promise<WorkspaceListItem[]> {
+export async function getWorkspaceList(
+  /** 045: deprecated pools are out of the list unless explicitly asked for. */
+  includeDeprecated = false
+): Promise<WorkspaceListItem[]> {
   const admin = await requireAdmin();
   if (!admin) return [];
 
   return unstable_cache(
-    loadWorkspaceList,
-    ["anthropic-workspace-list"],
+    () => loadWorkspaceList(includeDeprecated),
+    ["anthropic-workspace-list", String(includeDeprecated)],
     { tags: ["anthropic-workspace-costs"] }
   )();
 }
@@ -340,6 +346,122 @@ export async function setOrgBillingBudget(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return { success: false, error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Workspace ownership (045 — US8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Who a workspace belongs to, and how that was decided.
+ *
+ * `resolved` rows come from API-key resolution and are refreshed by every sync.
+ * `manual` rows are an admin's decision and the sync never touches them. An
+ * `excluded` row says "this user is NOT an owner" and survives re-resolution —
+ * needed for a project workspace whose key happens to belong to a person, where
+ * attributing its spend to them would be wrong (spec OQ-4).
+ */
+export type WorkspaceOwnerSource = "resolved" | "manual" | "excluded";
+
+export interface WorkspaceOwnerRow {
+  workspaceId: string | null;
+  workspaceName: string | null;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  source: WorkspaceOwnerSource;
+}
+
+export async function getWorkspaceOwners(): Promise<WorkspaceOwnerRow[]> {
+  const admin = await requireAdmin();
+  if (!admin) return [];
+
+  const rows = (
+    await db.execute(sql`
+      SELECT o.workspace_id, w.name AS workspace_name, o.user_id,
+             u.name AS user_name, u.email AS user_email, o.source
+      FROM anthropic_workspace_owners o
+      JOIN users u ON u.id = o.user_id
+      LEFT JOIN anthropic_workspaces w
+             ON w.workspace_id IS NOT DISTINCT FROM o.workspace_id
+      ORDER BY w.name NULLS FIRST, u.name
+    `)
+  ).rows as {
+    workspace_id: string | null;
+    workspace_name: string | null;
+    user_id: number;
+    user_name: string;
+    user_email: string;
+    source: WorkspaceOwnerSource;
+  }[];
+
+  return rows.map((r) => ({
+    workspaceId: r.workspace_id,
+    workspaceName: r.workspace_name,
+    userId: r.user_id,
+    userName: r.user_name,
+    userEmail: r.user_email,
+    source: r.source,
+  }));
+}
+
+/**
+ * Add a manual owner, or remove one.
+ *
+ * Corrections take effect on the next cost read — attribution mode is derived
+ * from the owner rows, never stored (FR-023) — but the already-written
+ * attributed figures are stale until the next sync, so this re-attributes the
+ * affected range immediately rather than leaving the UI showing the old split.
+ */
+export async function setWorkspaceOwner(
+  workspaceId: string | null,
+  userId: number,
+  action: "add" | "remove" | "exclude"
+): Promise<{ success: true } | { success: false; error: string }> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return { success: false, error: "Invalid user" };
+  }
+
+  try {
+    if (action === "remove") {
+      await db.execute(sql`
+        DELETE FROM anthropic_workspace_owners
+        WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+          AND user_id = ${userId}
+      `);
+    } else {
+      const source = action === "exclude" ? "excluded" : "manual";
+      await db.execute(sql`
+        INSERT INTO anthropic_workspace_owners (workspace_id, user_id, source)
+        VALUES (${workspaceId}, ${userId}, ${source})
+        ON CONFLICT DO NOTHING
+      `);
+      // An existing resolved row for the same pair is upgraded in place, so the
+      // sync cannot silently undo the admin's decision.
+      await db.execute(sql`
+        UPDATE anthropic_workspace_owners
+        SET source = ${source}, updated_at = now()
+        WHERE workspace_id IS NOT DISTINCT FROM ${workspaceId}
+          AND user_id = ${userId}
+      `);
+    }
+
+    // Re-attribute the current year so the change is visible immediately.
+    const year = new Date().getUTCFullYear();
+    await attributeRange(`${year}-01-01`, `${year}-12-31`);
+
+    revalidateTag("anthropic-workspace-costs");
+    revalidatePath("/claude");
+    return { success: true };
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Unknown error",
+    };
   }
 }
 
