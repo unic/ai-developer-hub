@@ -4,6 +4,7 @@ import { anthropicWorkspaceCosts, anthropicSyncStatus } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
+import { detectDivergence } from "@/lib/anthropic/reconciliation";
 import {
   attributeDay,
   deriveMode,
@@ -643,6 +644,103 @@ export async function attributeRange(
   return writes.length + carriers.length;
 }
 
+/**
+ * Compare what Anthropic billed against what the Hub computed, per workspace,
+ * over the range just synced.
+ *
+ * Deliberately compares against COMPUTED cost, not the attributed figure: for a
+ * sole-owner workspace the attributed figure IS the billed one, so comparing
+ * them would always agree and measure nothing. The question this answers is
+ * whether the Hub's own arithmetic still tracks reality — which is what failed
+ * silently for a month.
+ */
+export async function reconcileRange(
+  startDate: string,
+  endDate: string
+): Promise<string[]> {
+  const rows = (
+    await db.execute(sql`
+      SELECT c.workspace_id,
+             w.name AS workspace_name,
+             SUM(c.cost_cents)::bigint AS billed_cents,
+             COALESCE((
+               SELECT SUM(m.computed_cost_cents)
+               FROM anthropic_usage_metrics m
+               JOIN anthropic_workspace_owners o ON o.user_id = m.user_id
+               WHERE o.workspace_id IS NOT DISTINCT FROM c.workspace_id
+                 AND m.date >= ${startDate} AND m.date <= ${endDate}
+                 AND m.model <> ${BILLED_ONLY_MODEL}
+             ), 0)::bigint AS computed_cents,
+             EXISTS (
+               SELECT 1 FROM anthropic_workspace_owners o2
+               WHERE o2.workspace_id IS NOT DISTINCT FROM c.workspace_id
+             ) AS has_owner
+      FROM anthropic_workspace_costs c
+      LEFT JOIN anthropic_workspaces w
+             ON w.workspace_id IS NOT DISTINCT FROM c.workspace_id
+      WHERE c.date >= ${startDate} AND c.date <= ${endDate}
+        -- A deprecated pool contributes to history but is not worth alerting
+        -- on; new spend on one is caught by the owner check below instead.
+        AND w.deprecated_at IS NULL
+      GROUP BY c.workspace_id, w.name
+    `)
+  ).rows as {
+    workspace_id: string | null;
+    workspace_name: string | null;
+    billed_cents: string;
+    computed_cents: string;
+    has_owner: boolean;
+  }[];
+
+  const messages: string[] = [];
+  const unowned: { name: string; cents: number }[] = [];
+
+  for (const row of rows) {
+    const divergence = detectDivergence({
+      workspaceId: row.workspace_id,
+      workspaceName: row.workspace_name,
+      period: `${startDate}..${endDate}`,
+      billedCents: Number(row.billed_cents),
+      attributedCents: Number(row.computed_cents),
+      hasOwner: row.has_owner,
+    });
+    if (!divergence) continue;
+
+    if (divergence.reason === "spend_without_owner") {
+      // Project and client workspaces are unattributed BY DESIGN — attributing
+      // them needs a concept the Hub does not have yet, and is deferred. One
+      // warning per workspace per sync would be permanent noise that teaches an
+      // admin to ignore the column, so they are collected into a single line.
+      // What matters is the list changing: a USER's workspace appearing in it
+      // means a key stopped resolving and their cost has quietly become zero.
+      unowned.push({
+        name: row.workspace_name ?? row.workspace_id ?? "the default workspace",
+        cents: Number(row.billed_cents),
+      });
+      continue;
+    }
+
+    messages.push(divergence.message);
+  }
+
+  if (unowned.length > 0) {
+    const total = unowned.reduce((sum, w) => sum + w.cents, 0);
+    const listed = unowned
+      .sort((a, b) => b.cents - a.cents)
+      .map((w) => `${w.name} ($${(w.cents / 100).toFixed(2)})`)
+      .join(", ");
+    messages.push(
+      `${unowned.length} workspace(s) with spend have no resolved owner, ` +
+        `totalling $${(total / 100).toFixed(2)} in ${startDate}..${endDate}: ${listed}. ` +
+        `Project and client workspaces are expected here and their spend stays visible at org level, ` +
+        `attributed to nobody. A person's own workspace in this list means their API key stopped ` +
+        `resolving and their reported cost has gone to zero — check the mapping.`
+    );
+  }
+
+  return messages;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers — error tracking
 // ---------------------------------------------------------------------------
@@ -731,6 +829,26 @@ export async function run(
           appendError(
             counts,
             `Attribution failed for ${syncedDateRange.min}..${syncedDateRange.max}: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+
+      // Reconciliation: say so when billed and computed disagree beyond
+      // tolerance, or when a workspace has spend but nobody to attribute it to.
+      // Warnings, not failures — the billed figures are still correct.
+      if (syncedDateRange.min && syncedDateRange.max) {
+        try {
+          const warnings = await reconcileRange(
+            syncedDateRange.min,
+            syncedDateRange.max
+          );
+          for (const warning of warnings) {
+            appendError(counts, `Warning: ${warning}`);
+          }
+        } catch (err) {
+          appendError(
+            counts,
+            `Reconciliation failed: ${err instanceof Error ? err.message : String(err)}`
           );
         }
       }

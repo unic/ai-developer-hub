@@ -214,6 +214,11 @@ export async function setWorkspaceLimit(
     return { success: false, error: "Invalid limit value" };
   }
 
+  // A recorded cap MIRRORS a value an admin set in the Claude Console — the
+  // Admin API exposes no endpoint for spend limits, so the Hub cannot read the
+  // real one. Stamping every save is what makes the drift visible later (W1).
+  const confirmedAt = new Date();
+
   try {
     if (limitCents === null) {
       // Delete the row
@@ -232,21 +237,41 @@ export async function setWorkspaceLimit(
       await db.transaction(async (tx) => {
         const updated = await tx
           .update(anthropicWorkspaceLimits)
-          .set({ limitCents, updatedAt: new Date() })
+          .set({
+            limitCents,
+            confirmedAt,
+            confirmedBy: Number(admin.id),
+            updatedAt: new Date(),
+          })
           .where(sql`${anthropicWorkspaceLimits.workspaceId} IS NULL`);
         if (updated.rowCount === 0) {
-          await tx.insert(anthropicWorkspaceLimits).values({ workspaceId: null, limitCents });
+          await tx.insert(anthropicWorkspaceLimits).values({
+            workspaceId: null,
+            limitCents,
+            confirmedAt,
+            confirmedBy: Number(admin.id),
+          });
         }
       });
     } else {
       // Named workspace: target the partial unique index (workspaceId IS NOT NULL)
       await db
         .insert(anthropicWorkspaceLimits)
-        .values({ workspaceId, limitCents })
+        .values({
+          workspaceId,
+          limitCents,
+          confirmedAt,
+          confirmedBy: Number(admin.id),
+        })
         .onConflictDoUpdate({
           target: [anthropicWorkspaceLimits.workspaceId],
           targetWhere: sql`${anthropicWorkspaceLimits.workspaceId} IS NOT NULL`,
-          set: { limitCents, updatedAt: new Date() },
+          set: {
+            limitCents,
+            confirmedAt,
+            confirmedBy: Number(admin.id),
+            updatedAt: new Date(),
+          },
         });
     }
 

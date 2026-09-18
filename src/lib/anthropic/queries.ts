@@ -320,7 +320,10 @@ export async function loadDashboardKpis(month: string): Promise<DashboardKpis> {
 // loadWorkspaceList
 // ---------------------------------------------------------------------------
 
-export async function loadWorkspaceList(): Promise<WorkspaceListItem[]> {
+export async function loadWorkspaceList(
+  /** Spec 045: deprecated pools are excluded by default, never from history. */
+  includeDeprecated = false
+): Promise<WorkspaceListItem[]> {
   const currentMonth = format(new Date(), "yyyy-MM");
   const startDate = `${currentMonth}-01`;
   const endDate = format(endOfMonth(parseISO(`${currentMonth}-01`)), "yyyy-MM-dd");
@@ -333,8 +336,34 @@ export async function loadWorkspaceList(): Promise<WorkspaceListItem[]> {
       w.is_archived,
       w.display_color,
       COALESCE(c.total_cents, 0) as current_month_cents,
-      l.limit_cents
+      l.limit_cents,
+      l.confirmed_at,
+      w.deprecated_at,
+      w.deprecated_reason,
+      -- Owners, and what their tier allowances add up to. The cap and the
+      -- allowances are two independently maintained numbers for the same
+      -- intent, and nothing has ever compared them (045 W4).
+      COALESCE(o.owner_count, 0) AS owner_count,
+      o.owner_names,
+      o.allowance_sum_cents
     FROM anthropic_workspaces w
+    LEFT JOIN (
+      SELECT ow.workspace_id,
+             COUNT(DISTINCT ow.user_id) AS owner_count,
+             string_agg(DISTINCT u.name, ', ' ORDER BY u.name) AS owner_names,
+             COALESCE(SUM(DISTINCT_ALLOWANCE.allowance_cents), 0) AS allowance_sum_cents
+      FROM anthropic_workspace_owners ow
+      JOIN users u ON u.id = ow.user_id
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(t.monthly_cost_cents), 0) AS allowance_cents
+        FROM license_assignments la
+        JOIN access_tiers t ON t.id = la.tier_id
+        WHERE la.user_id = ow.user_id
+          AND la.status = 'active'
+          AND t.pricing_model = 'usage'
+      ) AS DISTINCT_ALLOWANCE ON TRUE
+      GROUP BY ow.workspace_id
+    ) o ON o.workspace_id IS NOT DISTINCT FROM w.workspace_id
     LEFT JOIN (
       SELECT workspace_id, SUM(cost_cents) as total_cents
       FROM anthropic_workspace_costs
@@ -344,6 +373,7 @@ export async function loadWorkspaceList(): Promise<WorkspaceListItem[]> {
     LEFT JOIN anthropic_workspace_limits l
       ON l.workspace_id IS NOT DISTINCT FROM w.workspace_id
     WHERE w.is_archived = false
+      AND (${includeDeprecated} OR w.deprecated_at IS NULL)
     ORDER BY
       CASE
         WHEN l.limit_cents IS NOT NULL AND l.limit_cents > 0
@@ -375,11 +405,24 @@ export async function loadWorkspaceList(): Promise<WorkspaceListItem[]> {
         ? Math.round((currentMonthCents / limitCents) * 100)
         : null;
     const workspaceId = r.workspace_id as string | null;
+    const allowanceSumCents =
+      r.allowance_sum_cents != null ? Number(r.allowance_sum_cents) : 0;
     return {
       workspaceId,
       name: r.name as string,
       isDefault: r.is_default as boolean,
       isArchived: r.is_archived as boolean,
+      deprecatedAt: (r.deprecated_at as Date | null)?.toISOString() ?? null,
+      deprecatedReason: (r.deprecated_reason as string | null) ?? null,
+      capConfirmedAt: (r.confirmed_at as Date | null)?.toISOString() ?? null,
+      ownerCount: Number(r.owner_count ?? 0),
+      ownerNames: (r.owner_names as string | null) ?? null,
+      allowanceSumCents,
+      // Flagged, not resolved: neither number is authoritative over the other.
+      capMismatch:
+        limitCents != null && allowanceSumCents > 0
+          ? limitCents !== allowanceSumCents
+          : false,
       currentMonthCents,
       limitCents,
       utilizationPct,

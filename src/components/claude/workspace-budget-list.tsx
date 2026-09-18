@@ -182,13 +182,35 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
           <span className="text-xl font-semibold tabular-nums">
             {formatCurrency(workspace.currentMonthCents)}
           </span>
-          <span className="text-xs text-muted-foreground">
-            of{" "}
-            {workspace.limitCents != null
-              ? formatCurrency(workspace.limitCents)
-              : "no limit"}
+          <span
+            className="text-xs text-muted-foreground"
+            title={
+              workspace.limitCents != null
+                ? `A cap set in the Claude Console and mirrored here. The Hub does not enforce it${
+                    workspace.capConfirmedAt
+                      ? `. Last confirmed ${workspace.capConfirmedAt.slice(0, 10)}`
+                      : ", and it has never been confirmed"
+                  }.`
+                : "No cap has been recorded in the Hub. That is not the same as having no cap in the Claude Console — nobody has told the Hub."
+            }
+          >
+            {/* Three distinct states, worded (045 W2): no cap recorded, a
+                recorded cap of zero, and a recorded cap of N. */}
+            {workspace.limitCents == null
+              ? "no cap recorded"
+              : workspace.limitCents === 0
+                ? "of a recorded cap of $0.00"
+                : `of ${formatCurrency(workspace.limitCents)}`}
           </span>
         </div>
+        {workspace.capMismatch && (
+          <p className="mt-1 text-xs text-warning">
+            Recorded cap {formatCurrency(workspace.limitCents ?? 0)} differs from
+            the {formatCurrency(workspace.allowanceSumCents ?? 0)} of allowances
+            held by its owner(s). Neither is authoritative — the cap mirrors the
+            console, the allowances come from the licence register.
+          </p>
+        )}
         {workspace.limitCents != null && (
           <div className="mt-1.5 space-y-1">
             <SegmentedBar
@@ -249,8 +271,15 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
               variant="outline"
               onClick={() => setEditing(true)}
             >
-              {workspace.limitCents != null ? "Edit limit" : "Set limit"}
+              {workspace.limitCents != null ? "Edit cap" : "Record cap"}
             </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {/* W5 — the Hub tracks; the console enforces. */}
+              mirrors the console · not enforced here
+              {workspace.capConfirmedAt
+                ? ` · confirmed ${workspace.capConfirmedAt.slice(0, 10)}`
+                : ""}
+            </span>
             <StatusText status={status.status} />
           </>
         )}

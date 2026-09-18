@@ -6,6 +6,33 @@ import {
   prepareUsageRow,
   batchUpsertUsageRows,
 } from "@/lib/anthropic-sync";
+import { db } from "@/lib/db";
+import { sql } from "drizzle-orm";
+import { unknownModelMessage } from "@/lib/anthropic/reconciliation";
+
+/**
+ * Name the models the price table cannot price.
+ *
+ * `pricing_resolved` has been set on every affected row since 016 and nothing
+ * ever read it — which is how a 7.59x overstatement ran for a month. This
+ * turns that flag into a sync event an admin actually sees.
+ */
+async function unknownModelWarning(
+  sinceDays = 31,
+): Promise<string | null> {
+  const rows = (
+    await db.execute(sql`
+      SELECT DISTINCT model
+      FROM anthropic_usage_metrics
+      WHERE pricing_resolved = false
+        AND date >= (CURRENT_DATE - ${sinceDays}::int)
+      ORDER BY model
+    `)
+  ).rows as { model: string }[];
+
+  if (rows.length === 0) return null;
+  return unknownModelMessage(rows.map((r) => r.model));
+}
 
 const WINDOW_DAYS = 31; // Anthropic API max per-request window
 
@@ -47,6 +74,17 @@ export async function run(
               .map((e) => e.error)
               .join("; ")
               .slice(0, 1000);
+          }
+
+          // Non-fatal: the rows are written either way, but a model the price
+          // table does not know is a number nobody should trust.
+          const unknown = await unknownModelWarning();
+          if (unknown) {
+            const warning = `Warning: ${unknown}`;
+            counts.errorCount += 1;
+            counts.errorMessage = counts.errorMessage
+              ? `${counts.errorMessage}; ${warning}`.slice(0, 1000)
+              : warning.slice(0, 1000);
           }
         } catch (err) {
           counts.errorCount = 1;

@@ -27,6 +27,11 @@ async function computeActiveAlerts(): Promise<ActiveAlertsData> {
     LEFT JOIN anthropic_workspace_limits l
       ON l.workspace_id IS NOT DISTINCT FROM w.workspace_id
     WHERE w.is_archived = false
+      -- Spec 045: a deprecated pool cannot raise an alert. Its cap is a fossil
+      -- (~$4,700/month across the 12 boost-* pools, against $0.00 of spend) and
+      -- alerting on it would be noise about something nobody uses. Its
+      -- historical cost is untouched and still counts in past months.
+      AND w.deprecated_at IS NULL
   `);
 
   const workspaceAlerts: WorkspaceAlert[] = [];

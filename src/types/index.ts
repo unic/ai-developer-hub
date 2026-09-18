@@ -771,6 +771,17 @@ export interface WorkspaceListItem {
   displayColor: string | null;
   /** Spec 033 — workspace's estimate of today's spend (separate field). */
   todayEstimate: TodayEstimate | null;
+  // Spec 045
+  /** Hub-side deprecation. Excluded from listings and alerting, never history. */
+  deprecatedAt?: string | null;
+  deprecatedReason?: string | null;
+  /** When an admin last confirmed the recorded cap mirrors the console. */
+  capConfirmedAt?: string | null;
+  ownerCount?: number;
+  ownerNames?: string | null;
+  /** Sum of the owners' usage-tier allowances, for the mismatch check. */
+  allowanceSumCents?: number;
+  capMismatch?: boolean;
 }
 
 export interface WorkspaceAlert {

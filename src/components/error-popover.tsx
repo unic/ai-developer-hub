@@ -13,6 +13,12 @@ interface ErrorPopoverProps {
 export function ErrorPopover({ errorMessage }: ErrorPopoverProps) {
   if (!errorMessage) return <span className="text-muted-foreground">-</span>;
 
+  // Spec 045: the cost sync records non-fatal WARNINGS through the same field
+  // — billed/computed divergence, spend in a workspace with no owner, a model
+  // missing from the price table. The sync still succeeded; calling those
+  // "errors" would train an admin to ignore the column.
+  const isWarning = errorMessage.startsWith("Warning:");
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -25,6 +31,12 @@ export function ErrorPopover({ errorMessage }: ErrorPopoverProps) {
       </PopoverTrigger>
       <PopoverContent className="w-80" align="start">
         <div className="max-h-60 overflow-y-auto">
+          {isWarning && (
+            <p className="mb-2 text-xs font-medium text-warning">
+              Warning — the sync completed; this is something to look at, not a
+              failure.
+            </p>
+          )}
           <p className="text-sm whitespace-pre-wrap break-words">
             {errorMessage}
           </p>
