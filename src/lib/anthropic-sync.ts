@@ -218,6 +218,7 @@ export async function resolveAllMappings(): Promise<Map<string, number>> {
               target: [anthropicSyncStatus.userId],
               set: { resolvedApiKeyId: apiKeyId, resolvedWorkspaceId: workspaceId },
             });
+          await syncResolvedWorkspaceOwner(u.userId, workspaceId);
         }
       } catch (err) {
         console.error(`Failed to resolve API key for user ${u.userId}:`, err);
@@ -226,6 +227,46 @@ export async function resolveAllMappings(): Promise<Map<string, number>> {
   }
 
   return mapping;
+}
+
+/**
+ * Mirror a key resolution into anthropic_workspace_owners (045).
+ *
+ * Rules that matter here:
+ *  - A `manual` row is an admin's decision. The sync never overwrites or
+ *    deletes one, in either direction (FR-023).
+ *  - A user's STALE `resolved` rows are removed, so moving someone's key from
+ *    one workspace to another moves their ownership rather than making them a
+ *    co-owner of both — which would silently flip a `billed` workspace to
+ *    `apportioned`.
+ *  - A key in the default workspace (workspace_id NULL) creates no ownership:
+ *    that spend stays unattributed rather than being split across everyone who
+ *    happens to hold a default-workspace key.
+ */
+async function syncResolvedWorkspaceOwner(
+  userId: number,
+  workspaceId: string | null
+): Promise<void> {
+  if (workspaceId === null) {
+    await db.execute(sql`
+      DELETE FROM anthropic_workspace_owners
+      WHERE user_id = ${userId} AND source = 'resolved'
+    `);
+    return;
+  }
+
+  await db.execute(sql`
+    DELETE FROM anthropic_workspace_owners
+    WHERE user_id = ${userId}
+      AND source = 'resolved'
+      AND workspace_id IS DISTINCT FROM ${workspaceId}
+  `);
+
+  await db.execute(sql`
+    INSERT INTO anthropic_workspace_owners (workspace_id, user_id, source)
+    VALUES (${workspaceId}, ${userId}, 'resolved')
+    ON CONFLICT DO NOTHING
+  `);
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,13 @@ import { anthropicWorkspaceCosts, anthropicSyncStatus } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { ANTHROPIC_API_VERSION } from "@/lib/anthropic-constants";
+import {
+  attributeDay,
+  deriveMode,
+  distributeAcrossModels,
+  BILLED_ONLY_MODEL,
+  type AttributionMode,
+} from "@/lib/anthropic/cost-attribution";
 import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
@@ -412,7 +419,218 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
     `);
   }
 
+  // Attribute the days this month's sync just (re)wrote. Cheap — it reads the
+  // rollup and usage rows already in the database, and makes no API call.
+  const monthDates = dailyRows.map((r) => r.date).sort();
+  if (monthDates.length > 0) {
+    await attributeRange(monthDates[0], monthDates[monthDates.length - 1]);
+  }
+
   return namedRows.length + defaultRows.length;
+}
+
+// ---------------------------------------------------------------------------
+// Attribution — billed workspace cost onto users
+// ---------------------------------------------------------------------------
+
+interface AttributionWrite {
+  userId: number;
+  date: string;
+  model: string;
+  cents: number;
+  mode: AttributionMode;
+}
+
+/**
+ * Attribute every complete day in a date range onto the users who own each
+ * workspace, and write the result onto anthropic_usage_metrics.
+ *
+ * All the arithmetic lives in the pure module; this function is the I/O around
+ * it. It reads the rollup (itself derived from the line items), the ownership
+ * table and the computed per-model costs, then writes back in two batched
+ * statements.
+ *
+ * The range is cleared first, so a change in ownership or a re-run cannot
+ * leave a stale attributed figure behind on a row that no longer earns one.
+ */
+export async function attributeRange(
+  startDate: string,
+  endDate: string
+): Promise<number> {
+  const billedRows = (
+    await db.execute(sql`
+      SELECT workspace_id, date::text AS date, cost_cents
+      FROM anthropic_workspace_costs
+      WHERE date >= ${startDate} AND date <= ${endDate}
+    `)
+  ).rows as { workspace_id: string | null; date: string; cost_cents: number }[];
+
+  if (billedRows.length === 0) return 0;
+
+  const ownerRows = (
+    await db.execute(sql`
+      SELECT workspace_id, user_id, source FROM anthropic_workspace_owners
+    `)
+  ).rows as {
+    workspace_id: string | null;
+    user_id: number;
+    source: string;
+  }[];
+
+  // A manual row supersedes a resolved one for the same (workspace, user).
+  const ownersByWorkspace = new Map<string, Set<number>>();
+  for (const row of ownerRows) {
+    const key = row.workspace_id ?? "__default__";
+    const set = ownersByWorkspace.get(key) ?? new Set<number>();
+    set.add(row.user_id);
+    ownersByWorkspace.set(key, set);
+  }
+
+  const ownerUserIds = [...new Set(ownerRows.map((r) => r.user_id))];
+  if (ownerUserIds.length === 0) return 0;
+
+  const usageRows = (
+    await db.execute(sql`
+      SELECT user_id, date::text AS date, model, computed_cost_cents
+      FROM anthropic_usage_metrics
+      WHERE date >= ${startDate} AND date <= ${endDate}
+        AND user_id IN (${sql.join(ownerUserIds.map((id) => sql`${id}`), sql`, `)})
+        -- Carrier rows from an earlier run are not usage. Reading them back
+        -- would make a user look like they had a model row for the day, so the
+        -- cost would be written as an UPDATE against a row this run then
+        -- deletes — silently dropping it on every re-sync.
+        AND model <> ${BILLED_ONLY_MODEL}
+    `)
+  ).rows as {
+    user_id: number;
+    date: string;
+    model: string;
+    computed_cost_cents: number;
+  }[];
+
+  // user|date -> per-model weights
+  const usageByUserDay = new Map<
+    string,
+    { model: string; computedCostCents: number }[]
+  >();
+  // user|date -> summed computed cost, the apportionment weight
+  const computedByUserDay = new Map<string, number>();
+  for (const row of usageRows) {
+    const key = `${row.user_id}|${row.date}`;
+    const list = usageByUserDay.get(key) ?? [];
+    list.push({ model: row.model, computedCostCents: row.computed_cost_cents });
+    usageByUserDay.set(key, list);
+    computedByUserDay.set(
+      key,
+      (computedByUserDay.get(key) ?? 0) + row.computed_cost_cents
+    );
+  }
+
+  const writes: AttributionWrite[] = [];
+  const carriers: AttributionWrite[] = [];
+
+  for (const billed of billedRows) {
+    const owners = [
+      ...(ownersByWorkspace.get(billed.workspace_id ?? "__default__") ?? []),
+    ].sort((a, b) => a - b);
+    const mode = deriveMode(owners.length);
+    if (mode === "unattributed") continue;
+
+    const computedByUser = new Map(
+      owners.map((userId) => [
+        userId,
+        computedByUserDay.get(`${userId}|${billed.date}`) ?? 0,
+      ])
+    );
+
+    for (const attributed of attributeDay({
+      billedCents: billed.cost_cents,
+      owners,
+      computedByUser,
+    })) {
+      const models = usageByUserDay.get(`${attributed.userId}|${billed.date}`) ?? [];
+
+      if (models.length === 0) {
+        // Billed cost the usage report does not cover: there is no row to
+        // carry it, so write one rather than drop the cost (R10).
+        if (attributed.costCents !== 0) {
+          carriers.push({
+            userId: attributed.userId,
+            date: billed.date,
+            model: BILLED_ONLY_MODEL,
+            cents: attributed.costCents,
+            mode: attributed.method,
+          });
+        }
+        continue;
+      }
+
+      for (const share of distributeAcrossModels(attributed.costCents, models)) {
+        writes.push({
+          userId: attributed.userId,
+          date: billed.date,
+          model: share.model,
+          cents: share.costCents,
+          mode: attributed.method,
+        });
+      }
+    }
+  }
+
+  // Clear the window first — a stale attributed figure is worse than none.
+  await db.execute(sql`
+    UPDATE anthropic_usage_metrics
+    SET attributed_cost_cents = NULL, attribution_mode = NULL
+    WHERE date >= ${startDate} AND date <= ${endDate}
+      AND attributed_cost_cents IS NOT NULL
+  `);
+  await db.execute(sql`
+    DELETE FROM anthropic_usage_metrics
+    WHERE date >= ${startDate} AND date <= ${endDate}
+      AND model = ${BILLED_ONLY_MODEL}
+  `);
+
+  const CHUNK = 500;
+  for (let i = 0; i < writes.length; i += CHUNK) {
+    const chunk = writes.slice(i, i + CHUNK);
+    const valuesSql = sql.join(
+      chunk.map(
+        (w) =>
+          sql`(${w.userId}::integer, ${w.date}::date, ${w.model}, ${w.cents}::integer, ${w.mode})`
+      ),
+      sql`, `
+    );
+    await db.execute(sql`
+      UPDATE anthropic_usage_metrics m
+      SET attributed_cost_cents = v.cents,
+          attribution_mode = v.mode::attribution_mode,
+          updated_at = now()
+      FROM (VALUES ${valuesSql}) AS v(user_id, date, model, cents, mode)
+      WHERE m.user_id = v.user_id AND m.date = v.date AND m.model = v.model
+    `);
+  }
+
+  for (let i = 0; i < carriers.length; i += CHUNK) {
+    const chunk = carriers.slice(i, i + CHUNK);
+    const valuesSql = sql.join(
+      chunk.map(
+        (w) =>
+          sql`(${w.userId}, ${w.date}::date, ${w.model}, 0, ${w.cents}::integer, ${w.mode}::attribution_mode)`
+      ),
+      sql`, `
+    );
+    await db.execute(sql`
+      INSERT INTO anthropic_usage_metrics
+        (user_id, date, model, computed_cost_cents, attributed_cost_cents, attribution_mode)
+      VALUES ${valuesSql}
+      ON CONFLICT (user_id, date, model)
+      DO UPDATE SET attributed_cost_cents = EXCLUDED.attributed_cost_cents,
+                    attribution_mode = EXCLUDED.attribution_mode,
+                    updated_at = now()
+    `);
+  }
+
+  return writes.length + carriers.length;
 }
 
 // ---------------------------------------------------------------------------
