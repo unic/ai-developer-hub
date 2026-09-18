@@ -2,6 +2,17 @@
 
 Investigation, 2026-09-18.
 
+> **Superseded by spec 045 (usage-based cost model).** This document explains
+> the defect and the price-table fix that stopped the bleeding. The
+> architecture it describes — per-user cost re-derived from token counts — has
+> since been replaced: for complete days the Hub now reads Anthropic's billed
+> cost and attributes it, consulting no price table at all. The computation and
+> the table are retained for the current-day estimate, as apportionment weights
+> for shared workspaces, and as the input to the new divergence check that
+> would have caught this within a day. See
+> `specs/045-usage-based-cost-model/` and
+> `docs/045-restatement-announcement.md` for what changed and what it moved.
+
 ## Summary
 
 The AI Hub keeps **two** independent Claude cost figures:
