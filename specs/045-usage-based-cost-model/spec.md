@@ -181,15 +181,18 @@ An admin can see which workspace each API-key holder maps to, whether it has one
 
 ### User Story 9 - The pooled boost-\* structure is retired (Priority: P3)
 
-The 12 `boost-*` workspaces, their caps and their assignments stop cluttering listings, cap aggregates and alerting, and the numbers they inflate come down.
+The 12 `boost-*` workspaces and the licences on them stop cluttering listings, cap aggregates, alerting and the licence register. Those licences were deactivated in the Claude Console some time ago; the Hub is still carrying them as active.
 
-**Independent Test**: after deprecation, confirm they are excluded by default, their historical spend still appears in historical months, and no alert can fire against them.
+**Independent Test**: after the cleanup, confirm the pooled workspaces are excluded by default, their historical spend still appears in historical months, no alert can fire against them, and the licence register no longer counts the revoked assignments as active.
 
 **Acceptance Scenarios**:
 
 1. **Given** a deprecated workspace, **When** the workspace list or cap view renders, **Then** it is excluded by default and reachable via an explicit toggle.
 2. **Given** a deprecated workspace with historical cost, **When** a past month is reported, **Then** its spend is still included.
 3. **Given** a deprecated workspace, **When** cap alerting evaluates, **Then** it is skipped and its cap excluded from cap aggregates.
+4. **Given** the 36 assignments on pooled workspaces, **When** the cleanup runs, **Then** each is revoked with an explicit revocation date, and the licence register stops counting them as active.
+5. **Given** those revocations, **When** a budget period ending before the revocation date is reported, **Then** the assignments still count toward that period — revoking does not rewrite the past.
+6. **Given** a boost-tier assignment that is **not** on a pooled workspace, **When** the cleanup runs, **Then** it is left untouched and reported separately for a decision.
 
 ---
 
@@ -236,6 +239,9 @@ The 12 `boost-*` workspaces, their caps and their assignments stop cluttering li
 - **FR-025**: The profile API and MCP tool responses MUST remain backward compatible: existing fields keep their names and meaning; attribution information is added alongside.
 - **FR-026**: Historical per-user figures MUST be restated to billed cost for all months for which cost-report data can be retrieved, and the restatement MUST be recorded so a changed number can be explained.
 - **FR-027**: The token-derived computation and the price table MUST be retained — they remain the apportionment weights, the current-day estimate, and the divergence-check input.
+- **FR-028**: Licence assignments on deprecated pooled workspaces MUST be revoked, carrying an explicit revocation date rather than an implicit "now". Revocation MUST NOT alter what those assignments contributed to budget periods ending before that date.
+- **FR-029**: The revocation MUST be scoped by **workspace**, not by tier. A boost-tier assignment on a workspace that is not deprecated MUST be left untouched and reported for a separate decision.
+- **FR-030**: The revocation MUST be reversible in the sense that it is auditable — which assignments were revoked, when, and by which action — using the Hub's existing change-history mechanism.
 
 ### Key Entities
 
@@ -273,5 +279,7 @@ The 12 `boost-*` workspaces, their caps and their assignments stop cluttering li
 
 ## Open Questions
 
-- **OQ-1**: Should the 37 `Claude Console` assignments on deprecated pooled workspaces be revoked, or left active with a corrected cost basis? Deprecating a workspace does not revoke assignments. Not blocking.
+- **OQ-1**: ~~Should the assignments on deprecated pooled workspaces be revoked?~~ **Resolved 2026-09-18: yes.** They are already deactivated in the Claude Console, so the Hub is carrying licences that no longer exist. See US9 and FR-028. Two sub-questions remain and are called out there: the revocation date, and the one boost-tier assignment that is not on a pooled workspace.
 - **OQ-2**: What projection window should a usage tier's expected spend use for current and future periods — a trailing 3-month mean is the spec's default, but the budget owner may prefer the last completed month, or a seasonal shape. Changing it later is a one-line change in a pure function.
+- **OQ-3**: What revocation date should the pooled assignments carry? `revoked_at` decides which budget periods still count them, so today's date would keep them in every past period's expected spend. Org-wide Claude API spend collapsed from $3,016.86 (June 2026) to $194.89 (July 2026), which suggests the Console deactivation happened around the end of June. The spec defaults to an explicitly supplied date; if none is given, today, with the consequence stated.
+- **OQ-4**: Assignment 262 (`boost-advanced` tier) belongs to the **`Automations`** workspace, which is live, has current spend and is not a pooled workspace. It is the only boost-tier assignment not on a `boost-*` pool. Revoke it with the rest, move it to a tier that reflects what it is, or leave it — a decision about that one licence, not about the cleanup.

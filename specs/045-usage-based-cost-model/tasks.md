@@ -110,11 +110,14 @@
 - [ ] T054 [P] [US9] Exclude `deprecated_at IS NOT NULL` workspaces from the workspace list, cap views and cap aggregates, with a "show deprecated" toggle
 - [ ] T055 [P] [US9] Skip deprecated workspaces in cap alerting in `src/actions/alerts.ts`
 - [ ] T056 [US9] Verify historical months still include deprecated workspaces' spend (SC-010) — the exclusion is presentational only (I5)
+- [ ] T057 [US9] Revoke the 36 assignments on pooled workspaces (Appendix A), scoped **by workspace, not by tier** (FR-029), carrying the agreed revocation date (spec OQ-3) rather than `now()`. Reuse the existing revoke path so change history is written (FR-030); do not write `license_assignments` directly
+- [ ] T058 [US9] Confirm a budget period ending before the revocation date reports the same expected spend as before the revocation (US9 scenario 5) — `sumExpectedSpendCents` filters on the assignment window, so this is a regression check on the date, not on the code
+- [ ] T059 [US9] Report assignment 262 (`boost-advanced`, workspace `Automations`, live spend) separately rather than revoking it (FR-029, spec OQ-4)
 
 ## Cross-cutting
 
-- [ ] T057 Produce the restatement announcement covering **both** restatements: per-user monthly totals before/after for every restated month (phase 4), and expected-spend before/after per period (phase 5), with the reason for each. A deliverable, not a follow-up
-- [ ] T058 [P] Update `CLAUDE.md` Recent Changes and the `docs/anthropic-cost-accuracy.md` pointer once the feature lands
+- [ ] T060 Produce the restatement announcement covering **both** restatements: per-user monthly totals before/after for every restated month (phase 4), and expected-spend before/after per period (phase 5), with the reason for each. A deliverable, not a follow-up
+- [ ] T061 [P] Update `CLAUDE.md` Recent Changes and the `docs/anthropic-cost-accuracy.md` pointer once the feature lands
 
 ## Dependencies
 
@@ -123,7 +126,7 @@
 - Phase 5 depends on phase 3 (measured consumption comes from attribution) and should ship with or immediately after phase 4 (plan risk 1).
 - Phase 6 depends on phase 5 (needs `pricing_model` to know which tools are prepaid).
 - Phase 7 depends on phase 3 for divergence, on phase 1 only for caps.
-- Phase 8 is independent of phases 2–7 and can ship any time after phase 1. **T054/T055 (boost-\* deprecation) are the earliest available visible win.**
+- Phase 8 is independent of phases 2–7 and can ship any time after phase 1. **T054/T055 (boost-\* deprecation) are the earliest available visible win; T057 (revocation) needs only the agreed date.**
 
 ## Validation
 
@@ -131,3 +134,49 @@
 - Manual: quickstart.md walkthrough
 - SC-001: for a completed month, each single-owner user's Hub total versus the Console figure — 0 cents apart
 - SC-004: a completed period's expected spend for seat tools unchanged to the cent; for usage tools within tolerance of measured consumption
+
+## Appendix A: concrete identifiers
+
+Captured 2026-09-18 from the live Hub. Re-verify before running the migration — an id list is a snapshot, not a query.
+
+**Claude Console tool**: `ai_tools.id = 2`.
+
+**Tiers to flip to `pricing_model = 'usage'`** (T008) — all five belong to tool 2:
+
+| Tier id | Name           | Allowance |
+| ------- | -------------- | --------- |
+| 2       | boost-starter  | $25       |
+| 3       | boost-advanced | $50       |
+| 4       | boost-expert   | $100      |
+| 10      | boost-leader   | $200      |
+| 11      | indie-profile  | $125      |
+
+Every other tier stays `seat` by the column default: Claude seats (5, 6), Cursor (7), Microsoft Copilot (9), GitHub Copilot (1, 8).
+
+**Workspaces to deprecate** (T008) — 12 `boost-*` pools, by explicit `workspace_id`:
+
+```text
+wrkspc_01WwajmfNsthB13NXt2udGGN  boost-starter-1
+wrkspc_01Gg5aVZTTQRpxGVkqhnF14m  boost-starter-2
+wrkspc_01JSJ8QFMfB2EMssRL4WHo9z  boost-starter-3
+wrkspc_01AJitrPisruy7LxCrkwQeBQ  boost-starter-4
+wrkspc_01TJVdk6Bf21EK6pXgwjLE6p  boost-starter-5
+wrkspc_01PmkV3C6HYFQKEjJ4twC7h1  boost-starter-6
+wrkspc_01GjZw5w8bvftpTDN9ek6gf8  boost-starter-7
+wrkspc_01JAZBuDF5xKqQt6gfhSN9YJ  boost-starter-8
+wrkspc_01R7D66G5sKGfzxkujGskZ1S  boost-starter-9
+wrkspc_01NTsZm2xviWx8D6LbwM7Ty8  boost-expert-1
+wrkspc_01JLudCq2Fe5qHchBH1NQD6W  boost-expert-2
+wrkspc_01CzBV9zdUWLrYN1KyTwBLhW  boost-expert-3
+```
+
+**Assignments to revoke** (T057) — 36, all on the pools above. Select them by the assignment's `workspace` value matching a deprecated pool, never by tier:
+
+```text
+13 14 15 16 17 20 21 23 24 25 26 27 28 30 31 33 34 35
+158 159 162 170 177 178 179 180 183 186 193 194 195 196 260 266 287 288
+```
+
+**Not in that list** — assignment **262** (Tobias Studer, `boost-advanced`, workspace `Automations`). Boost tier, live workspace, current spend. Handled by T059, decided by spec OQ-4.
+
+**Cross-check before running**: `ai_tools.id = 2` has 40 active assignments — 36 pooled (revoke), 3 `indie-profile` (Svenja 443, Marlon 407, Oliver 357 — keep), 1 exception (262). The three indie assignments are the users this feature exists to report on and must survive untouched.
