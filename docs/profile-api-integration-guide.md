@@ -132,11 +132,18 @@ All responses use the `{ "success": true/false }` envelope.
               "outputTokens": 5000
             }
           ],
-          "totalCents": 150
+          "totalCents": 150,
+          "method": "billed"
         }
       ],
       "latestDataDate": "2026-03-22",
       "hasUnresolvedPricing": false,
+      "attribution": {
+        "method": "billed",
+        "billedCents": 4250,
+        "estimatedCents": 0,
+        "workspaceId": "wrkspc_01..."
+      },
       "lastSyncAt": "2026-03-22T14:30:00.000Z"
     }
   }
@@ -177,7 +184,37 @@ All responses use the `{ "success": true/false }` envelope.
 | `dailyBreakdown`       | `array`    | Per-day, per-model usage breakdown                    |
 | `latestDataDate`       | `string?`  | Date of the most recent usage data (`YYYY-MM-DD`)     |
 | `hasUnresolvedPricing` | `boolean`  | `true` if some models have approximate pricing        |
+| `attribution`          | `object?`  | **Added 2026-09.** How the figures were produced (see below) |
 | `lastSyncAt`           | `string?`  | ISO 8601 timestamp of the last successful data sync   |
+
+> **Existing fields are unchanged; their values changed.** `monthlyTotalCents`,
+> `dailyBreakdown[].totalCents` and `models[].costCents` keep their names, types
+> and meanings. As of 2026-09 they carry **Anthropic's billed cost** for completed
+> days instead of a figure the Hub derived from token counts and its own price
+> table. For a user who solely owns their workspace the number now matches the
+> Claude Console exactly; previously it could be several times too high when a
+> model was missing from the price table. Historical months have been restated on
+> the same basis. Integrations reading these fields keep working unchanged and
+> simply get accurate numbers.
+
+#### `data.costData.attribution`
+
+| Field            | Type      | Description                                                        |
+|------------------|-----------|--------------------------------------------------------------------|
+| `method`         | `string`  | `"billed"`, `"apportioned"`, `"estimated"` or `"mixed"`             |
+| `billedCents`    | `number`  | Portion of the total taken from Anthropic's billed figures          |
+| `estimatedCents` | `number`  | Portion still estimated (the current UTC day)                       |
+| `workspaceId`    | `string?` | The Anthropic workspace the figures came from                       |
+
+| `method`      | Meaning                                                                                                   |
+|---------------|-----------------------------------------------------------------------------------------------------------|
+| `billed`      | The user solely owns the workspace, so its billed cost is theirs, unmodified. No price table is consulted. |
+| `apportioned` | The workspace has several owners; the billed total is split between them in proportion to measured usage.  |
+| `estimated`   | Token-derived. Expected for the current UTC day, which Anthropic does not bill until it completes.         |
+| `mixed`       | The period combines billed complete days with an estimated current day.                                    |
+
+Treat `estimated` as provisional — it can move when the day completes and the
+billed figure replaces it. `billed` and `apportioned` figures are final.
 
 #### `data.costData.dailyBreakdown[]`
 
@@ -186,6 +223,7 @@ All responses use the `{ "success": true/false }` envelope.
 | `date`      | `string` | Date (`YYYY-MM-DD`)         |
 | `models`    | `array`  | Per-model breakdown         |
 | `totalCents`| `number` | Total cost for the day      |
+| `method`    | `string` | **Added 2026-09.** How this day's figure was produced |
 
 #### `data.costData.dailyBreakdown[].models[]`
 

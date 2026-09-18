@@ -27,6 +27,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { AttributionBadge } from "@/components/claude/attribution-badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Command,
@@ -276,8 +277,11 @@ export function UsersTable({ users, sparklines }: Props) {
           <SortHeader column={column} label="Cost MTD" align="right" />
         ),
         cell: ({ row }) => (
-          <span className="block text-right font-medium tabular-nums">
-            {formatCurrency(row.original.costCents)}
+          <span className="flex items-center justify-end gap-1.5">
+            <AttributionBadge method={row.original.attributionMethod} />
+            <span className="font-medium tabular-nums">
+              {formatCurrency(row.original.costCents)}
+            </span>
           </span>
         ),
       },

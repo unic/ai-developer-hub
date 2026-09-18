@@ -554,6 +554,29 @@ export type DailyBreakdown = {
   date: string;
   models: DailyModelCost[];
   totalCents: number;
+  /** How this day's figure was produced (045). Added alongside the existing
+   *  fields — `totalCents` keeps its name and meaning. */
+  method?: AttributionMethodLabel;
+};
+
+/** How a cost figure was produced (045-usage-based-cost-model).
+ *  `billed` — the workspace's billed cost, unmodified.
+ *  `apportioned` — a share of a shared workspace's billed cost.
+ *  `estimated` — token-derived, used for the current (incomplete) UTC day.
+ *  `mixed` — a period spanning more than one of the above. */
+export type AttributionMethodLabel =
+  | "billed"
+  | "apportioned"
+  | "estimated"
+  | "mixed";
+
+export type CostAttribution = {
+  method: AttributionMethodLabel;
+  /** Portion of the total from billed / apportioned complete days. */
+  billedCents: number;
+  /** Portion from the current-day estimate. */
+  estimatedCents: number;
+  workspaceId: string | null;
 };
 
 export type CostData = {
@@ -563,6 +586,8 @@ export type CostData = {
   dailyBreakdown: DailyBreakdown[];
   latestDataDate: string | null;
   hasUnresolvedPricing: boolean;
+  /** Added by 045. Absent only when there is no cost data at all. */
+  attribution?: CostAttribution;
 };
 
 export type ProfileData = {
@@ -770,6 +795,8 @@ export interface UserListRow {
   workspaceColor: string | null;
   hasApiKey: boolean;
   costCents: number;
+  /** How costCents was produced (045). Null when the user has no rows. */
+  attributionMethod: AttributionMethodLabel | null;
   totalTokens: number;
   modelsUsed: number;
   lastActive: string | null;

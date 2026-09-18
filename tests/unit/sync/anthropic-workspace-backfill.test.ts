@@ -11,7 +11,8 @@ vi.mock("@/lib/sync/framework", () => ({
 // sentinel row at the end of a successful run.
 vi.mock("@/lib/db", () => ({
   db: {
-    execute: vi.fn().mockResolvedValue(undefined),
+    // Raw SQL reads return { rows }, which the attribution step depends on.
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
         onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),

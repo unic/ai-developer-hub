@@ -106,14 +106,23 @@ async function loadTodayEstimateInputs(now: Date): Promise<TodayEstimateInputs> 
         FROM anthropic_usage_metrics m
         JOIN anthropic_sync_status s ON s.user_id = m.user_id
         WHERE m.date = ${todayStr}::date
+          AND m.model <> '__billed_only__'
         GROUP BY s.resolved_workspace_id
       `),
+      // Deliberately COMPUTED, not the COALESCE read rule (045): this is one
+      // half of the calibration ratio, and the other half is the billed
+      // figure. Reading billed cost on both sides would make the ratio 1.0 by
+      // construction and destroy the signal — the point is to measure how far
+      // the token-derived estimate sits from the bill, so today's estimate can
+      // be scaled by it. Carrier rows are excluded for the same reason: they
+      // carry billed cost, not a token-derived figure.
       db.execute<{ ws: string | null; cents: number }>(sql`
         SELECT s.resolved_workspace_id AS ws,
                COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
         FROM anthropic_usage_metrics m
         JOIN anthropic_sync_status s ON s.user_id = m.user_id
         WHERE m.date >= ${recentStartStr}::date AND m.date <= ${recentEndStr}::date
+          AND m.model <> '__billed_only__'
         GROUP BY s.resolved_workspace_id
       `),
       db.execute<{ ws: string | null; cents: number }>(sql`

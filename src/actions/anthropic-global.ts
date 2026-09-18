@@ -879,7 +879,7 @@ async function _getWorkspaceDetail(
       u.id AS user_id,
       u.email,
       u.name,
-      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents,
+      COALESCE(SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents)), 0)::bigint AS cents,
       COALESCE(SUM(m.uncached_input_tokens + m.cache_read_input_tokens + m.cache_creation_input_tokens + m.output_tokens), 0)::bigint AS request_count
     FROM anthropic_usage_metrics m
     JOIN anthropic_sync_status s ON s.user_id = m.user_id
@@ -905,7 +905,7 @@ async function _getWorkspaceDetail(
       m.model AS model_name,
       COALESCE(SUM(m.uncached_input_tokens + m.cache_read_input_tokens + m.cache_creation_input_tokens), 0)::bigint AS tokens_in,
       COALESCE(SUM(m.output_tokens), 0)::bigint AS tokens_out,
-      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+      COALESCE(SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents)), 0)::bigint AS cents
     FROM anthropic_usage_metrics m
     JOIN anthropic_sync_status s ON s.user_id = m.user_id
     WHERE s.resolved_workspace_id IS NOT DISTINCT FROM ${workspaceId}

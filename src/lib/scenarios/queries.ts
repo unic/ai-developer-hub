@@ -120,7 +120,9 @@ export async function getApiSubscriptionDataset(): Promise<ApiSubscriptionDatase
     .select({
       userId: anthropicUsageMetrics.userId,
       month: sql<string>`to_char(${anthropicUsageMetrics.date}, 'YYYY-MM')`,
-      cents: sql<number>`sum(${anthropicUsageMetrics.computedCostCents})::int`,
+      // Read rule (045) — this moves saved forecast scenarios onto billed
+      // cost, which is why the restatement announcement names them.
+      cents: sql<number>`sum(coalesce(${anthropicUsageMetrics.attributedCostCents}, ${anthropicUsageMetrics.computedCostCents}))::int`,
     })
     .from(anthropicUsageMetrics)
     .where(inArray(anthropicUsageMetrics.userId, userIds))

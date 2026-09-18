@@ -419,11 +419,15 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
     `);
   }
 
-  // Attribute the days this month's sync just (re)wrote. Cheap — it reads the
-  // rollup and usage rows already in the database, and makes no API call.
-  const monthDates = dailyRows.map((r) => r.date).sort();
-  if (monthDates.length > 0) {
-    await attributeRange(monthDates[0], monthDates[monthDates.length - 1]);
+  // Record what this run touched; attribution runs once at the end, over the
+  // whole range, rather than per month.
+  for (const row of dailyRows) {
+    if (!syncedDateRange.min || row.date < syncedDateRange.min) {
+      syncedDateRange.min = row.date;
+    }
+    if (!syncedDateRange.max || row.date > syncedDateRange.max) {
+      syncedDateRange.max = row.date;
+    }
   }
 
   return namedRows.length + defaultRows.length;
@@ -432,6 +436,12 @@ async function fetchAndUpsertWorkspaceCosts(month: string): Promise<number> {
 // ---------------------------------------------------------------------------
 // Attribution — billed workspace cost onto users
 // ---------------------------------------------------------------------------
+
+/** Dates touched by the current run, so attribution covers exactly them. */
+const syncedDateRange: { min: string | null; max: string | null } = {
+  min: null,
+  max: null,
+};
 
 interface AttributionWrite {
   userId: number;
@@ -666,6 +676,8 @@ export async function run(
         skippedCount: 0,
         errorCount: 0,
       };
+      syncedDateRange.min = null;
+      syncedDateRange.max = null;
 
       // Non-fatal — cost sync can proceed without workspace metadata
       try {
@@ -704,6 +716,22 @@ export async function run(
           counts.updatedCount = await fetchAndUpsertWorkspaceCosts(month);
         } catch (err) {
           appendError(counts, `Cost sync failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      // Attribute the days this run touched. Post-processing over data already
+      // in the database — no API call — and deliberately non-fatal: if it
+      // fails, the billed figures it reads are still correct and the previous
+      // attribution is still in place. Failing the whole cost sync over it
+      // would be a worse outcome than a warning.
+      if (syncedDateRange.min && syncedDateRange.max) {
+        try {
+          await attributeRange(syncedDateRange.min, syncedDateRange.max);
+        } catch (err) {
+          appendError(
+            counts,
+            `Attribution failed for ${syncedDateRange.min}..${syncedDateRange.max}: ${err instanceof Error ? err.message : String(err)}`
+          );
         }
       }
 
