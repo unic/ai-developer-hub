@@ -23,6 +23,35 @@ import {
 import type { BilledCost, BudgetWithCosts } from "@/types";
 import type { RunningCostsResult } from "@/lib/budget-utils";
 import { classifyPeriod } from "@/lib/reports/period-helpers";
+import { basisLabel, type ExpectedSpendBasis } from "@/lib/expected-spend";
+
+/**
+ * Says what the Expected column is made of, when it is not purely tier prices.
+ *
+ * Spec 045: for a usage-based tool the tier price is an ALLOWANCE, not a cost,
+ * so its expected figure comes from measured consumption or a projection
+ * instead. A reader cannot tell those apart by looking at the number, so the
+ * column says which it is rather than leaving a projection to pass for a
+ * measurement.
+ */
+function ExpectedBasisHint({
+  periods,
+}: {
+  periods: { expectedSpendBasis?: ExpectedSpendBasis }[];
+}) {
+  const bases = new Set(
+    periods.map((p) => p.expectedSpendBasis).filter(Boolean),
+  ) as Set<ExpectedSpendBasis>;
+
+  if (bases.size === 0) return null;
+  if (bases.size === 1 && bases.has("tier_price")) return null;
+
+  return (
+    <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+      ({[...bases].map(basisLabel).join(", ")})
+    </span>
+  );
+}
 
 interface Props {
   budget: BudgetWithCosts;
@@ -113,7 +142,10 @@ export function PeriodAllocationsTable({
               <TableHead className="w-8" />
               <TableHead>Period</TableHead>
               <TableHead>Planned</TableHead>
-              <TableHead>Expected</TableHead>
+              <TableHead>
+                Expected
+                <ExpectedBasisHint periods={periods} />
+              </TableHead>
               <TableHead>Actual</TableHead>
               <TableHead>Variance (Actual − Expected)</TableHead>
               <TableHead>% Diff</TableHead>

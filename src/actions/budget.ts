@@ -6,6 +6,7 @@ import {
   budgetPeriods,
   budgetExtensions,
   licenseAssignments,
+  accessTiers,
   aiTools,
   billedCosts,
   changeHistory,
@@ -14,6 +15,14 @@ import { eq, and, sum, count, lte, gte, or, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { sumExpectedSpendCents } from "@/lib/budget-utils";
+import {
+  combineExpectedSpend,
+  expectedSpendForPeriod,
+} from "@/lib/expected-spend";
+import {
+  getMeasuredConsumptionByMonth,
+  monthsInPeriod,
+} from "@/lib/measured-consumption";
 import {
   budgetSchema,
   budgetAllocationSchema,
@@ -589,8 +598,11 @@ export async function getBudgetWithCosts(
       assignedAt: licenseAssignments.assignedAt,
       revokedAt: licenseAssignments.revokedAt,
       costAtAssignmentCents: licenseAssignments.costAtAssignmentCents,
+      toolId: licenseAssignments.toolId,
+      pricingModel: accessTiers.pricingModel,
     })
     .from(licenseAssignments)
+    .innerJoin(accessTiers, eq(accessTiers.id, licenseAssignments.tierId))
     .where(
       and(
         lte(licenseAssignments.assignedAt, new Date(overallEnd)),
@@ -610,17 +622,43 @@ export async function getBudgetWithCosts(
     }
   }
 
+  // Measured consumption for usage-based tools. A usage tier's price is an
+  // ALLOWANCE, not a cost, so forecasting it would over-predict ~10x on the
+  // current portfolio; what those tools actually consumed is the honest input.
+  const measuredByTool = await getMeasuredConsumptionByMonth();
+  const assignmentsByTool = new Map<number, typeof overlappingAssignments>();
+  for (const a of overlappingAssignments) {
+    const list = assignmentsByTool.get(a.toolId) ?? [];
+    list.push(a);
+    assignmentsByTool.set(a.toolId, list);
+  }
+  const today = new Date();
+
   const periodsWithCosts = budget.periods.map((period) => {
     const periodStart = new Date(period.startDate);
     const periodEnd = new Date(period.endDate);
 
-    // Filter assignments overlapping this period in-memory. The predicate lives
-    // in lib/budget-utils so a CI-visible unit test can pin it (spec 042).
-    const expectedSpendCents = sumExpectedSpendCents(
-      overlappingAssignments,
-      periodStart,
-      periodEnd,
+    // Each tool is forecast on its own basis and the parts are summed (P8).
+    // Seat tools take the tier-price path, byte-identical to before (P1).
+    const perTool = [...assignmentsByTool.entries()].map(
+      ([toolId, assignments]) =>
+        expectedSpendForPeriod({
+          pricingModel:
+            assignments.find((a) => a.pricingModel === "usage") !== undefined
+              ? "usage"
+              : "seat",
+          assignments,
+          measuredByMonth: measuredByTool.get(toolId) ?? new Map(),
+          period: {
+            start: periodStart,
+            end: periodEnd,
+            isComplete: periodEnd < today,
+            months: monthsInPeriod(periodStart, periodEnd),
+          },
+        }),
     );
+    const expected = combineExpectedSpend(perTool);
+    const expectedSpendCents = expected.cents;
 
     const billedTotalCents = period.billedCosts.reduce(
       (s, bc) => s + bc.amountCents,
@@ -630,6 +668,7 @@ export async function getBudgetWithCosts(
     return {
       ...period,
       expectedSpendCents,
+      expectedSpendBasis: expected.basis,
       billedTotalCents,
       billedEntries: period.billedCosts,
       extensionAmountCents: extensionByPeriod[period.id] ?? 0,

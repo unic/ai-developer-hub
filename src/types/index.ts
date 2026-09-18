@@ -86,9 +86,14 @@ export type NewBilledCost = InferInsertModel<typeof billedCosts>;
 export type Invoice = InferSelectModel<typeof invoices>;
 export type NewInvoice = InferInsertModel<typeof invoices>;
 
+import type { ExpectedSpendBasis } from "@/lib/expected-spend";
+
 // Computed types for budget views
 export type PeriodWithCosts = BudgetPeriod & {
   expectedSpendCents: number;
+  /** What produced expectedSpendCents (045): a seat tier price, measured
+   *  consumption, a projection, or an allowance placeholder. */
+  expectedSpendBasis?: ExpectedSpendBasis;
   billedTotalCents: number;
   billedEntries?: BilledCost[];
   /**

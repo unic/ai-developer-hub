@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { updateTool, archiveTool, createTier, updateTier } from "@/actions/tools";
 import { toolSchema, updateTierSchema, type ToolInput } from "@/lib/validators";
+import { isAllowance, priceWording } from "@/lib/price-labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { AiTool, AccessTier, ChangeHistoryRecord } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -289,6 +290,8 @@ export function ToolDetailClient({
       monthlyCostCents: Math.round(
         Number(formData.get("tierCost")) * 100
       ),
+      pricingModel:
+        (formData.get("tierPricingModel") as "seat" | "usage") ?? "seat",
     });
     if (result.success) {
       setAddTierOpen(false);
@@ -442,7 +445,7 @@ export function ToolDetailClient({
                   </div>
                   <div>
                     <label className="text-sm font-medium">
-                      Monthly Cost ($)
+                      Monthly Cost / Allowance ($)
                     </label>
                     <Input
                       name="tierCost"
@@ -450,6 +453,24 @@ export function ToolDetailClient({
                       step="0.01"
                       required
                     />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">
+                      What this price is
+                    </label>
+                    <select
+                      name="tierPricingModel"
+                      defaultValue="seat"
+                      className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="seat">
+                        A monthly cost — billed per seat whether used or not
+                      </option>
+                      <option value="usage">
+                        A monthly allowance — metered usage, billed on what is
+                        consumed
+                      </option>
+                    </select>
                   </div>
                   <div>
                     <label className="text-sm font-medium">Description</label>
@@ -481,6 +502,14 @@ export function ToolDetailClient({
                       {!tier.isActive && (
                         <Badge variant="secondary">Inactive</Badge>
                       )}
+                      {isAllowance(tier.pricingModel) && (
+                        <Badge
+                          variant="outline"
+                          title={priceWording(tier.pricingModel).title}
+                        >
+                          allowance
+                        </Badge>
+                      )}
                     </div>
                     {tier.description && (
                       <p className="text-sm text-muted-foreground">
@@ -490,8 +519,12 @@ export function ToolDetailClient({
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="font-mono">
-                        {formatCurrency(tier.monthlyCostCents)}/mo
+                      <p
+                        className="font-mono"
+                        title={priceWording(tier.pricingModel).title}
+                      >
+                        {formatCurrency(tier.monthlyCostCents)}
+                        {priceWording(tier.pricingModel).suffix}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {assignCount} active

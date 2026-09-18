@@ -1,5 +1,6 @@
 "use client";
 
+import { priceWording } from "@/lib/price-labels";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -269,7 +270,7 @@ function EditAssignmentDialog({
                       {tiers.map((t) => (
                         <SelectItem key={t.id} value={String(t.id)}>
                           {t.name} &mdash; {formatCurrency(t.monthlyCostCents)}
-                          /mo
+                          {priceWording(t.pricingModel).suffix}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -559,7 +560,7 @@ function getColumns(
     {
       accessorKey: "costAtAssignmentCents",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Monthly Cost" />
+        <DataTableColumnHeader column={column} title="Monthly Cost / Allowance" />
       ),
       cell: ({ row }) => formatCurrency(row.original.costAtAssignmentCents),
     },
@@ -830,7 +831,8 @@ export function AssignmentsClient({
                       <SelectContent>
                         {availableTiers.map((t) => (
                           <SelectItem key={t.id} value={String(t.id)}>
-                            {t.name} — {formatCurrency(t.monthlyCostCents)}/mo
+                            {t.name} — {formatCurrency(t.monthlyCostCents)}
+                            {priceWording(t.pricingModel).suffix}
                           </SelectItem>
                         ))}
                       </SelectContent>
