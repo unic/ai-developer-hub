@@ -1,8 +1,10 @@
 # Contract: Cost Attribution
 
-**Feature**: 045-workspace-cost-attribution | **Date**: 2026-09-18
+**Feature**: 045-usage-based-cost-model | **Date**: 2026-09-18
 
 The normative rules for turning billed workspace cost into per-user cost, and the response shape every consumer receives.
+
+Companion to [pricing-and-credits.md](./pricing-and-credits.md), which covers what a tier price means, expected spend, credit purchases and recorded workspace caps.
 
 ## 1. Attribution mode (per workspace)
 

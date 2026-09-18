@@ -97,7 +97,7 @@ on the next model launch. Two structural improvements:
   falling back to the token estimate only for shared workspaces — removes the
   estimation error entirely for most users.
 
-Both of these are specified in [`specs/045-workspace-cost-attribution/`](../specs/045-workspace-cost-attribution/spec.md),
+Both of these are specified in [`specs/045-usage-based-cost-model/`](../specs/045-usage-based-cost-model/spec.md),
 which also covers the current-day boundary and retires the dead `boost-*` pooled
 workspaces. Attributing project/client workspace spend is deferred to a separate
 feature.
