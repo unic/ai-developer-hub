@@ -7,13 +7,50 @@ export type ModelPricing = {
 };
 
 /**
- * Anthropic model pricing table, ordered by prefix length (longest first)
- * so that the most specific prefix matches first.
- * Index 0 (Opus 4.0/4.1 — highest priced) is used as fallback for unknown models.
+ * Anthropic model pricing table. Entries may be listed in any order —
+ * `resolveModelPricing` always matches the longest (most specific) prefix,
+ * so `claude-fable-5-1` cannot be swallowed by `claude-fable-5`.
+ *
+ * Unknown models fall back to `FALLBACK_PRICING` (the highest-priced tier) and
+ * are flagged with `pricingResolved = false` so they can be re-priced once the
+ * model is added here. Keep this table current: every model missing from it is
+ * silently over-billed at the fallback rate until it is added.
  *
  * Pricing source: https://docs.anthropic.com/en/docs/about-claude/pricing
  */
 export const MODEL_PRICING: ModelPricing[] = [
+  // Fable 5.1 — $10/$50. Cache reads are $0.25/MTok (not the usual 0.1x input).
+  {
+    prefix: "claude-fable-5-1",
+    inputPerMToken: 10,
+    outputPerMToken: 50,
+    cacheReadPerMToken: 0.25,
+    cacheWritePerMToken: 12.5,
+  },
+  // Fable 5 — $10/$50
+  {
+    prefix: "claude-fable-5",
+    inputPerMToken: 10,
+    outputPerMToken: 50,
+    cacheReadPerMToken: 1,
+    cacheWritePerMToken: 12.5,
+  },
+  // Opus 5 — $5/$25
+  {
+    prefix: "claude-opus-5",
+    inputPerMToken: 5,
+    outputPerMToken: 25,
+    cacheReadPerMToken: 0.5,
+    cacheWritePerMToken: 6.25,
+  },
+  // Sonnet 5 — $2/$10
+  {
+    prefix: "claude-sonnet-5",
+    inputPerMToken: 2,
+    outputPerMToken: 10,
+    cacheReadPerMToken: 0.2,
+    cacheWritePerMToken: 2.5,
+  },
   // Opus 4.0 / 4.1 — $15/$75 (highest pricing, used as fallback)
   {
     prefix: "claude-opus-4-0",
@@ -85,20 +122,31 @@ export const MODEL_PRICING: ModelPricing[] = [
 ];
 
 /**
+ * Pricing applied to models that are not in `MODEL_PRICING` — the highest tier
+ * ever charged ($15/$75, Opus 4.0/4.1), so an unknown model is never silently
+ * under-billed. Rows priced this way carry `pricingResolved = false`.
+ */
+export const FALLBACK_PRICING: ModelPricing =
+  MODEL_PRICING.find((p) => p.prefix === "claude-opus-4-0") ?? MODEL_PRICING[0];
+
+/**
  * Resolve pricing for a model string using prefix matching.
- * Returns the first entry whose prefix matches the start of the model string.
- * Falls back to the highest pricing (index 0) with resolved=false if no match.
+ * The longest matching prefix wins, so table order does not matter.
+ * Falls back to `FALLBACK_PRICING` with resolved=false if no prefix matches.
  */
 export function resolveModelPricing(model: string): {
   pricing: ModelPricing;
   resolved: boolean;
 } {
+  let match: ModelPricing | null = null;
   for (const entry of MODEL_PRICING) {
-    if (model.startsWith(entry.prefix)) {
-      return { pricing: entry, resolved: true };
+    if (!model.startsWith(entry.prefix)) continue;
+    if (!match || entry.prefix.length > match.prefix.length) {
+      match = entry;
     }
   }
-  return { pricing: MODEL_PRICING[0], resolved: false };
+  if (match) return { pricing: match, resolved: true };
+  return { pricing: FALLBACK_PRICING, resolved: false };
 }
 
 /**
