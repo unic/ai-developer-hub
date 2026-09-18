@@ -84,6 +84,24 @@ WHERE workspace_id = '<their workspace>' AND date BETWEEN '2026-08-01' AND '2026
 
 Cross-check the second against the Cost page in the Claude Console for the same workspace and month.
 
+The attributed figure is stored **per model row** (contract R9), so also confirm the distribution loses no cent — this must return no rows:
+
+```sql
+SELECT m.user_id, m.date,
+       SUM(m.attributed_cost_cents) AS per_model_sum,
+       c.cost_cents                 AS workspace_billed
+FROM anthropic_usage_metrics m
+JOIN anthropic_workspace_owners o ON o.user_id = m.user_id
+JOIN anthropic_workspace_costs c
+  ON c.workspace_id IS NOT DISTINCT FROM o.workspace_id AND c.date = m.date
+WHERE m.attributed_cost_cents IS NOT NULL
+  AND m.attribution_mode = 'billed'
+GROUP BY m.user_id, m.date, c.cost_cents
+HAVING SUM(m.attributed_cost_cents) <> c.cost_cents;
+```
+
+A day where billed cost exists but the owner had no usage rows carries a `model = '__billed_only__'` row (contract R10); it is expected in this query's input and must never be shown in a model breakdown.
+
 ## 4. Verify SC-004 — expected spend by pricing model
 
 Confirm the migration flipped exactly the Claude Console tiers:
@@ -107,6 +125,8 @@ Then open the budget page for a **completed** period:
 Walk the tier price through its surfaces: tool detail, the assignment dialog, the approval dialog, user detail, the licence register. For `usage` tiers every one must say **allowance**; for `seat` tiers the wording must be exactly as before. No screen may add an allowance to a consumption or a purchase (J6).
 
 ## 6. Verify SC-006 — credits are cash, not cost
+
+The opening balance for `Claude Console` is **$422.72 as of 2026-09-18** (tool 2), entered by an admin through the credits panel. Before it is entered, the balance must read _unavailable_ — never $0.00 (C5/FR-016).
 
 Record an opening balance for the Claude Console tool, then mark a top-up invoice as a credit purchase:
 

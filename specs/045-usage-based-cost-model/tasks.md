@@ -42,11 +42,11 @@
 
 **Goal**: Compute and store per-user billed/apportioned cost. Nothing reads it yet.
 
-- [ ] T016 Create pure `src/lib/anthropic/cost-attribution.ts`: `AttributionMethod`, `deriveMode(ownerCount)`, `apportion(billedCents, weights)` with largest-remainder and ascending-`userId` tie-break (R2) and the all-zero-weights even split (R3), and `attributeDay({ billedCents, owners, computedByUser })` → `AttributedDailyCost[]`
-- [ ] T017 Unit-test it in `tests/unit/anthropic/cost-attribution.test.ts` — the money test, exhaustive: exact summation across 2/3/5 owners, 1-cent and 0-cent totals, all-zero weights, one zero-weight owner among non-zero, deterministic tie-breaks, and a property-style check that `sum(parts) === billedCents` over many random splits
-- [ ] T018 Add the attribution step to the cost sync in `src/lib/sync/sources/anthropic-workspace.ts`: after line items are written, resolve owners per workspace-day, call `attributeDay`, batch-write `attributed_cost_cents` / `attribution_mode` onto matching `anthropic_usage_metrics` rows
+- [ ] T016 Create pure `src/lib/anthropic/cost-attribution.ts`: `AttributionMethod`, `deriveMode(ownerCount)`, `apportion(billedCents, weights)` with largest-remainder and ascending-`userId` tie-break (R2) and the all-zero-weights even split (R3), `attributeDay({ billedCents, owners, computedByUser })` → `AttributedDailyCost[]`, and `distributeAcrossModels(userDayCents, rowsByModel)` — the second largest-remainder pass that spreads a user's daily figure over their `(user, date, model)` rows, weighted by `computed_cost_cents`, ties by ascending `model` (R9). Both passes share one largest-remainder helper
+- [ ] T017 Unit-test it in `tests/unit/anthropic/cost-attribution.test.ts` — the money test, exhaustive: exact summation across 2/3/5 owners, 1-cent and 0-cent totals, all-zero weights, one zero-weight owner among non-zero, deterministic tie-breaks, and a property-style check that `sum(parts) === billedCents` over many random splits. Same exhaustiveness for `distributeAcrossModels` (I3a): single-model identity, all-zero-weight rows, 1-cent days, and `sum(per-model parts) === userDayCents` over random splits — the two passes composed must still sum to the workspace's billed total
+- [ ] T018 Add the attribution step to the cost sync in `src/lib/sync/sources/anthropic-workspace.ts`: after line items are written, resolve owners per workspace-day, call `attributeDay`, then `distributeAcrossModels` per user-day, and batch-write `attributed_cost_cents` / `attribution_mode` onto the matching `anthropic_usage_metrics` rows. Where an owner has billed cost but no usage row for the day, insert the `model = '__billed_only__'` carrier row (R10) so the cost is not dropped; exclude that model string from model breakdowns
 - [ ] T019 [P] Maintain `anthropic_workspace_owners` from `resolveAllMappings()` in `src/lib/anthropic-sync.ts`: upsert a `resolved` row on key resolution; never overwrite or delete a `manual` row
-- [ ] T020 [P] Integration test asserting invariants I1–I3 (contracts/cost-attribution.md §6) against seeded line items and usage rows
+- [ ] T020 [P] Integration test asserting invariants I1–I3 and I3a (contracts/cost-attribution.md §6) against seeded line items and usage rows, including the R10 carrier-row case (billed cost, no usage row)
 
 **Checkpoint**: `attributed_cost_cents` populated; every read path still returns what it returned before.
 
@@ -81,6 +81,7 @@
 ## Phase 6: Credit purchases and balance (US4)
 
 - [ ] T037 [US4] Server actions in `src/actions/credits.ts`: record/reclassify an invoice as a credit purchase, record a tool's opening balance and its as-of date; project's `{ success, data } | { success, error }` shape
+  - Opening balance to enter for `Claude Console` (tool 2), supplied by the budget owner 2026-09-18: **$422.72 as of 2026-09-18** (`credit_opening_balance_cents = 42272`, `credit_opening_balance_at = '2026-09-18'`). Entered through this action by an admin, **not** seeded in migration 0032 — the balance is an admin observation of the Console, and the migration stays free of a figure that is stale the moment it lands. Consumption before 2026-09-18 therefore does not draw this balance down (contract C4 — only events after `opening_balance_at` count)
 - [ ] T038 [US4] Exclude `billed_costs` rows whose invoice has a `credit_purchases` entry from period cost in `src/actions/budget.ts` — by exclusion, not by unpicking the link (C3)
 - [ ] T039 [US4] Create pure `src/lib/credits.ts`: `deriveCreditBalance({ openingCents, openingAt, purchases, consumptionByDay })` returning `CreditBalance` with `available: false` when no opening balance is recorded (C5)
 - [ ] T040 [P] [US4] Unit-test it in `tests/unit/credits.test.ts`: the C4 formula, events on/before/after the opening date, no opening balance → unavailable (never zero-derived), negative balance surfaced not clamped (C7), and J3 — recording or deleting a purchase changes no period cost
@@ -98,6 +99,7 @@
 - [ ] T047 [P] [US7] Surface both warning kinds on the admin sync view in `src/app/settings/sync/`
 - [ ] T048 [US5] Extend the workspace-limit admin action in `src/actions/anthropic-global.ts` to record `confirmed_at` / `confirmed_by` on every save
 - [ ] T049 [US5] Workspace cap UI: consumption against the recorded cap, utilisation, last-confirmed date, threshold flagging, and the three distinct states — no cap recorded / recorded zero / recorded N (W1–W3)
+  - No live `Indie -` workspace has a cap recorded today and the budget owner will enter them by hand once the UI exists, so build and test this against a cap entered manually — do not seed caps in the migration, and expect "no cap recorded" to be the live state until then
 - [ ] T050 [US5] Allowance-mismatch flag: compare the recorded cap against the sum of its owners' tier allowances and show both figures, neither authoritative (W4)
 - [ ] T051 [P] [US5] State on every cap surface that the Hub does not enforce the limit — it mirrors a Console-set value (W5)
 
@@ -178,5 +180,7 @@ wrkspc_01CzBV9zdUWLrYN1KyTwBLhW  boost-expert-3
 ```
 
 Plus assignment **262** (Tobias Studer, `boost-advanced`, workspace `Automations`) — revoked on the same date by explicit decision (spec OQ-4), not by the workspace rule. Its workspace keeps its own spend, reported as `unattributed`.
+
+**Re-verified 2026-09-18 against the live Hub**: tool 2, the five tier ids and their allowances, all 12 `boost-*` workspace ids and all 37 assignment ids below match exactly; the register totals $3,650/month. Note that assignment 443 (Svenja) carries `workspace = NULL` in the register — ownership seeds from `anthropic_sync_status.resolved_api_key_id`, not from this field, so confirm her key resolves before phase 3 rather than reading anything into the null.
 
 **Cross-check before running**: `ai_tools.id = 2` has 40 active assignments — 37 revoked (36 pooled + 262), 3 `indie-profile` kept (Svenja 443, Marlon 407, Oliver 357). Those three are the users this feature exists to report on and must survive untouched. After the cleanup the Claude Console licence register should read $375/month of allowance, not $3,650.

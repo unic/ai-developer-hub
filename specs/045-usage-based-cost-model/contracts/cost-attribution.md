@@ -36,6 +36,8 @@ else:  # unattributed
     the user has no cost from w on d
 ```
 
+The rules above define the user's cost for a **day**. That figure is what every consumer reads; how it is stored across the user's per-model rows is R9.
+
 **Rules**
 
 - **R1** — A user's cost for a complete day NEVER comes from the price table when their workspace is in `billed` mode. Model breakdowns for that day come from `anthropic_workspace_cost_items`, not from recomputation.
@@ -51,6 +53,8 @@ else:  # unattributed
 - **R6** — Ingest stores `Math.round(parseFloat(amount) * 1_000_000)`. The pre-existing `Math.round(parseFloat(r.amount))` is NOT carried over to line items: with 12–14 rows per workspace-day instead of one, per-row rounding drifts by ±1 cent per workspace-day, which would violate SC-001.
 - **R7** — The daily rollup is `Math.round(SUM(cost_microcents) / 1_000_000)`, never a sum of pre-rounded parts.
 - **R8** — Apportionment (R2) runs in micro-cents; each owner's share is rounded to cents once, after the split, with the largest-remainder pass applied to the rounded cents so the parts still sum exactly to the rounded workspace total.
+- **R9** — A user's attributed daily cost is **stored per model**, because `anthropic_usage_metrics` is keyed on `(user_id, date, model)` and the read rule sums those rows. The user's daily figure is therefore distributed across their own usage rows for that day by the same largest-remainder rule, weighted by each row's `computed_cost_cents`, ties broken by ascending `model`. The parts MUST sum exactly to the user's daily figure, so that `SUM(COALESCE(attributed_cost_cents, computed_cost_cents))` over a day reproduces it to the cent. Two consequences: where a user has exactly one model row the distribution is the identity; where all their rows are zero-weight the split is even (R3, one level down).
+- **R10** — Billed cost that the usage report does not cover leaves no row to carry it. Where a `billed` or `apportioned` workspace has billed cost for a day but the owner has **no** `anthropic_usage_metrics` row at all, the sync MUST insert a carrier row for that user-day with `model = '__billed_only__'`, zero tokens, `computed_cost_cents = 0` and the attributed amount, so I1 holds and the cost is not silently dropped. Such a row is excluded from model breakdowns, which come from `anthropic_workspace_cost_items` (R1).
 
 No floating-point value is ever persisted. Micro-cents are integers and satisfy the constitution's integer-money rule.
 
@@ -102,7 +106,7 @@ attributed = SUM(anthropic_usage_metrics.computed_cost_cents) for that workspace
 
 A warning `sync_event` is recorded when `abs(billed - attributed) > max(500, billed * 0.05)`.
 
-The event message MUST name the workspace, the period, both figures and the ratio. Rationale in research.md D6; the tolerance is a starting value to be tuned against observed noise.
+The event message MUST name the workspace, the period, both figures and the ratio. Rationale in research.md D8; the tolerance is a starting value to be tuned against observed noise.
 
 Separately, the usage sync records a warning naming any model string absent from the price table. Unlike today's `pricing_resolved` flag, this is an event an admin sees, not a field on a payload.
 
@@ -113,5 +117,6 @@ These must hold after every sync and are the basis for the integration tests:
 - **I1** — For any complete day, the sum of all users' attributed cost plus all unattributed workspace cost equals the org's total billed cost for that day.
 - **I2** — No user's attributed cost for a day exceeds their workspace's billed cost for that day.
 - **I3** — A workspace in `billed` mode has exactly one user whose attributed cost equals its billed cost.
+- **I3a** — For any user-day, `SUM(attributed_cost_cents)` across that user's model rows equals the user's attributed daily cost (R9) — no cent is created or lost by the per-model distribution.
 - **I4** — Changing ownership changes subsequent cost reads without any Anthropic API call.
 - **I5** — Deprecating a workspace changes no cost figure, only its presence in listings and alerting.

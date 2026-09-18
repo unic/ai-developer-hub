@@ -133,6 +133,8 @@ The table already holds an admin-entered `limit_cents` per workspace. These two 
 
 `computed_cost_cents` and `pricing_resolved` are unchanged and keep their meaning — apportionment weights, current-day estimate, reconciliation input.
 
+**Grain**: this table is keyed `(user_id, date, model)`, so the attributed figure is stored **per model row**, not once per user-day. The sync computes the user's daily figure first (contract §2) and then distributes it across that user's rows for the day by largest remainder, weighted by `computed_cost_cents` (contract R9) — so the per-model parts sum exactly to the daily figure and no consumer has to know the distribution happened. Where a workspace has billed cost for a day but its owner has no usage row at all, the sync inserts a carrier row with `model = '__billed_only__'` (contract R10) rather than dropping the cost; that model string is excluded from model breakdowns, which come from `anthropic_workspace_cost_items`.
+
 **Read rule** for any per-user cost: `COALESCE(attributed_cost_cents, computed_cost_cents)`, reporting `attribution_mode` when present and `estimated` when it falls through. This keeps the swap a one-line change at each of the six consuming query sites.
 
 ## Derived read models (no tables)

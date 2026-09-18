@@ -38,7 +38,7 @@ else:  # usage
 ```
 
 - **P4** — `measured_consumption` for Anthropic is the attributed billed cost for the period (contracts/cost-attribution.md), **not** the token-derived estimate and **not** invoice totals.
-- **P5** — The projection window is 3 complete months by default. It is a constant in one pure function so it can be changed without touching callers (spec OQ-2).
+- **P5** — The projection window is the **3 most recent complete months**, decided 2026-09-18 (spec OQ-2, now resolved). It stays a constant in one pure function so it can be changed without touching callers.
 - **P6** — Partial months are never used as projection input; a half-month would bias the mean downward.
 - **P7** — Every `ExpectedSpend` value carries its `basis`. A figure whose basis is `allowance_fallback` is a placeholder, and any surface aggregating it MUST be able to say so.
 - **P8** — Mixed portfolios sum normally: a period's expected spend is the sum across tools, each computed by its own basis.

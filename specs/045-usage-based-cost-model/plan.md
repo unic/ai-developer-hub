@@ -127,7 +127,7 @@ Record a purchase against an invoice; exclude those `billed_costs` rows from per
 
 ### Phase 8 — Ownership admin and boost-\* deprecation
 
-Workspace list gains owners, attribution mode and a manual override. Deprecated workspaces drop out of listings, cap aggregates and alerting.
+Workspace list gains owners, attribution mode and a manual override. Deprecated workspaces drop out of listings, cap aggregates and alerting. The 37 `Claude Console` assignments on those workspaces are revoked with `revoked_at = 2026-07-01` through the existing revoke path, so change history is written (spec OQ-1/OQ-3/OQ-4, FR-028 to FR-030).
 
 ## Risks
 
@@ -148,6 +148,5 @@ Workspace list gains owners, attribution mode and a manual override. Deprecated 
 
 - Attributing project/client workspace spend (~46% of September) to cost centres, projects or clients — deferred to a separate feature by explicit decision. Such spend stays visible as unattributed.
 - Enforcing allowances or caps. The Hub tracks; the Console enforces. No Admin API endpoint exists for either.
-- Revoking the 37 `Claude Console` assignments on pooled workspaces (spec OQ-1).
 - Renaming `monthly_cost_cents` / `cost_at_assignment_cents` (research.md D6).
 - Any change to GitHub Copilot cost handling, beyond its tiers defaulting to `seat`.

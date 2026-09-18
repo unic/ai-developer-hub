@@ -41,9 +41,9 @@ Resolved during specification, recorded here so they are not re-litigated:
 
 ## Notes
 
-Two open questions remain, neither blocking:
+No open questions remain. All four were resolved on 2026-09-18 and are recorded here so they are not re-litigated:
 
-- **OQ-1** — whether the 37 `Claude Console` assignments on deprecated pooled workspaces should be revoked. Deprecating a workspace does not revoke assignments.
-- **OQ-2** — the projection window for a usage tier's expected spend in open periods. The spec defaults to a trailing 3-complete-month mean; the budget owner may prefer the last completed month. It is a constant in one pure function, changeable without touching callers.
-
-Both should be answered before the restatement announcement (T057), since that is where the numbers become visible.
+- **OQ-1** — the 37 `Claude Console` assignments on the deprecated pooled workspaces **are** revoked. They were already deactivated in the Claude Console, so the Hub was carrying licences that no longer exist. See US9, FR-028 and T057.
+- **OQ-2** — the projection window for a usage tier's expected spend in open periods is a **trailing mean of the 3 most recent complete months**. A constant in one pure function (contracts/pricing-and-credits.md P5).
+- **OQ-3** — the revocation date is **2026-07-01**, matching the collapse in org-wide Claude API spend from $3,016.86 (June) to $194.89 (July).
+- **OQ-4** — assignment 262 (`boost-advanced`, `Automations` workspace) is revoked on the same date; its workspace keeps its spend, reported as `unattributed`.
