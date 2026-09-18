@@ -13,7 +13,7 @@
 
 **Purpose**: Land the additive schema. `pricing_model` defaults to `seat`, so nothing changes on deploy.
 
-- [ ] T001 Add the `attribution_mode` and `pricing_model` pgEnums and the `anthropicWorkspaceCostItems` table to `src/lib/db/schema.ts` per data-model.md, including the two partial unique indexes for nullable `workspace_id`, the `COALESCE`-based grain handling for nullable grain columns, and the `cost_cents >= 0` check
+- [ ] T001 Add the `attribution_mode` and `pricing_model` pgEnums and the `anthropicWorkspaceCostItems` table to `src/lib/db/schema.ts` per data-model.md — note `cost_microcents` is **bigint**, not integer cents, and `inference_geo` is **part of the unique grain** (a live sample has Haiku 4.5 on `not_available` beside `global` rows for the same workspace-day). Include the two partial unique indexes for nullable `workspace_id`, the `COALESCE`-based handling for nullable grain columns, and the `cost_microcents >= 0` check
 - [ ] T002 Add `anthropicWorkspaceOwners` to `src/lib/db/schema.ts` (FK `user_id` → `users.id` ON DELETE CASCADE, `source` = `resolved` | `manual`, unique `(workspace_id, user_id)` with the NULL-workspace partial split)
 - [ ] T003 Add `creditPurchases` to `src/lib/db/schema.ts` (FKs to `ai_tools`, `invoices`, `users`; `amount_cents > 0` check; indexes on `(tool_id, purchased_at)` and `(invoice_id)`)
 - [ ] T004 [P] Add `pricingModel` to `accessTiers` (NOT NULL DEFAULT `'seat'`) in `src/lib/db/schema.ts`
@@ -31,10 +31,10 @@
 **Goal**: Hold billed cost at full granularity; existing consumers keep reading the daily rollup unchanged.
 
 - [ ] T011 Add `group_by[]=description` to the query built in `fetchCostReport()` in `src/lib/sync/sources/anthropic-workspace.ts`. `costReportResultSchema` already declares `model`, `cost_type`, `token_type`, `context_window`, `service_tier` — they are parsed and discarded today, so this is stopping the discard, not widening the schema
-- [ ] T012 Add `aggregateCostLineItems(buckets)` to the same file, one row per (workspace, date, model, cost_type, token_type, context_window, service_tier); re-express `aggregateDailyCosts()` as a sum over line items so the rollup cannot drift from its source (plan risk 8)
+- [ ] T012 Add `aggregateCostLineItems(buckets)` to the same file, one row per (workspace, date, model, cost_type, token_type, context_window, service_tier, inference_geo), storing micro-cents (contract R6); re-express `aggregateDailyCosts()` as `round(sum(microcents)/1e6)` over line items so the rollup cannot drift from its source (plan risk 8) and matches the Console to the cent
 - [ ] T013 Batch-upsert line items in `fetchAndUpsertWorkspaceCosts()` with the two-partial-index ON CONFLICT pattern the rollup already uses; write the rollup in the same transaction
-- [ ] T014 [P] Unit-test `aggregateCostLineItems` in `tests/unit/sync/anthropic-cost-line-items.test.ts`: several results per bucket, null `workspace_id`, null `model` for `web_search` / `code_execution`, and that summing line items reproduces `aggregateDailyCosts` exactly
-- [ ] T015 Backfill through the existing month loop (`run({ backfillStartDate })`) against the Neon branch; record wall-clock against `maxDuration = 300` (plan risk 7) and actual row count versus the ~12k/month estimate
+- [ ] T014 [P] Unit-test `aggregateCostLineItems` in `tests/unit/sync/anthropic-cost-line-items.test.ts` using the captured live sample as a fixture: 38 line items for 2026-09-01 across 3 workspaces must roll up to exactly $29.28, and 2026-09-02 to $8.86 — the figures the dashboard shows today. Also cover null `workspace_id`, null `model` for `web_search` / `code_execution`, two rows differing only by `inference_geo` (must not collide), and a regression case proving per-row rounding would have drifted
+- [ ] T015 Backfill through the existing month loop (`run({ backfillStartDate })`) against the Neon branch; confirm the measured ~1.1k rows/month holds and that wall-clock sits well inside `maxDuration = 300` (plan risk 7, now low)
 
 **Checkpoint**: line items present; `anthropic_workspace_costs` unchanged to the cent.
 

@@ -46,7 +46,13 @@ else:  # unattributed
 
 ## 3. Rounding
 
-All arithmetic is in integer cents. `cost_report` returns `amount` as a decimal string of cents (e.g. `"123.45"`); it is rounded to the nearest cent on ingestion, matching the existing `Math.round(parseFloat(r.amount))`. No floating-point value is ever persisted or summed.
+`cost_report` returns `amount` as a decimal string **of cents** with up to six decimal places. Line items are stored in **micro-cents** (`cents × 10^6`), and rounding to whole cents happens **once, at the aggregate** — never per line item.
+
+- **R6** — Ingest stores `Math.round(parseFloat(amount) * 1_000_000)`. The pre-existing `Math.round(parseFloat(r.amount))` is NOT carried over to line items: with 12–14 rows per workspace-day instead of one, per-row rounding drifts by ±1 cent per workspace-day, which would violate SC-001.
+- **R7** — The daily rollup is `Math.round(SUM(cost_microcents) / 1_000_000)`, never a sum of pre-rounded parts.
+- **R8** — Apportionment (R2) runs in micro-cents; each owner's share is rounded to cents once, after the split, with the largest-remainder pass applied to the rounded cents so the parts still sum exactly to the rounded workspace total.
+
+No floating-point value is ever persisted. Micro-cents are integers and satisfy the constitution's integer-money rule.
 
 ## 4. Response contract
 

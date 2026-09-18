@@ -27,10 +27,27 @@ Billed cost at line-item grain, from `cost_report` with `group_by[]=workspace_id
 | `token_type`                | varchar(60) NULL  | e.g. `cache_creation.ephemeral_1h_input_tokens`                 |
 | `context_window`            | varchar(20) NULL  | `0-200k` \| `200k-1M`                                           |
 | `service_tier`              | varchar(20) NULL  | `standard` \| `batch`                                           |
-| `cost_cents`                | integer NOT NULL  | `CHECK >= 0`                                                    |
+| `inference_geo`             | varchar(20) NULL  | `global` \| `us` \| `not_available` — **part of the grain**     |
+| `cost_microcents`           | bigint NOT NULL   | `CHECK >= 0`. Cents × 10^6 — see Precision below                |
 | `created_at` / `updated_at` | timestamp         |                                                                 |
 
-**Indexes**: unique on the full grain using the partial-index pattern `anthropic_workspace_costs` already uses for nullable `workspace_id` (one index `WHERE workspace_id IS NOT NULL`, one `WHERE workspace_id IS NULL`). `NULL`s _inside_ the grain columns will not collide under a plain unique index — use `COALESCE(col,'')` in the index expression, or a generated grain-key column if the expression index is awkward in Drizzle. Plus `(date)` and `(workspace_id, date)`.
+**Indexes**: unique on the full grain — `(workspace_id, date, model, cost_type, token_type, context_window, service_tier, inference_geo)` — using the partial-index pattern `anthropic_workspace_costs` already uses for nullable `workspace_id` (one index `WHERE workspace_id IS NOT NULL`, one `WHERE workspace_id IS NULL`). `NULL`s _inside_ the grain columns will not collide under a plain unique index — use `COALESCE(col,'')` in the index expression, or a generated grain-key column if the expression index is awkward in Drizzle. Plus `(date)` and `(workspace_id, date)`.
+
+**`inference_geo` belongs in the grain, not as decoration.** A live sample shows Haiku 4.5 reporting `not_available` while every other model on the same workspace-day reports `global`. Left out of the unique key, two genuinely different rows would collide and the upsert would silently overwrite one with the other.
+
+### Precision — why micro-cents
+
+`cost_report` returns `amount` as a decimal string **of cents**, with up to six decimal places (`"143.569125"` = $1.4357). Verified against a live sample: the line items for 2026-09-01 sum to 2 927.82 cents, and the Hub's dashboard shows $29.28 for that day.
+
+Rounding each line item to whole cents _before_ summing does not reproduce that total. In the sample it drifts by ±1 cent per workspace-day — small, but enough to break SC-001's "0 cents difference" requirement once 12–14 line items replace the single daily row the sync stores today. The existing `Math.round(parseFloat(r.amount))` is safe only because today there is roughly one row per workspace-day; `group_by[]=description` is what makes it unsafe.
+
+So: **store micro-cents, round once at the aggregate.**
+
+- Ingest: `cost_microcents = Math.round(parseFloat(amount) * 1_000_000)` — exact at six decimal places.
+- Roll up: `cost_cents = Math.round(SUM(cost_microcents) / 1_000_000)`, never a sum of pre-rounded parts.
+- Attribution follows the same rule: apportion in micro-cents, round each user's share once.
+
+This keeps the constitution's integer-cents rule — micro-cents are integers and no floating-point value is persisted. `anthropic_workspace_costs.cost_cents` stays whole cents, because it is the rounded rollup.
 
 **Relationship to `anthropic_workspace_costs`**: the existing daily table is kept and remains the read path for the org dashboard and cap views, so those surfaces need no change. It becomes _derived_ — the sync writes line items, then upserts the rollup as their sum. The two cannot disagree because one is computed from the other.
 
@@ -140,4 +157,4 @@ Every step is additive; rollback is dropping the new objects and columns. No exi
 
 ## Volume estimate
 
-~20 active workspaces × ~30 days × ~4 models × ~5 token types ≈ 12k line-item rows/month, ~150k/year. No partitioning needed. `credit_purchases` grows by a handful of rows a month.
+Measured from a live sample rather than estimated: **36–38 line items per day org-wide** (3–4 active workspaces × 12–14 rows each) ≈ **1.1k rows/month, ~13k/year** — an order of magnitude below the earlier estimate, because only a handful of workspaces are active on any given day. No partitioning needed, and the backfill is small enough that `maxDuration = 300` is no longer in doubt. `credit_purchases` grows by a handful of rows a month.
