@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-react";
-import { setWorkspaceLimit } from "@/actions/anthropic-global";
+import {
+  setWorkspaceLimit,
+  setWorkspaceOwner,
+} from "@/actions/anthropic-global";
+import { useRouter } from "next/navigation";
 import { Sparkline } from "@/components/ui/sparkline";
 import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { StatusText, useInlineStatus } from "@/components/ui/status-text";
@@ -106,6 +110,20 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
     workspace.limitCents != null ? String(workspace.limitCents / 100) : "",
   );
   const [isPending, startTransition] = useTransition();
+  const [ownerPending, startOwnerTransition] = useTransition();
+  const router = useRouter();
+
+  // Spec 045 (US8): an admin correction takes effect on the next read —
+  // attribution mode is derived from ownership, never stored — and the action
+  // re-attributes immediately so the change is visible without a sync.
+  function handleUnclaim() {
+    startOwnerTransition(async () => {
+      for (const userId of workspace.ownerUserIds ?? []) {
+        await setWorkspaceOwner(workspace.workspaceId, userId, "exclude");
+      }
+      router.refresh();
+    });
+  }
   const status = useInlineStatus();
 
   function handleSave() {
@@ -178,13 +196,24 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
             <ChevronRight className="size-4" />
           </Link>
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {/* Who this workspace's cost is attributed to, and how (045 US8). */}
           {workspace.ownerCount === 1
             ? `Billed to ${workspace.ownerNames}`
             : (workspace.ownerCount ?? 0) > 1
               ? `Apportioned between ${workspace.ownerNames}`
               : "Unattributed — no owner resolved, so this spend belongs to no user"}
+          {(workspace.ownerCount ?? 0) > 0 && (
+            <button
+              type="button"
+              className="underline-offset-4 hover:underline"
+              disabled={ownerPending}
+              onClick={handleUnclaim}
+              title="Stop attributing this workspace's cost to its resolved owner(s). Use this for a project or client workspace whose API key happens to belong to a person — their key will keep resolving, but the spend stays unattributed."
+            >
+              {ownerPending ? "saving…" : "not a person's workspace?"}
+            </button>
+          )}
         </p>
         <div className="mt-1 flex items-baseline gap-3">
           <span className="text-xl font-semibold tabular-nums">

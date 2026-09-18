@@ -779,6 +779,7 @@ export interface WorkspaceListItem {
   capConfirmedAt?: string | null;
   ownerCount?: number;
   ownerNames?: string | null;
+  ownerUserIds?: number[];
   /** Sum of the owners' usage-tier allowances, for the mismatch check. */
   allowanceSumCents?: number;
   capMismatch?: boolean;

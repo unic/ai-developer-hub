@@ -301,6 +301,34 @@ export function PeriodAllocationsTable({
                   </TableRow>
                   {isExpanded && (
                     <>
+                      {/* Spec 045: credit top-ups for a prepaid tool are cash
+                          paid for credits, on dates unrelated to the
+                          consumption they fund. Shown here so the money is not
+                          invisible, and kept out of the Actual column so a
+                          top-up month does not look expensive. */}
+                      {(period.creditPurchaseCents ?? 0) > 0 && (
+                        <TableRow className="bg-muted/30">
+                          <TableCell />
+                          <TableCell
+                            colSpan={2}
+                            className="pl-8 text-sm text-muted-foreground"
+                          >
+                            <span className="font-medium">
+                              Credit purchases
+                            </span>
+                            <span className="ml-2 text-xs">
+                              prepayment — not this period&apos;s cost
+                            </span>
+                          </TableCell>
+                          <TableCell />
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatCurrency(period.creditPurchaseCents ?? 0)}
+                          </TableCell>
+                          <TableCell />
+                          <TableCell />
+                          {canEdit && <TableCell />}
+                        </TableRow>
+                      )}
                       {period.billedEntries?.map((entry) => (
                         <TableRow
                           key={`billed-${entry.id}`}

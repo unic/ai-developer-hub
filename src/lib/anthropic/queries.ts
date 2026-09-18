@@ -351,6 +351,7 @@ export async function loadWorkspaceList(
       SELECT ow.workspace_id,
              COUNT(DISTINCT ow.user_id) AS owner_count,
              string_agg(DISTINCT u.name, ', ' ORDER BY u.name) AS owner_names,
+             array_agg(DISTINCT ow.user_id) AS owner_user_ids,
              COALESCE(SUM(DISTINCT_ALLOWANCE.allowance_cents), 0) AS allowance_sum_cents
       FROM anthropic_workspace_owners ow
       JOIN users u ON u.id = ow.user_id
@@ -420,6 +421,7 @@ export async function loadWorkspaceList(
       capConfirmedAt: (r.confirmed_at as Date | null)?.toISOString() ?? null,
       ownerCount: Number(r.owner_count ?? 0),
       ownerNames: (r.owner_names as string | null) ?? null,
+      ownerUserIds: (r.owner_user_ids as number[] | null) ?? [],
       allowanceSumCents,
       // Flagged, not resolved: neither number is authoritative over the other.
       capMismatch:
