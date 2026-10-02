@@ -1,0 +1,192 @@
+# Tasks: Usage-Based Cost Model
+
+> **All 61 tasks complete (2026-09-18).** Implemented on branch
+> `045-usage-based-cost-model`, verified against an isolated Neon branch
+> (`wt/045-usage-based-cost-model`) forked from production. Production was never
+> written to. Two items are flagged for a decision in the handover: the July
+> boundary of the revocation date, and the `Automations` ownership exclusion.
+
+**Input**: Design documents from `/specs/045-usage-based-cost-model/`
+**Prerequisites**: spec.md, plan.md, research.md, data-model.md, contracts/cost-attribution.md, contracts/pricing-and-credits.md
+
+**Tests**: Included — the constitution mandates unit coverage for shared business logic. Apportionment (FR-004), expected spend (FR-010), the credit balance (FR-015) and reconciliation (FR-021) are pure functions handling money and are tested exhaustively; the sync and period-cost paths get integration coverage.
+
+**Organization**: Grouped by the eight plan phases, which map onto the user stories. Each phase is independently deployable and leaves the app correct.
+
+**Parallel marker `[P]`**: different files, no ordering dependency.
+
+## Phase 1: Schema (foundational — blocks everything)
+
+**Purpose**: Land the additive schema. `pricing_model` defaults to `seat`, so nothing changes on deploy.
+
+- [x] T001 Add the `attribution_mode` and `pricing_model` pgEnums and the `anthropicWorkspaceCostItems` table to `src/lib/db/schema.ts` per data-model.md — note `cost_microcents` is **bigint**, not integer cents, and `inference_geo` is **part of the unique grain** (a live sample has Haiku 4.5 on `not_available` beside `global` rows for the same workspace-day). Include the two partial unique indexes for nullable `workspace_id`, the `COALESCE`-based handling for nullable grain columns, and the `cost_microcents >= 0` check
+- [x] T002 Add `anthropicWorkspaceOwners` to `src/lib/db/schema.ts` (FK `user_id` → `users.id` ON DELETE CASCADE, `source` = `resolved` | `manual`, unique `(workspace_id, user_id)` with the NULL-workspace partial split)
+- [x] T003 Add `creditPurchases` to `src/lib/db/schema.ts` (FKs to `ai_tools`, `invoices`, `users`; `amount_cents > 0` check; indexes on `(tool_id, purchased_at)` and `(invoice_id)`)
+- [x] T004 [P] Add `pricingModel` to `accessTiers` (NOT NULL DEFAULT `'seat'`) in `src/lib/db/schema.ts`
+- [x] T005 [P] Add `creditOpeningBalanceCents` / `creditOpeningBalanceAt` to `aiTools` in `src/lib/db/schema.ts`
+- [x] T006 [P] Add `deprecatedAt` / `deprecatedReason` to `anthropicWorkspaces`, and `confirmedAt` / `confirmedBy` to `anthropicWorkspaceLimits`, in `src/lib/db/schema.ts`
+- [x] T007 [P] Add nullable `attributedCostCents` and `attributionMode` to `anthropicUsageMetrics` in `src/lib/db/schema.ts`
+- [x] T008 Generate migration `0032` (`pnpm db:generate`), then append the data migration by hand: seed `anthropic_workspace_owners` from `anthropic_sync_status` where `resolved_api_key_id IS NOT NULL`; flip the five `Claude Console` tiers to `pricing_model = 'usage'` **by explicit tier id**; mark the 12 `boost-*` workspaces deprecated **by explicit workspace id** (never a `LIKE` pattern)
+- [x] T009 Review the migration with the `drizzle-migration-reviewer` agent: additive-only, no table rewrite, no destructive change, partial unique indexes matching the existing `anthropic_workspace_costs` pattern
+- [x] T010 Apply against an isolated Neon branch (`neon-worktree-branch` skill — never the default branch from a worktree); verify one owner row per API-key holder, exactly five tiers flipped, exactly 12 workspaces deprecated
+
+**Checkpoint**: `pnpm typecheck` / `pnpm test` green; every existing surface behaves identically.
+
+## Phase 2: Line-item ingestion
+
+**Goal**: Hold billed cost at full granularity; existing consumers keep reading the daily rollup unchanged.
+
+- [x] T011 Add `group_by[]=description` to the query built in `fetchCostReport()` in `src/lib/sync/sources/anthropic-workspace.ts`. `costReportResultSchema` already declares `model`, `cost_type`, `token_type`, `context_window`, `service_tier` — they are parsed and discarded today, so this is stopping the discard, not widening the schema
+- [x] T012 Add `aggregateCostLineItems(buckets)` to the same file, one row per (workspace, date, model, cost_type, token_type, context_window, service_tier, inference_geo), storing micro-cents (contract R6); re-express `aggregateDailyCosts()` as `round(sum(microcents)/1e6)` over line items so the rollup cannot drift from its source (plan risk 8) and matches the Console to the cent
+- [x] T013 Batch-upsert line items in `fetchAndUpsertWorkspaceCosts()` with the two-partial-index ON CONFLICT pattern the rollup already uses; write the rollup in the same transaction
+- [x] T014 [P] Unit-test `aggregateCostLineItems` in `tests/unit/sync/anthropic-cost-line-items.test.ts` using the captured live sample as a fixture: 38 line items for 2026-09-01 across 3 workspaces must roll up to exactly $29.28, and 2026-09-02 to $8.86 — the figures the dashboard shows today. Also cover null `workspace_id`, null `model` for `web_search` / `code_execution`, two rows differing only by `inference_geo` (must not collide), and a regression case proving per-row rounding would have drifted
+- [x] T015 Backfill through the existing month loop (`run({ backfillStartDate })`) against the Neon branch; confirm the measured ~1.1k rows/month holds and that wall-clock sits well inside `maxDuration = 300` (plan risk 7, now low)
+
+**Checkpoint**: line items present; `anthropic_workspace_costs` unchanged to the cent.
+
+## Phase 3: Attribution
+
+**Goal**: Compute and store per-user billed/apportioned cost. Nothing reads it yet.
+
+- [x] T016 Create pure `src/lib/anthropic/cost-attribution.ts`: `AttributionMethod`, `deriveMode(ownerCount)`, `apportion(billedCents, weights)` with largest-remainder and ascending-`userId` tie-break (R2) and the all-zero-weights even split (R3), `attributeDay({ billedCents, owners, computedByUser })` → `AttributedDailyCost[]`, and `distributeAcrossModels(userDayCents, rowsByModel)` — the second largest-remainder pass that spreads a user's daily figure over their `(user, date, model)` rows, weighted by `computed_cost_cents`, ties by ascending `model` (R9). Both passes share one largest-remainder helper
+- [x] T017 Unit-test it in `tests/unit/anthropic/cost-attribution.test.ts` — the money test, exhaustive: exact summation across 2/3/5 owners, 1-cent and 0-cent totals, all-zero weights, one zero-weight owner among non-zero, deterministic tie-breaks, and a property-style check that `sum(parts) === billedCents` over many random splits. Same exhaustiveness for `distributeAcrossModels` (I3a): single-model identity, all-zero-weight rows, 1-cent days, and `sum(per-model parts) === userDayCents` over random splits — the two passes composed must still sum to the workspace's billed total
+- [x] T018 Add the attribution step to the cost sync in `src/lib/sync/sources/anthropic-workspace.ts`: after line items are written, resolve owners per workspace-day, call `attributeDay`, then `distributeAcrossModels` per user-day, and batch-write `attributed_cost_cents` / `attribution_mode` onto the matching `anthropic_usage_metrics` rows. Where an owner has billed cost but no usage row for the day, insert the `model = '__billed_only__'` carrier row (R10) so the cost is not dropped; exclude that model string from model breakdowns
+- [x] T019 [P] Maintain `anthropic_workspace_owners` from `resolveAllMappings()` in `src/lib/anthropic-sync.ts`: upsert a `resolved` row on key resolution; never overwrite or delete a `manual` row
+- [x] T020 [P] Integration test asserting invariants I1–I3 and I3a (contracts/cost-attribution.md §6) against seeded line items and usage rows, including the R10 carrier-row case (billed cost, no usage row)
+
+**Checkpoint**: `attributed_cost_cents` populated; every read path still returns what it returned before.
+
+## Phase 4: Read-path swap and attribution labelling (US1 🎯)
+
+> Ships with the restatement announcement (plan risk 1) — together with phase 5, not long before it.
+
+- [x] T021 [US1] Swap `src/lib/profile-data.ts` to `COALESCE(attributed_cost_cents, computed_cost_cents)` and add the `attribution` object plus per-day `method` (contracts/cost-attribution.md §4.1), keeping every existing field name and meaning
+- [x] T022 [P] [US1] Same swap in `src/actions/anthropic-users.ts` (6 aggregate sites); expose `attributionMethod` per user
+- [x] T023 [P] [US1] Same swap in `src/lib/anthropic/queries.ts` and `src/actions/dashboard.ts`
+- [x] T024 [P] [US1] Same swap in `src/lib/mcp/data.ts`; add `attribution` to `get_user_cost_profile` / `get_claude_spend_summary`, `attributionMethod` to `list_claude_users` (contract §4.2)
+- [x] T025 [P] [US1] Same swap in `src/lib/scenarios/queries.ts` — this moves saved forecast scenarios (041) onto the billed basis; name it in the announcement
+- [x] T026 [US6] Verify month-to-date composition in `estimate-today.ts` consumers: complete days from attribution, current day from the estimate, no double counting (R5). The calibration ratio should now sit near 1.0 — assert it is not silently compensating for a pricing gap
+- [x] T027 [US1] Attribution badge component in `src/components/claude/`, used on user detail, user table and profile surfaces; text not colour alone; no badge for `billed` (contract §4.3)
+- [x] T028 [P] Update `docs/profile-api-integration-guide.md`: added fields, and an explicit note that existing fields are unchanged but their **values** are now billed-based
+
+**Checkpoint**: SC-001 verifiable — a single-owner user's completed month equals the Console figure exactly.
+
+## Phase 5: Pricing models and expected spend (US2, US3)
+
+- [x] T029 [US2] Create pure `src/lib/expected-spend.ts`: `PricingModel`, `ExpectedSpendBasis`, `expectedSpendForPeriod({ pricingModel, assignments, measuredByMonth, period })` implementing the §2 decision table — measured for complete periods, trailing 3-complete-month mean for open ones, allowance fallback with no history; partial months never used as projection input (P6)
+- [x] T030 [US2] Unit-test it in `tests/unit/expected-spend.test.ts`: seat path byte-identical to `sumExpectedSpendCents` today (J1), measured path equals consumption (J2), projection ignores partial months, fallback marked as such, mixed portfolios sum across bases
+- [x] T031 [US2] Make `sumExpectedSpendCents` in `src/lib/budget-utils.ts` delegate to the new module, keeping its existing signature working for seat-only callers so the spec-042 test that pins it stays valid
+- [x] T032 [US2] Consume `ExpectedSpend` (value + basis) in `src/actions/budget.ts` — `getBudgetWithCosts` and the period rows
+- [x] T033 [P] [US2] Same in `src/actions/reports.ts` and `src/actions/dashboard.ts`; the spend-trend card's expected series carries its basis
+- [x] T034 [US3] Add `pricingModel` to tier create/edit in `src/actions/tools.ts` and the tool detail UI, defaulting to `seat`
+- [x] T035 [P] [US3] Allowance labelling across tier and assignment surfaces: `src/app/tools/[id]/`, `src/app/assignments/`, `src/app/requests/[id]/`, `src/app/users/[id]/` — "monthly allowance" for `usage`, unchanged wording for `seat` (L1–L3)
+- [x] T036 [P] [US3] Expected-spend basis shown wherever a projection could be mistaken for a measurement (L5); allowance, consumption and purchases never summed into one total (L4/J6)
+
+**Checkpoint**: SC-004 and SC-005 verifiable; seat tools unchanged to the cent.
+
+## Phase 6: Credit purchases and balance (US4)
+
+- [x] T037 [US4] Server actions in `src/actions/credits.ts`: record/reclassify an invoice as a credit purchase, record a tool's opening balance and its as-of date; project's `{ success, data } | { success, error }` shape
+  - Opening balance to enter for `Claude Console` (tool 2), supplied by the budget owner 2026-09-18: **$422.72 as of 2026-09-18** (`credit_opening_balance_cents = 42272`, `credit_opening_balance_at = '2026-09-18'`). Entered through this action by an admin, **not** seeded in migration 0032 — the balance is an admin observation of the Console, and the migration stays free of a figure that is stale the moment it lands. Consumption before 2026-09-18 therefore does not draw this balance down (contract C4 — only events after `opening_balance_at` count)
+- [x] T038 [US4] Exclude `billed_costs` rows whose invoice has a `credit_purchases` entry from period cost in `src/actions/budget.ts` — by exclusion, not by unpicking the link (C3)
+- [x] T039 [US4] Create pure `src/lib/credits.ts`: `deriveCreditBalance({ openingCents, openingAt, purchases, consumptionByDay })` returning `CreditBalance` with `available: false` when no opening balance is recorded (C5)
+- [x] T040 [P] [US4] Unit-test it in `tests/unit/credits.test.ts`: the C4 formula, events on/before/after the opening date, no opening balance → unavailable (never zero-derived), negative balance surfaced not clamped (C7), and J3 — recording or deleting a purchase changes no period cost
+- [x] T041 [US4] Update `src/components/claude/org-credits-panel.tsx`: show the derived balance with its as-of date and "derived by the Hub, not read from Anthropic"; keep the current message only when no opening balance is recorded
+- [x] T042 [P] [US4] Surface credit purchases as a distinct row on the budget/invoice views — a purchase, never a cost (C2)
+
+**Checkpoint**: SC-006 verifiable — a top-up never raises the cost of the period it lands in.
+
+## Phase 7: Reconciliation and recorded caps (US5, US7)
+
+- [x] T043 [US7] Create pure `src/lib/anthropic/reconciliation.ts`: `detectDivergence({ workspaceId, period, billedCents, attributedCents })` with the `max(500, billed * 0.05)` tolerance, returning both figures and the ratio
+- [x] T044 [P] [US7] Unit-test it in `tests/unit/anthropic/reconciliation.test.ts`: below/at/above tolerance, the small-absolute floor, zero billed with non-zero attributed, and a workspace with spend and no owners
+- [x] T045 [US7] Wire it into the cost sync, recording warning `sync_events` via the existing non-fatal `appendError` path
+- [x] T046 [P] [US7] Record a warning `sync_event` naming any model absent from the price table in `src/lib/sync/sources/anthropic-usage.ts`, replacing reliance on the `pricing_resolved` flag nobody reads
+- [x] T047 [P] [US7] Surface both warning kinds on the admin sync view in `src/app/settings/sync/`
+- [x] T048 [US5] Extend the workspace-limit admin action in `src/actions/anthropic-global.ts` to record `confirmed_at` / `confirmed_by` on every save
+- [x] T049 [US5] Workspace cap UI: consumption against the recorded cap, utilisation, last-confirmed date, threshold flagging, and the three distinct states — no cap recorded / recorded zero / recorded N (W1–W3)
+  - No live `Indie -` workspace has a cap recorded today and the budget owner will enter them by hand once the UI exists, so build and test this against a cap entered manually — do not seed caps in the migration, and expect "no cap recorded" to be the live state until then
+- [x] T050 [US5] Allowance-mismatch flag: compare the recorded cap against the sum of its owners' tier allowances and show both figures, neither authoritative (W4)
+- [x] T051 [P] [US5] State on every cap surface that the Hub does not enforce the limit — it mirrors a Console-set value (W5)
+
+**Checkpoint**: SC-007 and SC-009 verifiable.
+
+## Phase 8: Ownership admin and boost-\* deprecation (US8, US9)
+
+- [x] T052 [US8] Server actions in `src/actions/anthropic-global.ts` to list workspace ownership and set/clear a `manual` owner
+- [x] T053 [US8] Workspace list gains owner(s) and attribution mode plus the override action; unattributed workspaces shown with spend intact (FR-007)
+- [x] T054 [P] [US9] Exclude `deprecated_at IS NOT NULL` workspaces from the workspace list, cap views and cap aggregates, with a "show deprecated" toggle
+- [x] T055 [P] [US9] Skip deprecated workspaces in cap alerting in `src/actions/alerts.ts`
+- [x] T056 [US9] Verify historical months still include deprecated workspaces' spend (SC-010) — the exclusion is presentational only (I5)
+- [x] T057 [US9] Revoke the 37 `Claude Console` assignments listed in Appendix A — the 36 on pooled workspaces plus 262 — with `revoked_at = 2026-07-01` (spec OQ-3/OQ-4), never `now()`. Reuse the existing revoke path so change history is written (FR-030); do not write `license_assignments` directly
+- [x] T058 [US9] Confirm a budget period ending before the revocation date reports the same expected spend as before the revocation (US9 scenario 5) — `sumExpectedSpendCents` filters on the assignment window, so this is a regression check on the date, not on the code
+- [x] T059 [US9] Confirm revoking 262 does not hide the `Automations` workspace's ongoing spend — that spend belongs to the workspace and stays visible as `unattributed` (FR-007), which is the out-of-scope project-workspace case
+
+## Cross-cutting
+
+- [x] T060 Produce the restatement announcement covering **both** restatements: per-user monthly totals before/after for every restated month (phase 4), and expected-spend before/after per period (phase 5), with the reason for each. A deliverable, not a follow-up
+- [x] T061 [P] Update `CLAUDE.md` Recent Changes and the `docs/anthropic-cost-accuracy.md` pointer once the feature lands
+
+## Dependencies
+
+- Phase 1 blocks everything.
+- Phase 2 → 3 → 4 in order (attribution needs line items; reads need stored attribution).
+- Phase 5 depends on phase 3 (measured consumption comes from attribution) and should ship with or immediately after phase 4 (plan risk 1).
+- Phase 6 depends on phase 5 (needs `pricing_model` to know which tools are prepaid).
+- Phase 7 depends on phase 3 for divergence, on phase 1 only for caps.
+- Phase 8 is independent of phases 2–7 and can ship any time after phase 1. **T054/T055 (boost-\* deprecation) are the earliest available visible win; T057 (revocation) needs only the agreed date.**
+
+## Validation
+
+- `pnpm lint` (zero warnings), `pnpm typecheck`, `pnpm test`, `pnpm test:integration`
+- Manual: quickstart.md walkthrough
+- SC-001: for a completed month, each single-owner user's Hub total versus the Console figure — 0 cents apart
+- SC-004: a completed period's expected spend for seat tools unchanged to the cent; for usage tools within tolerance of measured consumption
+
+## Appendix A: concrete identifiers
+
+Captured 2026-09-18 from the live Hub. Re-verify before running the migration — an id list is a snapshot, not a query.
+
+**Claude Console tool**: `ai_tools.id = 2`.
+
+**Tiers to flip to `pricing_model = 'usage'`** (T008) — all five belong to tool 2:
+
+| Tier id | Name           | Allowance |
+| ------- | -------------- | --------- |
+| 2       | boost-starter  | $25       |
+| 3       | boost-advanced | $50       |
+| 4       | boost-expert   | $100      |
+| 10      | boost-leader   | $200      |
+| 11      | indie-profile  | $125      |
+
+Every other tier stays `seat` by the column default: Claude seats (5, 6), Cursor (7), Microsoft Copilot (9), GitHub Copilot (1, 8).
+
+**Workspaces to deprecate** (T008) — 12 `boost-*` pools, by explicit `workspace_id`:
+
+```text
+wrkspc_01WwajmfNsthB13NXt2udGGN  boost-starter-1
+wrkspc_01Gg5aVZTTQRpxGVkqhnF14m  boost-starter-2
+wrkspc_01JSJ8QFMfB2EMssRL4WHo9z  boost-starter-3
+wrkspc_01AJitrPisruy7LxCrkwQeBQ  boost-starter-4
+wrkspc_01TJVdk6Bf21EK6pXgwjLE6p  boost-starter-5
+wrkspc_01PmkV3C6HYFQKEjJ4twC7h1  boost-starter-6
+wrkspc_01GjZw5w8bvftpTDN9ek6gf8  boost-starter-7
+wrkspc_01JAZBuDF5xKqQt6gfhSN9YJ  boost-starter-8
+wrkspc_01R7D66G5sKGfzxkujGskZ1S  boost-starter-9
+wrkspc_01NTsZm2xviWx8D6LbwM7Ty8  boost-expert-1
+wrkspc_01JLudCq2Fe5qHchBH1NQD6W  boost-expert-2
+wrkspc_01CzBV9zdUWLrYN1KyTwBLhW  boost-expert-3
+```
+
+**Assignments to revoke** (T057) — 37, all with `revoked_at = 2026-07-01`. The 36 below sit on the pools above; select those by the assignment's `workspace` value matching a deprecated pool, never by tier:
+
+```text
+13 14 15 16 17 20 21 23 24 25 26 27 28 30 31 33 34 35
+158 159 162 170 177 178 179 180 183 186 193 194 195 196 260 266 287 288
+```
+
+Plus assignment **262** (Tobias Studer, `boost-advanced`, workspace `Automations`) — revoked on the same date by explicit decision (spec OQ-4), not by the workspace rule. Its workspace keeps its own spend, reported as `unattributed`.
+
+**Re-verified 2026-09-18 against the live Hub**: tool 2, the five tier ids and their allowances, all 12 `boost-*` workspace ids and all 37 assignment ids below match exactly; the register totals $3,650/month. Note that assignment 443 (Svenja) carries `workspace = NULL` in the register — ownership seeds from `anthropic_sync_status.resolved_api_key_id`, not from this field, so confirm her key resolves before phase 3 rather than reading anything into the null.
+
+**Cross-check before running**: `ai_tools.id = 2` has 40 active assignments — 37 revoked (36 pooled + 262), 3 `indie-profile` kept (Svenja 443, Marlon 407, Oliver 357). Those three are the users this feature exists to report on and must survive untouched. After the cleanup the Claude Console licence register should read $375/month of allowance, not $3,650.

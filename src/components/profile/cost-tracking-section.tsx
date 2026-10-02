@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MonthPicker } from "./month-picker";
 import { formatCurrency, getCurrentMonth } from "@/lib/utils";
+import {
+  AttributionBadge,
+  attributionCaption,
+} from "@/components/claude/attribution-badge";
 import { getUserCostData } from "@/actions/anthropic-usage";
 import { CostChart } from "@/components/cost-chart";
 import { DollarSign, Info, AlertTriangle } from "lucide-react";
@@ -140,10 +144,27 @@ export function CostTrackingSection({
 
         {/* Monthly total */}
         <div className="rounded-lg border p-4">
-          <p className="text-sm text-muted-foreground">Monthly Total</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-muted-foreground">Monthly Total</p>
+            <AttributionBadge method={costData.attribution?.method} />
+          </div>
           <p className={`text-3xl font-mono ${isPending ? "opacity-50" : ""}`}>
             {formatCurrency(costData.monthlyTotalCents)}
           </p>
+          {costData.attribution && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {attributionCaption(costData.attribution.method)}
+              {costData.attribution.estimatedCents > 0 &&
+                costData.attribution.billedCents > 0 && (
+                  <>
+                    {" "}
+                    {formatCurrency(costData.attribution.billedCents)} billed +{" "}
+                    {formatCurrency(costData.attribution.estimatedCents)}{" "}
+                    estimated.
+                  </>
+                )}
+            </p>
+          )}
           {costData.latestDataDate && (
             <p className="mt-1 text-xs text-muted-foreground">
               Data through {costData.latestDataDate}

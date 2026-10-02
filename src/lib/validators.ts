@@ -20,6 +20,9 @@ export const tierSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   description: z.string().max(5000).optional(),
   monthlyCostCents: z.number().int().min(0, "Cost must be non-negative"),
+  // What that price MEANS (045): a recurring seat cost, or a monthly spend
+  // allowance for a metered tool. Defaults to seat — the pre-045 behaviour.
+  pricingModel: z.enum(["seat", "usage"]).optional(),
 });
 
 // Shared values for the discipline enum (032-user-disciplines).
@@ -288,6 +291,7 @@ export const updateTierSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(5000).optional(),
   monthlyCostCents: z.number().int().min(0).optional(),
+  pricingModel: z.enum(["seat", "usage"]).optional(),
   isActive: z.boolean().optional(),
 });
 

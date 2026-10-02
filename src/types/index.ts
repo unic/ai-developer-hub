@@ -86,9 +86,16 @@ export type NewBilledCost = InferInsertModel<typeof billedCosts>;
 export type Invoice = InferSelectModel<typeof invoices>;
 export type NewInvoice = InferInsertModel<typeof invoices>;
 
+import type { ExpectedSpendBasis } from "@/lib/expected-spend";
+
 // Computed types for budget views
 export type PeriodWithCosts = BudgetPeriod & {
   expectedSpendCents: number;
+  /** What produced expectedSpendCents (045): a seat tier price, measured
+   *  consumption, a projection, or an allowance placeholder. */
+  expectedSpendBasis?: ExpectedSpendBasis;
+  /** Credit top-ups that landed in this period (045). Cash, never period cost. */
+  creditPurchaseCents?: number;
   billedTotalCents: number;
   billedEntries?: BilledCost[];
   /**
@@ -554,6 +561,29 @@ export type DailyBreakdown = {
   date: string;
   models: DailyModelCost[];
   totalCents: number;
+  /** How this day's figure was produced (045). Added alongside the existing
+   *  fields — `totalCents` keeps its name and meaning. */
+  method?: AttributionMethodLabel;
+};
+
+/** How a cost figure was produced (045-usage-based-cost-model).
+ *  `billed` — the workspace's billed cost, unmodified.
+ *  `apportioned` — a share of a shared workspace's billed cost.
+ *  `estimated` — token-derived, used for the current (incomplete) UTC day.
+ *  `mixed` — a period spanning more than one of the above. */
+export type AttributionMethodLabel =
+  | "billed"
+  | "apportioned"
+  | "estimated"
+  | "mixed";
+
+export type CostAttribution = {
+  method: AttributionMethodLabel;
+  /** Portion of the total from billed / apportioned complete days. */
+  billedCents: number;
+  /** Portion from the current-day estimate. */
+  estimatedCents: number;
+  workspaceId: string | null;
 };
 
 export type CostData = {
@@ -563,6 +593,8 @@ export type CostData = {
   dailyBreakdown: DailyBreakdown[];
   latestDataDate: string | null;
   hasUnresolvedPricing: boolean;
+  /** Added by 045. Absent only when there is no cost data at all. */
+  attribution?: CostAttribution;
 };
 
 export type ProfileData = {
@@ -739,6 +771,18 @@ export interface WorkspaceListItem {
   displayColor: string | null;
   /** Spec 033 — workspace's estimate of today's spend (separate field). */
   todayEstimate: TodayEstimate | null;
+  // Spec 045
+  /** Hub-side deprecation. Excluded from listings and alerting, never history. */
+  deprecatedAt?: string | null;
+  deprecatedReason?: string | null;
+  /** When an admin last confirmed the recorded cap mirrors the console. */
+  capConfirmedAt?: string | null;
+  ownerCount?: number;
+  ownerNames?: string | null;
+  ownerUserIds?: number[];
+  /** Sum of the owners' usage-tier allowances, for the mismatch check. */
+  allowanceSumCents?: number;
+  capMismatch?: boolean;
 }
 
 export interface WorkspaceAlert {
@@ -770,6 +814,8 @@ export interface UserListRow {
   workspaceColor: string | null;
   hasApiKey: boolean;
   costCents: number;
+  /** How costCents was produced (045). Null when the user has no rows. */
+  attributionMethod: AttributionMethodLabel | null;
   totalTokens: number;
   modelsUsed: number;
   lastActive: string | null;

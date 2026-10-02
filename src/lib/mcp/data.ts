@@ -228,9 +228,20 @@ export async function getUserCostProfileData(email: string, month?: string) {
       ...usd("monthlyTotal", cost.monthlyTotalCents),
       latestDataDate: cost.latestDataDate,
       hasUnresolvedPricing: cost.hasUnresolvedPricing,
+      // Added by 045 — every figure says how it was produced. Existing fields
+      // above are unchanged in name and meaning.
+      attribution: cost.attribution
+        ? {
+            method: cost.attribution.method,
+            ...usd("billed", cost.attribution.billedCents),
+            ...usd("estimated", cost.attribution.estimatedCents),
+            workspaceId: cost.attribution.workspaceId,
+          }
+        : null,
       lastSyncAt: syncRows[0]?.lastSyncCompletedAt?.toISOString() ?? null,
       dailyBreakdown: cost.dailyBreakdown.map((day) => ({
         date: day.date,
+        method: day.method ?? "estimated",
         ...usd("total", day.totalCents),
         models: day.models.map((m) => ({
           model: m.model,
@@ -263,6 +274,12 @@ export async function getClaudeSpendSummaryData(month?: string) {
     topOverWorkspaceName: kpis.topOverWorkspaceName,
     topOverWorkspaceUtilizationPct: kpis.topOverWorkspaceUtilizationPct,
     todayEstimate: formatTodayEstimate(kpis.todayEstimate),
+    // Org-level spend comes from the cost report, so it is billed by
+    // construction; only the current-day component is an estimate (045).
+    attribution: {
+      method: kpis.todayEstimate ? "mixed" : "billed",
+      note: "Complete days are Anthropic's billed cost; the current UTC day is an estimate, reported separately as todayEstimate.",
+    },
   };
 }
 
@@ -547,7 +564,11 @@ export async function listClaudeUsersData(month?: string, limit?: number) {
       email: users.email,
       circle: users.circle,
       status: users.status,
-      costCents: sql<string>`coalesce(sum(${anthropicUsageMetrics.computedCostCents}), 0)`,
+      // Read rule (045): billed where the sync attributed it, token-derived
+      // otherwise. The field keeps its name and meaning; its VALUE is now
+      // billed-based for complete days.
+      costCents: sql<string>`coalesce(sum(coalesce(${anthropicUsageMetrics.attributedCostCents}, ${anthropicUsageMetrics.computedCostCents})), 0)`,
+      attributionMethod: sql<string>`coalesce(max(${anthropicUsageMetrics.attributionMode}::text), 'estimated')`,
       totalTokens: sql<string>`coalesce(sum(${anthropicUsageMetrics.uncachedInputTokens} + ${anthropicUsageMetrics.cacheReadInputTokens} + ${anthropicUsageMetrics.cacheCreationInputTokens} + ${anthropicUsageMetrics.outputTokens}), 0)`,
       modelsUsed: sql<string>`count(distinct ${anthropicUsageMetrics.model})`,
       lastActive: sql<string | null>`max(${anthropicUsageMetrics.date})`,
@@ -565,7 +586,7 @@ export async function listClaudeUsersData(month?: string, limit?: number) {
       ),
     )
     .groupBy(users.id, users.name, users.email, users.circle, users.status)
-    .orderBy(desc(sql`sum(${anthropicUsageMetrics.computedCostCents})`))
+    .orderBy(desc(sql`sum(coalesce(${anthropicUsageMetrics.attributedCostCents}, ${anthropicUsageMetrics.computedCostCents}))`))
     .limit(clampLimit(limit, 25, 100));
 
   const userRows = rows.map((r) => ({
@@ -575,6 +596,9 @@ export async function listClaudeUsersData(month?: string, limit?: number) {
     circle: r.circle,
     status: r.status,
     ...usd("cost", Number(r.costCents)),
+    // Added by 045: whether that figure is the workspace's billed cost, a
+    // share of a shared workspace's, or still token-derived.
+    attributionMethod: r.attributionMethod,
     totalTokens: Number(r.totalTokens),
     modelsUsed: Number(r.modelsUsed),
     lastActive: r.lastActive,

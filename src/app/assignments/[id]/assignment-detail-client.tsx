@@ -16,6 +16,7 @@ import {
   updateAssignmentSchema,
   type UpdateAssignmentInput,
 } from "@/lib/validators";
+import { priceWording } from "@/lib/price-labels";
 import { formatCurrency, cn, formatDateOnly, formatDate } from "@/lib/utils";
 import type { AccessTier, UserDiscipline } from "@/types";
 import { DISCIPLINE_ICON, DISCIPLINE_LABEL, asDiscipline } from "@/lib/disciplines";
@@ -350,7 +351,7 @@ export function AssignmentDetailClient({
                                     (t) => t.id === field.value,
                                   );
                                   if (sel)
-                                    return `${sel.name} — ${formatCurrency(sel.monthlyCostCents)}/mo`;
+                                    return `${sel.name} — ${formatCurrency(sel.monthlyCostCents)}${priceWording(sel.pricingModel).suffix}`;
                                   return loadingTiers
                                     ? "Loading tiers..."
                                     : assignment.tier.name;
@@ -362,7 +363,8 @@ export function AssignmentDetailClient({
                             {tiers.map((t) => (
                               <SelectItem key={t.id} value={String(t.id)}>
                                 {t.name} &mdash;{" "}
-                                {formatCurrency(t.monthlyCostCents)}/mo
+                                {formatCurrency(t.monthlyCostCents)}
+                                {priceWording(t.pricingModel).suffix}
                               </SelectItem>
                             ))}
                           </SelectContent>

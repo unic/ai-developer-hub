@@ -10,6 +10,7 @@ import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import { updateUserSchema, type UpdateUserInput } from "@/lib/validators";
 import { assignLicense, revokeLicense } from "@/actions/assignments";
 import { getTools, getToolWithTiers } from "@/actions/tools";
+import { priceWording } from "@/lib/price-labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type {
   User,
@@ -722,7 +723,8 @@ export function UserDetailClient({
                 <SelectContent>
                   {availableTiers.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name} — {formatCurrency(t.monthlyCostCents)}/mo
+                      {t.name} — {formatCurrency(t.monthlyCostCents)}
+                      {priceWording(t.pricingModel).suffix}
                     </SelectItem>
                   ))}
                 </SelectContent>

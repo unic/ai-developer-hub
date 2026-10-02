@@ -150,6 +150,19 @@ export const licenseRequestProfileEnum = pgEnum("license_request_profile", [
   "indie",
 ]);
 
+// 045-usage-based-cost-model
+// How a per-user cost figure was derived. `estimated` is deliberately NOT a
+// database value — only complete days are stored, and the current day's
+// estimate is computed at read time (contracts/cost-attribution.md §2).
+export const attributionModeEnum = pgEnum("attribution_mode", [
+  "billed",
+  "apportioned",
+  "unattributed",
+]);
+// Whether a tier's price is a recurring cost (`seat`) or a monthly spend
+// allowance (`usage`). Defaults to `seat`, so existing tiers are unaffected.
+export const pricingModelEnum = pgEnum("pricing_model", ["seat", "usage"]);
+
 // Users
 export const users = pgTable(
   "users",
@@ -218,6 +231,11 @@ export const aiTools = pgTable(
     // Assignments for this tool carry a credential (e.g. Claude Console API
     // keys). Drives the required key field in the request approval dialog.
     requiresApiKey: boolean("requires_api_key").notNull().default(false),
+    // Prepaid credit balance for a usage-based tool, as last observed in the
+    // vendor console by an admin. NULL = not recorded, which is reported as
+    // "unavailable" and never as zero (FR-016).
+    creditOpeningBalanceCents: integer("credit_opening_balance_cents"),
+    creditOpeningBalanceAt: date("credit_opening_balance_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -237,7 +255,11 @@ export const accessTiers = pgTable(
       .references(() => aiTools.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
     description: text("description"),
+    // For a `usage` tier this is the monthly ALLOWANCE, not a cost. The column
+    // keeps its name deliberately (research.md D6); pricingModel decides how it
+    // is labelled and used.
     monthlyCostCents: integer("monthly_cost_cents").notNull(),
+    pricingModel: pricingModelEnum("pricing_model").notNull().default("seat"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -703,6 +725,11 @@ export const anthropicUsageMetrics = pgTable(
       .default(0),
     computedCostCents: integer("computed_cost_cents").notNull().default(0),
     pricingResolved: boolean("pricing_resolved").notNull().default(true),
+    // Billed (or apportioned) cost for this user-day-model, distributed from
+    // the workspace's billed total. NULL = not attributed (current day, or no
+    // cost-report data). Read rule: COALESCE(attributed, computed).
+    attributedCostCents: integer("attributed_cost_cents"),
+    attributionMode: attributionModeEnum("attribution_mode"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -853,6 +880,12 @@ export const anthropicWorkspaces = pgTable(
     isArchived: boolean("is_archived").notNull().default(false),
     archivedAt: timestamp("archived_at"),
     anthropicCreatedAt: timestamp("anthropic_created_at"),
+    // Hub-side editorial deprecation, distinct from isArchived (which mirrors
+    // Anthropic's own state and is overwritten by every workspace sync).
+    // Non-null => excluded from listings, cap aggregates and alerting, while
+    // historical cost stays readable and included (research.md D11).
+    deprecatedAt: timestamp("deprecated_at"),
+    deprecatedReason: varchar("deprecated_reason", { length: 200 }),
     lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -895,13 +928,113 @@ export const anthropicWorkspaceCosts = pgTable(
   ],
 );
 
+// Anthropic Workspace Cost Line Items (045-usage-based-cost-model)
+// Billed cost at full grain from cost_report with group_by[]=description.
+// anthropic_workspace_costs is DERIVED from this table — never written
+// independently — so the two cannot disagree (plan risk 8).
+export const anthropicWorkspaceCostItems = pgTable(
+  "anthropic_workspace_cost_items",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    date: date("date").notNull(),
+    model: varchar("model", { length: 100 }),
+    costType: varchar("cost_type", { length: 40 }),
+    tokenType: varchar("token_type", { length: 100 }),
+    contextWindow: varchar("context_window", { length: 20 }),
+    serviceTier: varchar("service_tier", { length: 20 }),
+    // Part of the grain, not decoration: a live sample has Haiku 4.5 on
+    // `not_available` beside `global` rows for the same workspace-day.
+    inferenceGeo: varchar("inference_geo", { length: 20 }),
+    // Cents x 10^6. cost_report returns up to six decimal places of a cent;
+    // rounding per line item drifts by ~1 cent per workspace-day once there
+    // are 12-14 rows, which would break SC-001. Round once, at the aggregate.
+    costMicrocents: bigint("cost_microcents", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // NULLs inside the grain would not collide under a plain unique index, so
+    // the nullable grain columns are coalesced. Split by workspace_id NULL /
+    // NOT NULL, matching the anthropic_workspace_costs pattern.
+    uniqueIndex("anthropic_workspace_cost_items_grain_idx")
+      .on(
+        table.workspaceId,
+        table.date,
+        sql`coalesce(${table.model}, '')`,
+        sql`coalesce(${table.costType}, '')`,
+        sql`coalesce(${table.tokenType}, '')`,
+        sql`coalesce(${table.contextWindow}, '')`,
+        sql`coalesce(${table.serviceTier}, '')`,
+        sql`coalesce(${table.inferenceGeo}, '')`,
+      )
+      .where(sql`${table.workspaceId} IS NOT NULL`),
+    uniqueIndex("anthropic_workspace_cost_items_default_grain_idx")
+      .on(
+        table.date,
+        sql`coalesce(${table.model}, '')`,
+        sql`coalesce(${table.costType}, '')`,
+        sql`coalesce(${table.tokenType}, '')`,
+        sql`coalesce(${table.contextWindow}, '')`,
+        sql`coalesce(${table.serviceTier}, '')`,
+        sql`coalesce(${table.inferenceGeo}, '')`,
+      )
+      .where(sql`${table.workspaceId} IS NULL`),
+    index("anthropic_workspace_cost_items_date_idx").on(table.date),
+    index("anthropic_workspace_cost_items_workspace_date_idx").on(
+      table.workspaceId,
+      table.date,
+    ),
+    check(
+      "anthropic_workspace_cost_items_cost_microcents_check",
+      sql`${table.costMicrocents} >= 0`,
+    ),
+  ],
+);
+
+// Anthropic Workspace Owners (045-usage-based-cost-model)
+// Which Hub users a workspace belongs to. The attribution MODE is derived from
+// the row count (1 = billed, >1 = apportioned, 0 = unattributed) rather than
+// stored, so an admin correction takes effect on the next read (FR-023).
+export const anthropicWorkspaceOwners = pgTable(
+  "anthropic_workspace_owners",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 100 }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // `resolved` comes from API-key resolution and is refreshed by the sync;
+    // `manual` is an admin override the sync must never overwrite or delete.
+    source: varchar("source", { length: 20 }).notNull().default("resolved"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("anthropic_workspace_owners_workspace_user_idx")
+      .on(table.workspaceId, table.userId)
+      .where(sql`${table.workspaceId} IS NOT NULL`),
+    uniqueIndex("anthropic_workspace_owners_default_user_idx")
+      .on(table.userId)
+      .where(sql`${table.workspaceId} IS NULL`),
+    index("anthropic_workspace_owners_user_id_idx").on(table.userId),
+  ],
+);
+
 // Anthropic Workspace Limits (admin-configured monthly spending limits)
 export const anthropicWorkspaceLimits = pgTable(
   "anthropic_workspace_limits",
   {
     id: serial("id").primaryKey(),
     workspaceId: varchar("workspace_id", { length: 100 }),
+    // A MIRROR of the cap an admin set in the Claude Console. The Hub does not
+    // enforce it and no Admin API endpoint exposes it, so it can drift —
+    // confirmedAt is what makes the drift visible (research.md D10).
     limitCents: integer("limit_cents").notNull(),
+    confirmedAt: timestamp("confirmed_at"),
+    confirmedBy: integer("confirmed_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -912,6 +1045,7 @@ export const anthropicWorkspaceLimits = pgTable(
     uniqueIndex("anthropic_workspace_limits_default_idx")
       .on(sql`(1)`)
       .where(sql`${table.workspaceId} IS NULL`),
+    index("anthropic_workspace_limits_confirmed_by_idx").on(table.confirmedBy),
   ],
 );
 
@@ -925,6 +1059,43 @@ export const anthropicOrgConfig = pgTable(
     updatedBy: integer("updated_by").references(() => users.id),
   },
   (table) => [check("anthropic_org_config_id_check", sql`${table.id} = 1`)],
+);
+
+// Credit Purchases (045-usage-based-cost-model)
+// Prepayments for a usage-based tool. A purchase is CASH, not period cost:
+// consumption is the cost, and the two land on unrelated dates (research.md D9).
+export const creditPurchases = pgTable(
+  "credit_purchases",
+  {
+    id: serial("id").primaryKey(),
+    toolId: integer("tool_id")
+      .notNull()
+      .references(() => aiTools.id, { onDelete: "cascade" }),
+    // Null for a top-up recorded without an invoice.
+    invoiceId: integer("invoice_id").references(() => invoices.id, {
+      onDelete: "set null",
+    }),
+    purchasedAt: date("purchased_at").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    note: varchar("note", { length: 200 }),
+    createdBy: integer("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("credit_purchases_created_by_idx").on(table.createdBy),
+    index("credit_purchases_tool_purchased_idx").on(
+      table.toolId,
+      table.purchasedAt,
+    ),
+    index("credit_purchases_invoice_id_idx").on(table.invoiceId),
+    check(
+      "credit_purchases_amount_cents_check",
+      sql`${table.amountCents} > 0`,
+    ),
+  ],
 );
 
 // License Requests (032-automation-workflow)

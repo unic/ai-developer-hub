@@ -337,7 +337,8 @@ export async function createTierCore(
     });
   }
 
-  const { toolId, name, description, monthlyCostCents } = parsed.data;
+  const { toolId, name, description, monthlyCostCents, pricingModel } =
+    parsed.data;
 
   const tool = await db.query.aiTools.findFirst({
     where: eq(aiTools.id, toolId),
@@ -380,6 +381,9 @@ export async function createTierCore(
           name,
           description: description ?? null,
           monthlyCostCents,
+          // Defaults to seat at the column level; passing it through lets a
+          // metered tool declare its price is an allowance (045).
+          pricingModel: pricingModel ?? "seat",
         })
         .returning({ id: accessTiers.id });
       await recordCreation("access_tier", tier.id, ctx.actorId, {
@@ -461,6 +465,18 @@ export async function updateTierCore(
       new: updates.description,
     };
     values.description = updates.description;
+  }
+  if (
+    updates.pricingModel !== undefined &&
+    updates.pricingModel !== existing.pricingModel
+  ) {
+    // Changing this does not touch monthly_cost_cents — it changes what that
+    // number MEANS, and therefore how it is labelled and forecast (045, D6).
+    changes.pricingModel = {
+      old: existing.pricingModel,
+      new: updates.pricingModel,
+    };
+    values.pricingModel = updates.pricingModel;
   }
   if (updates.isActive !== undefined && updates.isActive !== existing.isActive) {
     if (!updates.isActive) {

@@ -14,6 +14,7 @@ import {
   getTopMovers,
   getWorkspaceSparklines,
 } from "@/actions/anthropic-global";
+import { getAnthropicCreditBalance } from "@/actions/credits";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
@@ -26,7 +27,15 @@ import { Bot } from "lucide-react";
 
 export const metadata: Metadata = { title: "Claude API Spending" };
 
-export default async function ClaudePage() {
+export default async function ClaudePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ deprecated?: string }>;
+}) {
+  // Spec 045: the 12 dead boost-* pools are out of the list by default. They
+  // are reachable on request, and their historical spend is untouched either
+  // way — deprecation is presentational.
+  const showDeprecated = (await searchParams)?.deprecated === "1";
   const session = await auth();
   if (!session?.user || session.user.role !== "admin") {
     redirect("/");
@@ -54,17 +63,23 @@ export default async function ClaudePage() {
     pacing,
     movers,
     sparklines,
+    claudeConsoleCredits,
   ] = await Promise.all([
     getDashboardKpis(currentMonth),
     getDailyTotalsByWorkspace(currentMonth),
-    getWorkspaceList(),
+    getWorkspaceList(showDeprecated),
     getOrgConfig(),
     getSyncStatus(),
     getTwelveMonthTotals(),
     getCumulativePacing(),
     getTopMovers(),
     getWorkspaceSparklines(),
+    // The prepaid credit balance for the metered Anthropic tool (045). Null
+    // when no such tool exists; unavailable when no opening balance is on file.
+    getAnthropicCreditBalance(),
   ]);
+
+  const creditBalance = claudeConsoleCredits;
 
   return (
     <div className="space-y-6">
@@ -114,11 +129,22 @@ export default async function ClaudePage() {
           currentMonthTotalCents={kpis.totalCents}
           projectedMonthEndCents={kpis.projectedMonthEndCents}
           todayEstimate={kpis.todayEstimate}
+          creditBalance={creditBalance}
         />
       </section>
 
       <section aria-label="Workspace budgets">
-        <h2 className="mb-4 text-lg font-semibold">Workspace Budgets</h2>
+        <div className="mb-4 flex items-baseline justify-between gap-4">
+          <h2 className="text-lg font-semibold">Workspace Budgets</h2>
+          <a
+            href={showDeprecated ? "/claude" : "/claude?deprecated=1"}
+            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {showDeprecated
+              ? "Hide deprecated workspaces"
+              : "Show deprecated workspaces"}
+          </a>
+        </div>
         <WorkspaceBudgetList
           workspaces={workspaceList}
           sparklines={sparklines}

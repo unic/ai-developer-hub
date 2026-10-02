@@ -11,7 +11,8 @@ vi.mock("@/lib/sync/framework", () => ({
 // sentinel row at the end of a successful run.
 vi.mock("@/lib/db", () => ({
   db: {
-    execute: vi.fn().mockResolvedValue(undefined),
+    // Raw SQL reads return { rows }, which the attribution step depends on.
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
         onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
@@ -39,6 +40,7 @@ vi.stubGlobal("fetch", mockFetch);
 vi.stubEnv("ANTHROPIC_ADMIN_API_KEY", "test-key");
 
 import { run } from "@/lib/sync/sources/anthropic-workspace";
+import { db } from "@/lib/db";
 
 // Helper to make withSyncLock invoke the callback and return its result
 function setupWithSyncLock() {
@@ -342,5 +344,149 @@ describe("anthropic-workspace backfill error handling", () => {
     // Should contain both workspace and backfill error info
     expect(msg).toContain("Workspace metadata sync failed");
     expect(msg).toMatch(/Backfill failed for \d{4}-\d{2}/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 045 — reconciliation findings are warnings, not errors
+// ---------------------------------------------------------------------------
+
+/** The raw SQL text of a drizzle `sql` object, for routing mocked queries. */
+function sqlText(query: unknown): string {
+  return JSON.stringify(query);
+}
+
+/**
+ * A database that answers the reconciliation query with real-shaped rows and
+ * everything else with nothing. The default mock returns no rows for every
+ * query — which is exactly why no warning ever fired in tests, and why the
+ * warnings-as-errors defect reached a preview deployment before anyone saw it.
+ */
+function databaseWithReconciliationRows(
+  rows: Array<{
+    workspace_id: string | null;
+    workspace_name: string | null;
+    billed_cents: string;
+    computed_cents: string;
+    has_owner: boolean;
+  }>
+) {
+  (db.execute as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    async (query: unknown) =>
+      sqlText(query).includes("has_owner") ? { rows } : { rows: [] }
+  );
+}
+
+describe("anthropic-workspace reconciliation warnings", () => {
+  let capturedCounts: {
+    errorCount: number;
+    errorMessage?: string | null;
+  } | null;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    capturedCounts = null;
+    mockWithSyncLock.mockImplementation(
+      async (
+        _params: unknown,
+        callback: (eventId: number) => Promise<unknown>
+      ) => {
+        capturedCounts = (await callback(1)) as typeof capturedCounts;
+        return { eventId: 1 };
+      }
+    );
+  });
+
+  afterEach(() => {
+    // Restore the file-wide default so later suites see an empty database.
+    (db.execute as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => ({ rows: [] })
+    );
+  });
+
+  it("does not count warnings as errors, so the run stays successful", async () => {
+    databaseWithReconciliationRows([
+      // A project workspace with spend and no owner — present on every run.
+      {
+        workspace_id: "wrkspc_trial",
+        workspace_name: "AI Code Review Trial",
+        billed_cents: "12662",
+        computed_cents: "0",
+        has_owner: false,
+      },
+      // A sole-owner workspace whose computed figure is 7.6x its bill.
+      {
+        workspace_id: "wrkspc_oliver",
+        workspace_name: "Indie - Oliver Ladner",
+        billed_cents: "3283",
+        computed_cents: "24932",
+        has_owner: true,
+      },
+    ]);
+    mockFetch.mockResolvedValueOnce(
+      workspacesResponse([{ id: "ws1", name: "Test" }])
+    );
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "100.00" }])
+    );
+
+    await run(1, { month: "2026-01" });
+
+    // Both findings are reported...
+    expect(capturedCounts!.errorMessage).toContain("Warning:");
+    expect(capturedCounts!.errorMessage).toContain("AI Code Review Trial");
+    expect(capturedCounts!.errorMessage).toContain("Indie - Oliver Ladner");
+    // ...without making the run partial.
+    expect(capturedCounts!.errorCount).toBe(0);
+  });
+
+  it("still refreshes the dashboard's last-synced indicator", async () => {
+    databaseWithReconciliationRows([
+      {
+        workspace_id: "wrkspc_trial",
+        workspace_name: "AI Code Review Trial",
+        billed_cents: "12662",
+        computed_cents: "0",
+        has_owner: false,
+      },
+    ]);
+    mockFetch.mockResolvedValueOnce(
+      workspacesResponse([{ id: "ws1", name: "Test" }])
+    );
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "100.00" }])
+    );
+
+    await run(1, { month: "2026-01" });
+
+    // The sentinel row behind the "last synced" pill is only stamped on a run
+    // with no errors. Warnings counted as errors froze it permanently.
+    expect(db.insert).toHaveBeenCalled();
+  });
+
+  it("keeps a real error counted when warnings are also present", async () => {
+    databaseWithReconciliationRows([
+      {
+        workspace_id: "wrkspc_trial",
+        workspace_name: "AI Code Review Trial",
+        billed_cents: "12662",
+        computed_cents: "0",
+        has_owner: false,
+      },
+    ]);
+    // Workspace metadata fails; the cost report still succeeds.
+    mockFetch.mockResolvedValueOnce(new Response("boom", { status: 500 }));
+    mockFetch.mockResolvedValueOnce(
+      costReportResponse([{ workspace_id: "ws1", amount: "100.00" }])
+    );
+
+    await run(1, { month: "2026-01" });
+
+    // Exactly the one real failure — the warning neither adds to it nor hides it.
+    expect(capturedCounts!.errorCount).toBe(1);
+    expect(capturedCounts!.errorMessage).toMatch(/^Workspace metadata sync failed/);
+    expect(capturedCounts!.errorMessage).toContain("Warning:");
+    // A run with a real error must not claim to be fully synced.
+    expect(db.insert).not.toHaveBeenCalled();
   });
 });

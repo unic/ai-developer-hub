@@ -239,7 +239,18 @@ export interface RevokeLicenseResult {
 
 export async function revokeLicenseCore(
   ctx: WriteContext,
-  input: { id: number },
+  input: {
+    id: number;
+    /**
+     * When the licence actually ended, if that is not now (045 FR-028).
+     *
+     * A licence deactivated in the vendor console months ago and only now
+     * being cleaned up in the Hub must carry the date it really ended:
+     * `now()` would leave it counting toward every budget period in between.
+     * Never in the future — that would revoke a licence that is still held.
+     */
+    revokedAt?: Date;
+  },
 ): Promise<CoreResult<RevokeLicenseResult>> {
   const assignment = await db.query.licenseAssignments.findFirst({
     where: eq(licenseAssignments.id, input.id),
@@ -283,6 +294,13 @@ export async function revokeLicenseCore(
   if (!ctx.commit) return coreOk(summary);
 
   const now = new Date();
+  if (input.revokedAt && input.revokedAt.getTime() > now.getTime()) {
+    return coreErr("A revocation date cannot be in the future");
+  }
+  if (input.revokedAt && input.revokedAt < assignment.assignedAt) {
+    return coreErr("A licence cannot be revoked before it was assigned");
+  }
+  const revokedAt = input.revokedAt ?? now;
   // Compare-and-swap on status rather than a bare `WHERE id`. The status check
   // above runs before the transaction, so a concurrent revoke (another admin, or
   // a plan token committed against state that has since moved) would otherwise
@@ -291,7 +309,7 @@ export async function revokeLicenseCore(
   const raced = await db.transaction(async (tx) => {
     const updated = await tx
       .update(licenseAssignments)
-      .set({ status: "inactive", revokedAt: now, updatedAt: now })
+      .set({ status: "inactive", revokedAt, updatedAt: now })
       .where(
         and(
           eq(licenseAssignments.id, input.id),

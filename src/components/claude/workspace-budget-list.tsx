@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-react";
-import { setWorkspaceLimit } from "@/actions/anthropic-global";
+import {
+  setWorkspaceLimit,
+  setWorkspaceOwner,
+} from "@/actions/anthropic-global";
+import { useRouter } from "next/navigation";
 import { Sparkline } from "@/components/ui/sparkline";
 import { SegmentedBar } from "@/components/ui/segmented-bar";
 import { StatusText, useInlineStatus } from "@/components/ui/status-text";
@@ -106,6 +110,20 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
     workspace.limitCents != null ? String(workspace.limitCents / 100) : "",
   );
   const [isPending, startTransition] = useTransition();
+  const [ownerPending, startOwnerTransition] = useTransition();
+  const router = useRouter();
+
+  // Spec 045 (US8): an admin correction takes effect on the next read —
+  // attribution mode is derived from ownership, never stored — and the action
+  // re-attributes immediately so the change is visible without a sync.
+  function handleUnclaim() {
+    startOwnerTransition(async () => {
+      for (const userId of workspace.ownerUserIds ?? []) {
+        await setWorkspaceOwner(workspace.workspaceId, userId, "exclude");
+      }
+      router.refresh();
+    });
+  }
   const status = useInlineStatus();
 
   function handleSave() {
@@ -178,17 +196,58 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
             <ChevronRight className="size-4" />
           </Link>
         </div>
+        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          {/* Who this workspace's cost is attributed to, and how (045 US8). */}
+          {workspace.ownerCount === 1
+            ? `Billed to ${workspace.ownerNames}`
+            : (workspace.ownerCount ?? 0) > 1
+              ? `Apportioned between ${workspace.ownerNames}`
+              : "Unattributed — no owner resolved, so this spend belongs to no user"}
+          {(workspace.ownerCount ?? 0) > 0 && (
+            <button
+              type="button"
+              className="underline-offset-4 hover:underline"
+              disabled={ownerPending}
+              onClick={handleUnclaim}
+              title="Stop attributing this workspace's cost to its resolved owner(s). Use this for a project or client workspace whose API key happens to belong to a person — their key will keep resolving, but the spend stays unattributed."
+            >
+              {ownerPending ? "saving…" : "not a person's workspace?"}
+            </button>
+          )}
+        </p>
         <div className="mt-1 flex items-baseline gap-3">
           <span className="text-xl font-semibold tabular-nums">
             {formatCurrency(workspace.currentMonthCents)}
           </span>
-          <span className="text-xs text-muted-foreground">
-            of{" "}
-            {workspace.limitCents != null
-              ? formatCurrency(workspace.limitCents)
-              : "no limit"}
+          <span
+            className="text-xs text-muted-foreground"
+            title={
+              workspace.limitCents != null
+                ? `A cap set in the Claude Console and mirrored here. The Hub does not enforce it${
+                    workspace.capConfirmedAt
+                      ? `. Last confirmed ${workspace.capConfirmedAt.slice(0, 10)}`
+                      : ", and it has never been confirmed"
+                  }.`
+                : "No cap has been recorded in the Hub. That is not the same as having no cap in the Claude Console — nobody has told the Hub."
+            }
+          >
+            {/* Three distinct states, worded (045 W2): no cap recorded, a
+                recorded cap of zero, and a recorded cap of N. */}
+            {workspace.limitCents == null
+              ? "no cap recorded"
+              : workspace.limitCents === 0
+                ? "of a recorded cap of $0.00"
+                : `of ${formatCurrency(workspace.limitCents)}`}
           </span>
         </div>
+        {workspace.capMismatch && (
+          <p className="mt-1 text-xs text-warning">
+            Recorded cap {formatCurrency(workspace.limitCents ?? 0)} differs from
+            the {formatCurrency(workspace.allowanceSumCents ?? 0)} of allowances
+            held by its owner(s). Neither is authoritative — the cap mirrors the
+            console, the allowances come from the licence register.
+          </p>
+        )}
         {workspace.limitCents != null && (
           <div className="mt-1.5 space-y-1">
             <SegmentedBar
@@ -249,8 +308,15 @@ function WorkspaceBudgetRow({ workspace, sparkline }: WorkspaceBudgetRowProps) {
               variant="outline"
               onClick={() => setEditing(true)}
             >
-              {workspace.limitCents != null ? "Edit limit" : "Set limit"}
+              {workspace.limitCents != null ? "Edit cap" : "Record cap"}
             </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {/* W5 — the Hub tracks; the console enforces. */}
+              mirrors the console · not enforced here
+              {workspace.capConfirmedAt
+                ? ` · confirmed ${workspace.capConfirmedAt.slice(0, 10)}`
+                : ""}
+            </span>
             <StatusText status={status.status} />
           </>
         )}

@@ -196,6 +196,7 @@ export function ScheduledJobsTable({ sources }: ScheduledJobsTableProps) {
                   <TableCell>
                     <ErrorPopover
                       errorMessage={source.lastEvent?.errorMessage ?? null}
+                      outcome={source.lastEvent?.outcome ?? null}
                     />
                   </TableCell>
                   <TableCell>

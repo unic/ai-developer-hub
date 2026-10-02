@@ -30,6 +30,7 @@ import {
 import { getCurrentMonth, projectMonthEnd } from "@/lib/utils";
 import type {
   UserListRow,
+  AttributionMethodLabel,
   UsersDashboardKpis,
   UserProfile,
   UserStatus,
@@ -80,7 +81,7 @@ async function _getUserList(month: string): Promise<UserListResult> {
       s.resolved_api_key_id,
       w.name          AS workspace_name,
       w.display_color AS workspace_color,
-      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents,
+      COALESCE(SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents)), 0)::bigint AS cents,
       COALESCE(SUM(
         m.uncached_input_tokens
         + m.cache_read_input_tokens
@@ -89,7 +90,17 @@ async function _getUserList(month: string): Promise<UserListResult> {
       ), 0)::bigint AS total_tokens,
       COUNT(DISTINCT m.model)::int AS models_used,
       MAX(m.date)     AS last_active,
-      COALESCE(bool_or(NOT m.pricing_resolved), false) AS has_unresolved_pricing
+      COALESCE(bool_or(NOT m.pricing_resolved), false) AS has_unresolved_pricing,
+      -- How this user's figure was produced (045). A user whose rows carry
+      -- more than one mode — a shared workspace for part of the month, their
+      -- own for the rest — reports 'mixed' rather than picking a winner.
+      CASE
+        WHEN COUNT(m.id) = 0 THEN NULL
+        WHEN COUNT(*) FILTER (WHERE m.attributed_cost_cents IS NULL) > 0
+             AND COUNT(*) FILTER (WHERE m.attributed_cost_cents IS NOT NULL) > 0 THEN 'mixed'
+        WHEN COUNT(DISTINCT m.attribution_mode) > 1 THEN 'mixed'
+        ELSE COALESCE(MIN(m.attribution_mode::text), 'estimated')
+      END AS attribution_method
     FROM users u
     INNER JOIN anthropic_sync_status s
            ON s.user_id = u.id
@@ -117,6 +128,8 @@ async function _getUserList(month: string): Promise<UserListResult> {
     workspaceColor: (r.workspace_color as string | null) ?? null,
     hasApiKey: r.resolved_api_key_id != null,
     costCents: Number(r.cents ?? 0),
+    attributionMethod:
+      (r.attribution_method as AttributionMethodLabel | null) ?? null,
     totalTokens: Number(r.total_tokens ?? 0),
     modelsUsed: Number(r.models_used ?? 0),
     lastActive: (r.last_active as string | null) ?? null,
@@ -178,9 +191,9 @@ async function _getUsersDashboardKpis(month: string): Promise<UsersDashboardKpis
       u.email,
       u.name,
       COALESCE(SUM(CASE WHEN m.date BETWEEN ${periodStart}::date AND ${periodEnd}::date
-        THEN m.computed_cost_cents ELSE 0 END), 0)::bigint AS current_cents,
+        THEN COALESCE(m.attributed_cost_cents, m.computed_cost_cents) ELSE 0 END), 0)::bigint AS current_cents,
       COALESCE(SUM(CASE WHEN m.date BETWEEN ${priorStart}::date AND ${priorEnd}::date
-        THEN m.computed_cost_cents ELSE 0 END), 0)::bigint AS prior_cents
+        THEN COALESCE(m.attributed_cost_cents, m.computed_cost_cents) ELSE 0 END), 0)::bigint AS prior_cents
     FROM users u
     LEFT JOIN anthropic_usage_metrics m
            ON m.user_id = u.id
@@ -349,7 +362,7 @@ async function _getUserCostDistribution(
   const rows = await db.execute(sql`
     SELECT
       u.id AS user_id,
-      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+      COALESCE(SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents)), 0)::bigint AS cents
     FROM users u
     INNER JOIN anthropic_sync_status s ON s.user_id = u.id
     LEFT JOIN anthropic_usage_metrics m
@@ -418,7 +431,7 @@ async function _getUserSparklines(
     SELECT
       m.user_id,
       to_char(date_trunc('month', m.date), 'YYYY-MM') AS month,
-      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+      COALESCE(SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents)), 0)::bigint AS cents
     FROM anthropic_usage_metrics m
     WHERE m.user_id <> ${LOCK_USER_ID}
       AND m.date >= (date_trunc('month', current_date) - (${monthsBack - 1} || ' months')::interval)::date
@@ -463,7 +476,7 @@ async function _getUserTopMovers(): Promise<UserTopMover[]> {
       SELECT
         m.user_id,
         date_trunc('month', m.date) AS month,
-        SUM(m.computed_cost_cents)::bigint AS cents
+        SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents))::bigint AS cents
       FROM anthropic_usage_metrics m
       WHERE m.user_id <> ${LOCK_USER_ID}
         AND m.date >= (date_trunc('month', current_date) - interval '5 months')::date
@@ -525,7 +538,7 @@ async function _getDailyTotalsByUser(month: string): Promise<DailyByUserResult> 
       m.user_id,
       u.name,
       u.email,
-      COALESCE(SUM(m.computed_cost_cents), 0)::bigint AS cents
+      COALESCE(SUM(COALESCE(m.attributed_cost_cents, m.computed_cost_cents)), 0)::bigint AS cents
     FROM anthropic_usage_metrics m
     JOIN users u ON u.id = m.user_id
     WHERE m.user_id <> ${LOCK_USER_ID}
@@ -688,7 +701,8 @@ async function _getUserDetail(
         m.cache_read_input_tokens,
         m.cache_creation_input_tokens,
         m.output_tokens,
-        m.computed_cost_cents,
+        COALESCE(m.attributed_cost_cents, m.computed_cost_cents) AS computed_cost_cents,
+        m.attribution_mode,
         m.pricing_resolved
       FROM anthropic_usage_metrics m
       WHERE m.user_id = ${userId}
@@ -697,7 +711,7 @@ async function _getUserDetail(
     db.execute(sql`
       SELECT
         to_char(date_trunc('month', date), 'YYYY-MM') AS month,
-        COALESCE(SUM(computed_cost_cents), 0)::bigint AS cents
+        COALESCE(SUM(COALESCE(attributed_cost_cents, computed_cost_cents)), 0)::bigint AS cents
       FROM anthropic_usage_metrics
       WHERE user_id = ${userId}
         AND date >= (date_trunc('month', ${periodStart}::date) - interval '11 months')::date

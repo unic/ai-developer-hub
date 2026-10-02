@@ -69,7 +69,10 @@ export function ManualJobsTable({ events }: ManualJobsTableProps) {
                   {event.skippedCount}
                 </TableCell>
                 <TableCell>
-                  <ErrorPopover errorMessage={event.errorMessage} />
+                  <ErrorPopover
+                    errorMessage={event.errorMessage}
+                    outcome={event.outcome}
+                  />
                 </TableCell>
               </TableRow>
             ))

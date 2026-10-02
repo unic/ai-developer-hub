@@ -19,10 +19,13 @@ import {
 import { eq, and, between, isNotNull } from "drizzle-orm";
 import { anthropicToolFilter } from "@/lib/anthropic-sync";
 import type {
+  AttributionMethodLabel,
   CostData,
   ProfileData,
   DailyModelCost,
 } from "@/types";
+import { BILLED_ONLY_MODEL } from "@/lib/anthropic/cost-attribution";
+import { anthropicSyncStatus } from "@/lib/db/schema";
 
 // ---------------------------------------------------------------------------
 // fetchUserCostDataInternal — pure data-fetching (no session auth check)
@@ -94,6 +97,15 @@ export async function fetchUserCostDataInternal(
     };
   }
 
+  // Which workspace the figures came from — reported alongside the method so a
+  // reader can tell whose bill this is.
+  const syncStatus = await db
+    .select({ workspaceId: anthropicSyncStatus.resolvedWorkspaceId })
+    .from(anthropicSyncStatus)
+    .where(eq(anthropicSyncStatus.userId, userId))
+    .limit(1);
+  const workspaceId = syncStatus[0]?.workspaceId ?? null;
+
   // Query usage metrics for the user in the date range
   const metrics = await db
     .select()
@@ -119,8 +131,14 @@ export async function fetchUserCostDataInternal(
   // Aggregate by date
   const dailyMap = new Map<
     string,
-    { models: DailyModelCost[]; totalCents: number }
+    {
+      models: DailyModelCost[];
+      totalCents: number;
+      methods: Set<AttributionMethodLabel>;
+    }
   >();
+  let billedCents = 0;
+  let estimatedCents = 0;
   let monthlyTotalCents = 0;
   let latestDataDate: string | null = null;
   let hasUnresolvedPricing = false;
@@ -134,6 +152,22 @@ export async function fetchUserCostDataInternal(
       hasUnresolvedPricing = true;
     }
 
+    // Read rule (045): the billed figure when the sync attributed this row,
+    // the token-derived estimate otherwise — which for a complete day means
+    // the cost report had nothing for it, and for the current day is expected.
+    const rowCents = row.attributedCostCents ?? row.computedCostCents;
+    const rowMethod: AttributionMethodLabel =
+      row.attributionMode === "apportioned"
+        ? "apportioned"
+        : row.attributionMode === "billed"
+          ? "billed"
+          : "estimated";
+    if (row.attributedCostCents === null) {
+      estimatedCents += rowCents;
+    } else {
+      billedCents += rowCents;
+    }
+
     const inputTokens =
       row.uncachedInputTokens +
       row.cacheReadInputTokens +
@@ -141,23 +175,28 @@ export async function fetchUserCostDataInternal(
 
     const modelEntry: DailyModelCost = {
       model: row.model,
-      costCents: row.computedCostCents,
+      costCents: rowCents,
       inputTokens,
       outputTokens: row.outputTokens,
     };
 
     const existing = dailyMap.get(dateStr);
     if (existing) {
-      existing.models.push(modelEntry);
-      existing.totalCents += row.computedCostCents;
+      // The carrier row holds billed cost the usage report does not cover. It
+      // counts toward the total but is not a model anyone used, so it never
+      // appears in the breakdown (contract R10).
+      if (row.model !== BILLED_ONLY_MODEL) existing.models.push(modelEntry);
+      existing.totalCents += rowCents;
+      existing.methods.add(rowMethod);
     } else {
       dailyMap.set(dateStr, {
-        models: [modelEntry],
-        totalCents: row.computedCostCents,
+        models: row.model === BILLED_ONLY_MODEL ? [] : [modelEntry],
+        totalCents: rowCents,
+        methods: new Set([rowMethod]),
       });
     }
 
-    monthlyTotalCents += row.computedCostCents;
+    monthlyTotalCents += rowCents;
   }
 
   const dailyBreakdown = Array.from(dailyMap.entries())
@@ -165,8 +204,14 @@ export async function fetchUserCostDataInternal(
       date,
       models: data.models,
       totalCents: data.totalCents,
+      method:
+        data.methods.size === 1
+          ? [...data.methods][0]
+          : ("mixed" as AttributionMethodLabel),
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  const methods = new Set(dailyBreakdown.map((d) => d.method));
 
   return {
     available: true,
@@ -174,6 +219,15 @@ export async function fetchUserCostDataInternal(
     dailyBreakdown,
     latestDataDate,
     hasUnresolvedPricing,
+    attribution: {
+      method:
+        methods.size === 1
+          ? [...methods][0]
+          : ("mixed" as AttributionMethodLabel),
+      billedCents,
+      estimatedCents,
+      workspaceId: workspaceId ?? null,
+    },
   };
 }
 
