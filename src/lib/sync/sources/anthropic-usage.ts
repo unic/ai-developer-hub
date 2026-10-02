@@ -1,4 +1,5 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
+import { appendSyncWarning } from "@/lib/sync/warnings";
 import {
   runAnthropicSyncCore,
   fetchAnthropicUsage,
@@ -80,11 +81,9 @@ export async function run(
           // table does not know is a number nobody should trust.
           const unknown = await unknownModelWarning();
           if (unknown) {
-            const warning = `Warning: ${unknown}`;
-            counts.errorCount += 1;
-            counts.errorMessage = counts.errorMessage
-              ? `${counts.errorMessage}; ${warning}`.slice(0, 1000)
-              : warning.slice(0, 1000);
+            appendSyncWarning(counts, unknown);
+            // The rest of this path caps the stored message at 1000 chars.
+            counts.errorMessage = counts.errorMessage?.slice(0, 1000) ?? null;
           }
         } catch (err) {
           counts.errorCount = 1;

@@ -1,4 +1,5 @@
 import { withSyncLock, retryWithBackoff, type SyncCounts } from "@/lib/sync/framework";
+import { appendSyncWarning } from "@/lib/sync/warnings";
 import { db } from "@/lib/db";
 import { anthropicWorkspaceCosts, anthropicSyncStatus } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
@@ -849,7 +850,7 @@ export async function run(
             syncedDateRange.max
           );
           for (const warning of warnings) {
-            appendError(counts, `Warning: ${warning}`);
+            appendSyncWarning(counts, warning);
           }
         } catch (err) {
           appendError(
