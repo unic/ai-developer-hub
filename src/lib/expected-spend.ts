@@ -150,17 +150,3 @@ export function combineExpectedSpend(
   const basis = order.find((b) => bases.has(b)) ?? "tier_price";
   return { cents, basis };
 }
-
-/** Human wording for a basis — used wherever a figure is displayed (P7/L5). */
-export function basisLabel(basis: ExpectedSpendBasis): string {
-  switch (basis) {
-    case "tier_price":
-      return "tier price";
-    case "measured":
-      return "measured consumption";
-    case "projected":
-      return `projected from the last ${PROJECTION_MONTHS} complete months`;
-    case "allowance_fallback":
-      return "allowance (no consumption history yet)";
-  }
-}

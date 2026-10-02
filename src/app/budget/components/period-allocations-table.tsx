@@ -1,7 +1,14 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Info,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,33 +30,79 @@ import {
 import type { BilledCost, BudgetWithCosts } from "@/types";
 import type { RunningCostsResult } from "@/lib/budget-utils";
 import { classifyPeriod } from "@/lib/reports/period-helpers";
-import { basisLabel, type ExpectedSpendBasis } from "@/lib/expected-spend";
+import {
+  PROJECTION_MONTHS,
+  type ExpectedSpendBasis,
+} from "@/lib/expected-spend";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+/** What each basis means, in the words a budget reader needs. */
+const BASIS_EXPLANATION: Record<
+  Exclude<ExpectedSpendBasis, "tier_price">,
+  string
+> = {
+  measured: "Closed months: what was actually spent.",
+  projected: `Open and future months: the average of the last ${PROJECTION_MONTHS} complete months.`,
+  allowance_fallback:
+    "No spending history yet: the licence allowance, as a placeholder.",
+};
 
 /**
- * Says what the Expected column is made of, when it is not purely tier prices.
+ * An info icon on the Expected header, explaining what the column is made of.
  *
  * Spec 045: for a usage-based tool the tier price is an ALLOWANCE, not a cost,
  * so its expected figure comes from measured consumption or a projection
- * instead. A reader cannot tell those apart by looking at the number, so the
- * column says which it is rather than leaving a projection to pass for a
- * measurement.
+ * instead — and a reader cannot tell those apart by looking at the number.
+ *
+ * Deliberately an icon with a tooltip, not inline text: table headers do not
+ * wrap (`whitespace-nowrap`), so a sentence in the header stretched the whole
+ * column. Absent entirely when every period is a plain tier price, so a
+ * seat-only budget's header is unchanged.
  */
 function ExpectedBasisHint({
   periods,
 }: {
   periods: { expectedSpendBasis?: ExpectedSpendBasis }[];
 }) {
-  const bases = new Set(
-    periods.map((p) => p.expectedSpendBasis).filter(Boolean),
-  ) as Set<ExpectedSpendBasis>;
+  const usageBases = (
+    ["measured", "projected", "allowance_fallback"] as const
+  ).filter((basis) => periods.some((p) => p.expectedSpendBasis === basis));
 
-  if (bases.size === 0) return null;
-  if (bases.size === 1 && bases.has("tier_price")) return null;
+  if (usageBases.length === 0) return null;
 
   return (
-    <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-      ({[...bases].map(basisLabel).join(", ")})
-    </span>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="How Expected is worked out"
+          >
+            <Info className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs normal-case tracking-normal">
+          <p className="mb-1 font-medium">How Expected is worked out</p>
+          <p>Seat licences: the tier price of every active licence.</p>
+          <p className="mt-1">Usage-based tools such as Claude Console:</p>
+          <ul className="list-disc pl-4">
+            {usageBases.map((basis) => (
+              <li key={basis}>{BASIS_EXPLANATION[basis]}</li>
+            ))}
+          </ul>
+          <p className="mt-1">
+            Their licence price is a spending allowance, not a cost, so it is
+            not used as the forecast.
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -143,8 +196,10 @@ export function PeriodAllocationsTable({
               <TableHead>Period</TableHead>
               <TableHead>Planned</TableHead>
               <TableHead>
-                Expected
-                <ExpectedBasisHint periods={periods} />
+                <span className="inline-flex items-center gap-1">
+                  Expected
+                  <ExpectedBasisHint periods={periods} />
+                </span>
               </TableHead>
               <TableHead>Actual</TableHead>
               <TableHead>Variance (Actual − Expected)</TableHead>
