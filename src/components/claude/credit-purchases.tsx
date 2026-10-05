@@ -35,6 +35,7 @@ import {
 import { StatusText, useInlineStatus } from "@/components/ui/status-text";
 import {
   deleteCreditPurchase,
+  linkCreditPurchaseInvoice,
   recordCreditPurchase,
   type CreditPurchaseOverview,
 } from "@/actions/credits";
@@ -74,6 +75,10 @@ export function CreditPurchases({
   const [isPending, startTransition] = useTransition();
   const formStatus = useInlineStatus();
   const listStatus = useInlineStatus();
+  const linkStatus = useInlineStatus();
+  const [linkingId, setLinkingId] = useState<number | null>(null);
+  const [linkInvoiceId, setLinkInvoiceId] = useState("");
+  const linking = overview.purchases.find((p) => p.id === linkingId) ?? null;
 
   const amountCents = parseCreditAmountCents(amount);
 
@@ -120,6 +125,23 @@ export function CreditPurchases({
     });
   }
 
+  function handleLink() {
+    if (linkingId === null || linkInvoiceId === "") return;
+    startTransition(async () => {
+      const result = await linkCreditPurchaseInvoice({
+        id: linkingId,
+        invoiceId: Number(linkInvoiceId),
+      });
+      if (result.success) {
+        setLinkingId(null);
+        listStatus.ok("Invoice linked");
+        router.refresh();
+      } else {
+        linkStatus.error(result.error);
+      }
+    });
+  }
+
   function handleDelete(id: number) {
     startTransition(async () => {
       const result = await deleteCreditPurchase(id);
@@ -152,60 +174,132 @@ export function CreditPurchases({
         </p>
       ) : (
         <ul className="divide-y rounded-lg border text-sm">
-          {overview.purchases.map((p) => (
-            <li
-              key={p.id}
-              className="flex items-center justify-between gap-3 px-3 py-2"
-            >
-              <div className="min-w-0">
-                <span className="font-medium tabular-nums">
-                  {formatCurrency(p.amountCents)}
-                </span>{" "}
-                <span className="text-muted-foreground">
-                  on {p.purchasedAt}
-                  {p.invoiceNumber && <> · invoice {p.invoiceNumber}</>}
-                  {p.note && <> · {p.note}</>}
-                </span>
-                {openingAt !== null && p.purchasedAt <= openingAt && (
-                  <span className="block text-xs text-warning">
-                    On or before the opening balance date ({openingAt}), so
-                    treated as already included in it.
+          {overview.purchases.map((p) => {
+            // Already inside the opening balance, so the derived figure
+            // doesn't include it either way (C4).
+            const coveredByOpening =
+              openingAt !== null && p.purchasedAt <= openingAt;
+            return (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-3 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <span className="font-medium tabular-nums">
+                    {formatCurrency(p.amountCents)}
+                  </span>{" "}
+                  <span className="text-muted-foreground">
+                    on {p.purchasedAt}
+                    {p.invoiceNumber && <> · invoice {p.invoiceNumber}</>}
+                    {p.note && <> · {p.note}</>}
                   </span>
-                )}
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={isPending}
-                    aria-label={`Delete top-up of ${formatCurrency(p.amountCents)} on ${p.purchasedAt}`}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete this top-up?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {formatCurrency(p.amountCents)} on {p.purchasedAt} will no
-                      longer count towards the credit balance.
-                      {p.invoiceNumber &&
-                        ` Invoice ${p.invoiceNumber} will count as period cost again.`}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDelete(p.id)}>
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </li>
-          ))}
+                  {coveredByOpening && (
+                    <span className="block text-xs text-warning">
+                      On or before the opening balance date ({openingAt}), so
+                      treated as already included in it.
+                    </span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {p.invoiceNumber === null &&
+                    overview.linkableInvoices.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={isPending}
+                        onClick={() => {
+                          setLinkInvoiceId("");
+                          setLinkingId(p.id);
+                        }}
+                      >
+                        Link invoice
+                      </Button>
+                    )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={isPending}
+                        aria-label={`Delete top-up of ${formatCurrency(p.amountCents)} on ${p.purchasedAt}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this top-up?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {coveredByOpening
+                            ? `${formatCurrency(p.amountCents)} on ${p.purchasedAt} is on or before the opening balance date, so the derived balance already leaves it out — deleting it won't change the balance.`
+                            : `${formatCurrency(p.amountCents)} on ${p.purchasedAt} will no longer count towards the credit balance.`}
+                          {p.invoiceNumber &&
+                            ` Invoice ${p.invoiceNumber} will count as period cost again.`}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(p.id)}>
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
+
+      <Dialog
+        open={linkingId !== null}
+        onOpenChange={(next) => {
+          if (!next) setLinkingId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Link invoice</DialogTitle>
+            <DialogDescription>
+              {linking &&
+                `Attach the invoice for the ${formatCurrency(linking.amountCents)} top-up on ${linking.purchasedAt}. The invoice then stops counting as period cost; the credit balance is unchanged.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="link-invoice">Invoice</Label>
+            <Select value={linkInvoiceId} onValueChange={setLinkInvoiceId}>
+              <SelectTrigger id="link-invoice" className="w-full">
+                <SelectValue placeholder="Pick an invoice" />
+              </SelectTrigger>
+              <SelectContent>
+                {overview.linkableInvoices.map((i) => (
+                  <SelectItem key={i.id} value={String(i.id)}>
+                    {i.invoiceNumber} · {i.invoiceDate} ·{" "}
+                    {formatCurrency(i.amountCents)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <StatusText status={linkStatus.status} className="sm:mr-auto" />
+            <Button
+              variant="outline"
+              onClick={() => setLinkingId(null)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleLink}
+              disabled={isPending || linkInvoiceId === ""}
+            >
+              {isPending ? "Saving…" : "Link invoice"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={open}
@@ -276,7 +370,7 @@ export function CreditPurchases({
               <p className="text-xs text-muted-foreground">
                 Linking the top-up&apos;s invoice stops it counting as period
                 cost. If the invoice hasn&apos;t arrived yet, record without one
-                and re-record once it has.
+                and use &ldquo;Link invoice&rdquo; on the top-up once it has.
               </p>
             </div>
 
