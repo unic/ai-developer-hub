@@ -3,11 +3,12 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import { aiTools, creditPurchases, invoices } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordCreation, recordUpdate, recordDeletion } from "@/lib/history";
 import { deriveCreditBalance, type CreditBalance } from "@/lib/credits";
+import { isUniqueViolation } from "@/lib/core/tools";
 import type { ActionResult } from "@/types";
 
 /**
@@ -24,15 +25,42 @@ const recordPurchaseSchema = z.object({
   toolId: z.number().int().positive(),
   invoiceId: z.number().int().positive().optional(),
   purchasedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
-  amountCents: z.number().int().positive("A purchase must be a positive amount"),
+  amountCents: z
+    .number()
+    .int()
+    .positive("A purchase must be a positive amount"),
   note: z.string().max(200).optional(),
 });
+
+const linkInvoiceSchema = z.object({
+  id: z.number().int().positive(),
+  // Null unlinks: the invoice counts as period cost again.
+  invoiceId: z.number().int().positive().nullable(),
+});
+
+const INVOICE_ALREADY_LINKED =
+  "This invoice is already recorded as a credit purchase";
+
+/**
+ * Today as YYYY-MM-DD, a day ahead of UTC. The admin picks the date in their
+ * own timezone, which can already be tomorrow in UTC; a one-day slack keeps
+ * that honest reading valid while still rejecting a genuinely future anchor.
+ */
+function latestAllowedDate(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 const openingBalanceSchema = z.object({
   toolId: z.number().int().positive(),
   // Nullable so an admin can clear a stale opening balance, which returns the
   // panel to "unavailable" rather than leaving a wrong number on screen.
-  openingBalanceCents: z.number().int().nullable(),
+  openingBalanceCents: z
+    .number()
+    .int()
+    .nonnegative("A credit balance can't be negative")
+    .nullable(),
   openingBalanceAt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
@@ -74,25 +102,30 @@ export async function recordCreditPurchase(
       where: eq(creditPurchases.invoiceId, invoiceId),
       columns: { id: true },
     });
-    if (existing) {
-      return {
-        success: false,
-        error: "This invoice is already recorded as a credit purchase",
-      };
-    }
+    if (existing) return { success: false, error: INVOICE_ALREADY_LINKED };
   }
 
-  const [row] = await db
-    .insert(creditPurchases)
-    .values({
-      toolId,
-      invoiceId: invoiceId ?? null,
-      purchasedAt,
-      amountCents,
-      note: note ?? null,
-      createdBy: Number(admin.id),
-    })
-    .returning({ id: creditPurchases.id });
+  let row: { id: number };
+  try {
+    [row] = await db
+      .insert(creditPurchases)
+      .values({
+        toolId,
+        invoiceId: invoiceId ?? null,
+        purchasedAt,
+        amountCents,
+        note: note ?? null,
+        createdBy: Number(admin.id),
+      })
+      .returning({ id: creditPurchases.id });
+  } catch (e) {
+    // The pre-check above gives the common case its message; the unique index
+    // closes the race where two admins link the same invoice at once.
+    if (isUniqueViolation(e)) {
+      return { success: false, error: INVOICE_ALREADY_LINKED };
+    }
+    throw e;
+  }
 
   await recordCreation("credit_purchase", row.id, Number(admin.id), {
     source: "ui",
@@ -100,6 +133,60 @@ export async function recordCreditPurchase(
 
   revalidateCreditSurfaces();
   return { success: true, data: { id: row.id } };
+}
+
+/**
+ * Attach the invoice to a top-up recorded before it arrived, or detach it.
+ *
+ * Updating the existing row matters: re-recording the top-up with its invoice
+ * would leave two rows, and the balance would count the cash twice.
+ */
+export async function linkCreditPurchaseInvoice(
+  input: unknown,
+): Promise<ActionResult<void>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const parsed = linkInvoiceSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "Validation failed" };
+  const { id, invoiceId } = parsed.data;
+
+  const existing = await db.query.creditPurchases.findFirst({
+    where: eq(creditPurchases.id, id),
+    columns: { id: true, invoiceId: true },
+  });
+  if (!existing) return { success: false, error: "Credit purchase not found" };
+
+  if (invoiceId !== null) {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+      columns: { id: true },
+    });
+    if (!invoice) return { success: false, error: "Invoice not found" };
+  }
+
+  try {
+    await db
+      .update(creditPurchases)
+      .set({ invoiceId, updatedAt: new Date() })
+      .where(eq(creditPurchases.id, id));
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return { success: false, error: INVOICE_ALREADY_LINKED };
+    }
+    throw e;
+  }
+
+  await recordUpdate(
+    "credit_purchase",
+    id,
+    Number(admin.id),
+    { invoiceId: { old: existing.invoiceId, new: invoiceId } },
+    { source: "ui" },
+  );
+
+  revalidateCreditSurfaces();
+  return { success: true, data: undefined };
 }
 
 /**
@@ -144,9 +231,20 @@ export async function setCreditOpeningBalance(
   if (!admin) return { success: false, error: "Unauthorized" };
 
   const parsed = openingBalanceSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Validation failed" };
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Validation failed",
+    };
+  }
 
   const { toolId, openingBalanceCents, openingBalanceAt } = parsed.data;
+
+  // A future anchor would silently swallow every top-up and day of usage up
+  // to it (C4), so it is refused here, not only in the form.
+  if (openingBalanceAt !== null && openingBalanceAt > latestAllowedDate()) {
+    return { success: false, error: "The as-of date can't be in the future" };
+  }
 
   // Both or neither: a balance without its as-of date cannot be reasoned
   // about, and a date without a balance says nothing.
@@ -195,6 +293,78 @@ export async function setCreditOpeningBalance(
 
   revalidateCreditSurfaces();
   return { success: true, data: undefined };
+}
+
+export interface CreditPurchaseRow {
+  id: number;
+  purchasedAt: string;
+  amountCents: number;
+  note: string | null;
+  invoiceNumber: string | null;
+}
+
+export interface LinkableInvoice {
+  id: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  amountCents: number;
+}
+
+export interface CreditPurchaseOverview {
+  purchases: CreditPurchaseRow[];
+  /** Recent vendor invoices not yet recorded as a credit purchase. */
+  linkableInvoices: LinkableInvoice[];
+}
+
+/**
+ * The recorded purchases for a tool, plus the invoices a new one could be
+ * linked to. Candidates are offered, never picked: a seat invoice and a top-up
+ * share a vendor, so only the admin can tell them apart (D9).
+ */
+export async function getCreditPurchaseOverview(
+  toolId: number,
+): Promise<ActionResult<CreditPurchaseOverview>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const tool = await db.query.aiTools.findFirst({
+    where: eq(aiTools.id, toolId),
+    columns: { id: true, vendor: true },
+  });
+  if (!tool) return { success: false, error: "Tool not found" };
+
+  const purchases = await db
+    .select({
+      id: creditPurchases.id,
+      purchasedAt: creditPurchases.purchasedAt,
+      amountCents: creditPurchases.amountCents,
+      note: creditPurchases.note,
+      invoiceNumber: invoices.invoiceNumber,
+    })
+    .from(creditPurchases)
+    .leftJoin(invoices, eq(invoices.id, creditPurchases.invoiceId))
+    .where(eq(creditPurchases.toolId, toolId))
+    .orderBy(desc(creditPurchases.purchasedAt), desc(creditPurchases.id));
+
+  const linkableInvoices = (
+    await db.execute(sql`
+      SELECT i.id,
+             i.invoice_number AS "invoiceNumber",
+             i.invoice_date::text AS "invoiceDate",
+             i.amount_cents AS "amountCents"
+      FROM invoices i
+      WHERE i.vendor ILIKE ${`%${tool.vendor}%`}
+        AND i.filtered_out = false
+        AND i.invoice_date >= CURRENT_DATE - INTERVAL '180 days'
+        AND NOT EXISTS (
+          SELECT 1 FROM credit_purchases cp WHERE cp.invoice_id = i.id
+        )
+      ORDER BY i.invoice_date DESC, i.id DESC
+      LIMIT 50
+    `)
+  ).rows as unknown as LinkableInvoice[];
+
+  return { success: true, data: { purchases, linkableInvoices } };
 }
 
 /** The derived balance for a tool, with everything it was derived from. */

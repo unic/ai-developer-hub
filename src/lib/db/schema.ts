@@ -1090,7 +1090,10 @@ export const creditPurchases = pgTable(
       table.toolId,
       table.purchasedAt,
     ),
-    index("credit_purchases_invoice_id_idx").on(table.invoiceId),
+    // One invoice backs at most one top-up: a second row would double-count
+    // the balance. Unique, so the race between two admins is closed by the
+    // database, not a check-then-insert. NULLs (no invoice yet) stay distinct.
+    uniqueIndex("credit_purchases_invoice_id_unique").on(table.invoiceId),
     check(
       "credit_purchases_amount_cents_check",
       sql`${table.amountCents} > 0`,

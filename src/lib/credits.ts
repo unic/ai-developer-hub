@@ -96,3 +96,28 @@ export function creditBalanceProvenance(balance: CreditBalance): string {
   }
   return `Derived by the Hub from the opening balance recorded on ${balance.asOf}, plus credit purchases, minus measured consumption since. Not read from Anthropic.`;
 }
+
+/** Dollars typed into a form → integer cents, or null if not a plain amount. */
+function parseUsdCents(input: string): number | null {
+  const trimmed = input.trim();
+  // Two decimals at most: a third is a typo, not a fraction of a cent.
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
+  return Math.round(Number(trimmed) * 100);
+}
+
+/**
+ * Parse a top-up amount into cents. Null for anything the server would
+ * reject: empty, non-numeric, zero, negative, or more than two decimals.
+ */
+export function parseCreditAmountCents(input: string): number | null {
+  const cents = parseUsdCents(input);
+  return cents !== null && cents > 0 ? cents : null;
+}
+
+/**
+ * Parse an opening balance into cents. Unlike a top-up, zero is a real
+ * reading — an exhausted balance — so only negatives and junk are rejected.
+ */
+export function parseOpeningBalanceCents(input: string): number | null {
+  return parseUsdCents(input);
+}

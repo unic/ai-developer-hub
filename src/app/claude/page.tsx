@@ -14,7 +14,10 @@ import {
   getTopMovers,
   getWorkspaceSparklines,
 } from "@/actions/anthropic-global";
-import { getAnthropicCreditBalance } from "@/actions/credits";
+import {
+  getAnthropicCreditBalance,
+  getCreditPurchaseOverview,
+} from "@/actions/credits";
 import { GlobalMetricsClient } from "@/components/claude/global-metrics-client";
 import { WorkspaceBudgetList } from "@/components/claude/workspace-budget-list";
 import { OrgBillingBudgetCard } from "@/components/claude/org-credits-panel";
@@ -80,6 +83,12 @@ export default async function ClaudePage({
   ]);
 
   const creditBalance = claudeConsoleCredits;
+  const creditPurchasesResult = creditBalance
+    ? await getCreditPurchaseOverview(creditBalance.toolId)
+    : null;
+  const creditPurchases = creditPurchasesResult?.success
+    ? creditPurchasesResult.data
+    : null;
 
   return (
     <div className="space-y-6">
@@ -130,6 +139,7 @@ export default async function ClaudePage({
           projectedMonthEndCents={kpis.projectedMonthEndCents}
           todayEstimate={kpis.todayEstimate}
           creditBalance={creditBalance}
+          creditPurchases={creditPurchases}
         />
       </section>
 

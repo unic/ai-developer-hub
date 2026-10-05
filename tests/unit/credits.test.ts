@@ -3,6 +3,8 @@ import { describe, it, expect } from "vitest";
 import {
   creditBalanceProvenance,
   deriveCreditBalance,
+  parseCreditAmountCents,
+  parseOpeningBalanceCents,
   type DeriveCreditBalanceInput,
 } from "@/lib/credits";
 
@@ -133,5 +135,37 @@ describe("deriveCreditBalance", () => {
       deriveCreditBalance(input({ purchases: [...purchases].reverse() }))
         .balanceCents,
     );
+  });
+});
+
+describe("parseCreditAmountCents", () => {
+  it("parses dollars and cents into integer cents", () => {
+    expect(parseCreditAmountCents("610.43")).toBe(61043);
+    expect(parseCreditAmountCents(" 500 ")).toBe(50000);
+    expect(parseCreditAmountCents("0.1")).toBe(10);
+  });
+
+  it("does not lose a cent to floating point", () => {
+    expect(parseCreditAmountCents("1.15")).toBe(115);
+    expect(parseCreditAmountCents("4.35")).toBe(435);
+  });
+
+  it("rejects what the server would reject", () => {
+    for (const bad of ["", "0", "0.00", "-5", "abc", "1.234", "1,000.00", "1e3"]) {
+      expect(parseCreditAmountCents(bad)).toBeNull();
+    }
+  });
+});
+
+describe("parseOpeningBalanceCents", () => {
+  it("accepts zero, an exhausted balance", () => {
+    expect(parseOpeningBalanceCents("0")).toBe(0);
+    expect(parseOpeningBalanceCents("44.79")).toBe(4479);
+  });
+
+  it("rejects negatives and junk", () => {
+    for (const bad of ["", "-1", "abc", "1.234"]) {
+      expect(parseOpeningBalanceCents(bad)).toBeNull();
+    }
   });
 });
