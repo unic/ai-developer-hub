@@ -3,7 +3,7 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/lib/db";
 import { aiTools, creditPurchases, invoices } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordCreation, recordUpdate, recordDeletion } from "@/lib/history";
@@ -24,7 +24,10 @@ const recordPurchaseSchema = z.object({
   toolId: z.number().int().positive(),
   invoiceId: z.number().int().positive().optional(),
   purchasedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
-  amountCents: z.number().int().positive("A purchase must be a positive amount"),
+  amountCents: z
+    .number()
+    .int()
+    .positive("A purchase must be a positive amount"),
   note: z.string().max(200).optional(),
 });
 
@@ -195,6 +198,78 @@ export async function setCreditOpeningBalance(
 
   revalidateCreditSurfaces();
   return { success: true, data: undefined };
+}
+
+export interface CreditPurchaseRow {
+  id: number;
+  purchasedAt: string;
+  amountCents: number;
+  note: string | null;
+  invoiceNumber: string | null;
+}
+
+export interface LinkableInvoice {
+  id: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  amountCents: number;
+}
+
+export interface CreditPurchaseOverview {
+  purchases: CreditPurchaseRow[];
+  /** Recent vendor invoices not yet recorded as a credit purchase. */
+  linkableInvoices: LinkableInvoice[];
+}
+
+/**
+ * The recorded purchases for a tool, plus the invoices a new one could be
+ * linked to. Candidates are offered, never picked: a seat invoice and a top-up
+ * share a vendor, so only the admin can tell them apart (D9).
+ */
+export async function getCreditPurchaseOverview(
+  toolId: number,
+): Promise<ActionResult<CreditPurchaseOverview>> {
+  const admin = await requireAdmin();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  const tool = await db.query.aiTools.findFirst({
+    where: eq(aiTools.id, toolId),
+    columns: { id: true, vendor: true },
+  });
+  if (!tool) return { success: false, error: "Tool not found" };
+
+  const purchases = await db
+    .select({
+      id: creditPurchases.id,
+      purchasedAt: creditPurchases.purchasedAt,
+      amountCents: creditPurchases.amountCents,
+      note: creditPurchases.note,
+      invoiceNumber: invoices.invoiceNumber,
+    })
+    .from(creditPurchases)
+    .leftJoin(invoices, eq(invoices.id, creditPurchases.invoiceId))
+    .where(eq(creditPurchases.toolId, toolId))
+    .orderBy(desc(creditPurchases.purchasedAt), desc(creditPurchases.id));
+
+  const linkableInvoices = (
+    await db.execute(sql`
+      SELECT i.id,
+             i.invoice_number AS "invoiceNumber",
+             i.invoice_date::text AS "invoiceDate",
+             i.amount_cents AS "amountCents"
+      FROM invoices i
+      WHERE i.vendor ILIKE ${`%${tool.vendor}%`}
+        AND i.filtered_out = false
+        AND i.invoice_date >= CURRENT_DATE - INTERVAL '180 days'
+        AND NOT EXISTS (
+          SELECT 1 FROM credit_purchases cp WHERE cp.invoice_id = i.id
+        )
+      ORDER BY i.invoice_date DESC, i.id DESC
+      LIMIT 50
+    `)
+  ).rows as unknown as LinkableInvoice[];
+
+  return { success: true, data: { purchases, linkableInvoices } };
 }
 
 /** The derived balance for a tool, with everything it was derived from. */

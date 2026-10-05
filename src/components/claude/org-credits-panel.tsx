@@ -20,6 +20,9 @@ import {
   creditBalanceProvenance,
   type CreditBalance,
 } from "@/lib/credits";
+import type { CreditPurchaseOverview } from "@/actions/credits";
+import { CreditPurchases } from "@/components/claude/credit-purchases";
+import { CreditOpeningBalance } from "@/components/claude/credit-opening-balance";
 
 type OrgBillingBudgetCardProps = {
   orgConfig: { billingBudgetLimitCents: number | null } | null;
@@ -29,6 +32,8 @@ type OrgBillingBudgetCardProps = {
   todayEstimate?: TodayEstimate | null;
   /** Spec 045 — the Hub-derived prepaid credit balance, or an unavailable one. */
   creditBalance?: CreditBalance | null;
+  /** Spec 045 — recorded top-ups and linkable invoices for that tool. */
+  creditPurchases?: CreditPurchaseOverview | null;
 };
 
 export function OrgBillingBudgetCard({
@@ -37,6 +42,7 @@ export function OrgBillingBudgetCard({
   projectedMonthEndCents,
   todayEstimate,
   creditBalance,
+  creditPurchases,
 }: OrgBillingBudgetCardProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(
@@ -238,6 +244,23 @@ export function OrgBillingBudgetCard({
               ariaLabel={`${utilizationPct ?? 0}% of monthly budget used`}
             />
           </div>
+        )}
+
+        {creditBalance && creditPurchases && (
+          <>
+            <CreditOpeningBalance
+              toolId={creditBalance.toolId}
+              openingCents={
+                creditBalance.available ? creditBalance.openingCents : null
+              }
+              openingAt={creditBalance.asOf}
+            />
+            <CreditPurchases
+              toolId={creditBalance.toolId}
+              overview={creditPurchases}
+              openingAt={creditBalance.asOf}
+            />
+          </>
         )}
       </CardContent>
     </Card>
