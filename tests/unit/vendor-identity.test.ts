@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isAnthropicReceiptText,
   isAnthropicVendor,
   vendorFilterMatches,
   vendorsEquivalent,
@@ -15,6 +16,15 @@ describe("Anthropic vendor identity", () => {
     );
     expect(isAnthropicVendor("Anthropic Ireland, Limited")).toBe(true);
     expect(isAnthropicVendor("Anthropic, PBC")).toBe(true);
+  });
+
+  it("recognises an Anthropic receipt from the PDF text", () => {
+    expect(isAnthropicReceiptText("Anthropic Ireland, Limited $67.08")).toBe(
+      true,
+    );
+    expect(isAnthropicReceiptText("Invoice from Example Supplier Ltd")).toBe(
+      false,
+    );
   });
 
   it("does not fold an unrelated vendor into Anthropic", () => {

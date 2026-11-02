@@ -57,6 +57,33 @@ describe("chooseConflict", () => {
     expect(hit?.id).toBe(216);
   });
 
+  it("treats a separator-free stored number as the same receipt", () => {
+    const stored = row({
+      id: 11,
+      invoiceNumber: "K6EV5YRI0095",
+      invoiceDate: "2026-08-11",
+      amountCents: 427,
+    });
+    const hit = chooseConflict([stored], {
+      invoiceNumber: "K6EV5YRI 0095",
+      invoiceDate: "2026-09-01",
+      amountCents: 999,
+      vendor: IRELAND,
+    });
+    expect(hit?.id).toBe(11);
+  });
+
+  it("does not match a truncated prefix when the receipt fingerprint is missing", () => {
+    const stored = row({ id: 209, invoiceNumber: "K6EV5YRI" });
+    const hit = chooseConflict([stored], {
+      invoiceNumber: "K6EV5YRI 0101",
+      invoiceDate: "",
+      amountCents: -1,
+      vendor: null,
+    });
+    expect(hit).toBeUndefined();
+  });
+
   it("does not collapse a different receipt onto a truncated prefix", () => {
     const stored = row({ id: 216, invoiceNumber: "9BF0758D" });
     const hit = chooseConflict([stored], {

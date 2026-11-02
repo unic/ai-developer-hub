@@ -30,7 +30,10 @@ const IRELAND_TEXT =
 const PREFIX_ONLY_TEXT =
   "Receipt  Invoice number   9BF0758D  Receipt number   2707   6864 Date paid   October 24, 2026 Anthropic Ireland, Limited $67.08";
 
-function claudeNumber(invoiceNumber: string) {
+function claudeNumber(
+  invoiceNumber: string,
+  vendor = "Anthropic Ireland, Limited",
+) {
   mockCreate.mockResolvedValue({
     content: [
       {
@@ -39,7 +42,7 @@ function claudeNumber(invoiceNumber: string) {
           invoice_number: invoiceNumber,
           invoice_date: "2026-10-24",
           amount_cents: 6708,
-          vendor: "Anthropic Ireland, Limited",
+          vendor,
           confidence: {
             invoice_number: "high",
             invoice_date: "high",
@@ -70,6 +73,41 @@ describe("extractInvoiceFields invoice numbers", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.invoiceNumber).toBe("9BF0758D 10147934");
+    }
+  });
+
+  it("leaves another supplier's invoice number unchanged", async () => {
+    mockExtractText.mockResolvedValue({
+      text: "Invoice number 1234567890 Total due $10.00 from Example Supplier Ltd on October 24, 2026",
+    });
+    claudeNumber("1234567890", "Example Supplier Ltd");
+
+    const result = await extractInvoiceFields({
+      objectKey: "invoices/other.pdf",
+      pdfBytes: new Uint8Array([1, 2, 3]),
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.invoiceNumber).toBe("1234567890");
+    }
+    expect(mockCreate).toHaveBeenCalled();
+  });
+
+  it("does not reject another supplier's 8-digit invoice number", async () => {
+    mockExtractText.mockResolvedValue({
+      text: "Invoice number 12345678 Total due $10.00 from Example Supplier Ltd on October 24, 2026",
+    });
+    claudeNumber("12345678", "Example Supplier Ltd");
+
+    const result = await extractInvoiceFields({
+      objectKey: "invoices/other-8.pdf",
+      pdfBytes: new Uint8Array([1, 2, 3]),
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.invoiceNumber).toBe("12345678");
     }
   });
 

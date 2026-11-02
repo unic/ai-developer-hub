@@ -8,7 +8,12 @@ import { env } from "@/lib/env";
 import {
   canonicalizeAnthropicInvoiceNumber,
   parseInvoiceNumberFromText,
+  type InvoiceNumberParseResult,
 } from "@/lib/invoice-number";
+import {
+  isAnthropicReceiptText,
+  isAnthropicVendor,
+} from "@/lib/vendor-identity";
 
 const anthropic = new Anthropic({
   apiKey: env.ANTHROPIC_API_KEY,
@@ -67,21 +72,24 @@ const EXTRACTION_TOOL = {
 };
 
 function regexFallback(text: string): InvoiceExtractionResult {
-  const parsedNumber = parseInvoiceNumberFromText(text);
+  // Strict prefix/suffix rules apply only once the text names Anthropic.
+  // Another supplier's "12345678" or "1234567890" stays on the generic path.
+  const anthropic = isAnthropicReceiptText(text);
+  const parsedNumber = anthropic
+    ? parseInvoiceNumberFromText(text)
+    : ({ status: "absent" } as const);
   let invoiceNumber: string | null = null;
   if (parsedNumber.status === "ok") {
     invoiceNumber = parsedNumber.invoiceNumber;
   } else if (parsedNumber.status === "absent") {
-    // Other vendors. Anthropic prefix-only text is an error and never reaches
-    // this branch — the caller rejects it before falling back.
     const invoiceNumberMatch = text.match(
       /(?:invoice\s*(?:number|no\.?|#)\s*:?\s*)([A-Z0-9\-]+)/i,
     );
     invoiceNumber = invoiceNumberMatch?.[1] ?? null;
-    const canonical = invoiceNumber
-      ? canonicalizeAnthropicInvoiceNumber(invoiceNumber)
-      : null;
-    if (canonical) invoiceNumber = canonical;
+    if (anthropic && invoiceNumber) {
+      const canonical = canonicalizeAnthropicInvoiceNumber(invoiceNumber);
+      if (canonical) invoiceNumber = canonical;
+    }
   }
   const dateMatch = text.match(
     /\b(\d{4}-\d{2}-\d{2})\b|\b(\d{1,2}\/\d{1,2}\/\d{4})\b/,
@@ -182,10 +190,14 @@ export async function extractInvoiceFields({
     return { success: false, error: "PDF has no readable text layer" };
   }
 
-  // Anthropic receipt numbers are parsed from the text. A label with no
-  // suffix is a hard failure: storing the 8-character prefix made every
-  // later Ireland receipt look like a duplicate of the first one.
-  const parsedNumber = parseInvoiceNumberFromText(text);
+  // Strict Anthropic parsing runs only after the text identifies the
+  // supplier. A label with no suffix is then a hard failure. Other vendors
+  // keep the generic extractor, including numbers that happen to be 8 digits
+  // or 8 digits plus a numeric tail.
+  const anthropicText = isAnthropicReceiptText(text);
+  const parsedNumber: InvoiceNumberParseResult = anthropicText
+    ? parseInvoiceNumberFromText(text)
+    : { status: "absent" };
   if (parsedNumber.status === "error") {
     return { success: false, error: parsedNumber.error };
   }
@@ -238,13 +250,23 @@ export async function extractInvoiceFields({
     rawResult = fallback;
   }
 
-  if (parsedNumber.status === "ok") {
+  const identifiedAnthropic =
+    anthropicText || isAnthropicVendor(rawResult.vendor);
+  let applied: InvoiceNumberParseResult = parsedNumber;
+  if (identifiedAnthropic && !anthropicText) {
+    applied = parseInvoiceNumberFromText(text);
+    if (applied.status === "error") {
+      return { success: false, error: applied.error };
+    }
+  }
+
+  if (identifiedAnthropic && applied.status === "ok") {
     rawResult = {
       ...rawResult,
-      invoiceNumber: parsedNumber.invoiceNumber,
+      invoiceNumber: applied.invoiceNumber,
       confidence: { ...rawResult.confidence, invoiceNumber: "high" },
     };
-  } else if (rawResult.invoiceNumber) {
+  } else if (identifiedAnthropic && rawResult.invoiceNumber) {
     const canonical = canonicalizeAnthropicInvoiceNumber(
       rawResult.invoiceNumber,
     );

@@ -31,6 +31,11 @@ export function isAnthropicVendor(vendor: string | null | undefined): boolean {
   return ANTHROPIC_VENDORS.has(normalizeVendorName(vendor));
 }
 
+/** PDF text names Anthropic (PBC, Ireland, or the short name). Other suppliers do not. */
+export function isAnthropicReceiptText(text: string): boolean {
+  return /anthropic/i.test(text);
+}
+
 /** True when two vendor strings name the same supplier, including the Anthropic legal-name change. */
 export function vendorsEquivalent(
   a: string | null | undefined,

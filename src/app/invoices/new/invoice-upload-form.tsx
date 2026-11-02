@@ -160,19 +160,32 @@ export function InvoiceUploadForm() {
   const [amountDollars, setAmountDollars] = useState("");
   const confidence = extractionResult?.confidence;
 
-  const runDuplicateCheck = useCallback(async (invNumber: string) => {
-    if (!invNumber || invNumber.trim() === "") {
-      setDuplicateInfo(null);
-      return;
-    }
-    const result = await checkInvoiceDuplicate(invNumber.trim());
-    if (result.success) {
-      setDuplicateInfo(result.data);
-      if (result.data.isDuplicate) {
-        setDuplicateDialogOpen(true);
+  const runDuplicateCheck = useCallback(
+    async (identity: {
+      invoiceNumber: string;
+      invoiceDate?: string | null;
+      amountCents?: number | null;
+      vendor?: string | null;
+    }) => {
+      if (!identity.invoiceNumber || identity.invoiceNumber.trim() === "") {
+        setDuplicateInfo(null);
+        return;
       }
-    }
-  }, []);
+      const result = await checkInvoiceDuplicate({
+        invoiceNumber: identity.invoiceNumber.trim(),
+        invoiceDate: identity.invoiceDate,
+        amountCents: identity.amountCents,
+        vendor: identity.vendor,
+      });
+      if (result.success) {
+        setDuplicateInfo(result.data);
+        if (result.data.isDuplicate) {
+          setDuplicateDialogOpen(true);
+        }
+      }
+    },
+    [],
+  );
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -230,7 +243,12 @@ export function InvoiceUploadForm() {
 
       // T006: Run duplicate check after extraction
       if (extracted.invoiceNumber) {
-        await runDuplicateCheck(extracted.invoiceNumber);
+        await runDuplicateCheck({
+          invoiceNumber: extracted.invoiceNumber,
+          invoiceDate: extracted.invoiceDate,
+          amountCents: extracted.amountCents,
+          vendor: extracted.vendor,
+        });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
@@ -303,10 +321,15 @@ export function InvoiceUploadForm() {
 
   // T010: Re-check on invoice number blur
   const handleInvoiceNumberBlur = () => {
-    const currentInvoiceNumber = watch().invoiceNumber;
-    if (currentInvoiceNumber) {
-      runDuplicateCheck(currentInvoiceNumber);
-    }
+    const current = watch();
+    if (!current.invoiceNumber) return;
+    const cents = Math.round(parseFloat(amountDollars || "0") * 100);
+    runDuplicateCheck({
+      invoiceNumber: current.invoiceNumber,
+      invoiceDate: current.invoiceDate,
+      amountCents: Number.isFinite(cents) && cents > 0 ? cents : null,
+      vendor: current.vendor,
+    });
   };
 
   const onSubmit = async (data: CreateInvoiceInput) => {

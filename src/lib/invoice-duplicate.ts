@@ -1,4 +1,4 @@
-import { eq, like, or } from "drizzle-orm";
+import { eq, like, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import {
@@ -19,9 +19,21 @@ export interface InvoiceIdentity {
 
 export interface IncomingInvoice {
   invoiceNumber: string;
-  invoiceDate: string;
-  amountCents: number;
-  vendor: string | null;
+  invoiceDate?: string | null;
+  amountCents?: number | null;
+  vendor?: string | null;
+}
+
+/** Truncated-prefix conflicts need a real vendor, date, and amount. Empty or sentinel values do not count. */
+function hasReceiptFingerprint(incoming: IncomingInvoice): boolean {
+  return (
+    typeof incoming.invoiceDate === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(incoming.invoiceDate) &&
+    typeof incoming.amountCents === "number" &&
+    incoming.amountCents > 0 &&
+    typeof incoming.vendor === "string" &&
+    incoming.vendor.trim() !== ""
+  );
 }
 
 /**
@@ -46,6 +58,8 @@ export function chooseConflict(
     sameCanonicalInvoiceNumber(row.invoiceNumber, incoming.invoiceNumber),
   );
   if (canonical) return canonical;
+
+  if (!hasReceiptFingerprint(incoming)) return undefined;
 
   return candidates.find(
     (row) =>
@@ -105,6 +119,9 @@ export async function findInvoiceConflict(
         eq(invoices.invoiceNumber, prefix),
         like(invoices.invoiceNumber, `${prefix} %`),
         like(invoices.invoiceNumber, `${prefix}-%`),
+        // No separator, e.g. "K6EV5YRI0095". Migration 0034 does not rewrite
+        // that shape, and a re-ingest now stores "K6EV5YRI 0095".
+        sql`${invoices.invoiceNumber} ~* ${`^${prefix}[0-9]+$`}`,
       ),
     );
 
