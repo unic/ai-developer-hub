@@ -7,6 +7,7 @@ import {
   vendorFilterValueSchema,
   invoiceNumberFilterValueSchema,
 } from "@/lib/validators";
+import { vendorFilterMatches } from "@/lib/vendor-identity";
 
 export interface FilterEvaluationResult {
   filteredOut: boolean;
@@ -22,7 +23,9 @@ export interface FilterEvaluationResult {
 type IngestionFilterRule = typeof ingestionFilters.$inferSelect;
 
 /** Fetch all enabled rules, ordered by priority. Cache this for bulk operations. */
-export async function fetchEnabledFilterRules(): Promise<IngestionFilterRule[]> {
+export async function fetchEnabledFilterRules(): Promise<
+  IngestionFilterRule[]
+> {
   return db
     .select()
     .from(ingestionFilters)
@@ -32,7 +35,7 @@ export async function fetchEnabledFilterRules(): Promise<IngestionFilterRule[]> 
 
 export async function evaluateIngestionFilters(
   invoice: { vendor: string | null; invoiceNumber: string },
-  preloadedRules?: IngestionFilterRule[]
+  preloadedRules?: IngestionFilterRule[],
 ): Promise<FilterEvaluationResult> {
   const rules = preloadedRules ?? (await fetchEnabledFilterRules());
 
@@ -86,16 +89,13 @@ export async function evaluateIngestionFilters(
 
 function matchesRule(
   rule: { field: string; value: unknown },
-  invoice: { vendor: string | null; invoiceNumber: string }
+  invoice: { vendor: string | null; invoiceNumber: string },
 ): boolean {
   if (rule.field === "vendor") {
     if (!invoice.vendor) return false;
     const parsed = vendorFilterValueSchema.safeParse(rule.value);
     if (!parsed.success) return false;
-    const vendorLower = invoice.vendor.toLowerCase();
-    return parsed.data.values.some((v) =>
-      vendorLower.includes(v.toLowerCase())
-    );
+    return vendorFilterMatches(invoice.vendor, parsed.data.values);
   }
 
   if (rule.field === "invoice_number") {

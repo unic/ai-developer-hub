@@ -5,6 +5,10 @@ import { getR2Client, getR2Bucket } from "@/lib/r2-client";
 import { invoiceExtractionResultSchema } from "@/lib/validators";
 import type { InvoiceExtractionResult } from "@/lib/validators";
 import { env } from "@/lib/env";
+import {
+  canonicalizeAnthropicInvoiceNumber,
+  parseInvoiceNumberFromText,
+} from "@/lib/invoice-number";
 
 const anthropic = new Anthropic({
   apiKey: env.ANTHROPIC_API_KEY,
@@ -18,11 +22,13 @@ const EXTRACTION_TOOL = {
     properties: {
       invoice_number: {
         type: ["string", "null"],
-        description: "Vendor invoice identifier, e.g. INV-1042. Null if not found.",
+        description:
+          "Vendor invoice identifier. Anthropic receipts are an 8-character code plus a numeric suffix of any length (K6EV5YRI-0101 or 9BF0758D-10147934). Include the suffix; never return the code alone. Null if not found.",
       },
       invoice_date: {
         type: ["string", "null"],
-        description: "Invoice issue date in YYYY-MM-DD format. Null if not found.",
+        description:
+          "Invoice issue date in YYYY-MM-DD format. Null if not found.",
       },
       amount_cents: {
         type: ["integer", "null"],
@@ -42,22 +48,46 @@ const EXTRACTION_TOOL = {
           amount_cents: { type: "string", enum: ["high", "medium", "low"] },
           vendor: { type: "string", enum: ["high", "medium", "low"] },
         },
-        required: ["invoice_number", "invoice_date", "amount_cents", "vendor"] as string[],
+        required: [
+          "invoice_number",
+          "invoice_date",
+          "amount_cents",
+          "vendor",
+        ] as string[],
       },
     },
-    required: ["invoice_number", "invoice_date", "amount_cents", "vendor", "confidence"] as string[],
+    required: [
+      "invoice_number",
+      "invoice_date",
+      "amount_cents",
+      "vendor",
+      "confidence",
+    ] as string[],
   },
 };
 
 function regexFallback(text: string): InvoiceExtractionResult {
-  const invoiceNumberMatch = text.match(
-    /(?:invoice\s*(?:number|no\.?|#)\s*:?\s*)([A-Z0-9\-]+)/i
-  );
+  const parsedNumber = parseInvoiceNumberFromText(text);
+  let invoiceNumber: string | null = null;
+  if (parsedNumber.status === "ok") {
+    invoiceNumber = parsedNumber.invoiceNumber;
+  } else if (parsedNumber.status === "absent") {
+    // Other vendors. Anthropic prefix-only text is an error and never reaches
+    // this branch — the caller rejects it before falling back.
+    const invoiceNumberMatch = text.match(
+      /(?:invoice\s*(?:number|no\.?|#)\s*:?\s*)([A-Z0-9\-]+)/i,
+    );
+    invoiceNumber = invoiceNumberMatch?.[1] ?? null;
+    const canonical = invoiceNumber
+      ? canonicalizeAnthropicInvoiceNumber(invoiceNumber)
+      : null;
+    if (canonical) invoiceNumber = canonical;
+  }
   const dateMatch = text.match(
-    /\b(\d{4}-\d{2}-\d{2})\b|\b(\d{1,2}\/\d{1,2}\/\d{4})\b/
+    /\b(\d{4}-\d{2}-\d{2})\b|\b(\d{1,2}\/\d{1,2}\/\d{4})\b/,
   );
   const amountMatch = text.match(
-    /(?:total|amount\s*due|grand\s*total)\s*:?\s*\$?([\d,]+\.?\d{0,2})/i
+    /(?:total|amount\s*due|grand\s*total)\s*:?\s*\$?([\d,]+\.?\d{0,2})/i,
   );
 
   let invoiceDate: string | null = null;
@@ -84,7 +114,7 @@ function regexFallback(text: string): InvoiceExtractionResult {
   const vendor = fromMatch ? fromMatch[1].trim() : null;
 
   return {
-    invoiceNumber: invoiceNumberMatch ? invoiceNumberMatch[1] : null,
+    invoiceNumber,
     invoiceDate,
     amountCents,
     vendor,
@@ -103,22 +133,33 @@ export async function extractInvoiceFields({
 }: {
   objectKey: string;
   pdfBytes?: Uint8Array;
-}): Promise<{ success: true; data: InvoiceExtractionResult } | { success: false; error: string }> {
+}): Promise<
+  | { success: true; data: InvoiceExtractionResult }
+  | { success: false; error: string }
+> {
   // 1. Fetch PDF bytes from R2
   let pdfBytes: Uint8Array;
   if (providedBytes) {
     pdfBytes = providedBytes;
   } else {
     try {
-      const command = new GetObjectCommand({ Bucket: getR2Bucket(), Key: objectKey });
+      const command = new GetObjectCommand({
+        Bucket: getR2Bucket(),
+        Key: objectKey,
+      });
       const response = await getR2Client().send(command);
       if (!response.Body) {
         return { success: false, error: "Empty response from storage" };
       }
-      pdfBytes = await (response.Body as { transformToByteArray(): Promise<Uint8Array> }).transformToByteArray();
+      pdfBytes = await (
+        response.Body as { transformToByteArray(): Promise<Uint8Array> }
+      ).transformToByteArray();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      return { success: false, error: `Failed to fetch PDF from storage: ${message}` };
+      return {
+        success: false,
+        error: `Failed to fetch PDF from storage: ${message}`,
+      };
     }
   }
 
@@ -130,12 +171,23 @@ export async function extractInvoiceFields({
     text = extracted;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, error: `Failed to extract text from PDF: ${message}` };
+    return {
+      success: false,
+      error: `Failed to extract text from PDF: ${message}`,
+    };
   }
 
   // 3. Check text length
   if (text.trim().length < 50) {
     return { success: false, error: "PDF has no readable text layer" };
+  }
+
+  // Anthropic receipt numbers are parsed from the text. A label with no
+  // suffix is a hard failure: storing the 8-character prefix made every
+  // later Ireland receipt look like a duplicate of the first one.
+  const parsedNumber = parseInvoiceNumberFromText(text);
+  if (parsedNumber.status === "error") {
+    return { success: false, error: parsedNumber.error };
   }
 
   // 4. Call Claude Haiku with forced tool use; fall back to regex on any failure
@@ -162,20 +214,43 @@ export async function extractInvoiceFields({
       const input = toolUse.input as Record<string, unknown>;
       const conf = (input.confidence ?? {}) as Record<string, unknown>;
       rawResult = {
-        invoiceNumber: typeof input.invoice_number === "string" ? input.invoice_number : null,
-        invoiceDate: typeof input.invoice_date === "string" ? input.invoice_date : null,
-        amountCents: typeof input.amount_cents === "number" ? input.amount_cents : null,
+        invoiceNumber:
+          typeof input.invoice_number === "string"
+            ? input.invoice_number
+            : null,
+        invoiceDate:
+          typeof input.invoice_date === "string" ? input.invoice_date : null,
+        amountCents:
+          typeof input.amount_cents === "number" ? input.amount_cents : null,
         vendor: typeof input.vendor === "string" ? input.vendor : null,
         confidence: {
-          invoiceNumber: (conf.invoice_number as "high" | "medium" | "low") ?? "low",
-          invoiceDate: (conf.invoice_date as "high" | "medium" | "low") ?? "low",
-          amountCents: (conf.amount_cents as "high" | "medium" | "low") ?? "low",
+          invoiceNumber:
+            (conf.invoice_number as "high" | "medium" | "low") ?? "low",
+          invoiceDate:
+            (conf.invoice_date as "high" | "medium" | "low") ?? "low",
+          amountCents:
+            (conf.amount_cents as "high" | "medium" | "low") ?? "low",
           vendor: (conf.vendor as "high" | "medium" | "low") ?? "low",
         },
       };
     }
   } catch {
     rawResult = fallback;
+  }
+
+  if (parsedNumber.status === "ok") {
+    rawResult = {
+      ...rawResult,
+      invoiceNumber: parsedNumber.invoiceNumber,
+      confidence: { ...rawResult.confidence, invoiceNumber: "high" },
+    };
+  } else if (rawResult.invoiceNumber) {
+    const canonical = canonicalizeAnthropicInvoiceNumber(
+      rawResult.invoiceNumber,
+    );
+    if (canonical) {
+      rawResult = { ...rawResult, invoiceNumber: canonical };
+    }
   }
 
   // 5. Validate with Zod; return cached fallback if Claude output is malformed

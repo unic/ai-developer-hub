@@ -17,6 +17,7 @@ import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction
 import { recordCreation } from "@/lib/history";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
+import { findInvoiceConflict } from "@/lib/invoice-duplicate";
 import {
   evaluateIngestionFilters,
   fetchEnabledFilterRules,
@@ -49,8 +50,14 @@ export async function checkInvoiceDuplicate(invoiceNumber: string): Promise<
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const existing = await db.query.invoices.findFirst({
-    where: eq(invoices.invoiceNumber, invoiceNumber),
+  const existing = await findInvoiceConflict({
+    invoiceNumber,
+    // Date, amount, and vendor are unknown on this path. Exact and canonical
+    // numbers still match. A bare stored prefix is not treated as every
+    // receipt that shares it.
+    invoiceDate: "",
+    amountCents: -1,
+    vendor: null,
   });
 
   if (!existing) {
