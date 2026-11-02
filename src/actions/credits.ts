@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordCreation, recordUpdate, recordDeletion } from "@/lib/history";
 import { deriveCreditBalance, type CreditBalance } from "@/lib/credits";
+import { isAnthropicVendor } from "@/lib/vendor-identity";
 import { isUniqueViolation } from "@/lib/core/tools";
 import type { ActionResult } from "@/types";
 
@@ -346,6 +347,12 @@ export async function getCreditPurchaseOverview(
     .where(eq(creditPurchases.toolId, toolId))
     .orderBy(desc(creditPurchases.purchasedAt), desc(creditPurchases.id));
 
+  // Tool vendor "Anthropic" (and the PBC legal name) must still offer
+  // Ireland receipts. A substring of "Anthropic, PBC" would miss them.
+  const vendorPredicate = isAnthropicVendor(tool.vendor)
+    ? sql`i.vendor ILIKE '%anthropic%'`
+    : sql`i.vendor ILIKE ${`%${tool.vendor}%`}`;
+
   const linkableInvoices = (
     await db.execute(sql`
       SELECT i.id,
@@ -353,7 +360,7 @@ export async function getCreditPurchaseOverview(
              i.invoice_date::text AS "invoiceDate",
              i.amount_cents AS "amountCents"
       FROM invoices i
-      WHERE i.vendor ILIKE ${`%${tool.vendor}%`}
+      WHERE ${vendorPredicate}
         AND i.filtered_out = false
         AND i.invoice_date >= CURRENT_DATE - INTERVAL '180 days'
         AND NOT EXISTS (

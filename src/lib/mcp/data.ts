@@ -42,6 +42,7 @@ import { LOCK_USER_ID } from "@/lib/anthropic-sync";
 import { getCurrentMonth, formatUtcDateOnly } from "@/lib/utils";
 import type { SyncSourceType } from "@/lib/sync/framework";
 import { usd } from "@/lib/mcp/format";
+import { isAnthropicVendor } from "@/lib/vendor-identity";
 
 /** Inclusive YYYY-MM-DD start/end of a YYYY-MM month. */
 function monthRange(month: string): { start: string; end: string } {
@@ -839,7 +840,9 @@ export async function listInvoicesData(filters: {
     range ? gte(invoices.invoiceDate, range.start) : undefined,
     range ? lte(invoices.invoiceDate, range.end) : undefined,
     filters.vendor
-      ? ilike(invoices.vendor, `%${escapeLike(filters.vendor)}%`)
+      ? isAnthropicVendor(filters.vendor)
+        ? sql`${invoices.vendor} ILIKE '%anthropic%'`
+        : ilike(invoices.vendor, `%${escapeLike(filters.vendor)}%`)
       : undefined,
     filters.linked === true
       ? sql`${invoices.linkedBilledCostId} IS NOT NULL`

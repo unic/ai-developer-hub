@@ -3,8 +3,8 @@ import { randomUUID } from "crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "@/lib/db";
 import { invoices, billedCosts } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { extractInvoiceFields } from "@/lib/invoice-extraction";
+import { findInvoiceConflict } from "@/lib/invoice-duplicate";
 import { getR2Client, getR2Bucket, getR2AccountId } from "@/lib/r2-client";
 import { findPeriodForDate } from "@/lib/budget-utils";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
@@ -53,8 +53,13 @@ export async function POST(request: NextRequest) {
       // oversized requests without allocating a large buffer. Keep the
       // post-read check below as a fallback when the header is absent.
       const contentLengthHeader = request.headers.get("content-length");
-      const contentLength = contentLengthHeader !== null ? parseInt(contentLengthHeader, 10) : null;
-      if (contentLength !== null && !isNaN(contentLength) && contentLength > MAX_FILE_SIZE) {
+      const contentLength =
+        contentLengthHeader !== null ? parseInt(contentLengthHeader, 10) : null;
+      if (
+        contentLength !== null &&
+        !isNaN(contentLength) &&
+        contentLength > MAX_FILE_SIZE
+      ) {
         await logIngestionAttempt({
           filename,
           outcome: "failed",
@@ -103,7 +108,9 @@ export async function POST(request: NextRequest) {
     } else if (contentType.toLowerCase().startsWith("multipart/form-data")) {
       // Existing multipart path — preserved for browser uploads and any
       // callers already sending properly-formed multipart bodies.
-      const boundaryMatch = contentType.match(/;\s*boundary=(?:"([^"]+)"|([^;]+))/i);
+      const boundaryMatch = contentType.match(
+        /;\s*boundary=(?:"([^"]+)"|([^;]+))/i,
+      );
       const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2]?.trim();
 
       if (!boundary) {
@@ -179,8 +186,10 @@ export async function POST(request: NextRequest) {
       pdfBytes: new Uint8Array(pdfBuffer),
     });
 
-    if (!extraction.success || !extraction.data) {
-      const error = "Could not extract required fields from the provided PDF";
+    if (!extraction.success) {
+      const error =
+        extraction.error ||
+        "Could not extract required fields from the provided PDF";
       await logIngestionAttempt({
         filename,
         outcome: "failed",
@@ -209,9 +218,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error }, { status: 422 });
     }
 
-    // Check for duplicates before uploading
-    const existing = await db.query.invoices.findFirst({
-      where: eq(invoices.invoiceNumber, invoiceNumber),
+    // Resolve vendor before the duplicate check so the fingerprint uses the
+    // name we will store. "Anthropic Ireland, Limited" and "Anthropic, PBC"
+    // are the same supplier for that comparison.
+    const resolvedVendor = vendor ?? headerVendor ?? "Anthropic";
+
+    // Full invoice number, plus vendor + date + amount when a stored row is
+    // only the truncated prefix. Two Ireland receipts that share "9BF0758D"
+    // and differ in suffix, date, or amount are not the same invoice.
+    const existing = await findInvoiceConflict({
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      vendor: resolvedVendor,
     });
 
     if (existing) {
@@ -247,9 +266,6 @@ export async function POST(request: NextRequest) {
     );
 
     const blobUrl = `https://${getR2AccountId()}.r2.cloudflarestorage.com/${getR2Bucket()}/${objectKey}`;
-
-    // Normalize vendor once so filter evaluation and persistence are consistent
-    const resolvedVendor = vendor ?? headerVendor ?? "Anthropic";
 
     // Evaluate ingestion filters before budget linking
     const filterResult = await evaluateIngestionFilters({

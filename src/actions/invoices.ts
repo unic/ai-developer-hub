@@ -17,6 +17,7 @@ import { extractInvoiceFields as extractFromLib } from "@/lib/invoice-extraction
 import { recordCreation } from "@/lib/history";
 import { logIngestionAttempt } from "@/lib/ingestion-logger";
 import { findActivePeriodForDate } from "@/lib/budget-utils";
+import { findInvoiceConflict } from "@/lib/invoice-duplicate";
 import {
   evaluateIngestionFilters,
   fetchEnabledFilterRules,
@@ -32,8 +33,15 @@ export async function extractInvoiceFieldsAction(input: {
   return extractFromLib(input);
 }
 
-// T001: Check single invoice duplicate
-export async function checkInvoiceDuplicate(invoiceNumber: string): Promise<
+// T001: Check single invoice duplicate. Date, amount, and vendor let a
+// re-upload of a truncated row (invoice 209 is still "K6EV5YRI") match the
+// receipt instead of looking like a new invoice.
+export async function checkInvoiceDuplicate(input: {
+  invoiceNumber: string;
+  invoiceDate?: string | null;
+  amountCents?: number | null;
+  vendor?: string | null;
+}): Promise<
   ActionResult<{
     isDuplicate: boolean;
     existingInvoice?: {
@@ -49,8 +57,11 @@ export async function checkInvoiceDuplicate(invoiceNumber: string): Promise<
   const admin = await requireAdmin();
   if (!admin) return { success: false, error: "Unauthorized" };
 
-  const existing = await db.query.invoices.findFirst({
-    where: eq(invoices.invoiceNumber, invoiceNumber),
+  const existing = await findInvoiceConflict({
+    invoiceNumber: input.invoiceNumber,
+    invoiceDate: input.invoiceDate,
+    amountCents: input.amountCents,
+    vendor: input.vendor,
   });
 
   if (!existing) {
@@ -408,6 +419,28 @@ export async function saveInvoice(
     blobUrl,
     blobPathname,
   } = parsed.data;
+
+  const conflict = await findInvoiceConflict({
+    invoiceNumber,
+    invoiceDate,
+    amountCents,
+    vendor: vendor ?? null,
+  });
+  if (conflict) {
+    const error = `Invoice ${invoiceNumber} already exists`;
+    await logIngestionAttempt({
+      vendor: vendor ?? null,
+      invoiceNumber,
+      invoiceDate,
+      amountCents,
+      outcome: "failed",
+      errorMessage: error,
+      channel,
+      blobPathname,
+      uploadedBy: Number(admin.id),
+    });
+    return { success: false, error };
+  }
 
   // Evaluate ingestion filters before insert to set filteredOut in one query
   const filterResult = await evaluateIngestionFilters(

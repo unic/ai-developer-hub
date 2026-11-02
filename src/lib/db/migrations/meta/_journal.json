@@ -239,6 +239,13 @@
       "when": 1791190223489,
       "tag": "0033_credit_purchase_invoice_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0034_fix_truncated_invoice_numbers",
+      "breakpoints": true
     }
   ]
 }
